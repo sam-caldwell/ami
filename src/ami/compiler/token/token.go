@@ -60,6 +60,7 @@ const (
     STAR      // *
     SLASH     // /
     PERCENT   // %
+    AMP       // &
 
     // Directives
     PRAGMA // lexer-level: lines beginning with #pragma

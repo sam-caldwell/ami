@@ -38,14 +38,14 @@ func TestScanner_KeywordsAndIdentifiers(t *testing.T) {
 }
 
 func TestScanner_OperatorsAndDelimiters(t *testing.T) {
-    src := "( ) { } [ ] , ; : . = -> | == != < <= > >= + - * / %"
+    src := "( ) { } [ ] , ; : . = -> | == != < <= > >= + - * / % &"
     s := New(src)
     want := []tok.Kind{
         tok.LPAREN, tok.RPAREN, tok.LBRACE, tok.RBRACE, tok.LBRACK, tok.RBRACK,
         tok.COMMA, tok.SEMI, tok.COLON, tok.DOT,
         tok.ASSIGN, tok.ARROW, tok.PIPE, tok.EQ, tok.NEQ,
         tok.LT, tok.LTE, tok.GT, tok.GTE,
-        tok.PLUS, tok.MINUS, tok.STAR, tok.SLASH, tok.PERCENT,
+        tok.PLUS, tok.MINUS, tok.STAR, tok.SLASH, tok.PERCENT, tok.AMP,
         tok.EOF,
     }
     toks := collectKinds(t, s)

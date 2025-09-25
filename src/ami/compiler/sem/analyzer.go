@@ -50,6 +50,8 @@ func AnalyzeFile(f *astpkg.File) Result {
             funcs[fd.Name] = fd
             // Mutability analysis: default immutable, assignments require mut { }
             res.Diagnostics = append(res.Diagnostics, analyzeMutability(fd)...)
+            // Pointer/address safety (2.3.2): safe deref and address-of rules
+            res.Diagnostics = append(res.Diagnostics, analyzePointerSafety(fd)...)
         }
         if ed, ok := d.(astpkg.EnumDecl); ok {
             res.Diagnostics = append(res.Diagnostics, analyzeEnum(ed)...)
@@ -73,6 +75,7 @@ func AnalyzeFile(f *astpkg.File) Result {
     // Global type checks
     res.Diagnostics = append(res.Diagnostics, analyzeMapTypes(f)...)
     res.Diagnostics = append(res.Diagnostics, analyzeSetTypes(f)...)
+    res.Diagnostics = append(res.Diagnostics, analyzeSliceTypes(f)...)
     // Cross-pipeline cycle detection (unless cycle pragma present)
     res.Diagnostics = append(res.Diagnostics, analyzeCycles(f)...)
     return res
@@ -185,6 +188,32 @@ func analyzeSetTypes(f *astpkg.File) []diag.Diagnostic {
                 if len(e.Args) > 0 {
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_SET_ELEM_TYPE_INVALID", Message: "set element type cannot be generic"})
                 }
+            }
+        }
+        for _, a := range t.Args { walk(a) }
+    }
+    for _, d := range f.Decls {
+        if sd, ok := d.(astpkg.StructDecl); ok {
+            for _, fld := range sd.Fields { walk(fld.Type) }
+        }
+        if fd, ok := d.(astpkg.FuncDecl); ok {
+            for _, p := range fd.Params { walk(p.Type) }
+            for _, r := range fd.Result { walk(r) }
+        }
+    }
+    return diags
+}
+
+// analyzeSliceTypes validates generic slice forms `slice<T>` for correct arity.
+// Bracket slices `[]T` are represented by TypeRef{Slice:true, Name:T} and do not
+// require additional constraints beyond nested type validation (e.g., maps).
+func analyzeSliceTypes(f *astpkg.File) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    var walk func(t astpkg.TypeRef)
+    walk = func(t astpkg.TypeRef) {
+        if strings.ToLower(t.Name) == "slice" {
+            if len(t.Args) != 1 {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_SLICE_ARITY", Message: "slice must have exactly one type argument: slice<T>"})
             }
         }
         for _, a := range t.Args { walk(a) }
@@ -512,6 +541,75 @@ func typeRefToString(t astpkg.TypeRef) string {
         b.WriteByte('>')
     }
     return b.String()
+}
+
+// analyzePointerSafety enforces minimal pointer/address semantic rules (2.3.2):
+// - Unsafe deref: using '*' IDENT outside of a block guarded by `IDENT != nil` (or `nil != IDENT`) emits E_DEREF_UNSAFE.
+// - Invalid deref operand: '*' applied to literal or nil emits E_DEREF_OPERAND.
+// - Invalid address-of target: '&' applied to literal or nil emits E_ADDR_OF_LITERAL.
+func analyzePointerSafety(fd astpkg.FuncDecl) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    if len(fd.Body) == 0 { return diags }
+
+    // Stack of safe identifiers (per block) from `x != nil {` or `nil != x {` guards.
+    safeStack := []map[string]bool{}
+    push := func(s map[string]bool) { safeStack = append(safeStack, s) }
+    pop := func() {
+        if n := len(safeStack); n > 0 { safeStack = safeStack[:n-1] }
+    }
+    isSafe := func(name string) bool {
+        for i := len(safeStack) - 1; i >= 0; i-- {
+            if safeStack[i][name] { return true }
+        }
+        return false
+    }
+
+    toks := fd.Body
+    for i := 0; i < len(toks); i++ {
+        t := toks[i]
+        switch t.Kind {
+        case tok.LBRACE:
+            // Determine if preceding tokens form a nil-guard for an identifier.
+            // Patterns before '{': IDENT '!=' nil   or   nil '!=' IDENT
+            name := ""
+            if i >= 3 && toks[i-1].Kind == tok.KW_NIL && toks[i-2].Kind == tok.NEQ && toks[i-3].Kind == tok.IDENT {
+                name = toks[i-3].Lexeme
+            }
+            if i >= 3 && toks[i-1].Kind == tok.IDENT && toks[i-2].Kind == tok.NEQ && toks[i-3].Kind == tok.KW_NIL {
+                name = toks[i-1].Lexeme
+            }
+            if name != "" {
+                push(map[string]bool{name: true})
+            } else {
+                push(map[string]bool{})
+            }
+        case tok.RBRACE:
+            pop()
+        case tok.AMP:
+            // address-of next token
+            if i+1 < len(toks) {
+                n := toks[i+1]
+                switch n.Kind {
+                case tok.NUMBER, tok.STRING, tok.KW_TRUE, tok.KW_FALSE, tok.KW_NIL:
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_ADDR_OF_LITERAL", Message: "cannot take address of literal or nil"})
+                }
+            }
+        case tok.STAR:
+            // deref next token
+            if i+1 < len(toks) {
+                n := toks[i+1]
+                switch n.Kind {
+                case tok.NUMBER, tok.STRING, tok.KW_TRUE, tok.KW_FALSE, tok.KW_NIL:
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_DEREF_OPERAND", Message: "cannot dereference literal or nil"})
+                case tok.IDENT:
+                    if !isSafe(n.Lexeme) {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_DEREF_UNSAFE", Message: "unsafe pointer dereference; guard with 'x != nil' in the same block"})
+                    }
+                }
+            }
+        }
+    }
+    return diags
 }
 
 func isWorkerSignature(fd astpkg.FuncDecl) bool {

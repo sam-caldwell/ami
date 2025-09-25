@@ -183,6 +183,8 @@ func (s *Scanner) Next() tok.Token {
         return tok.Token{Kind: tok.SLASH, Lexeme: "/", Line: s.line, Column: startCol}
     case '%':
         return tok.Token{Kind: tok.PERCENT, Lexeme: "%", Line: s.line, Column: startCol}
+    case '&':
+        return tok.Token{Kind: tok.AMP, Lexeme: "&", Line: s.line, Column: startCol}
     case '<':
         return tok.Token{Kind: tok.LT, Lexeme: "<", Line: s.line, Column: startCol}
     case '>':

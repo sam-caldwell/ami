@@ -436,6 +436,13 @@ func resolveConstraintLocal(repoPath, cons string) (string, error) {
         }
         return nil
     })
+    // Exclude prereleases by default unless constraint specifies a prerelease
+    allowPre := hasPrereleaseInConstraint(cons)
+    if !allowPre {
+        filt := tags[:0]
+        for _, t := range tags { if !isPrerelease(t) { filt = append(filt, t) } }
+        tags = filt
+    }
     if len(tags) == 0 { return "", errors.New("no semver tags found") }
     sortSemver(tags)
     var filt []string

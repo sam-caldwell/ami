@@ -24,6 +24,7 @@ type Result struct {
     AST []sch.ASTV1
     IR  []sch.IRV1
     Pipelines []sch.PipelinesV1
+    EventMeta []sch.EventMetaV1
     ASM []ASMUnit // assembly text per unit
 }
 
@@ -55,6 +56,20 @@ func Compile(files []string, opts Options) (Result, error) {
         // Generate assembly text
         asmText := cg.GenerateASM(irMod)
         res.ASM = append(res.ASM, ASMUnit{Package: pkgName, Unit: f, Text: asmText})
+
+        // Event metadata debug artifact
+        em := sch.EventMetaV1{Schema: "eventmeta.v1", Package: pkgName, File: f, ImmutablePayload: true,
+            Fields: []sch.EventMetaFieldV1{
+                {Name: "id", Type: "string", Note: "unique event identifier"},
+                {Name: "timestamp", Type: "iso8601", Note: "creation time in UTC"},
+                {Name: "attempt", Type: "int", Note: "delivery/retry attempt count"},
+            },
+            Trace: &sch.TraceContextV1{
+                Traceparent: sch.EventMetaFieldV1{Name: "traceparent", Type: "string", Note: "W3C traceparent header (version-traceid-spanid-flags)"},
+                Tracestate:  sch.EventMetaFieldV1{Name: "tracestate", Type: "string", Note: "W3C tracestate header (vendor extensions)"},
+            },
+        }
+        res.EventMeta = append(res.EventMeta, em)
     }
     return res, nil
 }

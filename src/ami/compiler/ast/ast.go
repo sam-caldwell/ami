@@ -34,6 +34,7 @@ type FuncDecl struct {
     Params []Param
     Result []TypeRef
     // Body is omitted in scaffold; parser skips over it
+    Body   []tok.Token // captured tokens for simple semantic checks (e.g., mutability)
 }
 func (FuncDecl) isNode() {}
 

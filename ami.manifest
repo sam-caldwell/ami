@@ -1,0 +1,45 @@
+{
+  "schema": "ami.manifest/v1",
+  "project": {
+    "name": "ami",
+    "version": "0.0.0"
+  },
+  "packages": [],
+  "artifacts": [
+    {
+      "path": "build/debug/source/resolved.json",
+      "kind": "resolved",
+      "size": 244,
+      "sha256": "2814b40e9a8efa37f0ebba2524852e4ae33af7916d295a08d2c8e28a321c4eaf"
+    },
+    {
+      "path": "build/debug/ast/main/main.ami.ast.json",
+      "kind": "ast",
+      "size": 200,
+      "sha256": "8de21325a49b2a7accf14b3f541c642d9a3bd09b819ee56a4d0a5bdc5de0d792"
+    },
+    {
+      "path": "build/debug/ir/main/main.ami.ir.json",
+      "kind": "ir",
+      "size": 244,
+      "sha256": "582840f2f2b295cea5662f5c60975139bfff3984a7ca821fda706a58b23a30bb"
+    },
+    {
+      "path": "build/debug/asm/main/main.ami.s",
+      "kind": "asm",
+      "size": 27,
+      "sha256": "2a20a542841f525101ac4783674edb1b9fb72b61c4192e5def115bb3e39f6a66"
+    },
+    {
+      "path": "build/debug/asm/index.json",
+      "kind": "asmIndex",
+      "size": 274,
+      "sha256": "91e283f77ad8c6c0d9892f843e8b7bd5bf0abe0b6add9fc15a32d4755c2948a3"
+    }
+  ],
+  "toolchain": {
+    "amiVersion": "v0.0.0-dev",
+    "goVersion": "go1.25.1"
+  },
+  "createdAt": "2025-09-25T02:07:59.891702Z"
+}

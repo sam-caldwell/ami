@@ -138,3 +138,25 @@ func TestClean_PermissionEdge_Human_EmitsError(t *testing.T) {
     // build should still exist
     if _, err := os.Stat("build"); err != nil { t.Fatalf("expected build dir to remain on failure") }
 }
+
+func TestClean_CreatePermissionEdge_Human_EmitsError(t *testing.T) {
+    _, restore := testutil.ChdirToBuildTest(t)
+    defer restore()
+    // Ensure no build directory exists so we hit MkdirAll
+    _ = os.RemoveAll("build")
+    // Remove write permission from current working directory to induce MkdirAll failure
+    if err := os.Chmod(".", 0o555); err != nil { t.Fatalf("chmod cwd: %v", err) }
+    defer func(){ _ = os.Chmod(".", 0o755) }()
+
+    oldArgs := os.Args
+    defer func() { os.Args = oldArgs }()
+    os.Args = []string{"ami", "clean"}
+
+    _, errStr := captureBoth(t, func(){ _ = rootcmd.Execute() })
+    if !strings.Contains(errStr, "clean.create_failed") {
+        t.Fatalf("expected create_failed message on stderr; got: %q", errStr)
+    }
+    if _, err := os.Stat("build"); !os.IsNotExist(err) {
+        t.Fatalf("expected build directory to not exist on mkdir failure")
+    }
+}

@@ -18,7 +18,9 @@ TopDecl = FuncDecl | PipelineDecl ;
 FuncDecl = "func" identifier ParamList [ ResultList ] Block ;
 ParamList = "(" { /* tokens until matching ')' */ } ")" ;
 ResultList = "(" { /* optional tuple */ } ")" ;
-Block = "{" { /* tokens until matching '}' */ } "}" ;
+Block = "{" { Stmt | MutBlock } "}" ;
+MutBlock = "mut" "{" { Stmt } "}" ;
+Stmt = /* imperative subset evolves; assignment `=` tokens are only permitted within MutBlock in this phase */ ;
 
 PipelineDecl = "pipeline" identifier "{" NodeChain "}" ;
 NodeChain = NodeCall { ( "." | "->" ) NodeCall } ;
@@ -35,3 +37,12 @@ Note on `edge.*` constructs:
 - Within node argument lists, authors may specify declarative edge specifications such as `edge.FIFO(...)`, `edge.LIFO(...)`, or `edge.Pipeline(...)`.
 - These are compiler-generated artifacts, not runtime function calls. The compiler recognizes them and emits high-performance queue/bridge implementations during code generation.
 - See `docs/edges.md` for semantics and performance considerations.
+
+Mutability rules (subset)
+- Default is immutable: assignments are only legal within `mut { ... }` blocks.
+- Parser captures function body tokens; semantics enforce that `=` occurs only when inside a `mut` block.
+
+Container types (subset)
+- Map: `map<K,V>` where `K` and `V` are types. In this phase:
+  - Exactly two type arguments required.
+  - Key type `K` cannot be a pointer, slice, map, set, or another generic type.

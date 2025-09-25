@@ -5,11 +5,14 @@ import (
     "github.com/sam-caldwell/ami/src/internal/logger"
 )
 
-var cmdTest = &cobra.Command{
-    Use:   "test",
-    Short: "Run tests",
-    Run: func(cmd *cobra.Command, args []string) {
-        logger.Info("ami test: not yet implemented", nil)
-    },
+func newTestCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "test",
+        Short: "Run tests",
+        Example: `  ami test
+  ami --json test`,
+        Run: func(cmd *cobra.Command, args []string) {
+            logger.Info("ami test: not yet implemented", nil)
+        },
+    }
 }
-

@@ -75,6 +75,10 @@ import (
   "foo/bar"
   alias "baz/qux"
 )
+pipeline P {
+  Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=1,maxCapacity=2,backpressure=block,type=[]byte))
+}
+func f(Context, Event<string>, *State) Event<string> { }
 `
     if err := os.WriteFile(filepath.Join("src","main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write src: %v", err) }
 
@@ -82,7 +86,10 @@ import (
     oldArgs := os.Args
     defer func() { os.Args = oldArgs }()
     os.Args = []string{"ami", "build", "--verbose"}
-    _ = captureStdoutBuild(t, func(){ _ = rootcmd.Execute() })
+    out := captureStdoutBuild(t, func(){ _ = rootcmd.Execute() })
+    if !strings.Contains(out, "edge_init label=P.step2.in kind=fifo") {
+        t.Fatalf("expected edge_init pseudo-op in build output; got:\n%s", out)
+    }
 
     // resolved sources
     b, err := os.ReadFile("build/debug/source/resolved.json")
@@ -107,6 +114,14 @@ import (
     if err := json.Unmarshal(idxBytes, &idx); err != nil { t.Fatalf("unmarshal asm index: %v", err) }
     if err := idx.Validate(); err != nil { t.Fatalf("asm index validate: %v", err) }
     if len(idx.Files) == 0 { t.Fatalf("asm index has no files") }
+    // If embedded edges exist, ensure expected FIFO is present
+    if len(idx.Edges) > 0 {
+        has := false
+        for _, it := range idx.Edges {
+            if it.Label == "P.step2.in" && it.Kind == "edge.FIFO" { has = true; break }
+        }
+        if !has { t.Fatalf("asm index 'edges' missing expected FIFO edge: %+v", idx.Edges) }
+    }
     // Find main.ami.s entry and verify sha/size match actual file
     var asmPath string
     for _, f := range idx.Files { if strings.HasSuffix(f.Path, "/main.ami.s") { asmPath = f.Path; break } }
@@ -120,6 +135,32 @@ import (
         t.Fatalf("asm index sha/size mismatch: have sha=%s size=%d want sha=%s size=%d", rec.Sha256, rec.Size, sha, size)
     }
 
+    // edges summary JSON present and includes our edge
+    ebytes, err := os.ReadFile("build/debug/asm/main/edges.json")
+    if err != nil { t.Fatalf("missing edges.json: %v", err) }
+    var edges sch.EdgesV1
+    if err := json.Unmarshal(ebytes, &edges); err != nil { t.Fatalf("unmarshal edges: %v", err) }
+    if err := edges.Validate(); err != nil { t.Fatalf("edges validate: %v", err) }
+    foundEdge := false
+    for _, it := range edges.Items {
+        if it.Label == "P.step2.in" && it.Kind == "edge.FIFO" && it.MinCapacity == 1 && it.MaxCapacity == 2 && it.Backpressure == "block" && it.Type == "[]byte" && it.Bounded && it.Delivery == "atLeastOnce" {
+            foundEdge = true
+            break
+        }
+    }
+    if !foundEdge { t.Fatalf("edges.json does not include expected FIFO edge; got: %+v", edges.Items) }
+
+    // eventmeta.json present and validates
+    emBytes, err := os.ReadFile("build/debug/ir/main/main.ami.eventmeta.json")
+    if err != nil { t.Fatalf("missing eventmeta.json: %v", err) }
+    var em sch.EventMetaV1
+    if err := json.Unmarshal(emBytes, &em); err != nil { t.Fatalf("unmarshal eventmeta: %v", err) }
+    if err := em.Validate(); err != nil { t.Fatalf("eventmeta validate: %v", err) }
+    if !em.ImmutablePayload { t.Fatalf("expected immutablePayload true") }
+    if em.Trace == nil { t.Fatalf("expected trace context present in eventmeta") }
+    if em.Trace.Traceparent.Name != "traceparent" || em.Trace.Traceparent.Type != "string" {
+        t.Fatalf("unexpected traceparent field: %+v", em.Trace.Traceparent)
+    }
     // manifest includes artifact for asm file with same sha/size
     man, err := manifest.Load("ami.manifest")
     if err != nil { t.Fatalf("load manifest: %v", err) }

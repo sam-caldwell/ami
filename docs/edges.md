@@ -13,6 +13,8 @@ Semantics (summary)
 - Capacity: `minCapacity`/`maxCapacity` bound internal buffers; `minCapacity >= 0` and `maxCapacity >= minCapacity`.
 - Backpressure: `block` or `drop` (initial set). Additional policies may be added in later revisions.
 - Type: specifies the payload type carried (`type=T`), enabling static analysis and specialization.
+ - Bounded/unbounded: when `maxCapacity > 0` the edge is bounded; when `maxCapacity == 0` it is treated as unbounded.
+ - Delivery guarantees (derived): `block` → `atLeastOnce`; `drop` → `bestEffort`.
 
 Performance considerations
 - Lock‑free or low‑contention rings: MPMC circular buffers sized to powers of two for cache‑friendly masking.

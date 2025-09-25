@@ -178,6 +178,30 @@ func (p *Parser) ParseFile() *astpkg.File {
             p.synchronize()
             continue
         }
+        // enum declaration: enum IDENT { IDENT [= value] (, IDENT [= value]) ... }
+        if p.cur.Kind == tok.KW_ENUM {
+            ed := p.parseEnumDecl()
+            if ed.Name != "" {
+                f.Decls = append(f.Decls, ed)
+                f.Stmts = append(f.Stmts, ed)
+                continue
+            }
+            p.errorf("invalid enum declaration")
+            p.synchronize()
+            continue
+        }
+        // struct declaration: struct IDENT { IDENT Type [,|;] ... }
+        if p.cur.Kind == tok.KW_STRUCT {
+            sd := p.parseStructDecl()
+            if sd.Name != "" {
+                f.Decls = append(f.Decls, sd)
+                f.Stmts = append(f.Stmts, sd)
+                continue
+            }
+            p.errorf("invalid struct declaration")
+            p.synchronize()
+            continue
+        }
         // func declaration: func IDENT (params) [result] { ... }
         if p.cur.Kind == tok.KW_FUNC {
             p.next()
@@ -205,16 +229,22 @@ func (p *Parser) ParseFile() *astpkg.File {
             } else {
                 if tr, ok := p.parseType(); ok { results = append(results, tr) }
             }
-            // body block
+            // body block: capture tokens for simple semantics (mutability)
+            var body []tok.Token
             if p.cur.Kind == tok.LBRACE {
                 depth := 1; p.next()
                 for depth > 0 && p.cur.Kind != tok.EOF {
+                    // record current token inside body (excluding outermost braces)
+                    body = append(body, p.cur)
                     if p.cur.Kind == tok.LBRACE { depth++ }
-                    if p.cur.Kind == tok.RBRACE { depth--; if depth==0 { p.next(); break } }
+                    if p.cur.Kind == tok.RBRACE {
+                        depth--
+                        if depth == 0 { p.next(); break }
+                    }
                     p.next()
                 }
             } else { p.errorf("expected function body") }
-            fd := astpkg.FuncDecl{Name: name, Params: params, Result: results}
+            fd := astpkg.FuncDecl{Name: name, Params: params, Result: results, Body: body}
             f.Decls = append(f.Decls, fd)
             f.Stmts = append(f.Stmts, fd)
             if p.cur.Kind != tok.SEMI && p.cur.Kind != tok.KW_FUNC {
@@ -250,6 +280,81 @@ func (p *Parser) parsePipelineDecl() astpkg.PipelineDecl {
         if p.cur.Kind == tok.LBRACE { p.next(); errSteps, errConns = p.parseNodeChain(); if p.cur.Kind == tok.RBRACE { p.next() } }
     }
     return astpkg.PipelineDecl{Name: name, Steps: steps, Connectors: connectors, ErrorSteps: errSteps, ErrorConnectors: errConns}
+}
+
+// parseEnumDecl parses: enum IDENT '{' members '}'
+// member: IDENT [ '=' (NUMBER | STRING) ]
+func (p *Parser) parseEnumDecl() astpkg.EnumDecl {
+    // consume 'enum'
+    p.next()
+    name := ""
+    if p.cur.Kind == tok.IDENT { name = p.cur.Lexeme; p.next() } else { return astpkg.EnumDecl{} }
+    if p.cur.Kind != tok.LBRACE { return astpkg.EnumDecl{} }
+    p.next() // consume '{'
+    var members []astpkg.EnumMember
+    for p.cur.Kind != tok.EOF {
+        if p.cur.Kind == tok.RBRACE { p.next(); break }
+        // skip stray commas
+        if p.cur.Kind == tok.COMMA { p.next(); continue }
+        if p.cur.Kind != tok.IDENT {
+            // skip until next comma or '}'
+            p.next(); continue
+        }
+        memName := p.cur.Lexeme
+        p.next()
+        memVal := ""
+        if p.cur.Kind == tok.ASSIGN {
+            p.next()
+            switch p.cur.Kind {
+            case tok.STRING:
+                // preserve quotes so semantics can distinguish string vs number
+                memVal = p.cur.Lexeme
+                p.next()
+            case tok.NUMBER:
+                memVal = p.cur.Lexeme
+                p.next()
+            case tok.MINUS:
+                // allow negative numbers
+                p.next()
+                if p.cur.Kind == tok.NUMBER { memVal = "-" + p.cur.Lexeme; p.next() }
+            default:
+                // unknown value; leave empty to be caught by semantics if needed
+            }
+        }
+        members = append(members, astpkg.EnumMember{Name: memName, Value: memVal})
+        if p.cur.Kind == tok.COMMA { p.next() }
+    }
+    return astpkg.EnumDecl{Name: name, Members: members}
+}
+
+// parseStructDecl parses: struct IDENT '{' fields '}'
+// field := IDENT TypeRef
+// separators: optional comma or semicolon between fields
+func (p *Parser) parseStructDecl() astpkg.StructDecl {
+    p.next() // consume 'struct'
+    name := ""
+    if p.cur.Kind == tok.IDENT { name = p.cur.Lexeme; p.next() } else { return astpkg.StructDecl{} }
+    if p.cur.Kind != tok.LBRACE { return astpkg.StructDecl{} }
+    p.next() // consume '{'
+    var fields []astpkg.Field
+    for p.cur.Kind != tok.EOF {
+        if p.cur.Kind == tok.RBRACE { p.next(); break }
+        if p.cur.Kind == tok.COMMA || p.cur.Kind == tok.SEMI { p.next(); continue }
+        if p.cur.Kind != tok.IDENT {
+            // skip token and continue
+            p.next(); continue
+        }
+        fname := p.cur.Lexeme
+        p.next()
+        ftype, ok := p.parseType()
+        if !ok {
+            fields = append(fields, astpkg.Field{Name: fname, Type: astpkg.TypeRef{}})
+        } else {
+            fields = append(fields, astpkg.Field{Name: fname, Type: ftype})
+        }
+        if p.cur.Kind == tok.COMMA || p.cur.Kind == tok.SEMI { p.next() }
+    }
+    return astpkg.StructDecl{Name: name, Fields: fields}
 }
 
 // parseNodeChain parses Node(args) ('.'|'->') Node(args) ... until '}' or EOF
@@ -422,7 +527,7 @@ func (p *Parser) parseResultList() []astpkg.TypeRef {
     return results
 }
 
-// parseType parses '*'? '[]'? IDENT ('<' Type {',' Type } '>')?
+// parseType parses '*'? '[]'? IDENT|KW_MAP|KW_SET|KW_SLICE ('<' Type {',' Type } '>')?
 func (p *Parser) parseType() (astpkg.TypeRef, bool) {
     var tr astpkg.TypeRef
     // pointer
@@ -432,7 +537,13 @@ func (p *Parser) parseType() (astpkg.TypeRef, bool) {
         p.next()
         if p.cur.Kind == tok.RBRACK { tr.Slice = true; p.next() }
     }
-    if p.cur.Kind != tok.IDENT { return tr, false }
+    // accept identifiers and certain keywords as type names
+    switch p.cur.Kind {
+    case tok.IDENT, tok.KW_MAP, tok.KW_SET, tok.KW_SLICE:
+        // ok
+    default:
+        return tr, false
+    }
     tr.Name = p.cur.Lexeme
     p.next()
     // generics

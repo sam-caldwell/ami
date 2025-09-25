@@ -14,10 +14,19 @@ import (
 
 var initForce bool
 
-var cmdInit = &cobra.Command{
-    Use:   "init",
-    Short: "Initialize the AMI workspace",
-    Run: func(cmd *cobra.Command, args []string) {
+func newInitCmd() *cobra.Command {
+    cmd := &cobra.Command{
+        Use:   "init",
+        Short: "Initialize the AMI workspace",
+        Example: `  # Initialize in an existing Git repo
+  ami init
+
+  # Initialize and create a Git repo if missing
+  ami init --force
+
+  # Emit JSON output
+  ami --json init --force`,
+        Run: func(cmd *cobra.Command, args []string) {
         // Require current directory to be a git repository unless --force is used.
         // If not a repo and --force, initialize a new repo.
         if _, err := os.Stat(filepath.Join(".git")); os.IsNotExist(err) {
@@ -98,9 +107,8 @@ var cmdInit = &cobra.Command{
             // create new .gitignore with ./build
             _ = os.WriteFile(giPath, []byte(want+"\n"), 0644)
         }
-    },
-}
-
-func init() {
-    cmdInit.Flags().BoolVar(&initForce, "force", false, "overwrite existing files if present")
+        },
+    }
+    cmd.Flags().BoolVar(&initForce, "force", false, "overwrite existing files if present")
+    return cmd
 }

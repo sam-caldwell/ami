@@ -32,6 +32,7 @@ const (
     KW_TRUE
     KW_FALSE
     KW_NIL
+    KW_MUT
 
     // Operators and delimiters
     LPAREN    // (
@@ -92,4 +93,5 @@ var Keywords = map[string]Kind{
     "true":      KW_TRUE,
     "false":     KW_FALSE,
     "nil":       KW_NIL,
+    "mut":       KW_MUT,
 }

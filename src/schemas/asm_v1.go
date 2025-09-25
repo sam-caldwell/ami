@@ -7,6 +7,9 @@ type ASMIndexV1 struct {
     Timestamp string    `json:"timestamp"`
     Package  string     `json:"package"`
     Files    []ASMFile  `json:"files"`
+    // Optional: compiler-discovered input edges for this package (convenience).
+    // Mirrors items written to edges.json (edges.v1).
+    Edges    []EdgeInitV1 `json:"edges,omitempty"`
 }
 
 type ASMFile struct {
@@ -22,4 +25,3 @@ func (a *ASMIndexV1) Validate() error {
     if a.Schema != "asm.v1" { return errors.New("invalid schema") }
     return nil
 }
-

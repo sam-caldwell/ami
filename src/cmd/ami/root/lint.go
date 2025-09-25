@@ -5,11 +5,14 @@ import (
     "github.com/sam-caldwell/ami/src/internal/logger"
 )
 
-var cmdLint = &cobra.Command{
-    Use:   "lint",
-    Short: "Lint the project",
-    Run: func(cmd *cobra.Command, args []string) {
-        logger.Info("ami lint: not yet implemented", nil)
-    },
+func newLintCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "lint",
+        Short: "Lint the project",
+        Example: `  ami lint
+  ami --json lint`,
+        Run: func(cmd *cobra.Command, args []string) {
+            logger.Info("ami lint: not yet implemented", nil)
+        },
+    }
 }
-

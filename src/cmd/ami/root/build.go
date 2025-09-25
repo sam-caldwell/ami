@@ -20,14 +20,24 @@ import (
     "sort"
     "runtime"
     "time"
+    "strings"
 )
 
 var buildVerbose bool
 
-var cmdBuild = &cobra.Command{
-	Use:   "build",
-	Short: "Build the workspace",
-    Run: func(cmd *cobra.Command, args []string) {
+func newBuildCmd() *cobra.Command {
+    cmd := &cobra.Command{
+	    Use:   "build",
+	    Short: "Build the workspace",
+        Example: `  # Build project
+  ami build
+
+  # Build with debug artifacts (AST/IR/ASM)
+  ami build --verbose
+
+  # Emit JSON diagnostics
+  ami --json build`,
+        Run: func(cmd *cobra.Command, args []string) {
         wsPath := "ami.workspace"
         ws, err := workspace.Load(wsPath)
         if err != nil {
@@ -129,8 +139,19 @@ var cmdBuild = &cobra.Command{
                     _ = os.WriteFile(out, b, 0644)
                     logger.Info("build.debug.artifact", map[string]interface{}{"kind":"pipelines", "path": out})
                 }
+                // Event metadata per package/unit
+                for _, em := range res.EventMeta {
+                    pkgDir := filepath.Join("build","debug","ir", em.Package)
+                    _ = os.MkdirAll(pkgDir, 0755)
+                    unit := filepath.Base(em.File)
+                    b, _ := json.MarshalIndent(em, "", "  ")
+                    out := filepath.Join(pkgDir, unit+".eventmeta.json")
+                    _ = os.WriteFile(out, b, 0644)
+                    logger.Info("build.debug.artifact", map[string]interface{}{"kind":"eventmeta", "path": out})
+                }
                 // ASM per package/unit + per-package index (use compiler codegen output)
                 asmByPkg := map[string][]sch.ASMFile{}
+                edgesByPkg := map[string][]sch.EdgeInitV1{}
                 for _, unit := range res.ASM {
                     pkg := unit.Package
                     pkgDir := filepath.Join("build","debug","asm", pkg)
@@ -140,9 +161,41 @@ var cmdBuild = &cobra.Command{
                     content := []byte(unit.Text)
                     _ = os.WriteFile(asmPath, content, 0644)
                     logger.Info("build.debug.artifact", map[string]interface{}{"kind":"asm", "path": asmPath})
+                    // In human verbose mode, echo discovered edge_init stubs to stdout for visibility
+                    if !flagJSON {
+                        lines := strings.Split(unit.Text, "\n")
+                        for _, ln := range lines {
+                            l := strings.TrimSpace(ln)
+                            if strings.HasPrefix(l, "edge_init ") {
+                                logger.Info("edge-init "+l, nil)
+                            }
+                        }
+                    }
                     size := int64(len(content))
                     sum := sha256.Sum256(content)
                     asmByPkg[pkg] = append(asmByPkg[pkg], sch.ASMFile{Unit: unit.Unit, Path: asmPath, Size: size, Sha256: hex.EncodeToString(sum[:])})
+                }
+                // Collect edge summary per package from pipelines debug IR
+                for _, p := range res.Pipelines {
+                    // capture edges for this unit
+                    for _, pipe := range p.Pipelines {
+                        // Steps
+                        for i, st := range pipe.Steps {
+                            if st.InEdge == nil { continue }
+                            label := fmt.Sprintf("%s.step%d.in", pipe.Name, i)
+                            ei := sch.EdgeInitV1{Unit: p.File, Pipeline: pipe.Name, Segment: "normal", Step: i, Node: st.Node, Label: label, Kind: st.InEdge.Kind, MinCapacity: st.InEdge.MinCapacity, MaxCapacity: st.InEdge.MaxCapacity, Backpressure: st.InEdge.Backpressure, Type: st.InEdge.Type, UpstreamName: st.InEdge.UpstreamName,
+                                Bounded: st.InEdge.Bounded, Delivery: st.InEdge.Delivery}
+                            edgesByPkg[p.Package] = append(edgesByPkg[p.Package], ei)
+                        }
+                        // Error steps
+                        for i, st := range pipe.ErrorSteps {
+                            if st.InEdge == nil { continue }
+                            label := fmt.Sprintf("%s.step%d.in", pipe.Name, i)
+                            ei := sch.EdgeInitV1{Unit: p.File, Pipeline: pipe.Name, Segment: "error", Step: i, Node: st.Node, Label: label, Kind: st.InEdge.Kind, MinCapacity: st.InEdge.MinCapacity, MaxCapacity: st.InEdge.MaxCapacity, Backpressure: st.InEdge.Backpressure, Type: st.InEdge.Type, UpstreamName: st.InEdge.UpstreamName,
+                                Bounded: st.InEdge.Bounded, Delivery: st.InEdge.Delivery}
+                            edgesByPkg[p.Package] = append(edgesByPkg[p.Package], ei)
+                        }
+                    }
                 }
                 // write per-package indexes with deterministic package ordering
                 var pkgs []string
@@ -155,10 +208,23 @@ var cmdBuild = &cobra.Command{
                 sort.Strings(pkgs)
                 for _, pkg := range pkgs {
                     asmIdx := sch.ASMIndexV1{Schema: "asm.v1", Package: pkg, Files: asmByPkg[pkg]}
+                    if items, ok := edgesByPkg[pkg]; ok && len(items) > 0 {
+                        asmIdx.Edges = items
+                    }
                     b, _ := json.MarshalIndent(asmIdx, "", "  ")
                     out := filepath.Join("build","debug","asm", pkg, "index.json")
                     _ = os.WriteFile(out, b, 0644)
                     logger.Info("build.debug.artifact", map[string]interface{}{"kind":"asmIndex", "path": out})
+                    // Also write per-package edge summary if available
+                    if items, ok := edgesByPkg[pkg]; ok && len(items) > 0 {
+                        ed := sch.EdgesV1{Schema: "edges.v1", Timestamp: sch.FormatTimestamp(nowUTC()), Package: pkg, Items: items}
+                        if err := ed.Validate(); err == nil {
+                            eb, _ := json.MarshalIndent(ed, "", "  ")
+                            epath := filepath.Join("build","debug","asm", pkg, "edges.json")
+                            _ = os.WriteFile(epath, eb, 0644)
+                            logger.Info("build.debug.artifact", map[string]interface{}{"kind":"edges", "path": epath})
+                        }
+                    }
                 }
 			}
 				b, _ := json.MarshalIndent(resolved, "", "  ")
@@ -220,7 +286,7 @@ var cmdBuild = &cobra.Command{
 
         // Write ami.manifest with artifacts/toolchain and cross-check ami.sum
         artifacts := []manifest.Artifact{}
-        for _, path := range []struct{p,kind string}{{"build/debug/source/resolved.json","resolved"},{"build/debug/ast/main/main.ami.ast.json","ast"},{"build/debug/ir/main/main.ami.ir.json","ir"},{"build/debug/ir/main/main.ami.pipelines.json","pipelines"},{"build/debug/asm/main/main.ami.s","asm"},{"build/debug/asm/index.json","asmIndex"}} {
+        for _, path := range []struct{p,kind string}{{"build/debug/source/resolved.json","resolved"},{"build/debug/ast/main/main.ami.ast.json","ast"},{"build/debug/ir/main/main.ami.ir.json","ir"},{"build/debug/ir/main/main.ami.pipelines.json","pipelines"},{"build/debug/ir/main/main.ami.eventmeta.json","eventmeta"},{"build/debug/asm/main/main.ami.s","asm"},{"build/debug/asm/index.json","asmIndex"}} {
             if fi, err := os.Stat(path.p); err==nil && !fi.IsDir() {
                 sha, size, _ := fileSHA256(path.p)
                 artifacts = append(artifacts, manifest.Artifact{Path: path.p, Kind: path.kind, Size: size, Sha256: sha})
@@ -260,11 +326,10 @@ var cmdBuild = &cobra.Command{
             return
         }
         logger.Info("build completed (scaffold)", map[string]interface{}{"targets": len(plan.Targets)})
-	},
-}
-
-func init() {
-	cmdBuild.Flags().BoolVar(&buildVerbose, "verbose", false, "emit debug artifacts")
+	    },
+    }
+    cmd.Flags().BoolVar(&buildVerbose, "verbose", false, "emit debug artifacts")
+    return cmd
 }
 
 

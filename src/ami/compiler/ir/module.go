@@ -210,13 +210,27 @@ func (m Module) ToPipelinesSchema() sch.PipelinesV1 {
 func toSchemaEdge(s edg.Spec) *sch.PipelineEdgeV1 {
     switch v := s.(type) {
     case edg.FIFO:
-        return &sch.PipelineEdgeV1{Kind: v.Kind(), MinCapacity: v.MinCapacity, MaxCapacity: v.MaxCapacity, Backpressure: string(v.Backpressure), Type: v.TypeName}
+        return &sch.PipelineEdgeV1{Kind: v.Kind(), MinCapacity: v.MinCapacity, MaxCapacity: v.MaxCapacity, Backpressure: string(v.Backpressure), Type: v.TypeName,
+            Bounded: v.MaxCapacity > 0, Delivery: deliveryFromBP(string(v.Backpressure))}
     case edg.LIFO:
-        return &sch.PipelineEdgeV1{Kind: v.Kind(), MinCapacity: v.MinCapacity, MaxCapacity: v.MaxCapacity, Backpressure: string(v.Backpressure), Type: v.TypeName}
+        return &sch.PipelineEdgeV1{Kind: v.Kind(), MinCapacity: v.MinCapacity, MaxCapacity: v.MaxCapacity, Backpressure: string(v.Backpressure), Type: v.TypeName,
+            Bounded: v.MaxCapacity > 0, Delivery: deliveryFromBP(string(v.Backpressure))}
     case edg.Pipeline:
-        return &sch.PipelineEdgeV1{Kind: v.Kind(), MinCapacity: v.MinCapacity, MaxCapacity: v.MaxCapacity, Backpressure: string(v.Backpressure), Type: v.TypeName, UpstreamName: v.UpstreamName}
+        return &sch.PipelineEdgeV1{Kind: v.Kind(), MinCapacity: v.MinCapacity, MaxCapacity: v.MaxCapacity, Backpressure: string(v.Backpressure), Type: v.TypeName, UpstreamName: v.UpstreamName,
+            Bounded: v.MaxCapacity > 0, Delivery: deliveryFromBP(string(v.Backpressure))}
     default:
         return &sch.PipelineEdgeV1{Kind: s.Kind()}
+    }
+}
+
+func deliveryFromBP(bp string) string {
+    switch bp {
+    case string(edg.BackpressureBlock):
+        return "atLeastOnce"
+    case string(edg.BackpressureDrop):
+        return "bestEffort"
+    default:
+        return ""
     }
 }
 

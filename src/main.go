@@ -1,10 +1,10 @@
 package main
 
 import (
-    "os"
-    root "github.com/sam-caldwell/ami/src/cmd/ami/root"
+	root "github.com/sam-caldwell/ami/src/cmd/ami/root"
+	"os"
 )
 
 func main() {
-    os.Exit(root.Execute())
+	os.Exit(root.Execute())
 }

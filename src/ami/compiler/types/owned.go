@@ -4,4 +4,3 @@ package types
 type OwnedType struct{ Elem Type }
 
 func (o OwnedType) String() string { return "Owned<" + o.Elem.String() + ">" }
-

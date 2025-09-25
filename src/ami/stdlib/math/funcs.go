@@ -28,4 +28,3 @@ func Pow(x, y float64) float64 { return stdmath.Pow(x, y) }
 
 // Sqrt returns the square root of x.
 func Sqrt(x float64) float64 { return stdmath.Sqrt(x) }
-

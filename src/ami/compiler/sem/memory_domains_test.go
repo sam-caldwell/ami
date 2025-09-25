@@ -1,22 +1,29 @@
 package sem
 
 import (
-    "testing"
-    "github.com/sam-caldwell/ami/src/ami/compiler/parser"
+	"github.com/sam-caldwell/ami/src/ami/compiler/parser"
+	"testing"
 )
 
 // Ensure assigning address-of is rejected by parser (AMI does not expose pointers).
 func TestMemoryDomains_AssignAddrOfIntoState_Error(t *testing.T) {
-    src := `package p
+	src := `package p
 func f(ctx Context, ev Event<string>, st State) Event<string> {
   *st = &ev
 }`
-    p := parser.New(src)
-    f := p.ParseFile()
-    res := AnalyzeFile(f)
-    var found bool
-    for _, d := range res.Diagnostics { if d.Code == "E_PTR_UNSUPPORTED_SYNTAX" { found = true; break } }
-    if !found { t.Fatalf("expected E_PTR_UNSUPPORTED_SYNTAX; diags=%v", res.Diagnostics) }
+	p := parser.New(src)
+	f := p.ParseFile()
+	res := AnalyzeFile(f)
+	var found bool
+	for _, d := range res.Diagnostics {
+		if d.Code == "E_PTR_UNSUPPORTED_SYNTAX" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected E_PTR_UNSUPPORTED_SYNTAX; diags=%v", res.Diagnostics)
+	}
 }
 
 // Ensure assigning a non-state identifier (e.g., Event<T> param) into state is rejected.

@@ -20,21 +20,21 @@ import "errors"
 type BackpressurePolicy string
 
 const (
-    // BackpressureBlock blocks producers until capacity is available.
-    BackpressureBlock BackpressurePolicy = "block"
-    // BackpressureDrop drops newest/oldest based on edge policy; selection is
-    // implementation-defined within the chosen edge type.
-    BackpressureDrop BackpressurePolicy = "drop"
+	// BackpressureBlock blocks producers until capacity is available.
+	BackpressureBlock BackpressurePolicy = "block"
+	// BackpressureDrop drops newest/oldest based on edge policy; selection is
+	// implementation-defined within the chosen edge type.
+	BackpressureDrop BackpressurePolicy = "drop"
 )
 
 // Spec is the common interface for all edge declarations.
 // Implementations validate their parameters but do not perform runtime I/O.
 type Spec interface {
-    Kind() string
-    Validate() error
+	Kind() string
+	Validate() error
 }
 
 // Runtime errors used by push/pop scaffolds.
 var (
-    ErrFull  = errors.New("edge buffer full (would block)")
+	ErrFull = errors.New("edge buffer full (would block)")
 )

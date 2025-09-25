@@ -4,4 +4,3 @@
 // as a regular package rather than erroring with
 // "no non-test Go files".
 package testutil
-

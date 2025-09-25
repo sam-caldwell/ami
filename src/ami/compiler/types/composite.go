@@ -24,4 +24,3 @@ func (s Set) String() string { return "set<" + s.Elem.String() + ">" }
 type SliceTy struct{ Elem Type }
 
 func (s SliceTy) String() string { return "slice<" + s.Elem.String() + ">" }
-

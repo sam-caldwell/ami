@@ -10,4 +10,3 @@ type FixedClock struct{ T stdtime.Time }
 
 // Now implements Clock.
 func (c FixedClock) Now() stdtime.Time { return c.T }
-

@@ -1,13 +1,14 @@
 package root
 
 import (
-	ammod "github.com/sam-caldwell/ami/src/ami/mod"
-	"github.com/sam-caldwell/ami/src/internal/logger"
-	"github.com/spf13/cobra"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
+    manifest "github.com/sam-caldwell/ami/src/ami/manifest"
+    ammod "github.com/sam-caldwell/ami/src/ami/mod"
+    "github.com/sam-caldwell/ami/src/internal/logger"
+    "github.com/spf13/cobra"
+    "net/url"
+    "os"
+    "path/filepath"
+    "strings"
 )
 
 var cmdMod = &cobra.Command{
@@ -16,16 +17,28 @@ var cmdMod = &cobra.Command{
 }
 
 var cmdModClean = &cobra.Command{
-	Use:   "clean",
-	Short: "Clean the module cache",
-	Run: func(cmd *cobra.Command, args []string) {
-		dir, err := ammod.CacheDir()
-		if err != nil {
-			logger.Error(err.Error(), nil)
-			return
-		}
-		logger.Info("cache directory", map[string]interface{}{"path": dir})
-	},
+    Use:   "clean",
+    Short: "Clean the module cache",
+    Run: func(cmd *cobra.Command, args []string) {
+        // Determine cache dir path without creating it
+        dir, err := ammod.CacheDirPath()
+        if err != nil { logger.Error(err.Error(), nil); return }
+        if _, statErr := os.Stat(dir); statErr == nil {
+            if err := os.RemoveAll(dir); err != nil {
+                logger.Error("cache.remove_failed", map[string]interface{}{"path": dir, "error": err.Error()})
+                return
+            }
+            logger.Info("cache.remove", map[string]interface{}{"path": dir})
+        } else {
+            logger.Info("cache.remove.skip", map[string]interface{}{"path": dir, "reason": "not found"})
+        }
+        // Recreate cache directory
+        if err := os.MkdirAll(dir, 0o755); err != nil {
+            logger.Error("cache.create_failed", map[string]interface{}{"path": dir, "error": err.Error()})
+            return
+        }
+        logger.Info("cache.create", map[string]interface{}{"path": dir})
+    },
 }
 
 var cmdModUpdate = &cobra.Command{
@@ -85,6 +98,16 @@ var cmdModList = &cobra.Command{
         }
         // Attempt to load ami.sum for digest lookup (best-effort)
         sum, _ := ammod.LoadSumForCLI("ami.sum")
+        // Attempt to load ami.manifest for richer package info (best-effort)
+        var manPkgs map[string]map[string]struct{ Full string; Digest string; Source string }
+        if m, err := manifest.Load("ami.manifest"); err == nil {
+            manPkgs = make(map[string]map[string]struct{ Full string; Digest string; Source string })
+            for _, p := range m.Packages {
+                base := filepath.Base(p.Name)
+                if _, ok := manPkgs[base]; !ok { manPkgs[base] = make(map[string]struct{ Full string; Digest string; Source string }) }
+                manPkgs[base][p.Version] = struct{ Full string; Digest string; Source string }{ Full: p.Name, Digest: p.Digest, Source: p.Source }
+            }
+        }
         for _, it := range items {
             if flagJSON {
                 // it format: <name>@<version>
@@ -113,6 +136,17 @@ var cmdModList = &cobra.Command{
                 }
                 if digest != "" {
                     data["digest"] = digest
+                }
+                // Augment with manifest info if available
+                if manPkgs != nil {
+                    if versions, ok := manPkgs[name]; ok {
+                        if info, ok2 := versions[ver]; ok2 {
+                            data["manifest"] = true
+                            data["manifestName"] = info.Full
+                            if info.Digest != "" { data["manifestDigest"] = info.Digest }
+                            if info.Source != "" { data["manifestSource"] = info.Source }
+                        }
+                    }
                 }
                 logger.Info("cache.entry", data)
             } else {

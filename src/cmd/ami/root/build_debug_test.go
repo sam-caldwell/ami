@@ -46,7 +46,7 @@ func fileSHA256Test(path string) (string, int64, error) {
 func TestBuildDebugArtifacts_SchemasAndSha256(t *testing.T) {
     tmp := t.TempDir()
     t.Setenv("HOME", tmp)
-    ws, restore := testutil.ChdirToBuildTest(t)
+    _, restore := testutil.ChdirToBuildTest(t)
     defer restore()
 
     // workspace and source

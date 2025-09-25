@@ -15,11 +15,9 @@ type Logger struct {
     verbose bool
     color   bool
     mu      sync.Mutex
-    out     io.Writer
-    err     io.Writer
 }
 
-var std = &Logger{out: os.Stdout, err: os.Stderr}
+var std = &Logger{}
 
 func Setup(jsonMode, verbose, color bool) {
     std.mu.Lock()
@@ -34,7 +32,8 @@ func Setup(jsonMode, verbose, color bool) {
 }
 
 func FormatTimestamp(t time.Time) string {
-    return t.UTC().Format("2006-01-02T15:04:05.000Z07:00")
+    // ISO-8601 UTC with milliseconds and 'Z' suffix
+    return t.UTC().Format("2006-01-02T15:04:05.000Z")
 }
 
 type record struct {
@@ -54,7 +53,8 @@ func (l *Logger) logJSON(level, msg string, data map[string]interface{}) {
         Data:      data,
     }
     b, _ := json.Marshal(rec)
-    fmt.Fprintln(l.out, string(b))
+    // JSON output always goes to stdout
+    fmt.Fprintln(os.Stdout, string(b))
 }
 
 func (l *Logger) logHuman(w io.Writer, level, msg string) {
@@ -62,9 +62,23 @@ func (l *Logger) logHuman(w io.Writer, level, msg string) {
     if l.verbose {
         ts = FormatTimestamp(time.Now()) + " "
     }
+    // Apply optional color to the full line in human mode
+    startColor := ""
+    endColor := ""
+    if l.color {
+        switch level {
+        case "error":
+            startColor = "\x1b[31m" // red
+        case "warn":
+            startColor = "\x1b[33m" // yellow
+        case "info":
+            startColor = "\x1b[32m" // green
+        }
+        endColor = "\x1b[0m"
+    }
     // Prefix every line in multi-line messages
     for _, line := range strings.Split(strings.TrimRight(msg, "\n"), "\n") {
-        fmt.Fprintln(w, ts+line)
+        if startColor != "" { fmt.Fprintln(w, startColor+ts+line+endColor) } else { fmt.Fprintln(w, ts+line) }
     }
 }
 
@@ -73,25 +87,16 @@ func Info(msg string, data map[string]interface{}) {
     if std.json {
         std.logJSON("info", msg, data)
     } else {
-        std.logHuman(std.out, "info", msg)
+        std.logHuman(os.Stdout, "info", msg)
     }
 }
 
 func Warn(msg string, data map[string]interface{}) {
     std.mu.Lock(); defer std.mu.Unlock()
-    if std.json {
-        std.logJSON("warn", msg, data)
-    } else {
-        std.logHuman(std.err, "warn", msg)
-    }
+    if std.json { std.logJSON("warn", msg, data) } else { std.logHuman(os.Stderr, "warn", msg) }
 }
 
 func Error(msg string, data map[string]interface{}) {
     std.mu.Lock(); defer std.mu.Unlock()
-    if std.json {
-        std.logJSON("error", msg, data)
-    } else {
-        std.logHuman(std.err, "error", msg)
-    }
+    if std.json { std.logJSON("error", msg, data) } else { std.logHuman(os.Stderr, "error", msg) }
 }
-

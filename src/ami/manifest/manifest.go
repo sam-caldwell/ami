@@ -5,7 +5,6 @@ import (
     "errors"
     "os"
     "sort"
-    "time"
 )
 
 type Manifest struct {
@@ -46,7 +45,7 @@ func (m *Manifest) Validate() error {
     if m.Schema == "" { m.Schema = "ami.manifest/v1" }
     if m.Schema != "ami.manifest/v1" { return errors.New("invalid schema") }
     if m.Project.Name == "" || m.Project.Version == "" { return errors.New("project.name and project.version required") }
-    if m.CreatedAt == "" { m.CreatedAt = time.Now().UTC().Format(time.RFC3339Nano) }
+    // Do not auto-populate CreatedAt here to preserve deterministic writes.
     return nil
 }
 

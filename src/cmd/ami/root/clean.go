@@ -10,12 +10,21 @@ var cmdClean = &cobra.Command{
     Use:   "clean",
     Short: "Clean build artifacts",
     Run: func(cmd *cobra.Command, args []string) {
-        _ = os.RemoveAll("build")
+        // Remove build directory if present
+        if _, err := os.Stat("build"); err == nil {
+            if err := os.RemoveAll("build"); err != nil {
+                logger.Error("clean.remove_failed", map[string]interface{}{"path": "build", "error": err.Error()})
+                return
+            }
+            logger.Info("clean.remove", map[string]interface{}{"path": "build"})
+        } else {
+            logger.Info("clean.remove.skip", map[string]interface{}{"path": "build", "reason": "not found"})
+        }
+        // Recreate build directory
         if err := os.MkdirAll("build", 0755); err != nil {
-            logger.Error("failed to recreate build directory", map[string]interface{}{"error": err.Error()})
+            logger.Error("clean.create_failed", map[string]interface{}{"path": "build", "error": err.Error()})
             return
         }
-        logger.Info("cleaned build directory", map[string]interface{}{"path": "build"})
+        logger.Info("clean.create", map[string]interface{}{"path": "build"})
     },
 }
-

@@ -37,7 +37,8 @@ func TestScanner_KeywordsAndIdentifiers(t *testing.T) {
 }
 
 func TestScanner_OperatorsAndDelimiters(t *testing.T) {
-    s := New("( ) { } [ ] , ; : . = -> | == != < <= > >= + - * / %")
+    src := "( ) { } [ ] , ; : . = -> | == != < <= > >= + - * / %"
+    s := New(src)
     want := []tok.Kind{
         tok.LPAREN, tok.RPAREN, tok.LBRACE, tok.RBRACE, tok.LBRACK, tok.RBRACK,
         tok.COMMA, tok.SEMI, tok.COLON, tok.DOT,
@@ -46,7 +47,7 @@ func TestScanner_OperatorsAndDelimiters(t *testing.T) {
         tok.PLUS, tok.MINUS, tok.STAR, tok.SLASH, tok.PERCENT,
         tok.EOF,
     }
-    toks := collectKinds(t, New(s.src))
+    toks := collectKinds(t, s)
     if len(toks) != len(want) { t.Fatalf("len=%d want %d", len(toks), len(want)) }
     for i, k := range want {
         if toks[i].Kind != k {
@@ -75,4 +76,3 @@ func TestScanner_IllegalToken(t *testing.T) {
     s := New("@"); tt := s.Next()
     if tt.Kind != tok.ILLEGAL { t.Fatalf("kind=%v want ILLEGAL", tt.Kind) }
 }
-

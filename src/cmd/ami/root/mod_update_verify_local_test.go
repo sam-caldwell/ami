@@ -18,21 +18,7 @@ import (
     testutil "github.com/sam-caldwell/ami/src/internal/testutil"
 )
 
-// captureStdout reuses helper pattern from other tests
-func captureStdout(t *testing.T, fn func()) string {
-    t.Helper()
-    old := os.Stdout
-    r, w, err := os.Pipe()
-    if err != nil { t.Fatalf("pipe: %v", err) }
-    os.Stdout = w
-    defer func() { os.Stdout = old }()
-    fn()
-    w.Close()
-    var b strings.Builder
-    sc := bufio.NewScanner(r)
-    for sc.Scan() { b.WriteString(sc.Text()); b.WriteByte('\n') }
-    return b.String()
-}
+// captureStdout moved to testhelpers_test.go
 
 func makeLocalRepo(t *testing.T, path string) (string, string) {
     t.Helper()

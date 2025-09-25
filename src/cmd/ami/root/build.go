@@ -25,14 +25,26 @@ var buildVerbose bool
 var cmdBuild = &cobra.Command{
 	Use:   "build",
 	Short: "Build the workspace",
-	Run: func(cmd *cobra.Command, args []string) {
-		wsPath := "ami.workspace"
-		ws, err := workspace.Load(wsPath)
-		if err != nil {
-			logger.Error(fmt.Sprintf("failed to load %s: %v", wsPath, err), nil)
-			return
-		}
-		_ = ws
+    Run: func(cmd *cobra.Command, args []string) {
+        wsPath := "ami.workspace"
+        ws, err := workspace.Load(wsPath)
+        if err != nil {
+            logger.Error(fmt.Sprintf("failed to load %s: %v", wsPath, err), nil)
+            return
+        }
+        _ = ws
+        // If an existing ami.manifest is present, cross-check it against ami.sum
+        if _, err := os.Stat("ami.manifest"); err == nil {
+            if _, serr := os.Stat("ami.sum"); serr == nil {
+                if existing, lerr := manifest.Load("ami.manifest"); lerr == nil {
+                    if cerr := existing.CrossCheckWithSumFile("ami.sum"); cerr != nil {
+                        logger.Error("integrity: existing manifest vs ami.sum mismatch", map[string]interface{}{"error": cerr.Error()})
+                        os.Stderr.WriteString("integrity violation: existing manifest and ami.sum do not match\n")
+                        os.Exit(ex.IntegrityViolationError)
+                    }
+                }
+            }
+        }
         plan := sch.BuildPlanV1{
             Schema:    "buildplan.v1",
             Workspace: ".",
@@ -150,6 +162,14 @@ var cmdBuild = &cobra.Command{
             }
         }
         man := manifest.Manifest{Schema: "ami.manifest/v1", Project: manifest.Project{Name: projName, Version: projVersion}, Packages: pkgs, Artifacts: artifacts, Toolchain: manifest.Toolchain{AmiVersion: amiVer, GoVersion: goVer}}
+        // Cross-check manifest packages against ami.sum if present (completeness)
+        if _, err := os.Stat("ami.sum"); err == nil {
+            if err := man.CrossCheckWithSumFile("ami.sum"); err != nil {
+                logger.Error("integrity: manifest vs ami.sum mismatch", map[string]interface{}{"error": err.Error()})
+                os.Stderr.WriteString("integrity violation: manifest and ami.sum do not match\n")
+                os.Exit(ex.IntegrityViolationError)
+            }
+        }
         if err := manifest.Save("ami.manifest", &man); err != nil {
             logger.Error(fmt.Sprintf("failed to write ami.manifest: %v", err), nil)
             return

@@ -16,6 +16,7 @@ import (
     git "github.com/go-git/go-git/v5"
     gitcfg "github.com/go-git/go-git/v5/config"
     "github.com/go-git/go-git/v5/plumbing"
+    "github.com/go-git/go-git/v5/plumbing/object"
     gogitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
@@ -25,6 +26,13 @@ func CacheDir() (string, error) {
     dir := filepath.Join(home, ".ami", "pkg")
     if err := os.MkdirAll(dir, 0o755); err != nil { return "", err }
     return dir, nil
+}
+
+// CacheDirPath returns the expected cache directory path without creating it.
+func CacheDirPath() (string, error) {
+    home, err := os.UserHomeDir()
+    if err != nil { return "", err }
+    return filepath.Join(home, ".ami", "pkg"), nil
 }
 
 // ami.sum structure
@@ -46,10 +54,29 @@ func loadSum(path string) (*Sum, error) {
 func saveSum(path string, s *Sum) error {
     if s.Schema == "" { s.Schema = "ami.sum/v1" }
     if s.Packages == nil { s.Packages = map[string]map[string]string{} }
-    b, err := json.MarshalIndent(s, "", "  ")
-    if err != nil { return err }
+    // Deterministic order: sort package names and versions
+    pkgs := make([]string, 0, len(s.Packages))
+    for k := range s.Packages { pkgs = append(pkgs, k) }
+    sort.Strings(pkgs)
+    // Manual JSON marshal with stable key order
+    var b strings.Builder
+    b.WriteString("{\n  \"schema\": \""); b.WriteString(s.Schema); b.WriteString("\",\n  \"packages\": {")
+    for i, name := range pkgs {
+        if i > 0 { b.WriteString(",") }
+        b.WriteString("\n    \""); b.WriteString(name); b.WriteString("\": {")
+        vers := make([]string, 0, len(s.Packages[name]))
+        for v := range s.Packages[name] { vers = append(vers, v) }
+        sort.Strings(vers)
+        for j, v := range vers {
+            if j > 0 { b.WriteString(",") }
+            b.WriteString("\n      \""); b.WriteString(v); b.WriteString("\": \""); b.WriteString(s.Packages[name][v]); b.WriteString("\"")
+        }
+        if len(vers) > 0 { b.WriteString("\n    }") } else { b.WriteString("}") }
+    }
+    if len(pkgs) > 0 { b.WriteString("\n  }") } else { b.WriteString("}") }
+    b.WriteString("\n}")
     tmp := path + ".tmp"
-    if err := os.WriteFile(tmp, b, 0644); err != nil { return err }
+    if err := os.WriteFile(tmp, []byte(b.String()), 0644); err != nil { return err }
     return os.Rename(tmp, path)
 }
 
@@ -72,25 +99,18 @@ func Get(url string) (string, error) {
     }
     // git+ssh
     if strings.HasPrefix(url, "git+ssh://") {
-        u := strings.TrimPrefix(url, "git+") // ssh://...
-        // split tag
-        tag := ""
-        if i := strings.Index(u, "#"); i >= 0 {
-            tag = u[i+1:]
-            u = u[:i]
-        }
-        if tag == "" { return "", errors.New("missing #<semver-tag> in url") }
-        // dest folder uses repo name and version
-        base := filepath.Base(strings.TrimSuffix(u, ".git"))
-        dest := filepath.Join(cache, fmt.Sprintf("%s@%s", base, tag))
+        parts, err := parseGitPlusSSH(url)
+        if err != nil { return "", err }
+        // dest folder uses repo base name and version
+        dest := filepath.Join(cache, fmt.Sprintf("%s@%s", parts.Repo, parts.Tag))
         _ = os.RemoveAll(dest)
         auth, _ := gogitssh.NewSSHAgentAuth("git")
-        repo, err := git.PlainClone(dest, false, &git.CloneOptions{URL: u, Auth: auth, Depth: 1})
+        repo, err := git.PlainClone(dest, false, &git.CloneOptions{URL: parts.SSHURL, Auth: auth, Depth: 1})
         if err != nil { return "", err }
         wt, err := repo.Worktree()
         if err != nil { return "", err }
         // checkout tag
-        if err := wt.Checkout(&git.CheckoutOptions{Branch: plumbing.NewTagReferenceName(tag)}); err != nil { return "", err }
+        if err := wt.Checkout(&git.CheckoutOptions{Branch: plumbing.NewTagReferenceName(parts.Tag)}); err != nil { return "", err }
         return dest, nil
     }
     return "", fmt.Errorf("unsupported url: %s", url)
@@ -293,7 +313,10 @@ func commitDigest(repoPath, tag string) (string, error) {
     if err != nil { return "", err }
     ref, err := repo.Reference(plumbing.NewTagReferenceName(tag), true)
     if err != nil { return "", err }
-    encObj, err := repo.Storer.EncodedObject(plumbing.CommitObject, ref.Hash())
+    // Peel tag/commit to a commit object
+    commitHash, err := peelToCommit(repo, ref.Hash())
+    if err != nil { return "", err }
+    encObj, err := repo.Storer.EncodedObject(plumbing.CommitObject, commitHash)
     if err != nil { return "", err }
     r, err := encObj.Reader()
     if err != nil { return "", err }
@@ -385,6 +408,32 @@ func collectSemverTags(refs []*plumbing.Reference) []string {
 
 func sortSemver(tags []string) {
     sort.Slice(tags, func(i,j int) bool { return semverLess(tags[i], tags[j]) })
+}
+
+// peelToCommit follows tag indirections to return the underlying commit hash.
+func peelToCommit(repo *git.Repository, h plumbing.Hash) (plumbing.Hash, error) {
+    // Try as commit directly
+    if _, err := repo.CommitObject(h); err == nil {
+        return h, nil
+    }
+    // Try as tag object (follow up to a small bound to avoid cycles)
+    for i := 0; i < 4; i++ {
+        tagObj, err := object.GetTag(repo.Storer, h)
+        if err != nil { break }
+        if tagObj.TargetType == plumbing.CommitObject {
+            if _, err := repo.CommitObject(tagObj.Target); err == nil {
+                return tagObj.Target, nil
+            }
+            return plumbing.ZeroHash, errors.New("tag target is not a valid commit")
+        }
+        // Follow nested tag objects
+        if tagObj.TargetType == plumbing.TagObject {
+            h = tagObj.Target
+            continue
+        }
+        break
+    }
+    return plumbing.ZeroHash, errors.New("unable to peel to commit from tag")
 }
 
 // hasPrereleaseInConstraint returns true if the version part of the constraint

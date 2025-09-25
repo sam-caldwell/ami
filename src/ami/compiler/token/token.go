@@ -59,6 +59,9 @@ const (
     STAR      // *
     SLASH     // /
     PERCENT   // %
+
+    // Directives
+    PRAGMA // lexer-level: lines beginning with #pragma
 )
 
 type Token struct {

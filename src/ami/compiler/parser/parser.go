@@ -46,15 +46,34 @@ func (p *Parser) synchronize() {
 func (p *Parser) ParseFile() *astpkg.File {
     f := &astpkg.File{}
     for p.cur.Kind != tok.EOF {
+        // pragma directives
+        if p.cur.Kind == tok.PRAGMA {
+            // parse: <name> <payload...>
+            parts := strings.Fields(p.cur.Lexeme)
+            name := ""
+            payload := strings.TrimSpace(p.cur.Lexeme)
+            if len(parts) > 0 {
+                name = parts[0]
+                payload = strings.TrimSpace(strings.TrimPrefix(p.cur.Lexeme, parts[0]))
+            }
+            f.Directives = append(f.Directives, astpkg.Directive{Name: name, Payload: strings.TrimSpace(payload)})
+            p.next()
+            continue
+        }
         // package clause
         if p.cur.Kind == tok.KW_PACKAGE || (p.cur.Kind == tok.IDENT && p.cur.Lexeme == "package") {
             p.next()
             if p.cur.Kind == tok.IDENT {
                 f.Package = p.cur.Lexeme
+                // validate package ident per 6.1
+                if !ValidatePackageIdent(f.Package) {
+                    p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_PACKAGE", Message: "invalid package identifier", File: p.file})
+                }
                 p.next()
                 continue
             }
-            p.errorf("expected package name")
+            // if not IDENT, report bad package name
+            p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_PACKAGE", Message: "invalid package identifier", File: p.file})
             p.synchronize()
         }
         // pipeline declaration: pipeline IDENT { <chain> }
@@ -75,6 +94,10 @@ func (p *Parser) ParseFile() *astpkg.File {
             // import "path"
             if p.cur.Kind == tok.STRING {
                 path := unquote(p.cur.Lexeme)
+                // validate import path
+                if !ValidateImportPath(path) {
+                    p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
+                }
                 f.Imports = append(f.Imports, path)
                 f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path})
                 f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path})
@@ -87,6 +110,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                 p.next()
                 if p.cur.Kind == tok.STRING {
                     path := unquote(p.cur.Lexeme)
+                    if !ValidateImportPath(path) {
+                        p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
+                    }
                     f.Imports = append(f.Imports, path)
                     f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path, Alias: alias})
                     f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path, Alias: alias})
@@ -100,6 +126,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                 for p.cur.Kind != tok.EOF {
                     if p.cur.Kind == tok.STRING {
                         path := unquote(p.cur.Lexeme)
+                        if !ValidateImportPath(path) {
+                            p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
+                        }
                         f.Imports = append(f.Imports, path)
                         f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path})
                         f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path})
@@ -116,6 +145,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                         p.next()
                         if p.cur.Kind == tok.STRING {
                             path := unquote(p.cur.Lexeme)
+                            if !ValidateImportPath(path) {
+                                p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
+                            }
                             f.Imports = append(f.Imports, path)
                             f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path, Alias: alias})
                             f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path, Alias: alias})

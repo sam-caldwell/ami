@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
+    "sort"
     "runtime"
     "time"
 )
@@ -61,9 +62,27 @@ var cmdBuild = &cobra.Command{
         }
         plan := sch.BuildPlanV1{
             Schema:    "buildplan.v1",
+            Timestamp: sch.FormatTimestamp(nowUTC()),
             Workspace: ".",
-            Toolchain: sch.ToolchainV1{AmiVersion: "v0.0.0-dev", GoVersion: "1.25.1"},
+            Toolchain: sch.ToolchainV1{AmiVersion: version, GoVersion: runtime.Version()},
             Targets:   []sch.BuildTarget{},
+        }
+        // Discover source files and populate plan with deterministic ordering
+        allFiles, _ := filepath.Glob(filepath.Join("src", "*.ami"))
+        sort.Strings(allFiles)
+        for _, f := range allFiles {
+            pkg := filepath.Base(filepath.Dir(f))
+            if pkg == "." || pkg == "src" { pkg = "main" }
+            outAsm := filepath.Join("build","debug","asm", pkg, filepath.Base(f)+".s")
+            outAST := filepath.Join("build","debug","ast", pkg, filepath.Base(f)+".ast.json")
+            outIR := filepath.Join("build","debug","ir", pkg, filepath.Base(f)+".ir.json")
+            plan.Targets = append(plan.Targets, sch.BuildTarget{
+                Package: pkg,
+                Unit:    f,
+                Inputs:  []string{f},
+                Outputs: []string{outAST, outIR, outAsm},
+                Steps:   []string{"parse","typecheck","ir","codegen"},
+            })
         }
 		if buildVerbose {
 			_ = os.MkdirAll("build/debug/source", 0755)
@@ -86,37 +105,70 @@ var cmdBuild = &cobra.Command{
                     _ = os.MkdirAll(pkgDir, 0755)
                     unit := filepath.Base(a.File)
                     b, _ := json.MarshalIndent(a, "", "  ")
-                    _ = os.WriteFile(filepath.Join(pkgDir, unit+".ast.json"), b, 0644)
+                    out := filepath.Join(pkgDir, unit+".ast.json")
+                    _ = os.WriteFile(out, b, 0644)
+                    logger.Info("build.debug.artifact", map[string]interface{}{"kind":"ast", "path": out})
                 }
-				// IR per package/unit
+                // IR per package/unit
                 for _, ir := range res.IR {
                     pkgDir := filepath.Join("build","debug","ir", ir.Package)
                     _ = os.MkdirAll(pkgDir, 0755)
                     unit := filepath.Base(ir.File)
                     b, _ := json.MarshalIndent(ir, "", "  ")
-                    _ = os.WriteFile(filepath.Join(pkgDir, unit+".ir.json"), b, 0644)
+                    out := filepath.Join(pkgDir, unit+".ir.json")
+                    _ = os.WriteFile(out, b, 0644)
+                    logger.Info("build.debug.artifact", map[string]interface{}{"kind":"ir", "path": out})
                 }
-				// ASM per package/unit + index
-                asmFiles := []sch.ASMFile{}
-                for _, f := range files {
-                    pkgDir := filepath.Join("build","debug","asm", "main")
+                // ASM per package/unit + per-package index (use compiler codegen output)
+                asmByPkg := map[string][]sch.ASMFile{}
+                for _, unit := range res.ASM {
+                    pkg := unit.Package
+                    pkgDir := filepath.Join("build","debug","asm", pkg)
                     _ = os.MkdirAll(pkgDir, 0755)
-                    unit := filepath.Base(f)
-                    asmPath := filepath.Join(pkgDir, unit+".s")
-                    _ = os.WriteFile(asmPath, []byte("; AMI-IR assembly scaffold\n"), 0644)
-                    content := []byte("; AMI-IR assembly scaffold\n")
+                    base := filepath.Base(unit.Unit)
+                    asmPath := filepath.Join(pkgDir, base+".s")
+                    content := []byte(unit.Text)
                     _ = os.WriteFile(asmPath, content, 0644)
+                    logger.Info("build.debug.artifact", map[string]interface{}{"kind":"asm", "path": asmPath})
                     size := int64(len(content))
                     sum := sha256.Sum256(content)
-                    asmFiles = append(asmFiles, sch.ASMFile{Unit: f, Path: asmPath, Size: size, Sha256: hex.EncodeToString(sum[:])})
+                    asmByPkg[pkg] = append(asmByPkg[pkg], sch.ASMFile{Unit: unit.Unit, Path: asmPath, Size: size, Sha256: hex.EncodeToString(sum[:])})
                 }
-                asmIdx := sch.ASMIndexV1{Schema: "asm.v1", Package: "main", Files: asmFiles}
-                b, _ := json.MarshalIndent(asmIdx, "", "  ")
-                _ = os.WriteFile(filepath.Join("build","debug","asm","index.json"), b, 0644)
+                // write per-package indexes with deterministic package ordering
+                var pkgs []string
+                for pkg := range asmByPkg { pkgs = append(pkgs, pkg) }
+                if len(pkgs) > 1 {
+                    // simple selection sort to avoid importing sort; but importing sort is fine
+                }
+                // use sort.Strings for clarity
+                // (import already present? we'll add)
+                sort.Strings(pkgs)
+                for _, pkg := range pkgs {
+                    asmIdx := sch.ASMIndexV1{Schema: "asm.v1", Package: pkg, Files: asmByPkg[pkg]}
+                    b, _ := json.MarshalIndent(asmIdx, "", "  ")
+                    out := filepath.Join("build","debug","asm", pkg, "index.json")
+                    _ = os.WriteFile(out, b, 0644)
+                    logger.Info("build.debug.artifact", map[string]interface{}{"kind":"asmIndex", "path": out})
+                }
 			}
-			b, _ := json.MarshalIndent(resolved, "", "  ")
-			_ = os.WriteFile(filepath.Join("build", "debug", "source", "resolved.json"), b, 0644)
+				b, _ := json.MarshalIndent(resolved, "", "  ")
+				out := filepath.Join("build", "debug", "source", "resolved.json")
+				_ = os.WriteFile(out, b, 0644)
+                logger.Info("build.debug.artifact", map[string]interface{}{"kind":"resolved", "path": out})
+
+                // Write build plan file and log location (human)
+                planPath := filepath.Join("build","debug","buildplan.json")
+                if pb, err := json.MarshalIndent(plan, "", "  "); err == nil {
+                    _ = os.WriteFile(planPath, pb, 0644)
+                    logger.Info(fmt.Sprintf("build plan written: %s", planPath), map[string]interface{}{"targets": len(plan.Targets)})
+                }
 		}
+        // Emit build plan as a JSON record in --json mode
+        if flagJSON {
+            if err := plan.Validate(); err == nil {
+                _ = json.NewEncoder(os.Stdout).Encode(plan)
+            }
+        }
         // Validate cache integrity against ami.sum (fail build on mismatch)
         if sum, err := ammod.LoadSumForCLI("ami.sum"); err == nil {
             cacheDir, cerr := ammod.CacheDir()

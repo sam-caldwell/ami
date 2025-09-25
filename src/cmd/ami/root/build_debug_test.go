@@ -101,7 +101,7 @@ import (
     }
 
     // asm index and file sha256
-    idxBytes, err := os.ReadFile("build/debug/asm/index.json")
+    idxBytes, err := os.ReadFile("build/debug/asm/main/index.json")
     if err != nil { t.Fatalf("missing asm index: %v", err) }
     var idx sch.ASMIndexV1
     if err := json.Unmarshal(idxBytes, &idx); err != nil { t.Fatalf("unmarshal asm index: %v", err) }

@@ -22,6 +22,32 @@ func (s *Scanner) Next() tok.Token {
     if s.off >= len(s.src) {
         return tok.Token{Kind: tok.EOF, Line: s.line, Column: s.column}
     }
+    // Compiler directives: #pragma <directive> [payload...] to end of line
+    if strings.HasPrefix(s.src[s.off:], "#pragma") {
+        startCol := s.column
+        // consume '#pragma'
+        s.off += len("#pragma")
+        s.column += len("#pragma")
+        // consume optional single space after pragma
+        if s.off < len(s.src) {
+            if s.src[s.off] == ' ' || s.src[s.off] == '\t' { s.off++; s.column++ }
+        }
+        // capture until newline or EOF
+        start := s.off
+        for s.off < len(s.src) {
+            if s.src[s.off] == '\n' { break }
+            s.off++
+            s.column++
+        }
+        lex := strings.TrimSpace(s.src[start:s.off])
+        // consume newline if present
+        if s.off < len(s.src) && s.src[s.off] == '\n' {
+            s.off++
+            s.line++
+            s.column = 1
+        }
+        return tok.Token{Kind: tok.PRAGMA, Lexeme: lex, Line: s.line - 1, Column: startCol}
+    }
     r, w := utf8.DecodeRuneInString(s.src[s.off:])
     startCol := s.column
 

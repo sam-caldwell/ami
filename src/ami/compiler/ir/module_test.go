@@ -1,6 +1,7 @@
 package ir
 
 import (
+    "encoding/json"
     "testing"
     astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
 )
@@ -19,3 +20,13 @@ func TestFromAST_ToSchema_SortedFunctions(t *testing.T) {
     }
 }
 
+func TestIR_ToSchema_GoldenJSON(t *testing.T) {
+    f := &astpkg.File{Package: "p", Decls: []astpkg.Node{astpkg.FuncDecl{Name: "a"}}}
+    m := FromASTFile("p", "u.ami", f)
+    ir := m.ToSchema()
+    b, _ := json.Marshal(ir)
+    want := `{"schema":"ir.v1","timestamp":"","package":"p","file":"u.ami","functions":[{"name":"a","blocks":[{"label":"entry","instrs":null}]}]}`
+    if string(b) != want {
+        t.Fatalf("golden mismatch:\n got: %s\nwant: %s", string(b), want)
+    }
+}

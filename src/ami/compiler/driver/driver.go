@@ -1,27 +1,67 @@
 package driver
 
 import (
+    "os"
+    cg "github.com/sam-caldwell/ami/src/ami/compiler/codegen"
+    irpkg "github.com/sam-caldwell/ami/src/ami/compiler/ir"
+    "github.com/sam-caldwell/ami/src/ami/compiler/parser"
+    astjson "github.com/sam-caldwell/ami/src/ami/compiler/astjson"
     sch "github.com/sam-caldwell/ami/src/schemas"
 )
 
 // Options placeholder for future flags
 type Options struct{}
 
+// ASMUnit contains generated assembly text for a compilation unit.
+type ASMUnit struct {
+    Package string
+    Unit    string // file path
+    Text    string
+}
+
 // Result holds compiler outputs for scaffolding
 type Result struct {
     AST []sch.ASTV1
     IR  []sch.IRV1
-    ASM []string // paths of asm files written by caller
+    ASM []ASMUnit // assembly text per unit
 }
 
-// Compile is a placeholder; it constructs deterministic AST/IR from inputs
+// Compile parses, lowers to IR, and generates assembly text deterministically.
 func Compile(files []string, opts Options) (Result, error) {
     res := Result{}
     for _, f := range files {
-        ast := sch.ASTV1{Schema: "ast.v1", Package: "main", File: f, Root: sch.ASTNode{Kind: "File", Pos: sch.Position{Line:1,Column:1,Offset:0}}}
-        res.AST = append(res.AST, ast)
-        ir := sch.IRV1{Schema: "ir.v1", Package: "main", File: f, Functions: []sch.IRFunction{{Name:"main", Blocks: []sch.IRBlock{{Label:"entry"}}}}}
-        res.IR = append(res.IR, ir)
+        // Parse to internal AST
+        p := parser.New(mustReadFile(f))
+        fileAST := p.ParseFile()
+        pkgName := fileAST.Package
+        if pkgName == "" { pkgName = "main" }
+
+        // Richer AST schema output
+        astOut := astjson.ToSchemaAST(fileAST, f)
+        res.AST = append(res.AST, astOut)
+
+        // Lower to IR and convert to schema
+        irMod := irpkg.FromASTFile(pkgName, f, fileAST)
+        // Apply pragma-derived attributes
+        irMod.ApplyDirectives(fileAST.Directives)
+        irOut := irMod.ToSchema()
+        res.IR = append(res.IR, irOut)
+
+        // Generate assembly text
+        asmText := cg.GenerateASM(irMod)
+        res.ASM = append(res.ASM, ASMUnit{Package: pkgName, Unit: f, Text: asmText})
     }
     return res, nil
 }
+
+// mustReadFile returns source or empty string on error; build path already validated by caller.
+func mustReadFile(path string) string {
+    // Keep this local to avoid introducing CLI deps or fs mocks; callers supply existing files.
+    // If read fails, return empty source to keep determinism in scaffolding.
+    b, err := osReadFile(path)
+    if err != nil { return "" }
+    return string(b)
+}
+
+// indirection for testing/mocking if needed in future
+var osReadFile = func(path string) ([]byte, error) { return os.ReadFile(path) }

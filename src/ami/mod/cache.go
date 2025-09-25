@@ -88,13 +88,31 @@ func CommitDigestForCLI(repoPath, tag string) (string, error) { return commitDig
 func Get(url string) (string, error) {
     cache, err := CacheDir()
     if err != nil { return "", err }
-    // local path
+    // local path: must be within workspace and declared in ami.workspace
     if strings.HasPrefix(url, "./") || strings.HasPrefix(url, "../") || strings.HasPrefix(url, "/") {
-        src := filepath.Clean(url)
-        name := filepath.Base(src)
+        cwd, _ := os.Getwd()
+        wsRoot, err := findWorkspaceRoot(cwd)
+        if err != nil { return "", err }
+        // Resolve absolute paths
+        absSrc, err := filepath.Abs(url)
+        if err != nil { return "", err }
+        // Ensure within workspace root
+        absRoot, _ := filepath.Abs(wsRoot)
+        relToRoot, err := filepath.Rel(absRoot, absSrc)
+        if err != nil { return "", err }
+        if strings.HasPrefix(relToRoot, "..") { return "", errors.New("local path must be within workspace") }
+        // Ensure declared in ami.workspace
+        wsPath := filepath.Join(wsRoot, "ami.workspace")
+        // Use ./ prefix form for comparison
+        relDecl := filepath.ToSlash("./" + relToRoot)
+        ok, err := isDeclaredLocalImport(wsPath, relDecl)
+        if err != nil { return "", err }
+        if !ok { return "", errors.New("local path not declared in ami.workspace imports") }
+        // Copy into cache
+        name := filepath.Base(absSrc)
         dest := filepath.Join(cache, name+"@local")
         _ = os.RemoveAll(dest)
-        if err := copyDir(src, dest); err != nil { return "", err }
+        if err := copyDir(absSrc, dest); err != nil { return "", err }
         return dest, nil
     }
     // git+ssh

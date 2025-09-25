@@ -18,9 +18,9 @@ TopDecl = FuncDecl | PipelineDecl ;
 FuncDecl = "func" identifier ParamList [ ResultList ] Block ;
 ParamList = "(" { /* tokens until matching ')' */ } ")" ;
 ResultList = "(" { /* optional tuple */ } ")" ;
-Block = "{" { Stmt | MutBlock } "}" ;
-// No Rust-like mut blocks in AMI; mutability is expressed per-assignment or via mutate(...).
-Stmt = /* imperative subset evolves; assignment `=` tokens are only permitted within MutBlock in this phase */ ;
+Block = "{" { Stmt } "}" ;
+// Mutability is expressed per-assignment via '*' on the LHS or via mutate(...). There are no Rust-like mut blocks in AMI.
+Stmt = /* imperative subset; assignments require '*' on LHS; mutate(expr) allowed */ ;
 
 PipelineDecl = "pipeline" identifier "{" NodeChain "}" ;
 NodeChain = NodeCall { ( "." | "->" ) NodeCall } ;
@@ -37,6 +37,10 @@ Note on `edge.*` constructs:
 - Within node argument lists, authors may specify declarative edge specifications such as `edge.FIFO(...)`, `edge.LIFO(...)`, or `edge.Pipeline(...)`.
 - These are compiler-generated artifacts, not runtime function calls. The compiler recognizes them and emits high-performance queue/bridge implementations during code generation.
 - See `docs/edges.md` for semantics and performance considerations.
+
+Docx-aligned usage clarifications
+- Transform nodes are declared with attributes: `in=edge.FIFO|edge.LIFO(...)`, `worker=<func|factory>`, optional `minWorkers/maxWorkers`, `onError`, and output `type`.
+- Collect uses `in=edge.MultiPath(inputs=[ ... ])` where the first input is the default upstream edge, and subsequent items may include `edge.Pipeline(name=Upstream, ...)`. Merge behavior is expressed via `merge=Sort(...)`.
 
 Mutability rules (subset)
 - Default is immutable: assignments must be explicitly marked using `*` on the LHS, e.g., `*x = y`.

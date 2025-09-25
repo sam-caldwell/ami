@@ -21,8 +21,6 @@ type Module struct {
     Capabilities []string
     Trust        string
     Backpressure string
-    Scheduling   string
-    Telemetry    []string
     Pipelines    []PipelineIR
 }
 
@@ -42,25 +40,12 @@ func FromASTFile(pkg, unit string, f *astpkg.File) Module {
 func (m *Module) ApplyDirectives(dirs []astpkg.Directive) {
     for _, d := range dirs {
         switch strings.ToLower(d.Name) {
-        case "concurrency":
-            // naive parse int
-            if n, err := strconv.Atoi(strings.Fields(d.Payload)[0]); err == nil { m.Concurrency = n }
         case "capabilities":
             m.Capabilities = splitCSV(d.Payload)
         case "trust":
             m.Trust = strings.TrimSpace(d.Payload)
         case "backpressure":
             m.Backpressure = strings.TrimSpace(d.Payload)
-        case "scheduling", "schedule":
-            m.Scheduling = strings.ToLower(strings.TrimSpace(d.Payload))
-        case "telemetry":
-            // payload is comma or space separated tokens; normalize to lower-case
-            payload := strings.ReplaceAll(strings.TrimSpace(d.Payload), ",", " ")
-            fields := strings.Fields(payload)
-            for _, f := range fields {
-                f = strings.ToLower(strings.TrimSpace(f))
-                if f != "" { m.Telemetry = append(m.Telemetry, f) }
-            }
         }
     }
 }
@@ -87,7 +72,7 @@ func (m Module) ToSchema() sch.IRV1 {
                 switch {
                 case strings.ToLower(p.Type.Name) == "event":
                     dom = "event"
-                case p.Type.Name == "State" && p.Type.Ptr:
+                case p.Type.Name == "State":
                     dom = "state"
                 default:
                     dom = "ephemeral"
@@ -129,7 +114,7 @@ type WorkerIR struct {
     HasState   bool
     // Captured generic payload types from signature shapes.
     Input      string // Event<T> -> T
-    OutputKind string // Event|Events|Error|Drop|Ack
+    OutputKind string // Event|Events|Error
     Output     string // Event<U>/Events<U>/Error<E> -> U/E
 }
 
@@ -154,7 +139,7 @@ func (m *Module) LowerPipelines(f *astpkg.File) {
                         p1 := fd.Params[0].Type
                         p3 := fd.Params[2].Type
                         wi.HasContext = (p1.Name == "Context")
-                        wi.HasState = (p3.Name == "State" && p3.Ptr)
+                        wi.HasState = (p3.Name == "State")
                         // capture generic payloads
                         // input is param[1] which should be Event<T>
                         p2 := fd.Params[1].Type
@@ -174,10 +159,6 @@ func (m *Module) LowerPipelines(f *astpkg.File) {
                             case r.Name == "Error" && len(r.Args) == 1:
                                 wi.OutputKind = "Error"
                                 wi.Output = typeRefToString(r.Args[0])
-                            case r.Name == "Drop" && len(r.Args) == 0:
-                                wi.OutputKind = "Drop"
-                            case r.Name == "Ack" && len(r.Args) == 0:
-                                wi.OutputKind = "Ack"
                             }
                         }
                     }

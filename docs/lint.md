@@ -43,7 +43,7 @@ Default severities unless overridden by config/strict:
  - Language reminders:
 
  - RAII usage hints:
-  - `W_RAII_OWNED_HINT` (info): Owned<T> in signatures/structs should be released using `mutate(release(x))` or an equivalent explicit release call.
+  - `W_RAII_OWNED_HINT` (info): ownership (modeled internally as `Owned<T>`) should be released using an explicit close/release call (e.g., `release(x)`), optionally wrapped in `mutate(...)` when mutation semantics apply. `Owned<T>` is an analysis marker, not an AMI source type.
 
 - Collection constraints (mirrors as hints):
   - `W_MAP_ARITY_HINT` (warn): map requires two type parameters (`map<K,V>`).

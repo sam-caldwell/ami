@@ -1,57 +1,182 @@
-// Complex AMI example:
-// - Two independent ingress pipelines driven by timers
-//   - TimerEverySecond: emits current time every 1s
-//   - TimerEveryTwoSeconds: emits an incrementing uint every 2s
-// - Each pipeline transforms its event into a uint(1)
-// - The two event streams are merged (collect) and counted
-// - The accumulated count is written to stdout via an egress
+// file: main.ami (complex example)
+// (c) 2025 Asymmetric‑Effort, LLC.
+package main:0.0.1
 
-package main
+import github.com/asymmetric-effort/ami/trigger >= v0.0.0
+import github.com/asymmetric-effort/ami/stdio >= v0.0.0
+import github.com/asymmetric-effort/ami/time   >= v0.0.0
 
-// Worker stubs omitted: this scaffold focuses on pipeline wiring.
-
-// Pipeline A: time every 1s -> toOne
+// Pipeline A: emits current time every 1s, maps to uint64(1), writes to stdout
 pipeline TimerEverySecond {
-  Ingress(
-    name=TimerEverySecond,
-    in=trigger.Timer(interval="1s", startNow=true),
-    minWorkers=1,
-    maxWorkers=1,
-    type=string,
-  ).Transform(cfg)
-   .Egress(
-     in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=string)
-   )
+    Ingress(
+        name=TimerEverySecond,
+        in=trigger.Timer(interval="1s"), // emit time.Time in Event<T>
+        worker=func(event Event<time.Time>) (Event<time.Time>, error) {
+            return Event<event.payload>, nil
+        },
+        minWorkers=1,
+        maxWorkers=1,
+        onError=ErrorPipeline,
+        capabilities=[/* none */],
+        type=time.Time,
+    ).Transform(
+        in=edge.FIFO(
+            minCapacity=5,
+            maxCapacity=10,
+            backpressure=dropOldest,
+            type=time.Time,
+        ),
+        worker=func(input Event<time.Time>) (Event<uint64>,error){
+            return Event<uint64>(1), nil
+        },
+        minWorkers=1,
+        maxWorkers=1,
+        onError=ErrorPipeline,
+        type=uint64,
+    ).Egress(
+        in=edge.FIFO(
+            minCapacity=5,
+            maxCapacity=10,
+            backpressure=dropOldest,
+            type=uint64,
+        ),
+        worker=func(input Event<uint64>) error {
+            stdio.Println(input)
+            return nil
+        },
+        minWorkers=1,
+        maxWorkers=2,
+        onError=ErrorPipeline,
+        capabilities=[]
+    )
 }
 
-// Pipeline B: seq every 2s -> toOne
+// Pipeline B: emits an event every 2s, maps to uint64(1), writes to stdout
 pipeline TimerEveryTwoSeconds {
-  Ingress(
-    name=TimerEveryTwoSeconds,
-    in=trigger.Timer(interval="2s", startNow=true),
-    minWorkers=1,
-    maxWorkers=1,
-    type=string, // sequential number rendered as string
-  ).Transform(cfg)
-   .Egress(
-     in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=string)
-   )
+    Ingress(
+        name=TimerEveryTwoSeconds,
+        in=trigger.Timer(interval="2s"), // emit time.Time in Event<T>
+        worker=func(event Event<time.Time>) (Event<time.Time>, error) {
+            return Event<event.payload>, nil
+        },
+        minWorkers=1,
+        maxWorkers=1,
+        onError=ErrorPipeline,
+        capabilities=[/* none */],
+        type=time.Time,
+    ).Transform(
+        in=edge.FIFO(
+            minCapacity=5,
+            maxCapacity=10,
+            backpressure=dropOldest,
+            type=time.Time,
+        ),
+        worker=func(input Event<time.Time>) (Event<uint64>,error){
+            return Event<uint64>(1), nil
+        },
+        minWorkers=1,
+        maxWorkers=1,
+        onError=ErrorPipeline,
+        type=uint64,
+    ).Egress(
+        in=edge.FIFO(
+            minCapacity=5,
+            maxCapacity=10,
+            backpressure=dropOldest,
+            type=uint64,
+        ),
+        worker=func(input Event<uint64>){
+            stdio.Println(input)
+            return nil
+        },
+        minWorkers=1,
+        maxWorkers=2,
+        onError=ErrorPipeline,
+        capabilities=[]
+    )
 }
 
-// Pipeline C: merge A+B, count, write to stdout
+// Pipeline C: merge A+B, write merged stream to stdout
 pipeline MergeCount {
-  Ingress(
-    name=MergeCount,
-    // Consume Pipeline A events as primary input
-    in=edge.Pipeline(name=TimerEverySecond),
-    minWorkers=1,
-    maxWorkers=1,
-    type=string,
-  ).Collect(
-    // Merge Pipeline B events
-    in=edge.Pipeline(name=TimerEveryTwoSeconds)
-  ).Transform(cfg)
-   .Egress(
-     in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=string)
-   )
+    Ingress(
+        name=MergeCount,
+        in=trigger.Timer(interval="500ms"), // driving stream for default path
+        worker=func(_ Event<time.Time>) (Event<uint64>, error){
+            return Event<uint64>(1), nil
+        },
+        minWorkers=1,
+        maxWorkers=1,
+        onError=ErrorPipeline,
+        capabilities=[/* none */],
+        type=uint64,
+    ).Collect(
+        in=edge.MultiPath(
+            inputs=[
+                // Default upstream edge first
+                edge.FIFO(
+                    minCapacity=5,
+                    maxCapacity=10,
+                    backpressure=block,
+                    type=uint64,
+                ),
+                // Merge Pipeline A events
+                edge.Pipeline(
+                    name=TimerEverySecond,
+                    minCapacity=5,
+                    maxCapacity=10,
+                    backpressure=block,
+                    type=uint64,
+                ),
+                // Merge Pipeline B events
+                edge.Pipeline(
+                    name=TimerEveryTwoSeconds,
+                    minCapacity=5,
+                    maxCapacity=10,
+                    backpressure=block,
+                    type=uint64,
+                ),
+            ],
+            // Merge/sort (shape only for example)
+            merge=Sort(
+                algorithm=ascendingTimeStamp,
+                window=60,
+                key=event.Created,
+            ),
+        ),
+        minWorkers=1,
+        maxWorkers=4,
+        type=uint64,
+    ).Transform(
+        in=edge.FIFO(
+            minCapacity=10,
+            maxCapacity=20,
+            backpressure=block,
+            type=uint64,
+        ),
+        worker=func(input Event<uint64>)(Event<uint64>,error){
+            const defaultValue uint64 = 0
+            sum:=strconv.AtoUint64(state.get("total",defaultValue))
+            state.set("total", sum + input.payload)
+            return Event<uint64>(sum + input.payload), nil
+        },
+        minWorkers=1,
+        maxWorkers=4,
+        onError=ErrorPipeline,
+        type=uint64,
+    ).Egress(
+        in=edge.FIFO(
+            minCapacity=10,
+            maxCapacity=20,
+            backpressure=block,
+            type=uint64,
+        ),
+        worker=func(input Event<uint64>) error{
+            stdio.Println(input)
+            return nil
+        },
+        minWorkers=1,
+        maxWorkers=2,
+        onError=ErrorPipeline,
+        capabilities=[]
+    )
 }

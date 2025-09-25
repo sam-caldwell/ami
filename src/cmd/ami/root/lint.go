@@ -396,7 +396,7 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
     }
     // Heuristic detection of common Go-specific syntax
     var goHits []string
-    patterns := []string{" var ", "\nvar ", ":=", " chan ", "\nchan ", " go ", "\ndefer ", " range ", "\ninterface ", " map[", " make(", " new("}
+    patterns := []string{" var ", "\nvar ", ":=", " chan ", "\nchan ", " go ", " range ", "\ninterface ", " map[", " make(", " new("}
     for _, ptn := range patterns { if strings.Contains(src, ptn) { goHits = append(goHits, strings.TrimSpace(ptn)) } }
     if len(goHits) > 0 {
         msg := "Go syntax detected (e.g., " + strings.Join(goHits, ", ") + "); AMI is not Go. See docs/language-mutability.md and docs/language-pointers.md."

@@ -1,11 +1,11 @@
-f# Memory Model: Ownership & RAII (2.4)
+# Memory Model: Ownership & RAII (2.4)
 
-This scaffold introduces a minimal ownership/RAII discipline for AMI:
+This scaffold introduces a minimal ownership/RAII discipline for AMI consistent with the spec’s RAII model.
 
-Owned<T>
+About `Owned<T>` (scaffold marker)
 
-- `Owned<T>` indicates a value with single-owner semantics requiring an explicit handoff or release before function end.
-- In this scaffold, only function parameters annotated as `Owned<T>` are tracked.
+- `Owned<T>` is an internal analysis marker used by lints/IR in this repository; it is not a source-level AMI type.
+- The linter treats parameters modeled as `Owned<T>` as requiring an explicit handoff or release before function end.
 
 Rules
 
@@ -18,9 +18,8 @@ Rules
 Scope & Limitations
 
 - Token-based: The checker scans function body tokens; it does not model local variable declarations or return values. It only tracks function parameter ownership.
-- Results and returns: Returning an `Owned<T>` is not modeled; prefer release/transfer in this scaffold.
+- Results and returns: Returning ownership is not modeled; prefer release/transfer in this scaffold.
 
 Tests
 
 - See `src/ami/compiler/sem/raii_semantics_test.go` for happy/sad tests.
-

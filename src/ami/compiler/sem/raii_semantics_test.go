@@ -29,7 +29,7 @@ func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> {
 
 func TestRAII_DoubleRelease_Error(t *testing.T) {
     src := `package p
-func release(o Owned<string>) Ack {}
+func release(o Owned<string>) {}
 func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> { mutate(release(r)); mutate(release(r)) }`
     p := parser.New(src)
     f := p.ParseFile()
@@ -41,7 +41,7 @@ func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> {
 
 func TestRAII_UseAfterRelease_Error(t *testing.T) {
     src := `package p
-func release(o Owned<string>) Ack {}
+func release(o Owned<string>) {}
 func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> { mutate(release(r)) r }`
     p := parser.New(src)
     f := p.ParseFile()

@@ -79,15 +79,14 @@ func TestScanner_IllegalToken(t *testing.T) {
 }
 
 func TestScanner_Pragma_Directives(t *testing.T) {
-    src := "#pragma concurrency 4\n#pragma capabilities net,fs\n#pragma trust sandboxed\n#pragma backpressure drop\npackage x"
+    src := "#pragma capabilities net,fs\n#pragma trust sandboxed\n#pragma backpressure drop\npackage x"
     s := New(src)
-    // Expect four pragma tokens then package
-    t1 := s.Next(); t2 := s.Next(); t3 := s.Next(); t4 := s.Next(); t5 := s.Next()
+    // Expect three pragma tokens then package
+    t1 := s.Next(); t2 := s.Next(); t3 := s.Next(); t4 := s.Next()
     if t1.Kind != tok.PRAGMA || t1.Lexeme == "" { t.Fatalf("t1 not PRAGMA: %+v", t1) }
-    if t2.Kind != tok.PRAGMA || t3.Kind != tok.PRAGMA || t4.Kind != tok.PRAGMA { t.Fatalf("pragma sequence missing") }
-    if got, want := strings.Fields(t1.Lexeme)[0], "concurrency"; got != want { t.Fatalf("want first pragma 'concurrency', got %q", got) }
-    if got, want := strings.Fields(t2.Lexeme)[0], "capabilities"; got != want { t.Fatalf("want second pragma 'capabilities', got %q", got) }
-    if got, want := strings.Fields(t3.Lexeme)[0], "trust"; got != want { t.Fatalf("want third pragma 'trust', got %q", got) }
-    if got, want := strings.Fields(t4.Lexeme)[0], "backpressure"; got != want { t.Fatalf("want fourth pragma 'backpressure', got %q", got) }
-    if t5.Kind != tok.KW_PACKAGE { t.Fatalf("expected package after pragmas, got %v", t5.Kind) }
+    if t2.Kind != tok.PRAGMA || t3.Kind != tok.PRAGMA { t.Fatalf("pragma sequence missing") }
+    if got, want := strings.Fields(t1.Lexeme)[0], "capabilities"; got != want { t.Fatalf("want first pragma 'capabilities', got %q", got) }
+    if got, want := strings.Fields(t2.Lexeme)[0], "trust"; got != want { t.Fatalf("want second pragma 'trust', got %q", got) }
+    if got, want := strings.Fields(t3.Lexeme)[0], "backpressure"; got != want { t.Fatalf("want third pragma 'backpressure', got %q", got) }
+    if t4.Kind != tok.KW_PACKAGE { t.Fatalf("expected package after pragmas, got %v", t4.Kind) }
 }

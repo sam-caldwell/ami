@@ -33,6 +33,9 @@ const (
     KW_FALSE
     KW_NIL
     KW_MUT
+    KW_DEFER
+    KW_RETURN
+    KW_VAR
 
     // Operators and delimiters
     LPAREN    // (
@@ -96,4 +99,7 @@ var Keywords = map[string]Kind{
     "false":     KW_FALSE,
     "nil":       KW_NIL,
     "mut":       KW_MUT,
+    "defer":     KW_DEFER,
+    "return":    KW_RETURN,
+    "var":       KW_VAR,
 }

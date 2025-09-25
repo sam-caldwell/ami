@@ -16,7 +16,7 @@ Runtime Manager
 IR Annotations
 
 - The IR schema (`src/schemas/ir_v1.go`) includes per‑parameter fields `ownership` and `domain`.
-- IR lowering populates these from function signatures: `Event<T>` → `domain=event`; `State` → `domain=state`; otherwise `domain=ephemeral`; `Owned<…>` → `ownership=owned`, else `borrowed`.
+- IR lowering populates these from function signatures: `Event<T>` → `domain=event`; `State` → `domain=state`; otherwise `domain=ephemeral`. The repository uses `Owned<…>` as an internal analysis marker to model ownership (`ownership=owned`); this is not a source‑level AMI type.
 
 Lints
 
@@ -27,4 +27,3 @@ Notes
 
 - AMI 2.3.2 forbids raw pointers: `&` is not allowed, and unary `*` is only a mutation marker on the left‑hand side of assignments.
 - The manager is an accounting scaffold; it is not a general‑purpose allocator.
-

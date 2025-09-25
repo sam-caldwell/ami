@@ -38,3 +38,7 @@ Guarantees and limitations
 - Delete-on-read deletes after the Nth successful `Get()` and still returns the value for that final read.
 - Values are stored as opaque interfaces; callers are responsible for type assertions on `Get()`.
 
+Test isolation
+
+- The default registry is process-global. For test isolation, call `kvstore.ResetDefault()` in `t.Cleanup` so each test starts with a fresh registry.
+- In tester package tests, use `ResetDefaultKVForTest(t)` to automatically reset the default registry at the end of the test.

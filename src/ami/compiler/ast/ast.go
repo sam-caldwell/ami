@@ -114,38 +114,59 @@ func (PackageDecl) isNode() {}
 // Expressions
 type Expr interface{ isExpr() }
 
-type Ident struct { Name string }
+type Ident struct { Name string; Pos Position }
 func (Ident) isExpr() {}
 
-type BasicLit struct { Kind string; Value string }
+type BasicLit struct { Kind string; Value string; Pos Position }
 func (BasicLit) isExpr() {}
 
-type CallExpr struct { Fun Expr; Args []Expr }
+type CallExpr struct { Fun Expr; Args []Expr; Pos Position }
 func (CallExpr) isExpr() {}
 
+// BinaryExpr represents a binary operation: X Op Y
+type BinaryExpr struct { X Expr; Op string; Y Expr; Pos Position }
+func (BinaryExpr) isExpr() {}
+
 // UnaryExpr represents a simple unary operation like &x or *p
-type UnaryExpr struct { Op string; X Expr }
+type UnaryExpr struct { Op string; X Expr; Pos Position }
 func (UnaryExpr) isExpr() {}
 
 // SelectorExpr represents a qualified selector: recv.method
-type SelectorExpr struct { X Expr; Sel string }
+type SelectorExpr struct { X Expr; Sel string; Pos Position }
 func (SelectorExpr) isExpr() {}
 
 // --- Simple statement nodes for function bodies ---
 
 type Stmt interface{ isStmt() }
 
-type ExprStmt struct { X Expr }
+type ExprStmt struct { X Expr; Pos Position }
 func (ExprStmt) isStmt() {}
 
-type AssignStmt struct { LHS Expr; RHS Expr }
+type AssignStmt struct { LHS Expr; RHS Expr; Pos Position }
 func (AssignStmt) isStmt() {}
 
-type BlockStmt struct { Stmts []Stmt }
+// DeferStmt represents a deferred execution of an expression (usually a call).
+type DeferStmt struct { X Expr; Pos Position }
+func (DeferStmt) isStmt() {}
+
+type BlockStmt struct { Stmts []Stmt; Pos Position }
 func (BlockStmt) isStmt() {}
 
-type MutBlockStmt struct { Body BlockStmt }
+type MutBlockStmt struct { Body BlockStmt; Pos Position }
 func (MutBlockStmt) isStmt() {}
+
+// ReturnStmt returns from a function with zero or more expressions (tuple future).
+type ReturnStmt struct { Results []Expr; Pos Position }
+func (ReturnStmt) isStmt() {}
+
+// VarDeclStmt declares a local variable with optional type and initializer.
+type VarDeclStmt struct {
+    Name string
+    Type TypeRef // optional (zero value if omitted)
+    Init Expr    // optional (nil if omitted)
+    Pos  Position
+}
+func (VarDeclStmt) isStmt() {}
 
 // EdgeSpec captures an explicit edge with policy/config (future use).
 type EdgeSpec struct {

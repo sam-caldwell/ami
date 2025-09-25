@@ -14,6 +14,10 @@ import (
 // Options controls driver behaviors
 type Options struct{
     SemDiags bool
+    // EffectiveConcurrency allows the caller (CLI) to inject the workspace
+    // concurrency into the generated debug artifacts. When >0, codegen emits
+    // a header line "; concurrency <n>" in ASM outputs.
+    EffectiveConcurrency int
 }
 
 // ASMUnit contains generated assembly text for a compilation unit.
@@ -61,6 +65,9 @@ func CompileWithDiagnostics(files []string, opts Options) (Result, []cdiag.Diagn
         irMod := irpkg.FromASTFile(pkgName, f, fileAST)
         // Apply pragma-derived attributes and lower pipelines for worker/factory info
         irMod.ApplyDirectives(fileAST.Directives)
+        if opts.EffectiveConcurrency > 0 {
+            irMod.Concurrency = opts.EffectiveConcurrency
+        }
         irMod.LowerPipelines(fileAST)
         irOut := irMod.ToSchema()
         res.IR = append(res.IR, irOut)

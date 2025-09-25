@@ -16,7 +16,7 @@ func GenerateASM(m ir.Module) string {
     b.WriteString(" unit ")
     b.WriteString(m.Unit)
     b.WriteString("\n")
-    // pragma-derived attributes
+    // pragma-derived attributes (subset)
     if m.Concurrency > 0 {
         b.WriteString(fmt.Sprintf("; concurrency %d\n", m.Concurrency))
     }
@@ -25,16 +25,7 @@ func GenerateASM(m ir.Module) string {
         b.WriteString(m.Backpressure)
         b.WriteString("\n")
     }
-    if m.Scheduling != "" {
-        b.WriteString("; scheduling ")
-        b.WriteString(m.Scheduling)
-        b.WriteString("\n")
-    }
-    if len(m.Telemetry) > 0 {
-        b.WriteString("; telemetry ")
-        b.WriteString(strings.Join(m.Telemetry, ","))
-        b.WriteString("\n")
-    }
+    // scheduling and telemetry pragmas removed from language; no emission
     if len(m.Capabilities) > 0 {
         b.WriteString("; capabilities ")
         b.WriteString(strings.Join(m.Capabilities, ","))

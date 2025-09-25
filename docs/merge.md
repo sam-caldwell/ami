@@ -136,3 +136,5 @@ pipeline TenantMerge {
 - Determinism: identical inputs and configuration MUST yield identical outputs across runs.
 - Planner/runtime mapping: see SPECIFICATION.md for IR fields; implementation will map attributes to merge operator configuration in later phases.
 
+See also
+- `docs/edges.md` for general edge specifications (`edge.FIFO`, `edge.LIFO`, `edge.Pipeline`) and compiler treatment of edge declarations.

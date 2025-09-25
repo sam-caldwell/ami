@@ -1,0 +1,23 @@
+// file: regexp.ami
+// (c) 2025 Asymmetric-Effort, LLC.
+package main:0.0.1
+
+import ami/stdlib/regexp >= v0.0.0
+import github.com/asymmetric-effort/ami/stdio >= v0.0.0
+
+pipeline OnlyDigits {
+  Ingress(
+    name=OnlyDigits,
+    in=edge.FIFO(minCapacity=1,maxCapacity=8,backpressure=block,type=string),
+    worker=func(e Event<string>)(Event<bool>, error){
+      r := regexp.MustCompile("^[0-9]+$")
+      return Event<bool>( r.MatchString(e.payload) )
+    },
+    minWorkers=1,maxWorkers=2,onError=ErrorPipeline,type=bool,
+  ).Egress(
+    in=edge.FIFO(minCapacity=1,maxCapacity=8,backpressure=block,type=bool),
+    worker=func(e Event<bool>){ stdio.Println(e.payload) },
+    minWorkers=1,maxWorkers=1,onError=ErrorPipeline,capabilities=[],
+  )
+}
+

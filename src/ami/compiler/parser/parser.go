@@ -529,6 +529,45 @@ func parseBodyStmts(toks []tok.Token) []astpkg.Stmt {
 }
 
 func (bp *bodyParser) parseStmt() (astpkg.Stmt, bool) {
+    // helper to convert token position
+    toPos := func(t tok.Token) astpkg.Position { return astpkg.Position{Line: t.Line, Column: t.Column, Offset: t.Offset} }
+    // 'var' declaration: var IDENT [Type] [= expr]
+    if bp.cur().Kind == tok.KW_VAR {
+        start := bp.cur()
+        bp.next()
+        if bp.cur().Kind != tok.IDENT { return nil, false }
+        nameTok := bp.cur(); name := nameTok.Lexeme
+        bp.next()
+        // try parse optional type
+        tr, hasType := bp.parseTypeRef()
+        // optional initializer
+        var init astpkg.Expr
+        if bp.cur().Kind == tok.ASSIGN { bp.next(); if x, ok := bp.parseExpr(); ok { init = x } }
+        if hasType { return astpkg.VarDeclStmt{Name: name, Type: tr, Init: init, Pos: toPos(start)}, true }
+        return astpkg.VarDeclStmt{Name: name, Init: init, Pos: toPos(start)}, true
+    }
+    // 'defer' statement: defer <expr>
+    if bp.cur().Kind == tok.KW_DEFER {
+        start := bp.cur()
+        bp.next()
+        if x, ok := bp.parseExpr(); ok { return astpkg.DeferStmt{X: x, Pos: toPos(start)}, true }
+        return astpkg.DeferStmt{X: nil, Pos: toPos(start)}, true
+    }
+    // 'return' statement: return [expr]
+    if bp.cur().Kind == tok.KW_RETURN {
+        start := bp.cur()
+        bp.next()
+        // parse zero or more expressions separated by commas
+        var results []astpkg.Expr
+        if x, ok := bp.parseExpr(); ok {
+            results = append(results, x)
+            for bp.cur().Kind == tok.COMMA {
+                bp.next()
+                if y, ok2 := bp.parseExpr(); ok2 { results = append(results, y) } else { break }
+            }
+        }
+        return astpkg.ReturnStmt{Results: results, Pos: toPos(start)}, true
+    }
     // Note: AMI does not support Rust-like `mut { ... }` blocks.
     // Any appearance of `mut` is treated as an identifier token in expressions.
     // assignment or call expr
@@ -536,14 +575,19 @@ func (bp *bodyParser) parseStmt() (astpkg.Stmt, bool) {
     save := bp.i
     if lhs, ok := bp.parseExpr(); ok {
         if bp.cur().Kind == tok.ASSIGN {
+            assignTok := bp.cur()
             bp.next()
             if rhs, ok2 := bp.parseExpr(); ok2 {
-                return astpkg.AssignStmt{LHS: lhs, RHS: rhs}, true
+                return astpkg.AssignStmt{LHS: lhs, RHS: rhs, Pos: toPos(assignTok)}, true
             }
             // rollback
             bp.i = save
         } else {
             // treat any standalone expression as a statement for semantic scans
+            // position from the first token of the expression
+            if start := save; start < len(bp.toks) {
+                return astpkg.ExprStmt{X: lhs, Pos: toPos(bp.toks[start])}, true
+            }
             return astpkg.ExprStmt{X: lhs}, true
         }
     }
@@ -551,53 +595,7 @@ func (bp *bodyParser) parseStmt() (astpkg.Stmt, bool) {
     return nil, false
 }
 
-func (bp *bodyParser) parseExpr() (astpkg.Expr, bool) {
-    t := bp.cur()
-    switch t.Kind {
-    case tok.STAR:
-        bp.next()
-        if x, ok := bp.parseExpr(); ok { return astpkg.UnaryExpr{Op: "*", X: x}, true }
-        return nil, false
-    case tok.AMP:
-        bp.next()
-        if x, ok := bp.parseExpr(); ok { return astpkg.UnaryExpr{Op: "&", X: x}, true }
-        return nil, false
-    case tok.IDENT:
-        // method call: recv . method (args)
-        // or simple call: name(args)
-        name := t.Lexeme
-        bp.next()
-        // method selector
-        if bp.cur().Kind == tok.DOT {
-            // recv.name
-            recv := astpkg.Ident{Name: name}
-            bp.next()
-            if bp.cur().Kind == tok.IDENT {
-                sel := bp.cur().Lexeme
-                bp.next()
-                // call?
-                if bp.cur().Kind == tok.LPAREN {
-                    args := bp.parseArgs()
-                    return astpkg.CallExpr{Fun: astpkg.SelectorExpr{X: recv, Sel: sel}, Args: args}, true
-                }
-                return astpkg.SelectorExpr{X: recv, Sel: sel}, true
-            }
-            return astpkg.Ident{Name: name}, true
-        }
-        // simple call
-        if bp.cur().Kind == tok.LPAREN {
-            args := bp.parseArgs()
-            return astpkg.CallExpr{Fun: astpkg.Ident{Name: name}, Args: args}, true
-        }
-        return astpkg.Ident{Name: name}, true
-    case tok.STRING:
-        bp.next(); return astpkg.BasicLit{Kind: "string", Value: t.Lexeme}, true
-    case tok.NUMBER:
-        bp.next(); return astpkg.BasicLit{Kind: "number", Value: t.Lexeme}, true
-    default:
-        return nil, false
-    }
-}
+func (bp *bodyParser) parseExpr() (astpkg.Expr, bool) { return bp.parseBinaryExpr() }
 
 func (bp *bodyParser) parseArgs() []astpkg.Expr {
     // assume current is '('
@@ -619,6 +617,143 @@ func (bp *bodyParser) parseArgs() []astpkg.Expr {
         }
     }
     return out
+}
+
+// --- Binary expression parsing (precedence-climbing) ---
+
+func (bp *bodyParser) parseBinaryExpr() (astpkg.Expr, bool) {
+    left, ok := bp.parsePrimary()
+    if !ok { return nil, false }
+    return bp.parseBinaryRHS(0, left)
+}
+
+func (bp *bodyParser) parsePrimary() (astpkg.Expr, bool) {
+    t := bp.cur()
+    toPos := func(tk tok.Token) astpkg.Position { return astpkg.Position{Line: tk.Line, Column: tk.Column, Offset: tk.Offset} }
+    switch t.Kind {
+    case tok.IDENT:
+        // method call: recv . method (args)
+        // or simple call: name(args)
+        name := t.Lexeme
+        bp.next()
+        // method selector
+        if bp.cur().Kind == tok.DOT {
+            recv := astpkg.Ident{Name: name, Pos: toPos(t)}
+            bp.next()
+            if bp.cur().Kind == tok.IDENT {
+                sel := bp.cur().Lexeme
+                selTok := bp.cur(); bp.next()
+                if bp.cur().Kind == tok.LPAREN { args := bp.parseArgs(); return astpkg.CallExpr{Fun: astpkg.SelectorExpr{X: recv, Sel: sel, Pos: toPos(selTok)}, Args: args, Pos: toPos(t)}, true }
+                return astpkg.SelectorExpr{X: recv, Sel: sel, Pos: toPos(selTok)}, true
+            }
+            return astpkg.Ident{Name: name, Pos: toPos(t)}, true
+        }
+        if bp.cur().Kind == tok.LPAREN { args := bp.parseArgs(); return astpkg.CallExpr{Fun: astpkg.Ident{Name: name, Pos: toPos(t)}, Args: args, Pos: toPos(t)}, true }
+        return astpkg.Ident{Name: name, Pos: toPos(t)}, true
+    case tok.STRING:
+        bp.next(); return astpkg.BasicLit{Kind: "string", Value: t.Lexeme, Pos: toPos(t)}, true
+    case tok.NUMBER:
+        bp.next(); return astpkg.BasicLit{Kind: "number", Value: t.Lexeme, Pos: toPos(t)}, true
+    case tok.STAR:
+        bp.next(); if x, ok := bp.parsePrimary(); ok { return astpkg.UnaryExpr{Op: "*", X: x, Pos: toPos(t)}, true }; return nil, false
+    case tok.AMP:
+        bp.next(); if x, ok := bp.parsePrimary(); ok { return astpkg.UnaryExpr{Op: "&", X: x, Pos: toPos(t)}, true }; return nil, false
+    case tok.LPAREN:
+        bp.next(); e, ok := bp.parseBinaryExpr(); if bp.cur().Kind == tok.RPAREN { bp.next() }; return e, ok
+    default:
+        return nil, false
+    }
+}
+
+func (bp *bodyParser) precedence(k tok.Kind) int {
+    switch k {
+    case tok.STAR, tok.SLASH, tok.PERCENT:
+        return 40
+    case tok.PLUS, tok.MINUS:
+        return 30
+    case tok.LT, tok.LTE, tok.GT, tok.GTE:
+        return 20
+    case tok.EQ, tok.NEQ:
+        return 10
+    default:
+        return -1
+    }
+}
+
+func (bp *bodyParser) parseBinaryRHS(minPrec int, left astpkg.Expr) (astpkg.Expr, bool) {
+    for {
+        opTok := bp.cur()
+        prec := bp.precedence(opTok.Kind)
+        if prec < minPrec { break }
+        // treat '*' as multiplication only when not the LHS mutation marker: pattern '*' IDENT '='
+        if opTok.Kind == tok.STAR {
+            if bp.i+2 < len(bp.toks) && bp.toks[bp.i+1].Kind == tok.IDENT && bp.toks[bp.i+2].Kind == tok.ASSIGN { break }
+        }
+        // consume operator
+        bp.next()
+        // parse right operand
+        right, ok := bp.parsePrimary()
+        if !ok { return left, true }
+        // If next operator has higher precedence, parse it first
+        for {
+            nextPrec := bp.precedence(bp.cur().Kind)
+            if nextPrec > prec {
+                var ok2 bool
+                right, ok2 = bp.parseBinaryRHS(prec+1, right)
+                if !ok2 { break }
+            } else { break }
+        }
+        op := opTok.Lexeme
+        if op == "" {
+            switch opTok.Kind {
+            case tok.STAR: op = "*"
+            case tok.SLASH: op = "/"
+            case tok.PERCENT: op = "%"
+            case tok.PLUS: op = "+"
+            case tok.MINUS: op = "-"
+            case tok.LT: op = "<"
+            case tok.LTE: op = "<="
+            case tok.GT: op = ">"
+            case tok.GTE: op = ">="
+            case tok.EQ: op = "=="
+            case tok.NEQ: op = "!="
+            }
+        }
+        left = astpkg.BinaryExpr{X: left, Op: op, Y: right}
+    }
+    return left, true
+}
+
+// parseTypeRef parses a simple TypeRef in function bodies, mirroring Parser.parseType
+// sufficiently for local variable declarations. Rejects pointer type syntax per AMI 2.3.2.
+func (bp *bodyParser) parseTypeRef() (astpkg.TypeRef, bool) {
+    var tr astpkg.TypeRef
+    // reject pointer '*' proactively in type position
+    if bp.cur().Kind == tok.STAR { bp.next(); return tr, false }
+    // slice []
+    if bp.cur().Kind == tok.LBRACK {
+        bp.next()
+        if bp.cur().Kind == tok.RBRACK { tr.Slice = true; bp.next() } else { return tr, false }
+    }
+    // type name
+    switch bp.cur().Kind {
+    case tok.IDENT, tok.KW_MAP, tok.KW_SET, tok.KW_SLICE:
+        tr.Name = bp.cur().Lexeme
+        bp.next()
+    default:
+        return tr, false
+    }
+    // generics <...>
+    if bp.cur().Kind == tok.LT {
+        bp.next()
+        for !bp.atEnd() {
+            if bp.cur().Kind == tok.GT { bp.next(); break }
+            if bp.cur().Kind == tok.COMMA { bp.next(); continue }
+            if arg, ok := bp.parseTypeRef(); ok { tr.Args = append(tr.Args, arg); continue }
+            bp.next()
+        }
+    }
+    return tr, true
 }
 // parseWorkerRef tries to interpret an argument string as a worker/factory reference.
 func parseWorkerRef(s string) (astpkg.WorkerRef, bool) {

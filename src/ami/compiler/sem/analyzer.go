@@ -72,6 +72,10 @@ func AnalyzeFile(f *astpkg.File) Result {
             res.Diagnostics = append(res.Diagnostics, analyzePointerProhibitions(fd)...)
             // Imperative type checks (2.3): simple assignment type rules (no raw pointers)
             res.Diagnostics = append(res.Diagnostics, analyzeImperativeTypes(fd)...)
+            // Call argument type checks with simple generic unification
+            res.Diagnostics = append(res.Diagnostics, analyzeCallTypes(fd, funcs)...)
+            // Operators: arithmetic/comparison operand compatibility
+            res.Diagnostics = append(res.Diagnostics, analyzeOperators(fd)...)
             // Event contracts (1.7): event parameter immutability
             res.Diagnostics = append(res.Diagnostics, analyzeEventContracts(fd)...)
             // State contracts (2.2.14/2.3.5): state param immutability/address-of
@@ -94,7 +98,7 @@ func AnalyzeFile(f *astpkg.File) Result {
         }
         if pd, ok := d.(astpkg.PipelineDecl); ok {
             res.Diagnostics = append(res.Diagnostics, analyzePipeline(pd)...)
-            res.Diagnostics = append(res.Diagnostics, analyzeWorkers(pd, funcs)...)
+            res.Diagnostics = append(res.Diagnostics, analyzeWorkers(pd, funcs, res.Scope)...)
             res.Diagnostics = append(res.Diagnostics, analyzeEventTypeFlow(pd, funcs)...)
             res.Diagnostics = append(res.Diagnostics, analyzeIOPermissions(pd)...)
             res.Diagnostics = append(res.Diagnostics, analyzeEdges(pd)...)
@@ -325,7 +329,7 @@ func analyzePipeline(pd astpkg.PipelineDecl) []diag.Diagnostic {
 // to known top-level function declarations. It scans step args heuristically:
 // - IDENT or IDENT(arg,...) → resolves to IDENT
 // Applies to Transform and FanOut nodes.
-func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl) []diag.Diagnostic {
+func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl, scope *types.Scope) []diag.Diagnostic {
     var diags []diag.Diagnostic
     checkArgs := func(args []string) {
         for _, a := range args {
@@ -345,6 +349,16 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl) []
                     }
                 }
                 continue
+            }
+            // Dotted reference: pkg.Func(...) — accept if pkg is an imported package symbol
+            if dot := strings.IndexByte(name, '.'); dot > 0 {
+                pkg := name[:dot]
+                if scope != nil {
+                    if obj := scope.Lookup(pkg); obj != nil && obj.Type.String() == types.TPackage.String() {
+                        // Imported worker reference; cannot validate signature here; skip undefined error.
+                        continue
+                    }
+                }
             }
             fd, ok := funcs[name]
             if !ok {
@@ -379,6 +393,8 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl) []
 // - No Rust-like `mut { ... }` blocks are permitted.
 // - Any assignment must use `*` on the left-hand side to mark mutation.
 // - Unary '*' is not a dereference and is invalid in expression (RHS) position.
+// Note: In AMI 2.3.2, `*` on the LHS is the mutation marker (not a pointer
+// dereference). This function validates that usage and flags misuse.
 func analyzeMutationMarkers(fd astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
     if len(fd.Body) == 0 && len(fd.BodyStmts) == 0 { return diags }
@@ -405,7 +421,7 @@ func analyzeMutationMarkers(fd astpkg.FuncDecl) []diag.Diagnostic {
             switch v := s.(type) {
             case astpkg.AssignStmt:
                 if ue, ok := v.LHS.(astpkg.UnaryExpr); !ok || ue.Op != "*" {
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_ASSIGN_UNMARKED", Message: "assignment must be marked with '*' on left-hand side to indicate mutation"})
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_ASSIGN_UNMARKED", Message: "assignment must be marked with '*' (mutation marker) on left-hand side"})
                 }
                 walkExpr(v.RHS, false)
             case astpkg.MutBlockStmt:
@@ -426,7 +442,7 @@ func analyzeMutationMarkers(fd astpkg.FuncDecl) []diag.Diagnostic {
     for i := 0; i < len(toks); i++ {
         if toks[i].Kind == tok.ASSIGN {
             if !(i-2 >= 0 && toks[i-2].Kind == tok.STAR && toks[i-1].Kind == tok.IDENT) {
-                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_ASSIGN_UNMARKED", Message: "assignment must be marked with '*' on left-hand side to indicate mutation"})
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_ASSIGN_UNMARKED", Message: "assignment must be marked with '*' (mutation marker) on left-hand side"})
             }
         }
     }
@@ -642,9 +658,9 @@ func analyzeStateContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
     for _, p := range fd.Params { if p.Name != "" { env[p.Name] = p.Type } }
     toks := fd.Body
     for i := 0; i < len(toks); i++ {
-        // Reassignment of state param: IDENT '=' ... where IDENT is *State
+        // Reassignment of state param: IDENT '=' ... where IDENT is State
         if toks[i].Kind == tok.IDENT {
-            if tr, ok := env[toks[i].Lexeme]; ok && tr.Name == "State" && tr.Ptr {
+            if tr, ok := env[toks[i].Lexeme]; ok && tr.Name == "State" {
                 if i+1 < len(toks) && toks[i+1].Kind == tok.ASSIGN {
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_STATE_PARAM_ASSIGN", Message: "state parameter is immutable and cannot be reassigned"})
                 }
@@ -660,7 +676,33 @@ func analyzeStateContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
 // Forbidden cross-domain references:
 // - Assigning address of non-state value into state memory, e.g., `*st = &ev` or `*st = &x`.
 //   Emits E_CROSS_DOMAIN_REF.
-func analyzeMemoryDomains(fd astpkg.FuncDecl) []diag.Diagnostic { return nil }
+func analyzeMemoryDomains(fd astpkg.FuncDecl) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    if len(fd.Body) == 0 { return diags }
+    // Token-based scan for prohibited cross-domain patterns. We prefer token
+    // matching to avoid coupling to expression forms and to work even when the
+    // parser recorded address-of errors.
+    env := map[string]astpkg.TypeRef{}
+    for _, p := range fd.Params { if p.Name != "" { env[p.Name] = p.Type } }
+    toks := fd.Body
+    for i := 0; i+3 < len(toks); i++ {
+        // *st = &x (address-of into state)
+        if toks[i].Kind == tok.STAR && toks[i+1].Kind == tok.IDENT && toks[i+2].Kind == tok.ASSIGN && toks[i+3].Kind == tok.AMP {
+            if tr, ok := env[toks[i+1].Lexeme]; ok && tr.Name == "State" {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "cross-domain reference into state: cannot assign address-of non-state value into state"})
+            }
+        }
+        // *st = ev (assignment from non-state identifier into state)
+        if toks[i].Kind == tok.STAR && toks[i+1].Kind == tok.IDENT && toks[i+2].Kind == tok.ASSIGN && toks[i+3].Kind == tok.IDENT {
+            if tr, ok := env[toks[i+1].Lexeme]; ok && tr.Name == "State" {
+                if rt, ok2 := env[toks[i+3].Lexeme]; ok2 && rt.Name != "State" {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "cross-domain assignment into state from non-state value is forbidden"})
+                }
+            }
+        }
+    }
+    return diags
+}
 
 // analyzeRAII enforces minimal ownership/RAII rules for Owned<T> parameters:
 // - E_RAII_OWNED_NOT_RELEASED: Owned param must be released or transferred.
@@ -820,6 +862,7 @@ func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []
     for _, p := range fd.Params { if p.Name != "" && strings.ToLower(p.Type.Name) == "owned" && len(p.Type.Args) == 1 { owned[p.Name] = true } }
     if len(owned) == 0 { return diags }
     released := map[string]bool{}
+    deferred := map[string]bool{}
     usedAfter := map[string]bool{}
     // helpers
     isReleaser := func(name string) bool { switch strings.ToLower(name) { case "release","drop","free","dispose": return true }; return false }
@@ -838,7 +881,7 @@ func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []
             if id, ok := v.X.(astpkg.Ident); ok {
                 if owned[id.Name] {
                     if strings.EqualFold(v.Sel, "close") || strings.EqualFold(v.Sel, "release") || strings.EqualFold(v.Sel, "free") || strings.EqualFold(v.Sel, "dispose") {
-                        if released[id.Name] {
+                        if released[id.Name] || deferred[id.Name] {
                             diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
                         }
                         released[id.Name] = true
@@ -858,7 +901,7 @@ func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []
                     mark := false
                     for _, a := range v.Args {
                         if id, ok := a.(astpkg.Ident); ok && owned[id.Name] {
-                            if released[id.Name] {
+                            if released[id.Name] || deferred[id.Name] {
                                 diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
                             }
                             released[id.Name] = true
@@ -889,7 +932,7 @@ func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []
                 // Treat known releaser methods as release operations.
                 if id, ok := f.X.(astpkg.Ident); ok && owned[id.Name] {
                     if strings.EqualFold(f.Sel, "close") || strings.EqualFold(f.Sel, "release") || strings.EqualFold(f.Sel, "free") || strings.EqualFold(f.Sel, "dispose") {
-                        if released[id.Name] {
+                        if released[id.Name] || deferred[id.Name] {
                             diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
                         }
                         released[id.Name] = true
@@ -912,6 +955,77 @@ func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []
             walkExpr(v.LHS); walkExpr(v.RHS)
         case astpkg.ExprStmt:
             walkExpr(v.X)
+        case astpkg.DeferStmt:
+            // analyze deferred call specially: schedule release/transfer at end
+            if ce, ok := v.X.(astpkg.CallExpr); ok {
+                switch f := ce.Fun.(type) {
+                case astpkg.Ident:
+                    name := f.Name
+                    // known releaser by name
+                    if isReleaser(name) {
+                        mark := false
+                        for _, a := range ce.Args {
+                            if id, ok := a.(astpkg.Ident); ok && owned[id.Name] {
+                                if released[id.Name] || deferred[id.Name] {
+                                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
+                                }
+                                deferred[id.Name] = true
+                                mark = true
+                            }
+                        }
+                        if !mark {
+                            if len(owned) == 1 {
+                                for k := range owned {
+                                    if released[k] {
+                                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
+                                    }
+                                    deferred[k] = true
+                                }
+                            }
+                        }
+                    }
+                    // Transfer semantics for known functions with Owned params: treat as release at end
+                    if callee, ok := funcs[name]; ok {
+                        calleeHasOwned := false
+                        for _, p := range callee.Params { if strings.ToLower(p.Type.Name) == "owned" && len(p.Type.Args) == 1 { calleeHasOwned = true; break } }
+                        matched := false
+                        for idx, a := range ce.Args {
+                            if id, ok := a.(astpkg.Ident); ok && owned[id.Name] {
+                                if idx < len(callee.Params) {
+                                    pt := callee.Params[idx].Type
+                                    if strings.ToLower(pt.Name) == "owned" && len(pt.Args) == 1 {
+                                        if released[id.Name] || deferred[id.Name] {
+                                            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release/transfer of owned value"})
+                                        }
+                                        deferred[id.Name] = true
+                                        matched = true
+                                    }
+                                }
+                            }
+                        }
+                        if !matched && calleeHasOwned && len(owned) == 1 {
+                            for k := range owned {
+                                if released[k] || deferred[k] {
+                                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release/transfer of owned value"})
+                                }
+                                deferred[k] = true
+                            }
+                        }
+                    }
+                case astpkg.SelectorExpr:
+                    // receiver.method(...)
+                    if id, ok := f.X.(astpkg.Ident); ok && owned[id.Name] {
+                        if strings.EqualFold(f.Sel, "close") || strings.EqualFold(f.Sel, "release") || strings.EqualFold(f.Sel, "free") || strings.EqualFold(f.Sel, "dispose") {
+                            if released[id.Name] || deferred[id.Name] {
+                                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
+                            }
+                            deferred[id.Name] = true
+                        }
+                    }
+                default:
+                    // nothing
+                }
+            }
         case astpkg.MutBlockStmt:
             for _, ss := range v.Body.Stmts { walkStmt(ss) }
         case astpkg.BlockStmt:
@@ -921,7 +1035,7 @@ func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []
     for _, s := range fd.BodyStmts { walkStmt(s) }
     if !isSinkFunction(fd) {
         for name := range owned {
-            if !released[name] {
+            if !(released[name] || deferred[name]) {
                 diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_OWNED_NOT_RELEASED", Message: "owned value not released or transferred before function end"})
             }
         }
@@ -937,7 +1051,7 @@ func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []
 // parameters and are not subject to RAII not-released enforcement. Criteria:
 // - Function is not a worker signature; and
 // - Has at least one parameter of type Owned<…>; and
-// - Returns Ack or Drop (common sink pattern) OR has exactly one parameter.
+// - Has exactly one parameter (common sink pattern).
 func isSinkFunction(fd astpkg.FuncDecl) bool {
     if isWorkerSignature(fd) { return false }
     hasOwned := false
@@ -945,10 +1059,6 @@ func isSinkFunction(fd astpkg.FuncDecl) bool {
         if strings.EqualFold(p.Type.Name, "owned") && len(p.Type.Args) == 1 { hasOwned = true; break }
     }
     if !hasOwned { return false }
-    if len(fd.Result) == 1 {
-        r := fd.Result[0]
-        if (r.Name == "Ack" || r.Name == "Drop") && len(r.Args) == 0 { return true }
-    }
     if len(fd.Params) == 1 { return true }
     return false
 }
@@ -1065,6 +1175,20 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
     env := map[string]astpkg.TypeRef{}
     for _, p := range fd.Params { if p.Name != "" { env[p.Name] = p.Type } }
     typeStr := func(tr astpkg.TypeRef) string { return typeRefToString(tr) }
+    // single-letter type variable helper & unifier
+    isTypeVar := func(name string) bool { return len(name) == 1 && name[0] >= 'A' && name[0] <= 'Z' }
+    var unify func(want, got astpkg.TypeRef, subst map[string]astpkg.TypeRef) bool
+    unify = func(want, got astpkg.TypeRef, subst map[string]astpkg.TypeRef) bool {
+        if want.Ptr != got.Ptr || want.Slice != got.Slice { return false }
+        if isTypeVar(want.Name) && len(want.Args) == 0 {
+            if b, ok := subst[want.Name]; ok { return typeStr(b) == typeStr(got) }
+            subst[want.Name] = got; return true
+        }
+        if strings.ToLower(want.Name) != strings.ToLower(got.Name) { return false }
+        if len(want.Args) != len(got.Args) { return false }
+        for i := range want.Args { if !unify(want.Args[i], got.Args[i], subst) { return false } }
+        return true
+    }
     var exprType func(astpkg.Expr, bool) (astpkg.TypeRef, bool)
     exprType = func(e astpkg.Expr, isLHS bool) (astpkg.TypeRef, bool) {
         switch v := e.(type) {
@@ -1080,6 +1204,27 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
             }
             // '&' is prohibited; treat as unknown here
             return astpkg.TypeRef{}, false
+        case astpkg.BinaryExpr:
+            // Determine operand types
+            lt, lok := exprType(v.X, false)
+            rt, rok := exprType(v.Y, false)
+            if !(lok && rok) { return astpkg.TypeRef{}, false }
+            // arithmetic operators
+            switch v.Op {
+            case "+", "-", "*", "/", "%":
+                if strings.ToLower(lt.Name) == "int" && strings.ToLower(rt.Name) == "int" { return astpkg.TypeRef{Name: "int"}, true }
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "arithmetic operands must be numeric (int)"})
+                return astpkg.TypeRef{}, false
+            case "==", "!=":
+                if typeStr(lt) == typeStr(rt) { return astpkg.TypeRef{Name: "bool"}, true }
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "comparison operands must have identical types"})
+                return astpkg.TypeRef{}, false
+            case "<", "<=", ">", ">=":
+                if strings.ToLower(lt.Name) == "int" && strings.ToLower(rt.Name) == "int" { return astpkg.TypeRef{Name: "bool"}, true }
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "ordering comparisons require numeric (int) operands"})
+                return astpkg.TypeRef{}, false
+            }
+            return astpkg.TypeRef{}, false
         case astpkg.BasicLit:
             switch v.Kind { case "string": return astpkg.TypeRef{Name: "string"}, true; case "number": return astpkg.TypeRef{Name: "int"}, true }
             return astpkg.TypeRef{}, false
@@ -1091,17 +1236,298 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
     walkStmt = func(s astpkg.Stmt) {
         if as, ok := s.(astpkg.AssignStmt); ok {
             lt, lok := exprType(as.LHS, true); rt, rok := exprType(as.RHS, false)
-            if lok && rok && typeStr(lt) != typeStr(rt) {
-                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_ASSIGN_TYPE_MISMATCH", Message: "assignment type mismatch: " + typeStr(lt) + " != " + typeStr(rt)})
+            if lok && rok {
+                subst := map[string]astpkg.TypeRef{}
+                if !unify(lt, rt, subst) {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_ASSIGN_TYPE_MISMATCH", Message: "assignment type mismatch: " + typeStr(lt) + " != " + typeStr(rt)})
+                }
             }
             return
         }
         switch v := s.(type) {
+        case astpkg.VarDeclStmt:
+            // Handle var decls: var name [Type] [= init]
+            if v.Type.Name != "" && v.Init != nil {
+                rt, rok := exprType(v.Init, false)
+                if rok {
+                    subst := map[string]astpkg.TypeRef{}
+                    if !unify(v.Type, rt, subst) {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_ASSIGN_TYPE_MISMATCH", Message: "var init type mismatch: " + typeStr(v.Type) + " != " + typeStr(rt)})
+                    }
+                }
+                env[v.Name] = v.Type
+            } else if v.Type.Name != "" && v.Init == nil {
+                env[v.Name] = v.Type
+            } else if v.Type.Name == "" && v.Init != nil {
+                if rt, rok := exprType(v.Init, false); rok {
+                    env[v.Name] = rt
+                } else {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_UNINFERRED", Message: "cannot infer variable type from initializer"})
+                }
+            } else {
+                // no type and no init
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_UNINFERRED", Message: "variable declaration missing type and initializer"})
+            }
         case astpkg.ExprStmt:
-            // nothing needed
-            _ = v
+            // type derivation for expression statements (ensures BinaryExpr checks run)
+            _, _ = exprType(v.X, false)
+        case astpkg.ReturnStmt:
+            // validate return types
+            if len(fd.Result) == 0 {
+                if len(v.Results) > 0 {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "function has no return values"})
+                }
+                return
+            }
+            if len(fd.Result) != len(v.Results) {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return value count does not match function result arity"})
+                return
+            }
+            // unify each returned expression against declared result
+            for i, rexpr := range v.Results {
+                rt, rok := exprType(rexpr, false)
+                if !rok { continue }
+                want := fd.Result[i]
+                subst := map[string]astpkg.TypeRef{}
+                if !unify(want, rt, subst) {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch: got " + typeStr(rt) + ", want " + typeStr(want)})
+                    continue
+                }
+                // if any substitution binds to a type variable (not concrete), report uninferred
+                for _, b := range subst {
+                    if len(b.Name) == 1 && b.Name[0] >= 'A' && b.Name[0] <= 'Z' {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_UNINFERRED", Message: "return type contains uninferred type variables"})
+                        break
+                    }
+                }
+            }
         case astpkg.BlockStmt:
             for _, ss := range v.Stmts { walkStmt(ss) }
+        }
+    }
+    for _, s := range fd.BodyStmts { walkStmt(s) }
+    return diags
+}
+
+// analyzeOperators scans tokens to validate basic arithmetic and comparison operand types.
+// Arithmetic: +,-,*,/,% expect numeric (int) on both sides.
+// Comparison: ==,!= require same types; <,<=,>,>= allowed for int (and strings not yet guaranteed).
+func analyzeOperators(fd astpkg.FuncDecl) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    // If AST is available, operator checks are handled via exprType on BinaryExpr
+    if len(fd.BodyStmts) > 0 { return diags }
+    if len(fd.Body) == 0 { return diags }
+    // build env from params
+    env := map[string]astpkg.TypeRef{}
+    for _, p := range fd.Params { if p.Name != "" { env[p.Name] = p.Type } }
+    // helpers
+    resolve := func(t tok.Token) (astpkg.TypeRef, bool) {
+        switch t.Kind {
+        case tok.IDENT:
+            if tr, ok := env[t.Lexeme]; ok { return tr, true }
+            return astpkg.TypeRef{}, false
+        case tok.NUMBER:
+            return astpkg.TypeRef{Name: "int"}, true
+        case tok.STRING:
+            return astpkg.TypeRef{Name: "string"}, true
+        default:
+            return astpkg.TypeRef{}, false
+        }
+    }
+    prevMeaningful := func(toks []tok.Token, i int) (tok.Token, bool) {
+        for j := i-1; j >= 0; j-- { if toks[j].Kind != tok.SEMI { return toks[j], true } }
+        return tok.Token{}, false
+    }
+    nextMeaningful := func(toks []tok.Token, i int) (tok.Token, bool) {
+        for j := i+1; j < len(toks); j++ { if toks[j].Kind != tok.SEMI { return toks[j], true } }
+        return tok.Token{}, false
+    }
+    isArithmetic := func(k tok.Kind) bool { return k == tok.PLUS || k == tok.MINUS || k == tok.SLASH || k == tok.PERCENT || k == tok.STAR }
+    isComparison := func(k tok.Kind) bool { return k == tok.EQ || k == tok.NEQ || k == tok.LT || k == tok.LTE || k == tok.GT || k == tok.GTE }
+
+    toks := fd.Body
+    for i := 0; i < len(toks); i++ {
+        t := toks[i]
+        if isArithmetic(t.Kind) || isComparison(t.Kind) {
+            // treat '*' as multiplication only when not the LHS mutation marker: pattern '*' IDENT '='
+            if t.Kind == tok.STAR {
+                if i+2 < len(toks) && toks[i+1].Kind == tok.IDENT && toks[i+2].Kind == tok.ASSIGN { continue }
+            }
+            lTok, okL := prevMeaningful(toks, i)
+            rTok, okR := nextMeaningful(toks, i)
+            if !okL || !okR { continue }
+            // ensure these look like operands
+            lt, lOk := resolve(lTok)
+            rt, rOk := resolve(rTok)
+            if !(lOk && rOk) { continue }
+            // arithmetic checks
+            if isArithmetic(t.Kind) {
+                if !(strings.ToLower(lt.Name) == "int" && strings.ToLower(rt.Name) == "int") {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "arithmetic operands must be numeric (int)"})
+                }
+                continue
+            }
+            // comparison checks
+            if isComparison(t.Kind) {
+                if t.Kind == tok.EQ || t.Kind == tok.NEQ {
+                    if typeRefToString(lt) != typeRefToString(rt) {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "comparison operands must have identical types"})
+                    }
+                } else {
+                    // ordering comparisons limited to int for now
+                    if strings.ToLower(lt.Name) != "int" || strings.ToLower(rt.Name) != "int" {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "ordering comparisons require numeric (int) operands"})
+                    }
+                }
+            }
+        }
+    }
+    return diags
+}
+
+// analyzeCallTypes walks function bodies (AST form) and validates that
+// argument expressions passed to known local functions are type-compatible
+// with their parameter types. It accepts simple generic forms where the
+// callee's parameter uses a single-letter type variable (e.g., Event<T>),
+// unifying it against the actual argument type.
+func analyzeCallTypes(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    if len(fd.BodyStmts) == 0 { return diags }
+    // environment: parameter identifier -> TypeRef
+    env := map[string]astpkg.TypeRef{}
+    for _, p := range fd.Params { if p.Name != "" { env[p.Name] = p.Type } }
+
+    // infer expression type where possible
+    var exprType func(astpkg.Expr) (astpkg.TypeRef, bool)
+    exprType = func(e astpkg.Expr) (astpkg.TypeRef, bool) {
+        switch v := e.(type) {
+        case astpkg.Ident:
+            if tr, ok := env[v.Name]; ok { return tr, true }
+            return astpkg.TypeRef{}, false
+        case astpkg.BasicLit:
+            if v.Kind == "string" { return astpkg.TypeRef{Name: "string"}, true }
+            if v.Kind == "number" { return astpkg.TypeRef{Name: "int"}, true }
+            return astpkg.TypeRef{}, false
+        case astpkg.UnaryExpr:
+            if v.Op == "*" { return exprType(v.X) }
+            return astpkg.TypeRef{}, false
+        case astpkg.BinaryExpr:
+            // derive simple operator result types
+            lt, lok := exprType(v.X)
+            rt, rok := exprType(v.Y)
+            if !(lok && rok) { return astpkg.TypeRef{}, false }
+            switch v.Op {
+            case "+", "-", "*", "/", "%":
+                if strings.ToLower(lt.Name) == "int" && strings.ToLower(rt.Name) == "int" { return astpkg.TypeRef{Name: "int"}, true }
+                return astpkg.TypeRef{}, false
+            case "==", "!=", "<", "<=", ">", ">=":
+                return astpkg.TypeRef{Name: "bool"}, true
+            }
+            return astpkg.TypeRef{}, false
+        case astpkg.CallExpr:
+            // If callee is an identifier and we know its declaration, and it returns exactly one type, propagate that.
+            switch c := v.Fun.(type) {
+            case astpkg.Ident:
+                if decl, ok := funcs[c.Name]; ok {
+                    if len(decl.Result) == 1 { return decl.Result[0], true }
+                }
+            case astpkg.SelectorExpr:
+                // Unknown for now
+            }
+            return astpkg.TypeRef{}, false
+        default:
+            return astpkg.TypeRef{}, false
+        }
+    }
+
+    // Simple structural unify with single-letter type variables
+    type substMap = map[string]astpkg.TypeRef
+    var isTypeVar = func(name string) bool {
+        if len(name) != 1 { return false }
+        b := name[0]
+        return b >= 'A' && b <= 'Z'
+    }
+    var unify func(want, got astpkg.TypeRef, subst substMap) bool
+    unify = func(want, got astpkg.TypeRef, subst substMap) bool {
+        // pointer and slice flags must match exactly
+        if want.Ptr != got.Ptr || want.Slice != got.Slice { return false }
+        // Generic variable binding
+        if isTypeVar(want.Name) && len(want.Args) == 0 {
+            if bound, ok := subst[want.Name]; ok {
+                return typeRefToString(bound) == typeRefToString(got)
+            }
+            subst[want.Name] = got
+            return true
+        }
+        if strings.ToLower(want.Name) != strings.ToLower(got.Name) { return false }
+        if len(want.Args) != len(got.Args) { return false }
+        for i := range want.Args {
+            if !unify(want.Args[i], got.Args[i], subst) { return false }
+        }
+        return true
+    }
+
+    // Walk statements (track local var decls) and check calls
+    var walkStmt func(astpkg.Stmt)
+    var walkExpr func(astpkg.Expr)
+    walkExpr = func(e astpkg.Expr) {
+        switch v := e.(type) {
+        case astpkg.CallExpr:
+            // Only check calls to known local functions
+            if id, ok := v.Fun.(astpkg.Ident); ok {
+                if decl, ok2 := funcs[id.Name]; ok2 {
+                    // Arity check
+                    if len(v.Args) != len(decl.Params) {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CALL_ARITY_MISMATCH", Message: "function call arity mismatch"})
+                        // still try to compare what we can
+                    }
+                    n := len(v.Args)
+                    if len(decl.Params) < n { n = len(decl.Params) }
+                    // reset substitution per call
+                    subst := make(substMap)
+                    for i := 0; i < n; i++ {
+                        at, aok := exprType(v.Args[i])
+                        if !aok { continue }
+                        pt := decl.Params[i].Type
+                        if !unify(pt, at, subst) {
+                            msg := "call argument type mismatch: got " + typeRefToString(at) + ", want " + typeRefToString(pt)
+                            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: msg})
+                        }
+                    }
+                }
+            } else {
+                // nested selector/unknown callee: still walk args
+            }
+            for _, a := range v.Args { walkExpr(a) }
+        case astpkg.UnaryExpr:
+            walkExpr(v.X)
+        case astpkg.SelectorExpr:
+            walkExpr(v.X)
+        case astpkg.Expr:
+            // nothing else to walk
+            _ = v
+        }
+    }
+    walkStmt = func(s astpkg.Stmt) {
+        switch v := s.(type) {
+        case astpkg.VarDeclStmt:
+            if v.Type.Name != "" { env[v.Name] = v.Type } else if v.Init != nil {
+                if t, ok := exprType(v.Init); ok { env[v.Name] = t }
+            }
+        case astpkg.AssignStmt:
+            walkExpr(v.LHS); walkExpr(v.RHS)
+        case astpkg.ExprStmt:
+            walkExpr(v.X)
+        case astpkg.BlockStmt:
+            for _, ss := range v.Stmts { walkStmt(ss) }
+        case astpkg.DeferStmt:
+            if v.X != nil { walkExpr(v.X) }
+        case astpkg.MutBlockStmt:
+            for _, ss := range v.Body.Stmts { walkStmt(ss) }
+        case astpkg.ReturnStmt:
+            for _, r := range v.Results { walkExpr(r) }
+        default:
+            // nothing
         }
     }
     for _, s := range fd.BodyStmts { walkStmt(s) }
@@ -1116,8 +1542,8 @@ func isWorkerSignature(fd astpkg.FuncDecl) bool {
     p3 := fd.Params[2].Type
     if !(p1.Name == "Context" && !p1.Ptr && !p1.Slice) { return false }
     if !(p2.Name == "Event" && len(p2.Args) == 1 && !p2.Ptr) { return false }
-    if !(p3.Name == "State" && !p3.Ptr) { return false }
-    // results: exactly one of Event<U>, []Event<U>, Error<E>, Drop/Ack
+    if !(p3.Name == "State") { return false }
+    // results: exactly one of Event<U>, []Event<U>, Error<E>
     if len(fd.Result) != 1 { return false }
     r := fd.Result[0]
     switch {
@@ -1126,10 +1552,6 @@ func isWorkerSignature(fd astpkg.FuncDecl) bool {
     case r.Name == "Event" && len(r.Args) == 1 && r.Slice:
         return true
     case r.Name == "Error" && len(r.Args) == 1:
-        return true
-    case r.Name == "Drop" && len(r.Args) == 0:
-        return true
-    case r.Name == "Ack" && len(r.Args) == 0:
         return true
     default:
         return false

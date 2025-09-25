@@ -14,6 +14,9 @@ func FromAST(tr astpkg.TypeRef) Type {
     case "Error":
         if len(tr.Args) == 1 { return ErrorType{Elem: FromAST(tr.Args[0])} }
         return TInvalid
+    case "Owned":
+        if len(tr.Args) == 1 { return OwnedType{Elem: FromAST(tr.Args[0])} }
+        return TInvalid
     case "map":
         if len(tr.Args) == 2 { return Map{Key: FromAST(tr.Args[0]), Value: FromAST(tr.Args[1])} }
         return TInvalid
@@ -38,4 +41,3 @@ func FromAST(tr astpkg.TypeRef) Type {
     // if slice ptr/generics already handled above
     return t
 }
-

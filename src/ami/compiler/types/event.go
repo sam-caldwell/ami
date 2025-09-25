@@ -10,9 +10,4 @@ type ErrorType struct{ Elem Type }
 
 func (e ErrorType) String() string { return "Error<" + e.Elem.String() + ">" }
 
-// Drop and Ack represent control outcomes for worker results.
-var (
-    Drop = Basic{"drop"}
-    Ack  = Basic{"ack"}
-)
-
+// Note: control outcomes like Ack/Drop are not part of the AMI type system.

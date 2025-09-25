@@ -3,6 +3,7 @@ package tester
 import "testing"
 
 func TestBuildKVInput_ComposesJSON(t *testing.T) {
+    ResetDefaultKVForTest(t)
     s, err := BuildKVInput(map[string]any{"x":1}, WithKV("P","N"), KVPut("k", 42), KVGet("k"), KVEmit())
     if err != nil { t.Fatalf("compose: %v", err) }
     if s == "" || !containsAll(s, []string{"\"kv_pipeline\":\"P\"","\"kv_node\":\"N\"","\"kv_put_key\":\"k\"","\"kv_put_val\":42","\"kv_get_key\":\"k\"","\"kv_emit\":true","\"x\":1"}) {
@@ -28,4 +29,3 @@ func indexOf(s, sub string) int {
     }
     return -1
 }
-

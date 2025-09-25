@@ -8,7 +8,7 @@ import (
 // Ownership transfer to a callee that accepts Owned<T> should satisfy RAII.
 func TestRAII_OwnedParam_Transfer_OK(t *testing.T) {
     src := `package p
-func consume(o Owned<string>) Ack {}
+func consume(o Owned<string>) {}
 func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> { mutate(consume(r)) }
 pipeline P { Ingress(cfg).Transform(f).Egress(cfg) }`
     p := parser.New(src)

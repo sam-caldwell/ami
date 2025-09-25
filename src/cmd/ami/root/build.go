@@ -122,7 +122,8 @@ func newBuildCmd() *cobra.Command {
             // Enable semantic diagnostics by default; allow opt-out via AMI_SEM_DIAGS=0/false
             semEnabled := true
             if v := os.Getenv("AMI_SEM_DIAGS"); v == "0" || strings.EqualFold(v, "false") { semEnabled = false }
-            if r, diags, _ := driver.CompileWithDiagnostics(allFiles, driver.Options{SemDiags: semEnabled}); true {
+            effConc := ws.ResolveConcurrency()
+            if r, diags, _ := driver.CompileWithDiagnostics(allFiles, driver.Options{SemDiags: semEnabled, EffectiveConcurrency: effConc}); true {
                 compRes = r
                 if len(diags) > 0 {
                     // Emit diagnostics and exit with USER_ERROR

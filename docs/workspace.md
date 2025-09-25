@@ -62,3 +62,4 @@ Notes:
 - The file lives at the workspace root.
  - `ami init` seeds `toolchain.compiler.env` with the current machine's OS/arch pair (e.g., `darwin/arm64`).
  - Example workspaces under `examples/**` include a cross‑platform matrix of OS/arch pairs: windows/amd64, linux/amd64, linux/arm64, darwin/amd64, darwin/arm64.
+ - During `ami build --verbose`, the effective compiler concurrency (`toolchain.compiler.concurrency`, resolved via `NUM_CPU` when set) is included in ASM debug headers as `; concurrency <n>`.

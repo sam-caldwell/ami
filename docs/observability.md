@@ -2,7 +2,6 @@
 
 Implemented observability features provide:
 
-- Telemetry pragma: captured in ASM header (e.g., `; telemetry trace,counters`).
 - Event metadata schema (`eventmeta.v1`): trace context fields (`traceparent`, `tracestate`).
 - Metrics hooks: runtime helpers to emit pipeline/node metrics as `diag.v1` JSON lines.
 
@@ -19,4 +18,4 @@ Notes
 
 - These are scaffolds for consistent, machine‑readable logs; they do not implement a metrics backend.
 - Field names are stable and intended for tooling ingestion.
-- Event metadata and telemetry pragma are emitted in debug artifacts during `ami build --verbose`.
+- Event metadata is emitted in debug artifacts during `ami build --verbose`.

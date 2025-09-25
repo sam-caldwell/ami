@@ -1,25 +1,28 @@
 // Example AMI program: simple ingress → egress pipeline
 
-package main
+package main:v0.0.1
 
 // ingressWorker: mock data source (no-op body for demo)
-func ingressWorker() {
+func ingressWorker<T []byte, N any>(evt Event<N>) (Event<T>,error) {
     // pretend to fetch or produce data
+    return Event<T>(0),nil
 }
 
 // egressWorker: mock sink (no-op body for demo)
-func egressWorker() {
+func egressWorker() error {
     // pretend to write or emit data
+    return nil
 }
 
 // stubEventSourceFactory: example factory returning a SourceSpec (shape only).
 // Note: parser grammar allows any tokens inside return list; we keep it
 // commented to avoid binding to types in this example.
-func stubEventSourceFactory() ( /* SourceSpec */ ) {
+func stubEventSourceFactory<N any>() (Event<N>,error) ( /* SourceSpec */ ) {
     // Construct and return a source configuration the compiler would
     // lower into runtime glue (e.g., subscribe to an OS/file/Net source).
     // In real code, this would return something like file.FsNotify(...)
     // or another SourceSpec built from config.
+    return Event<N>(0), nil
 }
 
 // Demo pipeline defined via node-chained notation.

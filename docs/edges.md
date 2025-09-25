@@ -1,5 +1,7 @@
 # AMI Edge Specifications (`edge.*`)
 
+Note: The authoritative source of truth is docs/Asynchronous Machine Interface.docx. If any guidance here conflicts with the .docx, the .docx prevails.
+
 AMI programs declare edges inside node argument lists using compiler-generated constructs:
 
 - `edge.FIFO(minCapacity, maxCapacity, backpressure, type)`
@@ -30,10 +32,17 @@ Compiler mapping
 - Codegen specializes queue implementations by payload type and selected policy.
 
 Examples
-- `Ingress(...).Transform(...).Egress(in=edge.FIFO(minCapacity=10, maxCapacity=20, backpressure=block, type=some.T), ...)`
-- `... Collect().Egress(in=edge.LIFO(minCapacity=0, maxCapacity=8, backpressure=drop, type=[]byte), ...)`
+- `Ingress(...).Transform( in=edge.FIFO(minCapacity=10, maxCapacity=20, backpressure=block, type=some.T), worker=workerFn, minWorkers=2, maxWorkers=8, type=some.U ).Egress(in=edge.FIFO(minCapacity=10, maxCapacity=20, backpressure=block, type=some.U))`
+- `... Collect( in=edge.MultiPath(inputs=[ edge.FIFO(minCapacity=0, maxCapacity=8, backpressure=drop, type=[]byte), edge.Pipeline(name=OtherPipe, minCapacity=64, maxCapacity=256, backpressure=block, type=[]byte) ], merge=Sort() ), minWorkers=1, maxWorkers=1, type=[]byte ).Egress(...)`
 - `... Egress(in=edge.Pipeline(name=csvReaderPipeline, minCapacity=64, maxCapacity=256, backpressure=block, type=csv.Record), ...)`
+
+Correctness notes (docx-aligned)
+- Transform: declared with attributes including `in=edge.FIFO|edge.LIFO`, `worker=<func|factory>`, `minWorkers/maxWorkers`, and `type`. The worker is specified as `worker=MyFunc`, not as a positional argument.
+- Collect: declared with `in=edge.MultiPath(...)` containing an `inputs=[ ... ]` list. The first entry is the default upstream edge (e.g., `edge.FIFO(...)`), followed by optional `edge.Pipeline(name=Upstream, ...)` entries. Merge behavior is expressed via `merge=Sort(...)` and related attributes.
 
 Notes
 - These specs live at compile time; they have no effect at runtime outside of the generated code. See the language docx §2.2.7/2.2.11 for background.
 - AMI uses RAII for memory/resource management and does not have a garbage collector. Backpressure controls enqueue/dequeue behavior under capacity limits; it is unrelated to memory reclamation.
+
+See also
+- `docs/merge.md` for `Collect`-specific merge behavior configured via `edge.MultiPath(...)` and `merge.*(...)` attributes (sorting, stability, watermarking, buffering, and partitioning).

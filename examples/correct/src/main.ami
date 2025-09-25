@@ -1,0 +1,138 @@
+// file: main.ami
+// (c) 2025 Asymmetric-Effort, LLC.
+package main:0.0.1
+
+import github.com/asymmetric-effort/ami/trigger >= v0.0.0
+import github.com/asymmetric-effort/ami/stdio >= v0.0.0
+import github.com/asymmetric-effort/ami/time >= v0.0.0
+
+pipeline PeriodicInterval {
+    Ingress(
+        name=CorrectPipeline,
+        in=trigger.Timer(interval="1s"), //emit time.Time in Event<T>
+        worker=func(event Event<time.Time>) (Event<time.Time>, error){
+            return Event<event.payload> // return event containing current timestamp
+        },
+        minWorkers=1,
+        maxWorkers=2,
+        onError=ErrorPipeline,
+        capabilities=[/* no capabilities needed */],
+        type=time.Time,
+    ).Transform(
+        in=edge.FIFO(
+           minCapacity=5,
+           maxCapacity=10,
+           backpressure=dropOldest,
+           type=time.Time,
+        ),
+        worker=func(input Event<time.Time>) (Event<uint64>,  error) {
+            return Event<uint64>(input.payload)> //cast payload (time.Time) to uint64 and return as Event<N>
+        },
+        minWorkers=2,
+        maxWorkers=8,
+        onError=ErrorPipeline,
+        type=uint64,
+    ).Fanout(
+        in=edge.FIFO(
+           minCapacity=5,
+           maxCapacity=10,
+           backpressure=dropOldest,
+           type=uint64,
+        ),
+    minWorkers=2,
+    maxWorkers=8,
+    out=[
+        PeriodicInterval, //The pipeline tees here to a different pipeline
+    ],
+    onError=ErrorPipeline,
+    type=uint64,
+    ).Egress(
+        in=edge.FIFO(
+           minCapacity=5,
+           maxCapacity=10,
+           backpressure=dropOldest,
+           type=uint64,
+        ),
+        worker=func(input Event<uint64>) error {
+            stdio.Println(input)
+            return nil
+        },
+        minWorkers=1,
+        maxWorkers=4,
+        onError=ErrorPipeline,
+        capabilities=[]
+    )
+} /* end of pipeline */
+
+
+pipeline PeriodicCounter {
+    Ingress(
+        name=PeriodicCounter,
+        in=trigger.Timer(interval="2s"), //emit time.Time in Event<T>
+        worker=func(_ Event<time.Time>) (Event<uint64>, error ){
+            const defaultValue uint64 = 0
+            count:=strconv.AtoUint64(state.get("counter",defaultValue))
+            state.set("counter",count++)
+            return count
+        },
+        minWorkers=1,
+        maxWorkers=2,
+        onError=ErrorPipeline,
+        capabilities=[/* no capabilities needed */],
+        type=uint64,
+    ).Collect(
+        in=edge.MultiPath(
+            inputs=[
+                edge.FIFO(
+                    minCapacity=5,
+                    maxCapacity=10,
+                    backpressure=block,
+                    type=uint64,
+                ),
+                edge.Pipeline(
+                    name=PeriodicInterval,
+                    minCapacity=10,
+                    maxCapacity=20,
+                    backpressure=block,
+                    type=uint64,
+                ),
+            ],
+            //
+            // As Event<T> objects flow into a Collect node, they are queued,
+            // sorted, then forwarded to the downstream pipeline segment.
+            //
+            merge=Sort(
+                algorithm=ascendingTimeStamp,
+                window=120,
+                key=event.Created,
+            ),
+        ),
+        //
+        // Flow into the collect node is controlled by minWorkers and maxWorkers.
+        // The workers are responsible for performing the merger of event streams.
+        //
+        minWorkers=2,
+        maxWorkers=8,
+        //
+        // Input flows may have compatible abstract types. But the collect node
+        // will ensure that the output is a specific concrete type. This is used
+        // by the compiler to guarantee no conflicts exist.
+        //
+        type=uint64,
+    ).Egress(
+         in=edge.FIFO(
+            minCapacity=5,
+            maxCapacity=10,
+            backpressure=block,
+            type=uint64,
+         ),
+         worker=func(input Event<uint64>) error {
+             stdio.Println(input)
+             return nil
+         },
+         minWorkers=1,
+         maxWorkers=4,
+         onError=ErrorPipeline,
+         capabilities=[]
+    )
+}/*end of pipeline*/

@@ -1,24 +1,30 @@
-# Memory Model (Ch. 2.4)
+# AMI Memory Model (Ch. 2.4) – Scaffold
 
-This repository implements the Memory Model feature at a scaffold level to enable
-compile-time safety and IR visibility:
+This document summarizes the Phase 2 scaffold for the AMI memory model implemented in this repository.
 
-- Allocation domains: `event`, `state`, `ephemeral`.
-- Ownership semantics: `Owned<T>` parameters must be released or transferred.
-- Per-VM runtime scaffold: counters per domain with RAII-style Handles.
+Domains
 
-Highlights
+- Event heap: per‑event allocations during pipeline execution.
+- Node‑state: long‑lived node state owned by the runtime.
+- Ephemeral stack: call‑local, short‑lived allocations.
 
-- IR (`ir.v1`) includes optional parameter annotations with `ownership` and `domain`.
-- Lints enforce:
-  - Owned<T> must be released/transferred; no double-release or use-after-release.
-  - Cross-domain references into state from non-state domains are forbidden.
-- Tests cover owned transfer, lifetime errors, and cross-domain violations.
+Runtime Manager
+
+- `src/ami/runtime/memory/manager.go` provides a lightweight per‑VM manager that tracks allocations by domain and returns RAII‑like `Handle`s for deterministic release.
+- The Phase 2 runtime tester (`src/ami/runtime/tester/runner.go`) composes a manager and accounts ephemeral and event allocations per case, releasing them when execution completes.
+
+IR Annotations
+
+- The IR schema (`src/schemas/ir_v1.go`) includes per‑parameter fields `ownership` and `domain`.
+- IR lowering populates these from function signatures: `Event<T>` → `domain=event`; `State` → `domain=state`; otherwise `domain=ephemeral`; `Owned<…>` → `ownership=owned`, else `borrowed`.
+
+Lints
+
+- Ownership/RAII checks ensure `Owned<T>` parameters are released or transferred, catch double‑release and use‑after‑release.
+- Cross‑domain reference checks (scaffold) reject assigning address‑of expressions into state; raw address‑of is rejected by the parser per AMI 2.3.2.
 
 Notes
 
-- The runtime memory manager is a scaffold for accounting and deterministic
-  release in tests; it is not a production allocator.
-- Domain analysis operates at token level and focuses on key patterns such as
-  `*st = &ev`. Future work can deepen flow analysis and aliasing detection.
+- AMI 2.3.2 forbids raw pointers: `&` is not allowed, and unary `*` is only a mutation marker on the left‑hand side of assignments.
+- The manager is an accounting scaffold; it is not a general‑purpose allocator.
 

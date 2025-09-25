@@ -35,9 +35,10 @@ Default severities unless overridden by config/strict:
   - `W_FIXME_COMMENT` (warn): FIXME marker found in comment.
   - `W_BLANK_IDENT_USAGE` (warn/off by default): '_' identifier outside allowed sinks. Disabled by default to avoid noise; enable via config.
 
- - Pipeline hints:
+- Pipeline hints:
   - `W_PIPELINE_INGRESS_POS` (info): ingress position hint when present.
   - `W_PIPELINE_EGRESS_POS` (info): egress position hint when present.
+  - `W_UNREACHABLE_NODE` (off/future): unreachable node detection (disabled until branching/conditional flow is introduced in the pipeline grammar). When enabled, warns on nodes not reachable from `ingress`.
 
  - Language reminders:
 

@@ -15,7 +15,7 @@ Builds the workspace and (when `--verbose`) emits debug artifacts.
   - `build/debug/source/resolved.json`: resolved sources list.
   - `build/debug/ast/<package>/<unit>.ast.json`: AST scaffold.
   - `build/debug/ir/<package>/<unit>.ir.json`: IR scaffold.
-  - `build/debug/asm/<package>/<unit>.s`: assembly scaffold and `build/debug/asm/index.json`.
+  - `build/debug/asm/<package>/<unit>.s`: assembly scaffold and per‑package index at `build/debug/asm/<package>/index.json`.
 - Writes `ami.manifest` with artifact metadata and resolved packages (from `ami.sum`).
 
 Notes:

@@ -171,17 +171,13 @@ func UpdateFromWorkspace(wsPath string) error {
         if inImport {
             if strings.HasPrefix(s, "-") {
                 item := strings.TrimSpace(strings.TrimPrefix(s, "-"))
-                // split by spaces, first token is path, rest constraint tokens
+                // split by spaces, first token is path, remaining joined as constraint
                 parts := strings.Fields(item)
                 if len(parts) >= 1 {
                     repo := parts[0]
-                    if strings.HasPrefix(repo, "./") { continue }
                     constraint := "==latest"
-                    for _, p := range parts[1:] {
-                        if p == "==latest" || strings.HasPrefix(p, "v") {
-                            constraint = p
-                            break
-                        }
+                    if len(parts) > 1 {
+                        constraint = strings.ReplaceAll(strings.Join(parts[1:], ""), " ", "")
                     }
                     deps = append(deps, [2]string{repo, constraint})
                 }

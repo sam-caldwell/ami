@@ -57,7 +57,7 @@ func TestScanner_OperatorsAndDelimiters(t *testing.T) {
 }
 
 func TestScanner_CommentsAndWhitespaceSkipped(t *testing.T) {
-    src := `// line comment\n/* block \n comment */ package /* mid */ main // end\n`
+    src := "// line comment\n/* block \n comment */ package /* mid */ main // end\n"
     toks := collectKinds(t, New(src))
     if len(toks) < 2 { t.Fatalf("expected tokens") }
     if toks[0].Kind != tok.KW_PACKAGE { t.Fatalf("first token kind=%v want KW_PACKAGE", toks[0].Kind) }

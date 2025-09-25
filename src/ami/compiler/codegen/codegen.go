@@ -76,13 +76,13 @@ func GenerateASM(m ir.Module) string {
 // assembly listings. Concrete implementations are specialized per payload type.
 func edgeInitPseudo(pipe string, idx int, s edg.Spec) string {
     switch v := s.(type) {
-    case edg.FIFO:
+    case *edg.FIFO:
         return fmt.Sprintf("edge_init label=%s.step%d.in kind=fifo min=%d max=%d bp=%s type=%s",
             pipe, idx, v.MinCapacity, v.MaxCapacity, v.Backpressure, v.TypeName)
-    case edg.LIFO:
+    case *edg.LIFO:
         return fmt.Sprintf("edge_init label=%s.step%d.in kind=lifo min=%d max=%d bp=%s type=%s",
             pipe, idx, v.MinCapacity, v.MaxCapacity, v.Backpressure, v.TypeName)
-    case edg.Pipeline:
+    case *edg.Pipeline:
         return fmt.Sprintf("edge_init label=%s.step%d.in kind=pipeline upstream=%s min=%d max=%d bp=%s type=%s",
             pipe, idx, v.UpstreamName, v.MinCapacity, v.MaxCapacity, v.Backpressure, v.TypeName)
     default:

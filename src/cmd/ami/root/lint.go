@@ -32,6 +32,12 @@ type lintConfig struct {
     // severity maps rule code -> desired level (error|warn|info). Missing→use default.
     // The string "off" in the workspace disables the rule globally.
     severity map[string]string
+    // strict preset from workspace config (in addition to --strict flag)
+    strict bool
+    // suppressions: package name -> set(rule)
+    suppressPkg map[string]map[string]bool
+    // path-based suppressions: list of {glob, rules}
+    suppressPaths []struct{ glob string; rules map[string]bool }
 }
 
 var (
@@ -114,6 +120,8 @@ func runLint() {
     diags = append(diags, lintCrossPackageConstraints(ws, pkgRoots, ulist)...)
 
     // Output
+    // Effective strictness considers workspace preset and CLI flag
+    effectiveStrict := lintStrict || lcfg.strict
     if flagJSON {
         // Emit sources summary first for deterministic tooling
         if err := sources.Validate(); err == nil { _ = json.NewEncoder(os.Stdout).Encode(sources) }
@@ -123,11 +131,14 @@ func runLint() {
             if !ruleSelected(d.Code) { continue }
             if d.Level == diag.Warn && lintMaxWarn > 0 && warnEmitted >= lintMaxWarn { continue }
             level := d.Level
-            if lintStrict && level == diag.Warn { level = diag.Error }
+            if effectiveStrict && level == diag.Warn { level = diag.Error }
             if level == diag.Error { errs++ } else if level == diag.Warn { warns++; warnEmitted++ }
             sd := d.ToSchema()
             sd.Level = string(level)
             if sd.Package == "" { sd.Package = uPackageFromPath(d.File, pkgRoots) }
+            // Add LINT_* alias in data for forward-compat namespace
+            if sd.Data == nil { sd.Data = map[string]any{} }
+            sd.Data["lint_code"] = lintAlias(sd.Code)
             _ = json.NewEncoder(os.Stdout).Encode(sd)
         }
         // Summary record
@@ -148,7 +159,7 @@ func runLint() {
         msg := fmt.Sprintf("%s: %s", d.Code, d.Message)
         if d.File != "" { msg = d.File + ": " + msg }
         level := d.Level
-        if lintStrict && level == diag.Warn { level = diag.Error }
+        if effectiveStrict && level == diag.Warn { level = diag.Error }
         switch level {
         case diag.Error:
             logger.Error(msg, nil); errs++
@@ -292,9 +303,35 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
             }
         }
     }
+    // helper to test config-based suppression
+    isSuppressed := func(code string, pkg, file string) bool {
+        // package-based
+        if m, ok := cfg.suppressPkg[pkg]; ok {
+            if m[code] || m["*"] { return true }
+        }
+        // path-based globs (match on file path)
+        for _, ent := range cfg.suppressPaths {
+            if ent.rules[code] || ent.rules["*"] {
+                if ok, _ := filepath.Match(ent.glob, file); ok {
+                    return true
+                }
+                // also try matching directory prefixes (dir/**)
+                if strings.HasSuffix(ent.glob, "/**") {
+                    g := strings.TrimSuffix(ent.glob, "/**")
+                    if strings.HasPrefix(filepath.Clean(file), filepath.Clean(g)+string(os.PathSeparator)) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
     apply := func(level diag.Level, code, message string, pkg, file string, pos *srcset.Position) {
         // file-local suppression
         if disabled[code] { return }
+        // config-based suppression
+        if isSuppressed(code, pkg, file) { return }
         // workspace severity overrides
         if sev, ok := cfg.severity[code]; ok {
             switch strings.ToLower(sev) {
@@ -363,7 +400,23 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
             apply(diag.Warn, "W_PKG_LOWERCASE", "package name should be lowercase", pkgName, filePath, nil)
         }
     }
-    // Imports: ordering, duplicates, and unused
+    // Hygiene: TODO/FIXME policy in comments (line comments only)
+    // We conservatively scan for // and then look for TODO/FIXME tokens.
+    base := 0
+    for _, line := range strings.Split(src, "\n") {
+        if idx := strings.Index(line, "//"); idx >= 0 {
+            c := line[idx+2:]
+            lower := strings.ToLower(c)
+            if j := strings.Index(lower, "todo"); j >= 0 {
+                apply(diag.Warn, "W_TODO_COMMENT", "TODO found in comment", pkgName, filePath, toPos(base+idx+2+j))
+            }
+            if j := strings.Index(lower, "fixme"); j >= 0 {
+                apply(diag.Warn, "W_FIXME_COMMENT", "FIXME found in comment", pkgName, filePath, toPos(base+idx+2+j))
+            }
+        }
+        base += len(line) + 1
+    }
+    // Imports: ordering, duplicates, relative paths, and unused
     // Collect imports with alias
     type impInfo struct{ path, alias string }
     var imports []impInfo
@@ -376,6 +429,14 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
                 alias = pathBase(id.Path)
             }
             imports = append(imports, impInfo{path: id.Path, alias: alias})
+            // relative imports are disallowed
+            if strings.HasPrefix(id.Path, "./") {
+                if pos := firstImportPathOffset(src, id.Path); pos >= 0 {
+                    apply(diag.Warn, "W_REL_IMPORT", "relative import paths are disallowed; use workspace package name", pkgName, filePath, toPos(pos))
+                } else {
+                    apply(diag.Warn, "W_REL_IMPORT", "relative import paths are disallowed; use workspace package name", pkgName, filePath, nil)
+                }
+            }
             if seenPath[id.Path] {
                 // attach pos of this duplicate occurrence (second and later)
                 if pos := firstImportPathOffset(src, id.Path); pos >= 0 {
@@ -459,6 +520,128 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
             apply(diag.Warn, "W_FILE_CRLF", "file contains CRLF line endings; use LF", pkgName, filePath, toPos(i))
         } else {
             apply(diag.Warn, "W_FILE_CRLF", "file contains CRLF line endings; use LF", pkgName, filePath, nil)
+        }
+    }
+    // Pipeline hints: attach positions for ingress/egress when present
+    // Find first KW_INGRESS and first KW_EGRESS tokens.
+    {
+        s := scannerFor(src)
+        seenIngress := false
+        for {
+            t := s.Next()
+            if t.Kind == tok.EOF { break }
+            if !seenIngress && t.Kind == tok.KW_INGRESS {
+                p := srcset.NewFileSet(); sf := p.AddFileFromSource(filePath, src); pos := sf.PositionFor(t.Offset)
+                out = append(out, diag.Diagnostic{Level: diag.Info, Code: "W_PIPELINE_INGRESS_POS", Message: "ingress position", Package: pkgName, File: filePath, Pos: &pos})
+                seenIngress = true
+            }
+            if t.Kind == tok.KW_EGRESS {
+                p := srcset.NewFileSet(); sf := p.AddFileFromSource(filePath, src); pos := sf.PositionFor(t.Offset)
+                out = append(out, diag.Diagnostic{Level: diag.Info, Code: "W_PIPELINE_EGRESS_POS", Message: "egress position", Package: pkgName, File: filePath, Pos: &pos})
+                // don't break; we want both if both appear
+            }
+        }
+    }
+    // Language-specific hints based on simple type usage in decls
+    // Utility: render a type reference back to source-ish text
+    var renderType func(tr astpkg.TypeRef) string
+    renderType = func(tr astpkg.TypeRef) string {
+        s := strings.Builder{}
+        if tr.Ptr { s.WriteString("*") }
+        if tr.Slice { s.WriteString("[]") }
+        name := tr.Name
+        s.WriteString(name)
+        if len(tr.Args) > 0 {
+            s.WriteString("<")
+            for i, a := range tr.Args {
+                if i > 0 { s.WriteString(", ") }
+                s.WriteString(renderType(a))
+            }
+            s.WriteString(">")
+        }
+        return s.String()
+    }
+    // Utility: find offset of the rendered type text in source (best effort)
+    findTypeOffset := func(src, typ string) int {
+        if typ == "" { return -1 }
+        if i := strings.Index(src, typ); i >= 0 { return i }
+        // Try without spaces in generics as fallback
+        compact := strings.ReplaceAll(typ, ", ", ",")
+        return strings.Index(src, compact)
+    }
+    // de-duplicate hints per file by (code,typeString)
+    emitted := map[string]bool{}
+    var hintType func(tr astpkg.TypeRef)
+    hintType = func(tr astpkg.TypeRef) {
+        tstr := renderType(tr)
+        key := "" 
+        // prefer type-based dedup key when non-empty
+        if tstr != "" { key = "|" + tstr }
+        off := findTypeOffset(src, tstr)
+        var p *srcset.Position
+        // prefer exact AST offset when available
+        if tr.Offset >= 0 { p = toPos(tr.Offset) } else if off >= 0 { p = toPos(off) }
+        if tr.Ptr {
+            if !emitted["W_PTR_TYPE_HINT"+key] {
+                apply(diag.Info, "W_PTR_TYPE_HINT", "pointer type used; consider nil-guard before dereference", pkgName, filePath, p)
+                emitted["W_PTR_TYPE_HINT"+key] = true
+            }
+        }
+        name := strings.ToLower(tr.Name)
+        switch name {
+        case "owned":
+            if !emitted["W_RAII_OWNED_HINT"+key] {
+                apply(diag.Info, "W_RAII_OWNED_HINT", "Owned<T> requires Close/Release within a mut block", pkgName, filePath, p)
+                emitted["W_RAII_OWNED_HINT"+key] = true
+            }
+        case "map":
+            if len(tr.Args) != 2 {
+                if !emitted["W_MAP_ARITY_HINT"+key] {
+                    apply(diag.Warn, "W_MAP_ARITY_HINT", "map requires two type parameters: map<K,V>", pkgName, filePath, p)
+                    emitted["W_MAP_ARITY_HINT"+key] = true
+                }
+            } else {
+                k := tr.Args[0]
+                if k.Ptr || k.Slice || strings.ToLower(k.Name) == "map" || strings.ToLower(k.Name) == "slice" {
+                    if !emitted["W_MAP_KEY_TYPE_HINT"+key] {
+                        apply(diag.Warn, "W_MAP_KEY_TYPE_HINT", "map key should be scalar (string/int); avoid pointers, slices, or maps", pkgName, filePath, p)
+                        emitted["W_MAP_KEY_TYPE_HINT"+key] = true
+                    }
+                }
+            }
+        case "set":
+            if len(tr.Args) != 1 {
+                if !emitted["W_SET_ARITY_HINT"+key] {
+                    apply(diag.Warn, "W_SET_ARITY_HINT", "set requires one type parameter: set<T>", pkgName, filePath, p)
+                    emitted["W_SET_ARITY_HINT"+key] = true
+                }
+            } else {
+                e := tr.Args[0]
+                if e.Ptr || e.Slice || strings.ToLower(e.Name) == "map" || strings.ToLower(e.Name) == "slice" {
+                    if !emitted["W_SET_ELEM_TYPE_HINT"+key] {
+                        apply(diag.Warn, "W_SET_ELEM_TYPE_HINT", "set element should be scalar; avoid pointers, slices, or maps", pkgName, filePath, p)
+                        emitted["W_SET_ELEM_TYPE_HINT"+key] = true
+                    }
+                }
+            }
+        case "slice":
+            if len(tr.Args) != 1 {
+                if !emitted["W_SLICE_ARITY_HINT"+key] {
+                    apply(diag.Warn, "W_SLICE_ARITY_HINT", "slice requires one type parameter: slice<T>", pkgName, filePath, p)
+                    emitted["W_SLICE_ARITY_HINT"+key] = true
+                }
+            }
+        }
+        for _, a := range tr.Args { hintType(a) }
+    }
+    // Pointer dereference is not part of AMI (2.3.2); no deref hints
+    for _, d := range f.Decls {
+        if fd, ok := d.(astpkg.FuncDecl); ok {
+            for _, p := range fd.Params { hintType(p.Type) }
+            for _, r := range fd.Result { hintType(r) }
+        }
+        if sd, ok := d.(astpkg.StructDecl); ok {
+            for _, fld := range sd.Fields { hintType(fld.Type) }
         }
     }
     return out
@@ -621,11 +804,15 @@ func unquoteSimple(s string) string {
 
 // parseLinterConfig extracts rule severity overrides from workspace: toolchain.linter.rules
 func parseLinterConfig(ws *workspace.Workspace) lintConfig {
-    lc := lintConfig{severity: map[string]string{}}
+    lc := lintConfig{severity: map[string]string{}, suppressPkg: map[string]map[string]bool{}}
     if ws == nil { return lc }
     if ws.Toolchain.Linter == nil { return lc }
     // Expect map with optional key "rules" mapping to string map
     if m, ok := ws.Toolchain.Linter.(map[string]any); ok {
+        // strict preset
+        if v, ok := m["strict"]; ok {
+            if b, ok := v.(bool); ok { lc.strict = b }
+        }
         if rv, ok := m["rules"]; ok && rv != nil {
             switch rm := rv.(type) {
             case map[string]any:
@@ -636,6 +823,38 @@ func parseLinterConfig(ws *workspace.Workspace) lintConfig {
                 }
             case map[string]string:
                 for k, s := range rm { lc.severity[k] = s }
+            }
+        }
+        // suppressions
+        if sv, ok := m["suppress"]; ok && sv != nil {
+            if sm, ok := sv.(map[string]any); ok {
+                // package-based: map[name][]rules
+                if pv, ok := sm["package"]; ok && pv != nil {
+                    if pm, ok := pv.(map[string]any); ok {
+                        for name, rulesVal := range pm {
+                            lst := toStringSlice(rulesVal)
+                            if len(lst) == 0 { continue }
+                            if lc.suppressPkg[name] == nil { lc.suppressPkg[name] = map[string]bool{} }
+                            for _, r := range lst { lc.suppressPkg[name][r] = true }
+                        }
+                    }
+                }
+                // path-based: map[glob][]rules
+                if pv, ok := sm["paths"]; ok && pv != nil {
+                    if pm, ok := pv.(map[string]any); ok {
+                        // deterministic order for tests
+                        var globs []string
+                        for g := range pm { globs = append(globs, g) }
+                        sort.Strings(globs)
+                        for _, g := range globs {
+                            lst := toStringSlice(pm[g])
+                            if len(lst) == 0 { continue }
+                            ent := struct{ glob string; rules map[string]bool }{glob: g, rules: map[string]bool{}}
+                            for _, r := range lst { ent.rules[r] = true }
+                            lc.suppressPaths = append(lc.suppressPaths, ent)
+                        }
+                    }
+                }
             }
         }
     }
@@ -678,6 +897,7 @@ func lintCrossPackageConstraints(ws *workspace.Workspace, pkgRoots map[string]st
         }
     }
     // For each unit's imports, if it's a local package and a constraint exists, verify
+    consByTarget := map[string]map[string]bool{}
     for _, u := range units {
         for _, imp := range u.imports {
             if _, ok := pkgRoots[imp]; !ok { continue } // external or unknown
@@ -692,6 +912,35 @@ func lintCrossPackageConstraints(ws *workspace.Workspace, pkgRoots map[string]st
                 if pos >= 0 {
                     fs := srcset.NewFileSet(); sf := fs.AddFileFromSource(u.file, u.src); p := sf.PositionFor(pos); d.Pos = &p
                 }
+                out = append(out, d)
+                continue
+            }
+            // prerelease forbidden when constraint omits prerelease
+            if _,_,_,pre := parseSemVer(ver); pre != "" {
+                if cons != "==latest" && !strings.Contains(cons, "-") {
+                    pos := firstImportPathOffset(u.src, imp)
+                    d := diag.Diagnostic{Level: diag.Error, Code: "E_IMPORT_PRERELEASE_FORBIDDEN", Message: fmt.Sprintf("import %q prerelease %s is forbidden by constraint %q (no prerelease allowed)", imp, ver, cons), Package: u.pkg, File: u.file}
+                    if pos >= 0 { fs := srcset.NewFileSet(); sf := fs.AddFileFromSource(u.file, u.src); p := sf.PositionFor(pos); d.Pos = &p }
+                    out = append(out, d)
+                }
+            }
+            if consByTarget[imp] == nil { consByTarget[imp] = map[string]bool{} }
+            consByTarget[imp][cons] = true
+        }
+    }
+    // Consistency check: same package should have a single constraint across importers
+    for target, set := range consByTarget {
+        if len(set) > 1 {
+            var list []string
+            for c := range set { list = append(list, c) }
+            sort.Strings(list)
+            canonical := list[0]
+            for _, u := range units {
+                cons := importerCons[u.pkg][target]
+                if cons == "" || cons == canonical { continue }
+                pos := firstImportPathOffset(u.src, target)
+                d := diag.Diagnostic{Level: diag.Error, Code: "E_IMPORT_CONSISTENCY", Message: fmt.Sprintf("workspace imports %q with conflicting constraints (%q vs %q)", target, cons, canonical), Package: u.pkg, File: u.file}
+                if pos >= 0 { fs := srcset.NewFileSet(); sf := fs.AddFileFromSource(u.file, u.src); p := sf.PositionFor(pos); d.Pos = &p }
                 out = append(out, d)
             }
         }
@@ -768,4 +1017,24 @@ func isSemVer(s string) bool {
     // copied from workspace semantic: ^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$
     re := regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
     return re.MatchString(s)
+}
+
+// toStringSlice helps parse list-like values from workspace config
+func toStringSlice(v any) []string {
+    switch a := v.(type) {
+    case []any:
+        var out []string
+        for _, e := range a { if s, ok := e.(string); ok { out = append(out, s) } }
+        return out
+    case []string:
+        return append([]string(nil), a...)
+    default:
+        return nil
+    }
+}
+
+// lintAlias maps existing rule codes to a forward-compat LINT_* namespace
+func lintAlias(code string) string {
+    if strings.HasPrefix(code, "LINT_") { return code }
+    return "LINT_" + code
 }

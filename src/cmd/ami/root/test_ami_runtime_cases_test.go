@@ -31,3 +31,17 @@ func Test_DeriveAmiRuntimeCases_DefaultName(t *testing.T) {
     if cases[0].name != "z_test.ami" { t.Fatalf("expected default name z_test.ami, got %q", cases[0].name) }
 }
 
+// Verify fixtures accumulate and attach to runtime cases.
+func Test_DeriveAmiRuntimeCases_Fixtures(t *testing.T) {
+    f := &astpkg.File{Package: "p", Directives: []astpkg.Directive{
+        {Name: "test:case", Payload: "RunFx"},
+        {Name: "test:fixture", Payload: "path=./data/a mode=ro"},
+        {Name: "test:fixture", Payload: "path=./data/b mode=rw"},
+        {Name: "test:runtime", Payload: "pipeline=P input={} expect_output={}"},
+    }}
+    cases := deriveAmiRuntimeCases("/z/fx_test.ami", "p", f)
+    if len(cases) != 1 { t.Fatalf("want 1 runtime case, got %d", len(cases)) }
+    if len(cases[0].fixtures) != 2 { t.Fatalf("expected 2 fixtures, got %d", len(cases[0].fixtures)) }
+    if cases[0].fixtures[0].path != "./data/a" || cases[0].fixtures[0].mode != "ro" { t.Fatalf("fixture[0] mismatch") }
+    if cases[0].fixtures[1].path != "./data/b" || cases[0].fixtures[1].mode != "rw" { t.Fatalf("fixture[1] mismatch") }
+}

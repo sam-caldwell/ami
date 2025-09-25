@@ -1,24 +1,18 @@
-# Pointers and Addresses (Imperative Subset 6.4 / 2.3.2)
+# Memory Safety and “*” (AMI 2.3.2)
 
-This document describes pointer and address semantics as implemented in the compiler’s semantic checks.
+AMI does not expose raw pointers or process addresses. The `&` operator (address-of) is not part of the language, and unary `*` is not a dereference.
 
-Operators
+Usage of `*`:
 
-- Address-of: `&x`
-- Dereference: `*x`
+- When `*` appears on the left-hand side of an assignment, it explicitly marks a mutating assignment in contexts where the compiler requires clarity. This does not imply pointer dereferencing.
+- Outside this left-hand marking, `*` has no pointer semantics in AMI.
 
-Rules
+Compiler behavior:
 
-- Safe deref: Using `*x` is only allowed inside a block guarded by a nil-check for `x`, e.g., `if x != nil { *x }` or `if nil != x { *x }`. Otherwise emits `E_DEREF_UNSAFE`.
-- Invalid deref operand: `*` cannot be applied to literals or `nil`. Emits `E_DEREF_OPERAND`.
-- Address-of restrictions: `&` cannot be applied to literals or `nil`. Emits `E_ADDR_OF_LITERAL`.
-- Assignment mutability: Assignments still require `mut { ... }` blocks; pointer writes via `*x = ...` outside `mut` will also emit `E_MUT_ASSIGN_OUTSIDE` (existing rule).
+- Any attempt to use pointer syntax (e.g., `&x` or `*x` as a dereference, or types like `*T`) is rejected during parsing with `E_PTR_UNSUPPORTED_SYNTAX`.
+- Mutability rules still apply: writes must appear in `mut { ... }` blocks per the language rules.
 
-Notes
+Notes:
 
-- The analysis is token-based (scaffold). A nil-guard is recognized when a block `{ ... }` is immediately preceded by `x != nil` or `nil != x`.
-
-Tests
-
-- See `src/ami/compiler/sem/pointer_semantics_test.go` for happy/sad cases.
+- Existing scaffolding that previously mentioned pointers has been removed or will be migrated. The semantics and linter do not model raw pointers.
 

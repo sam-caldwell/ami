@@ -1,5 +1,7 @@
 package edge
 
+import "errors"
+
 // Package edge contains declarative, compiler-generated edge specifications.
 //
 // In AMI source, authors write constructs like:
@@ -32,3 +34,7 @@ type Spec interface {
     Validate() error
 }
 
+// Runtime errors used by push/pop scaffolds.
+var (
+    ErrFull  = errors.New("edge buffer full (would block)")
+)

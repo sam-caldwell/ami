@@ -10,6 +10,7 @@ import (
     git "github.com/go-git/go-git/v5"
     "github.com/spf13/cobra"
     "github.com/sam-caldwell/ami/src/internal/logger"
+    "runtime"
 )
 
 var initForce bool
@@ -49,6 +50,8 @@ func newInitCmd() *cobra.Command {
         // Project name defaults to current directory name
         wd, _ := os.Getwd()
         projName := filepath.Base(wd)
+        // include current machine os/arch in toolchain.compiler.env
+        cur := runtime.GOOS + "/" + runtime.GOARCH
         content := "version: 1.0.0\n" +
             "project:\n" +
             "  name: " + projName + "\n" +
@@ -57,7 +60,8 @@ func newInitCmd() *cobra.Command {
             "  compiler:\n" +
             "    concurrency: NUM_CPU\n" +
             "    target: ./build\n" +
-            "    env: []\n" +
+            "    env:\n" +
+            "      - { os: \"" + cur + "\" }\n" +
             "  linker: {}\n" +
             "  linter: {}\n" +
             "packages:\n" +

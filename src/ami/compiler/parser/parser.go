@@ -28,6 +28,20 @@ func (p *Parser) Errors() []diag.Diagnostic { return append([]diag.Diagnostic(ni
 
 func (p *Parser) next() { p.cur = p.s.Next() }
 
+func (p *Parser) posFrom(t tok.Token) astpkg.Position {
+    return astpkg.Position{Line: t.Line, Column: t.Column, Offset: t.Offset}
+}
+
+func (p *Parser) consumeComments() []astpkg.Comment {
+    cs := p.s.ConsumeComments()
+    if len(cs) == 0 { return nil }
+    out := make([]astpkg.Comment, 0, len(cs))
+    for _, c := range cs {
+        out = append(out, astpkg.Comment{Text: c.Text, Pos: astpkg.Position{Line: c.Line, Column: c.Column, Offset: c.Offset}})
+    }
+    return out
+}
+
 func (p *Parser) errorf(msg string) {
     p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_PARSE", Message: msg, File: p.file})
 }
@@ -49,6 +63,7 @@ func (p *Parser) ParseFile() *astpkg.File {
     for p.cur.Kind != tok.EOF {
         // pragma directives
         if p.cur.Kind == tok.PRAGMA {
+            pending := p.consumeComments()
             // parse: <name> <payload...>
             parts := strings.Fields(p.cur.Lexeme)
             name := ""
@@ -57,7 +72,8 @@ func (p *Parser) ParseFile() *astpkg.File {
                 name = parts[0]
                 payload = strings.TrimSpace(strings.TrimPrefix(p.cur.Lexeme, parts[0]))
             }
-            f.Directives = append(f.Directives, astpkg.Directive{Name: name, Payload: strings.TrimSpace(payload)})
+            d := astpkg.Directive{Name: name, Payload: strings.TrimSpace(payload), Pos: p.posFrom(p.cur), Comments: pending}
+            f.Directives = append(f.Directives, d)
             p.next()
             continue
         }
@@ -83,7 +99,11 @@ func (p *Parser) ParseFile() *astpkg.File {
         }
         // pipeline declaration: pipeline IDENT { <chain> }
         if p.cur.Kind == tok.KW_PIPELINE {
+            pending := p.consumeComments()
+            start := p.posFrom(p.cur)
             decl := p.parsePipelineDecl()
+            decl.Pos = start
+            decl.Comments = pending
             if decl.Name != "" {
                 f.Decls = append(f.Decls, decl)
                 f.Stmts = append(f.Stmts, decl)
@@ -95,6 +115,8 @@ func (p *Parser) ParseFile() *astpkg.File {
         }
         // import declarations
         if p.cur.Kind == tok.KW_IMPORT || (p.cur.Kind == tok.IDENT && p.cur.Lexeme == "import") {
+            pending := p.consumeComments()
+            start := p.posFrom(p.cur)
             p.next()
             // import "path"
             if p.cur.Kind == tok.STRING {
@@ -104,8 +126,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                     p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
                 }
                 f.Imports = append(f.Imports, path)
-                f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path})
-                f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path})
+                id := astpkg.ImportDecl{Path: path, Pos: start, Comments: pending}
+                f.Decls = append(f.Decls, id)
+                f.Stmts = append(f.Stmts, id)
                 p.next()
                 continue
             }
@@ -125,8 +148,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                             p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
                         }
                         f.Imports = append(f.Imports, path)
-                        f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path, Alias: alias})
-                        f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path, Alias: alias})
+                        id := astpkg.ImportDecl{Path: path, Alias: alias, Pos: start, Comments: pending}
+                        f.Decls = append(f.Decls, id)
+                        f.Stmts = append(f.Stmts, id)
                         p.next()
                         continue
                     }
@@ -141,8 +165,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                             p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
                         }
                         f.Imports = append(f.Imports, path)
-                        f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path})
-                        f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path})
+                        id := astpkg.ImportDecl{Path: path, Pos: start, Comments: pending}
+                        f.Decls = append(f.Decls, id)
+                        f.Stmts = append(f.Stmts, id)
                         p.next()
                         continue
                     }
@@ -163,8 +188,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                                 p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
                             }
                             f.Imports = append(f.Imports, path)
-                            f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path, Alias: alias})
-                            f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path, Alias: alias})
+                            id := astpkg.ImportDecl{Path: path, Alias: alias, Pos: start, Comments: pending}
+                            f.Decls = append(f.Decls, id)
+                            f.Stmts = append(f.Stmts, id)
                             p.next()
                             continue
                         }
@@ -180,7 +206,11 @@ func (p *Parser) ParseFile() *astpkg.File {
         }
         // enum declaration: enum IDENT { IDENT [= value] (, IDENT [= value]) ... }
         if p.cur.Kind == tok.KW_ENUM {
+            pending := p.consumeComments()
+            start := p.posFrom(p.cur)
             ed := p.parseEnumDecl()
+            ed.Pos = start
+            ed.Comments = pending
             if ed.Name != "" {
                 f.Decls = append(f.Decls, ed)
                 f.Stmts = append(f.Stmts, ed)
@@ -192,7 +222,11 @@ func (p *Parser) ParseFile() *astpkg.File {
         }
         // struct declaration: struct IDENT { IDENT Type [,|;] ... }
         if p.cur.Kind == tok.KW_STRUCT {
+            pending := p.consumeComments()
+            start := p.posFrom(p.cur)
             sd := p.parseStructDecl()
+            sd.Pos = start
+            sd.Comments = pending
             if sd.Name != "" {
                 f.Decls = append(f.Decls, sd)
                 f.Stmts = append(f.Stmts, sd)
@@ -204,6 +238,8 @@ func (p *Parser) ParseFile() *astpkg.File {
         }
         // func declaration: func IDENT (params) [result] { ... }
         if p.cur.Kind == tok.KW_FUNC {
+            pending := p.consumeComments()
+            start := p.posFrom(p.cur)
             p.next()
             name := ""
             if p.cur.Kind == tok.IDENT { 
@@ -237,6 +273,10 @@ func (p *Parser) ParseFile() *astpkg.File {
                 // collect tokens inside body
                 for depth > 0 && p.cur.Kind != tok.EOF {
                     body = append(body, p.cur)
+                    // address-of is not allowed (2.3.2)
+                    if p.cur.Kind == tok.AMP {
+                        p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_PTR_UNSUPPORTED_SYNTAX", Message: "'&' address-of operator is not allowed; AMI does not expose raw pointers (see 2.3.2)", File: p.file})
+                    }
                     if p.cur.Kind == tok.LBRACE { depth++ }
                     if p.cur.Kind == tok.RBRACE {
                         depth--
@@ -247,7 +287,7 @@ func (p *Parser) ParseFile() *astpkg.File {
                 // build simple statement list from captured tokens
                 bodyStmts = parseBodyStmts(body)
             } else { p.errorf("expected function body") }
-            fd := astpkg.FuncDecl{Name: name, Params: params, Result: results, Body: body, BodyStmts: bodyStmts}
+            fd := astpkg.FuncDecl{Name: name, Params: params, Result: results, Body: body, BodyStmts: bodyStmts, Pos: start, Comments: pending}
             f.Decls = append(f.Decls, fd)
             f.Stmts = append(f.Stmts, fd)
             if p.cur.Kind != tok.SEMI && p.cur.Kind != tok.KW_FUNC {
@@ -386,6 +426,8 @@ func (p *Parser) parseNodeCall() (astpkg.NodeCall, bool) {
     if !(p.cur.Kind == tok.IDENT || p.cur.Kind == tok.KW_INGRESS || p.cur.Kind == tok.KW_TRANSFORM || p.cur.Kind == tok.KW_FANOUT || p.cur.Kind == tok.KW_COLLECT || p.cur.Kind == tok.KW_EGRESS) {
         return astpkg.NodeCall{}, false
     }
+    pending := p.consumeComments()
+    startTok := p.cur
     name := p.cur.Lexeme
     if name == "" { // for keyword tokens, Lexeme may carry source; fall back to kind name
         switch p.cur.Kind {
@@ -440,7 +482,7 @@ func (p *Parser) parseNodeCall() (astpkg.NodeCall, bool) {
             p.next()
         }
     }
-    return astpkg.NodeCall{Name: name, Args: args, Workers: workers}, true
+    return astpkg.NodeCall{Name: name, Args: args, Workers: workers, Pos: p.posFrom(startTok), Comments: pending}, true
 }
 
 // ExtractImports finds import paths in a minimal Go-like syntax:
@@ -666,10 +708,13 @@ func (p *Parser) parseResultList() []astpkg.TypeRef {
 // parseType parses '*'? '[]'? IDENT|KW_MAP|KW_SET|KW_SLICE ('<' Type {',' Type } '>')?
 func (p *Parser) parseType() (astpkg.TypeRef, bool) {
     var tr astpkg.TypeRef
+    // record starting offset
+    start := p.cur.Offset
     // pointer
-    if p.cur.Kind == tok.STAR { tr.Ptr = true; p.next() }
+    if p.cur.Kind == tok.STAR { tr.Ptr = true; p.next(); start = p.cur.Offset }
     // slice []
     if p.cur.Kind == tok.LBRACK {
+        start = p.cur.Offset
         p.next()
         if p.cur.Kind == tok.RBRACK { tr.Slice = true; p.next() }
     }
@@ -681,6 +726,7 @@ func (p *Parser) parseType() (astpkg.TypeRef, bool) {
         return tr, false
     }
     tr.Name = p.cur.Lexeme
+    tr.Offset = start
     p.next()
     // generics
     if p.cur.Kind == tok.LT {

@@ -18,7 +18,7 @@ Semantics (summary)
 
 Performance considerations
 - Lock‑free or low‑contention rings: MPMC circular buffers sized to powers of two for cache‑friendly masking.
-- Contiguous memory: pre‑allocated storage to avoid GC pressure, with amortized growth within `[minCapacity,maxCapacity]`.
+- Contiguous memory: pre‑allocated storage managed via RAII; AMI has no garbage collection. Capacity may grow within `[minCapacity,maxCapacity]` as configured.
 - Zero‑copy handoff: pass event envelopes by reference; copy payloads only when required by isolation semantics.
 - Cache locality: producer/consumer padding to prevent false sharing; per‑core shards if contention warrants.
 - Backpressure fast paths: branch‑predictable states for `block` vs `drop`, minimal atomics on enqueue/dequeue.
@@ -36,3 +36,4 @@ Examples
 
 Notes
 - These specs live at compile time; they have no effect at runtime outside of the generated code. See the language docx §2.2.7/2.2.11 for background.
+- AMI uses RAII for memory/resource management and does not have a garbage collector. Backpressure controls enqueue/dequeue behavior under capacity limits; it is unrelated to memory reclamation.

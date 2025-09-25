@@ -5,6 +5,12 @@ import tok "github.com/sam-caldwell/ami/src/ami/compiler/token"
 // Position is a lightweight source position.
 type Position struct { Line, Column, Offset int }
 
+// Comment attaches source comments to nodes with a starting position.
+type Comment struct {
+    Text string
+    Pos  Position
+}
+
 // File represents a parsed source file.
 // Backward-compatible fields Package/Imports remain for existing tests.
 type File struct {
@@ -25,6 +31,8 @@ func (Bad) isNode() {}
 type ImportDecl struct {
     Path  string
     Alias string // optional
+    Pos   Position
+    Comments []Comment
 }
 func (ImportDecl) isNode() {}
 
@@ -36,6 +44,8 @@ type FuncDecl struct {
     // Body is omitted in scaffold; parser skips over it
     Body      []tok.Token // captured tokens for simple semantic checks (e.g., mutability)
     BodyStmts []Stmt      // simple statement AST parsed from tokens (scaffold)
+    Pos   Position
+    Comments []Comment
 }
 func (FuncDecl) isNode() {}
 
@@ -45,15 +55,16 @@ type TypeRef struct {
     Args  []TypeRef // generic arguments, e.g., Event<T>
     Ptr   bool      // pointer
     Slice bool      // slice []
+    Offset int      // source offset where this type begins
 }
 
 // EnumDecl scaffold
-type EnumDecl struct { Name string; Members []EnumMember }
+type EnumDecl struct { Name string; Members []EnumMember; Pos Position; Comments []Comment }
 type EnumMember struct { Name string; Value string }
 func (EnumDecl) isNode() {}
 
 // StructDecl scaffold
-type StructDecl struct { Name string; Fields []Field }
+type StructDecl struct { Name string; Fields []Field; Pos Position; Comments []Comment }
 type Field struct { Name string; Type TypeRef }
 func (StructDecl) isNode() {}
 
@@ -64,6 +75,8 @@ type PipelineDecl struct {
     Connectors []string // between steps: "." or "->"
     ErrorSteps []NodeCall
     ErrorConnectors []string
+    Pos   Position
+    Comments []Comment
 }
 func (PipelineDecl) isNode() {}
 
@@ -72,6 +85,8 @@ type NodeCall struct {
     Name string
     Args []string // raw argument expressions (scaffold)
     Workers []WorkerRef
+    Pos   Position
+    Comments []Comment
 }
 
 // WorkerRef represents a referenced worker in a pipeline step argument list.
@@ -85,6 +100,8 @@ type WorkerRef struct {
 type Directive struct {
     Name    string
     Payload string
+    Pos   Position
+    Comments []Comment
 }
 func (Directive) isNode() {}
 

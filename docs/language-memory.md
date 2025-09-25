@@ -1,4 +1,4 @@
-# Memory Model: Ownership & RAII (2.4)
+f# Memory Model: Ownership & RAII (2.4)
 
 This scaffold introduces a minimal ownership/RAII discipline for AMI:
 

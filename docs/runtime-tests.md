@@ -22,7 +22,14 @@ Goal: provide an executable runtime harness for AMI `*_test.ami` cases with dete
 - `ami test` will parse these pragmas from `*_test.ami` and delegate to a runtime tester once pipelines are compilable.
 - JSON output conforms to `test.v1` with `test_start/test_end` events and attached `diag.v1` diagnostics on failure.
 
-## Scaffold
+## Current Harness Behavior (Phase 2 scaffold)
 
-The package `ami/runtime/tester` ships a `Runner` stub that currently marks all cases as `skip` with reason "runtime disabled". This will be replaced with a real executor as the codegen/runtime mature.
-
+- Unknown pipelines behave as identity functions over the input payload.
+- Reserved input keys interpreted by the harness:
+  - `sleep_ms`: integer delay before producing output (enables timeout tests).
+  - `error_code`: string to simulate a runtime error with that code.
+- Assertions:
+  - When `expect_error` is set, the simulated error must match to pass; otherwise the case fails.
+  - When `expect_output` is set, the produced output (input with meta keys removed) must match exactly.
+- Timeouts: when `timeout=<ms>` is set and `sleep_ms` exceeds it, the case times out; expecting `E_TIMEOUT` will pass that case.
+- Fixtures: `test:fixture path=<rel> mode=<ro|rw>` pragmas are parsed and validated (mode), and are attached to cases. Enforcement of file access is deferred to a later phase.

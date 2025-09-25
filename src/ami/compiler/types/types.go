@@ -13,5 +13,5 @@ var (
     TFloat   = Basic{"float"}
     TString  = Basic{"string"}
     TBool    = Basic{"bool"}
+    TPackage = Basic{"package"}
 )
-

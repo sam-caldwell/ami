@@ -87,7 +87,7 @@ packages:
     if err := os.WriteFile("ami.workspace", []byte(ws), 0o644); err != nil { t.Fatalf("write workspace: %v", err) }
     if err := os.MkdirAll("src", 0o755); err != nil { t.Fatalf("mkdir src: %v", err) }
     src := `package main
-func w(ctx Context, ev Event<string>, st *State) Event<string> { }
+func w(ctx Context, ev Event<string>, st State) Event<string> { }
 pipeline P { Ingress(cfg).Transform(w).Egress(in=edge.FIFO(minCapacity=1,maxCapacity=2,backpressure=block,type=string)) }
 `
     if err := os.WriteFile(filepath.Join("src","main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write src: %v", err) }

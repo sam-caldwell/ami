@@ -77,22 +77,29 @@ func newBuildCmd() *cobra.Command {
             Toolchain: sch.ToolchainV1{AmiVersion: version, GoVersion: runtime.Version()},
             Targets:   []sch.BuildTarget{},
         }
-        // Discover source files and populate plan with deterministic ordering
-        allFiles, _ := filepath.Glob(filepath.Join("src", "*.ami"))
-        sort.Strings(allFiles)
-        for _, f := range allFiles {
-            pkg := filepath.Base(filepath.Dir(f))
-            if pkg == "." || pkg == "src" { pkg = "main" }
-            outAsm := filepath.Join("build","debug","asm", pkg, filepath.Base(f)+".s")
-            outAST := filepath.Join("build","debug","ast", pkg, filepath.Base(f)+".ast.json")
-            outIR := filepath.Join("build","debug","ir", pkg, filepath.Base(f)+".ir.json")
-            plan.Targets = append(plan.Targets, sch.BuildTarget{
-                Package: pkg,
-                Unit:    f,
-                Inputs:  []string{f},
-                Outputs: []string{outAST, outIR, outAsm},
-                Steps:   []string{"parse","typecheck","ir","codegen"},
-            })
+        // Discover source files per workspace package and populate plan deterministically
+        pkgRoots := parseWorkspacePackages(ws)
+        order := lintOrder(pkgRoots)
+        var allFiles []string
+        unitPkg := map[string]string{}
+        for _, pkg := range order {
+            root := pkgRoots[pkg]
+            files, _ := filepath.Glob(filepath.Join(root, "*.ami"))
+            sort.Strings(files)
+            for _, f := range files {
+                allFiles = append(allFiles, f)
+                unitPkg[f] = pkg
+                outAsm := filepath.Join("build","debug","asm", pkg, filepath.Base(f)+".s")
+                outAST := filepath.Join("build","debug","ast", pkg, filepath.Base(f)+".ast.json")
+                outIR := filepath.Join("build","debug","ir", pkg, filepath.Base(f)+".ir.json")
+                plan.Targets = append(plan.Targets, sch.BuildTarget{
+                    Package: pkg,
+                    Unit:    f,
+                    Inputs:  []string{f},
+                    Outputs: []string{outAST, outIR, outAsm},
+                    Steps:   []string{"parse","typecheck","ir","codegen"},
+                })
+            }
         }
 
         // Guarded I/O: ensure each declared file is readable; emit JSON diag and exit 2 on failure
@@ -169,9 +176,13 @@ func newBuildCmd() *cobra.Command {
 			var files []string
             files = append(files, allFiles...)
             if len(files) > 0 {
-				srcBytes, _ := os.ReadFile(files[0])
-                imports := parser.ExtractImports(string(srcBytes))
-                resolved.Units = append(resolved.Units, sch.SourceUnit{Package: "main", File: files[0], Imports: imports, Source: string(srcBytes)})
+                for _, fp := range files {
+                    b, _ := os.ReadFile(fp)
+                    imports := parser.ExtractImports(string(b))
+                    pkg := unitPkg[fp]
+                    if pkg == "" { pkg = "main" }
+                    resolved.Units = append(resolved.Units, sch.SourceUnit{Package: pkg, File: fp, Imports: imports, Source: string(b)})
+                }
 				// Use compiler driver result from earlier parse
                 res := compRes
                 // AST per package/unit
@@ -351,10 +362,43 @@ func newBuildCmd() *cobra.Command {
 
         // Write ami.manifest with artifacts/toolchain and cross-check ami.sum
         artifacts := []manifest.Artifact{}
-        for _, path := range []struct{p,kind string}{{"build/debug/source/resolved.json","resolved"},{"build/debug/ast/main/main.ami.ast.json","ast"},{"build/debug/ir/main/main.ami.ir.json","ir"},{"build/debug/ir/main/main.ami.pipelines.json","pipelines"},{"build/debug/ir/main/main.ami.eventmeta.json","eventmeta"},{"build/debug/asm/main/main.ami.s","asm"},{"build/debug/asm/index.json","asmIndex"}} {
-            if fi, err := os.Stat(path.p); err==nil && !fi.IsDir() {
-                sha, size, _ := fileSHA256(path.p)
-                artifacts = append(artifacts, manifest.Artifact{Path: path.p, Kind: path.kind, Size: size, Sha256: sha})
+        addArtifact := func(p, kind string) {
+            if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+                sha, size, _ := fileSHA256(p)
+                artifacts = append(artifacts, manifest.Artifact{Path: p, Kind: kind, Size: size, Sha256: sha})
+            }
+        }
+        // Always include resolved sources when present
+        addArtifact(filepath.Join("build","debug","source","resolved.json"), "resolved")
+        // Debug AST across all packages
+        if dirs, _ := filepath.Glob(filepath.Join("build","debug","ast","*")); len(dirs) > 0 {
+            sort.Strings(dirs)
+            for _, d := range dirs {
+                matches, _ := filepath.Glob(filepath.Join(d, "*.ast.json"))
+                sort.Strings(matches)
+                for _, m := range matches { addArtifact(m, "ast") }
+            }
+        }
+        // Debug IR across all packages (.ir.json, .pipelines.json, .eventmeta.json)
+        if dirs, _ := filepath.Glob(filepath.Join("build","debug","ir","*")); len(dirs) > 0 {
+            sort.Strings(dirs)
+            for _, d := range dirs {
+                irs, _ := filepath.Glob(filepath.Join(d, "*.ir.json")); sort.Strings(irs)
+                for _, m := range irs { addArtifact(m, "ir") }
+                pipes, _ := filepath.Glob(filepath.Join(d, "*.pipelines.json")); sort.Strings(pipes)
+                for _, m := range pipes { addArtifact(m, "pipelines") }
+                evm, _ := filepath.Glob(filepath.Join(d, "*.eventmeta.json")); sort.Strings(evm)
+                for _, m := range evm { addArtifact(m, "eventmeta") }
+            }
+        }
+        // Debug ASM across all packages (.s, per-package index.json, edges.json when present)
+        if dirs, _ := filepath.Glob(filepath.Join("build","debug","asm","*")); len(dirs) > 0 {
+            sort.Strings(dirs)
+            for _, d := range dirs {
+                asms, _ := filepath.Glob(filepath.Join(d, "*.s")); sort.Strings(asms)
+                for _, m := range asms { addArtifact(m, "asm") }
+                addArtifact(filepath.Join(d, "index.json"), "asmIndex")
+                addArtifact(filepath.Join(d, "edges.json"), "edges")
             }
         }
         // Include non-debug obj artifacts if present

@@ -11,7 +11,7 @@ import (
 )
 
 // Ensures runtime cases are discovered and currently skipped by the stub harness.
-func TestTest_JSON_AMIRuntime_SkipScaffold(t *testing.T) {
+func TestTest_JSON_AMIRuntime_JsonEqualityPass(t *testing.T) {
     ws := t.TempDir()
     gomod := "module example.com/ami-test\n\ngo 1.22\n"
     if err := os.WriteFile(filepath.Join(ws, "go.mod"), []byte(gomod), 0o644); err != nil { t.Fatalf("write go.mod: %v", err) }
@@ -22,8 +22,8 @@ packages: [ { main: { version: 0.0.1, root: ./src, import: [] } } ]
 `
     if err := os.WriteFile(filepath.Join(ws, "ami.workspace"), []byte(wsContent), 0o644); err != nil { t.Fatalf("write workspace: %v", err) }
     if err := os.MkdirAll(filepath.Join(ws, "src"), 0o755); err != nil { t.Fatalf("mkdir src: %v", err) }
-    // Runtime test case pragma; runner stub will skip it.
-    a := `#pragma test:case RunSkips
+    // Runtime test case pragma; identity behavior yields pass.
+    a := `#pragma test:case RunEcho
 #pragma test:runtime pipeline=P input={"x":1} expect_output={"x":1}
 package main
 Pipeline(P) { }
@@ -37,16 +37,15 @@ Pipeline(P) { }
     if err != nil {
         if ee, ok := err.(*exec.ExitError); ok { _ = ee } else { t.Fatalf("unexpected error: %v\n%s", err, string(out)) }
     }
-    // Look for test_end event with status=skip for RunSkips
-    sawSkip := false
+    // Look for test_end event with status=pass for RunEcho
+    sawPass := false
     sc := bufio.NewScanner(strings.NewReader(string(out)))
     for sc.Scan() {
         var obj map[string]any
         if json.Unmarshal([]byte(sc.Text()), &obj) != nil { continue }
-        if obj["schema"] == "test.v1" && obj["type"] == "test_end" && obj["status"] == "skip" {
-            if name, _ := obj["name"].(string); name == "RunSkips" { sawSkip = true }
+        if obj["schema"] == "test.v1" && obj["type"] == "test_end" && obj["status"] == "pass" {
+            if name, _ := obj["name"].(string); name == "RunEcho" { sawPass = true }
         }
     }
-    if !sawSkip { t.Fatalf("expected skip for runtime case; stdout=\n%s", string(out)) }
+    if !sawPass { t.Fatalf("expected pass for runtime case; stdout=\n%s", string(out)) }
 }
-

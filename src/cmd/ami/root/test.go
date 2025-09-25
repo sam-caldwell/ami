@@ -376,6 +376,9 @@ func runAmiTests(pass, fail, skip *int, get func(pkg string) *ctot) {
                 }
                 order = append(order, key(rc.pkg, rc.name))
                 startTimes[key(rc.pkg, rc.name)] = st
+                // map fixtures
+                var fx []tester.Fixture
+                for _, f := range rc.fixtures { fx = append(fx, tester.Fixture{Path: f.path, Mode: f.mode}) }
                 byPipe[rc.pipeline] = append(byPipe[rc.pipeline], tester.Case{
                     Name:        rc.name,
                     Pipeline:    rc.pipeline,
@@ -383,6 +386,7 @@ func runAmiTests(pass, fail, skip *int, get func(pkg string) *ctot) {
                     ExpectJSON:  rc.expectJSON,
                     ExpectError: rc.expectError,
                     TimeoutMs:   rc.timeoutMs,
+                    Fixtures:    fx,
                 })
             }
             r := tester.New()
@@ -607,7 +611,10 @@ type amiRuntimeCase struct {
     expectJSON  string
     expectError string
     timeoutMs   int
+    fixtures    []amiFixture
 }
+
+type amiFixture struct { path string; mode string }
 
 // deriveAmiRuntimeCases builds runtime cases from `#pragma test:runtime ...` directives.
 // It associates the most recent `#pragma test:case` as the case name; if absent, the
@@ -615,12 +622,19 @@ type amiRuntimeCase struct {
 func deriveAmiRuntimeCases(file, pkg string, f *astpkg.File) []amiRuntimeCase {
     var cases []amiRuntimeCase
     curName := ""
+    curFixtures := []amiFixture{}
     for _, d := range f.Directives {
         switch d.Name {
         case "test:case":
             name := strings.TrimSpace(d.Payload)
             if strings.HasPrefix(name, "\"") && strings.HasSuffix(name, "\"") { name = strings.Trim(name, "\"") }
             curName = name
+            // reset fixtures for new case group
+            curFixtures = []amiFixture{}
+        case "test:fixture":
+            kv := parseRuntimePayload(d.Payload)
+            fx := amiFixture{path: kv["path"], mode: kv["mode"]}
+            curFixtures = append(curFixtures, fx)
         case "test:runtime":
             name := curName
             if name == "" { name = filepath.Base(file) }
@@ -633,6 +647,10 @@ func deriveAmiRuntimeCases(file, pkg string, f *astpkg.File) []amiRuntimeCase {
             rc.expectError = kv["expect_error"]
             if t := strings.TrimSpace(kv["timeout"]); t != "" {
                 if n, err := strconv.Atoi(t); err == nil && n >= 0 { rc.timeoutMs = n }
+            }
+            // attach fixtures snapshot
+            if len(curFixtures) > 0 {
+                rc.fixtures = append([]amiFixture{}, curFixtures...)
             }
             cases = append(cases, rc)
         }

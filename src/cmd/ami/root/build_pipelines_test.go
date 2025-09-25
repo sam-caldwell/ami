@@ -41,8 +41,8 @@ packages:
     if err := os.WriteFile("ami.workspace", []byte(ws), 0o644); err != nil { t.Fatal(err) }
     if err := os.MkdirAll("src", 0o755); err != nil { t.Fatal(err) }
     // A simple worker and pipeline so pipelines.json is non-empty
-    src := `package main
-func x(ctx Context, ev Event<T>, st *State) Event<U> { }
+src := `package main
+func x(ctx Context, ev Event<T>, st State) Event<U> { }
 pipeline P { Ingress(cfg).Transform(x).Egress(cfg) }
 `
     if err := os.WriteFile(filepath.Join("src","main.ami"), []byte(src), 0o644); err != nil { t.Fatal(err) }

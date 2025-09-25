@@ -13,9 +13,18 @@ type Scanner struct {
     off    int
     line   int
     column int
+    pending []Comment
 }
 
 func New(src string) *Scanner { return &Scanner{src: src, line: 1, column: 1} }
+
+// Comment captures a source comment with its starting position.
+type Comment struct {
+    Text   string
+    Line   int
+    Column int
+    Offset int
+}
 
 func (s *Scanner) Next() tok.Token {
     s.skipSpaceAndComments()
@@ -216,26 +225,36 @@ func (s *Scanner) skipSpaceAndComments() {
         }
         // line comment //...
         if r == '/' && s.peekRune() == '/' {
+            // record comment start
+            cLine, cCol, cOff := s.line, s.column, s.off
             // skip '//'
             s.off += 2
             // find next newline
             if idx := strings.IndexByte(s.src[s.off:], '\n'); idx >= 0 {
+                // comment text excludes the trailing newline
+                text := s.src[s.off : s.off+idx]
+                s.pending = append(s.pending, Comment{Text: text, Line: cLine, Column: cCol, Offset: cOff})
                 s.off += idx + 1
                 s.line++
                 s.column = 1
             } else {
                 // no newline; consume to end
+                text := s.src[s.off:]
+                s.pending = append(s.pending, Comment{Text: text, Line: cLine, Column: cCol, Offset: cOff})
                 s.off = len(s.src)
             }
             continue
         }
         // block comment /* ... */ (no nesting)
         if r == '/' && s.peekRune() == '*' {
+            // record start
+            cLine, cCol, cOff := s.line, s.column, s.off
             // skip '/*'
             s.off += 2
             // find closing '*/'
             if idx := strings.Index(s.src[s.off:], "*/"); idx >= 0 {
                 segment := s.src[s.off : s.off+idx]
+                s.pending = append(s.pending, Comment{Text: segment, Line: cLine, Column: cCol, Offset: cOff})
                 // count newlines to adjust line/column
                 if nl := strings.Count(segment, "\n"); nl > 0 {
                     s.line += nl
@@ -246,12 +265,24 @@ func (s *Scanner) skipSpaceAndComments() {
                 s.off += idx + 2
             } else {
                 // unterminated; consume to end
+                seg := s.src[s.off:]
+                s.pending = append(s.pending, Comment{Text: seg, Line: cLine, Column: cCol, Offset: cOff})
                 s.off = len(s.src)
             }
             continue
         }
         break
     }
+}
+
+// ConsumeComments returns and clears any comments encountered immediately
+// before the next non-space token.
+func (s *Scanner) ConsumeComments() []Comment {
+    if len(s.pending) == 0 { return nil }
+    out := make([]Comment, len(s.pending))
+    copy(out, s.pending)
+    s.pending = nil
+    return out
 }
 
 func (s *Scanner) peekRune() rune {

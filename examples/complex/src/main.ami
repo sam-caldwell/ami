@@ -1,0 +1,57 @@
+// Complex AMI example:
+// - Two independent ingress pipelines driven by timers
+//   - TimerEverySecond: emits current time every 1s
+//   - TimerEveryTwoSeconds: emits an incrementing uint every 2s
+// - Each pipeline transforms its event into a uint(1)
+// - The two event streams are merged (collect) and counted
+// - The accumulated count is written to stdout via an egress
+
+package main
+
+// Worker stubs omitted: this scaffold focuses on pipeline wiring.
+
+// Pipeline A: time every 1s -> toOne
+pipeline TimerEverySecond {
+  Ingress(
+    name=TimerEverySecond,
+    in=trigger.Timer(interval="1s", startNow=true),
+    minWorkers=1,
+    maxWorkers=1,
+    type=string,
+  ).Transform(cfg)
+   .Egress(
+     in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=string)
+   )
+}
+
+// Pipeline B: seq every 2s -> toOne
+pipeline TimerEveryTwoSeconds {
+  Ingress(
+    name=TimerEveryTwoSeconds,
+    in=trigger.Timer(interval="2s", startNow=true),
+    minWorkers=1,
+    maxWorkers=1,
+    type=string, // sequential number rendered as string
+  ).Transform(cfg)
+   .Egress(
+     in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=string)
+   )
+}
+
+// Pipeline C: merge A+B, count, write to stdout
+pipeline MergeCount {
+  Ingress(
+    name=MergeCount,
+    // Consume Pipeline A events as primary input
+    in=edge.Pipeline(name=TimerEverySecond),
+    minWorkers=1,
+    maxWorkers=1,
+    type=string,
+  ).Collect(
+    // Merge Pipeline B events
+    in=edge.Pipeline(name=TimerEveryTwoSeconds)
+  ).Transform(cfg)
+   .Egress(
+     in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=string)
+   )
+}

@@ -1,0 +1,21 @@
+version: 1.0.0
+project:
+  name: simple
+  version: 0.0.1
+toolchain:
+  compiler:
+    concurrency: NUM_CPU
+    target: ./build
+    env:
+      - { os: "windows/amd64" }
+      - { os: "linux/amd64" }
+      - { os: "linux/arm64" }
+      - { os: "darwin/amd64" }
+      - { os: "darwin/arm64" }
+  linker: {}
+  linter: {}
+packages:
+  - main:
+      version: 0.0.1
+      root: ./src
+      import: []

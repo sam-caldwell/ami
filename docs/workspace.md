@@ -12,7 +12,8 @@ toolchain:
   compiler:
     concurrency: NUM_CPU
     target: ./build
-    env: []
+    env:
+      - { os: "<host-os>/<host-arch>" }
   linker: {}
   linter: {}
 packages:
@@ -59,3 +60,5 @@ packages:
 Notes:
 - Local imports (e.g., `./subdir`) are allowed and treated as workspace-local repositories; when used with `==latest`, the latest non-prerelease tag is selected from the local repo. They are copied into the cache under `<name>@<tag>`.
 - The file lives at the workspace root.
+ - `ami init` seeds `toolchain.compiler.env` with the current machine's OS/arch pair (e.g., `darwin/arm64`).
+ - Example workspaces under `examples/**` include a cross‑platform matrix of OS/arch pairs: windows/amd64, linux/amd64, linux/arm64, darwin/amd64, darwin/arm64.

@@ -25,7 +25,7 @@ func TestGenerateASM_EmitsEdgeInitPseudo(t *testing.T) {
     // Add a pipeline with one step that has a FIFO edge
     m.Pipelines = []ir.PipelineIR{{
         Name: "P",
-        Steps: []ir.StepIR{{Node: "Egress", In: edg.FIFO{MinCapacity: 10, MaxCapacity: 20, Backpressure: edg.BackpressureBlock, TypeName: "[]byte"}}},
+        Steps: []ir.StepIR{{Node: "Egress", In: &edg.FIFO{MinCapacity: 10, MaxCapacity: 20, Backpressure: edg.BackpressureBlock, TypeName: "[]byte"}}},
     }}
     asm := GenerateASM(m)
     if !strings.Contains(asm, "pipeline P") { t.Fatalf("missing pipeline header: %q", asm) }

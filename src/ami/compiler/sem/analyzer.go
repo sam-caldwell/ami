@@ -24,6 +24,19 @@ func AnalyzeFile(f *astpkg.File) Result {
     seen := map[string]bool{}
     // collect function names for worker resolution
     funcs := map[string]astpkg.FuncDecl{}
+    // Insert imported package symbols for name resolution (alias or last path segment)
+    for _, d := range f.Decls {
+        if id, ok := d.(astpkg.ImportDecl); ok {
+            name := id.Alias
+            if name == "" {
+                // derive from path last segment
+                parts := strings.Split(id.Path, "/")
+                name = parts[len(parts)-1]
+            }
+            // placeholder type for imported package symbols
+            _ = res.Scope.Insert(&types.Object{Kind: types.ObjType, Name: name, Type: types.TPackage})
+        }
+    }
     for _, d := range f.Decls {
         if fd, ok := d.(astpkg.FuncDecl); ok {
             if fd.Name == "_" {
@@ -45,7 +58,12 @@ func AnalyzeFile(f *astpkg.File) Result {
                 })
                 continue
             }
-            _ = res.Scope.Insert(&types.Object{Kind: types.ObjFunc, Name: fd.Name, Type: types.TInvalid})
+            // Build a function type from parameter/result TypeRefs
+            var ps []types.Type
+            for _, p := range fd.Params { ps = append(ps, types.FromAST(p.Type)) }
+            var rs []types.Type
+            for _, r := range fd.Result { rs = append(rs, types.FromAST(r)) }
+            _ = res.Scope.Insert(&types.Object{Kind: types.ObjFunc, Name: fd.Name, Type: types.Function{Params: ps, Results: rs}})
             seen[fd.Name] = true
             funcs[fd.Name] = fd
             // Mutability analysis: default immutable, assignments require mut { }

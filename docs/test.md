@@ -37,8 +37,7 @@ If no packages are provided, `./...` is used by default.
 
 ## Notes
 
-- AMI‑language `*_test.ami` discovery/execution will land in a future phase. For now, this wrapper ensures deterministic reporting and CI‑friendly JSON.
- - Native AMI tests (Phase 1): the runner discovers `*_test.ami` under workspace packages and evaluates directive‑driven assertions without executing pipelines.
+- Native AMI tests (Phase 1): the runner discovers `*_test.ami` under workspace packages and evaluates directive‑driven assertions without executing pipelines.
    - Supported pragmas at file scope:
      - `#pragma test:case <name>`: starts a new test case in this file
      - `#pragma test:expect_no_errors`: asserts parser/semantic analysis emit no errors
@@ -48,3 +47,9 @@ If no packages are provided, `./...` is used by default.
    - If no pragmas are present, a default case named after the file asserts no errors.
    - JSON mapping: each case emits `test_start` and `test_end` events with `package` = AMI package and `name` per case.
    - Diagnostics on failure are attached to `test_end.diagnostics` as `diag.v1` entries.
+
+- Runtime AMI tests (Phase 2): executable cases via `#pragma test:runtime ...` with deterministic harness.
+  - `#pragma test:runtime pipeline=<name> input=<json> expect_output=<json> [timeout=<ms>]`
+  - `#pragma test:runtime expect_error=<CODE> [timeout=<ms>]`
+  - `#pragma test:fixture path=<rel> mode=<ro|rw>` to attach fixtures (validated; enforcement deferred)
+  - Reserved input keys interpreted by harness: `sleep_ms`, `error_code`.

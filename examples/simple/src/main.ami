@@ -48,3 +48,4 @@ Ingress(
     maxWorkers=1,
     capabilities=[ /* e.g., NetOut:"db.acme-corp:5432" */ ],
 )
+

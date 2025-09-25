@@ -25,7 +25,7 @@ func TestHelper_AmiModVerifyJSON(t *testing.T) {
 }
 
 // Minimal diag record shape
-type diagRecord struct {
+type mdiagRecord struct {
     Schema   string                 `json:"schema"`
     Timestamp string                `json:"timestamp"`
     Level    string                 `json:"level"`
@@ -34,7 +34,7 @@ type diagRecord struct {
 }
 
 // create a minimal git repo at dir with a tag
-func makeTaggedRepo(t *testing.T, dir, tag string) {
+func makeTaggedRepo4(t *testing.T, dir, tag string) {
     t.Helper()
     r, err := git.PlainInit(dir, false)
     if err != nil { t.Fatalf("init repo: %v", err) }
@@ -60,7 +60,7 @@ func TestModVerify_JSON_FailsOnMismatch(t *testing.T) {
     base := "repo"
     entry := filepath.Join(cache, base+"@"+version)
     if err := os.MkdirAll(entry, 0o755); err != nil { t.Fatalf("mkdir entry: %v", err) }
-    makeTaggedRepo(t, entry, version)
+    makeTaggedRepo4(t, entry, version)
 
     // ami.sum with wrong digest
     sum := `{"schema":"ami.sum/v1","packages":{"example/repo":{"v1.0.0":"deadbeef"}}}`
@@ -85,7 +85,7 @@ func TestModVerify_JSON_FailsOnMismatch(t *testing.T) {
     var seenMismatch bool
     sc := bufio.NewScanner(strings.NewReader(string(out)))
     for sc.Scan() {
-        var rec diagRecord
+        var rec mdiagRecord
         if json.Unmarshal([]byte(sc.Text()), &rec) != nil { continue }
         if rec.Schema != "diag.v1" || rec.Level != "error" { continue }
         if rec.Message == "digest mismatch" || rec.Message == "cache entry missing" || rec.Message == "digest compute failed" {

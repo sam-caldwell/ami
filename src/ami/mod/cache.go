@@ -124,11 +124,11 @@ func Get(url string) (string, error) {
         _ = os.RemoveAll(dest)
         auth, _ := gogitssh.NewSSHAgentAuth("git")
         repo, err := git.PlainClone(dest, false, &git.CloneOptions{URL: parts.SSHURL, Auth: auth, Depth: 1})
-        if err != nil { return "", err }
+        if err != nil { return "", errors.Join(ErrNetwork, err) }
         wt, err := repo.Worktree()
         if err != nil { return "", err }
         // checkout tag
-        if err := wt.Checkout(&git.CheckoutOptions{Branch: plumbing.NewTagReferenceName(parts.Tag)}); err != nil { return "", err }
+        if err := wt.Checkout(&git.CheckoutOptions{Branch: plumbing.NewTagReferenceName(parts.Tag)}); err != nil { return "", errors.Join(ErrNetwork, err) }
         return dest, nil
     }
     return "", fmt.Errorf("unsupported url: %s", url)
@@ -264,7 +264,7 @@ func latestTag(sshURL string) (string, error) {
     r := git.NewRemote(nil, &gitcfg.RemoteConfig{URLs: []string{sshURL}})
     auth, _ := gogitssh.NewSSHAgentAuth("git")
     refs, err := r.List(&git.ListOptions{Auth: auth})
-    if err != nil { return "", err }
+    if err != nil { return "", errors.Join(ErrNetwork, err) }
     best := ""
     for _, ref := range refs {
         name := ref.Name().String()
@@ -378,7 +378,7 @@ func resolveConstraint(sshURL, cons string) (string, error) {
     r := git.NewRemote(nil, &gitcfg.RemoteConfig{URLs: []string{sshURL}})
     auth, _ := gogitssh.NewSSHAgentAuth("git")
     refs, err := r.List(&git.ListOptions{Auth: auth})
-    if err != nil { return "", err }
+    if err != nil { return "", errors.Join(ErrNetwork, err) }
     tags := collectSemverTags(refs)
     // Exclude prereleases by default unless constraint specifies a prerelease
     allowPre := hasPrereleaseInConstraint(cons)

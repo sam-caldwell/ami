@@ -1,6 +1,9 @@
 package parser
 
-import "testing"
+import (
+    "testing"
+    astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+)
 
 func TestExtractImports_SingleAndBlock(t *testing.T) {
     src := `package main
@@ -33,3 +36,16 @@ import ("x/y")`
     }
 }
 
+func TestParseFile_FuncDeclScaffold(t *testing.T) {
+    src := `package pkg
+func main() { /* body */ }
+`
+    p := New(src)
+    f := p.ParseFile()
+    // find FuncDecl in Decls
+    var count int
+    for _, d := range f.Decls {
+        if _, ok := d.(astpkg.FuncDecl); ok { count++ }
+    }
+    if count != 1 { t.Fatalf("expected 1 FuncDecl; got %d", count) }
+}

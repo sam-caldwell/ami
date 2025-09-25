@@ -4,7 +4,9 @@ import (
     manifest "github.com/sam-caldwell/ami/src/ami/manifest"
     ammod "github.com/sam-caldwell/ami/src/ami/mod"
     "github.com/sam-caldwell/ami/src/internal/logger"
+    ex "github.com/sam-caldwell/ami/src/internal/exit"
     "github.com/spf13/cobra"
+    "errors"
     "net/url"
     "os"
     "path/filepath"
@@ -46,6 +48,11 @@ var cmdModUpdate = &cobra.Command{
 	Short: "Update project dependencies",
 	Run:   func(cmd *cobra.Command, args []string) {
         if err := ammod.UpdateFromWorkspace("ami.workspace"); err != nil {
+            if errors.Is(err, ammod.ErrNetwork) {
+                logger.Error("network registry error", map[string]interface{}{"error": err.Error()})
+                os.Stderr.WriteString("network registry error\n")
+                os.Exit(ex.NetworkRegistryError)
+            }
             logger.Error(err.Error(), nil)
             return
         }
@@ -60,10 +67,15 @@ var cmdModGet = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		u := args[0]
 		dest, err := ammod.Get(u)
-		if err != nil {
-			logger.Error(err.Error(), map[string]interface{}{"url": u})
-			return
-		}
+        if err != nil {
+            if strings.HasPrefix(u, "git+ssh://") && errors.Is(err, ammod.ErrNetwork) {
+                logger.Error("network registry error", map[string]interface{}{"url": u, "error": err.Error()})
+                os.Stderr.WriteString("network registry error\n")
+                os.Exit(ex.NetworkRegistryError)
+            }
+            logger.Error(err.Error(), map[string]interface{}{"url": u})
+            return
+        }
 
 		if strings.HasPrefix(u, "git+ssh://") {
 			raw := strings.TrimPrefix(u, "git+")

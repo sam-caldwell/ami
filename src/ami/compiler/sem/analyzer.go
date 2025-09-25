@@ -22,6 +22,10 @@ func AnalyzeFile(f *astpkg.File) Result {
     seen := map[string]bool{}
     for _, d := range f.Decls {
         if fd, ok := d.(astpkg.FuncDecl); ok {
+            if fd.Name == "_" {
+                res.Diagnostics = append(res.Diagnostics, diag.Diagnostic{Level: diag.Error, Code: "E_BLANK_IDENT_ILLEGAL", Message: "blank identifier '_' cannot be used as a function name"})
+                continue
+            }
             if seen[fd.Name] {
                 res.Diagnostics = append(res.Diagnostics, diag.Diagnostic{
                     Level:   diag.Error,
@@ -33,6 +37,11 @@ func AnalyzeFile(f *astpkg.File) Result {
             }
             _ = res.Scope.Insert(&types.Object{Kind: types.ObjFunc, Name: fd.Name, Type: types.TInvalid})
             seen[fd.Name] = true
+        }
+        if id, ok := d.(astpkg.ImportDecl); ok {
+            if id.Alias == "_" {
+                res.Diagnostics = append(res.Diagnostics, diag.Diagnostic{Level: diag.Error, Code: "E_BLANK_IMPORT_ALIAS", Message: "blank identifier '_' cannot be used as import alias"})
+            }
         }
         if pd, ok := d.(astpkg.PipelineDecl); ok {
             // Basic pipeline shape checks

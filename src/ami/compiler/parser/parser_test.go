@@ -57,6 +57,9 @@ pipeline P {
 }
 pipeline Q {
   Ingress(cfg) -> Transform(f) -> Egress(cfg)
+}
+pipeline R {
+  Ingress(cfg).Transform(f).Egress(cfg) error { Collect().Egress(cfg) }
 }`
     p := New(src)
     f := p.ParseFile()
@@ -64,9 +67,10 @@ pipeline Q {
     for _, d := range f.Decls {
         if pd, ok := d.(astpkg.PipelineDecl); ok { ps = append(ps, pd) }
     }
-    if len(ps) != 2 { t.Fatalf("expected 2 pipelines; got %d", len(ps)) }
+    if len(ps) != 3 { t.Fatalf("expected 3 pipelines; got %d", len(ps)) }
     if ps[0].Name != "P" || len(ps[0].Steps) != 5 { t.Fatalf("pipeline P steps=%d", len(ps[0].Steps)) }
     if ps[0].Steps[0].Name != "Ingress" || ps[0].Steps[4].Name != "Egress" { t.Fatalf("unexpected step names in P") }
     if ps[1].Name != "Q" || len(ps[1].Steps) != 3 { t.Fatalf("pipeline Q steps=%d", len(ps[1].Steps)) }
     if ps[1].Connectors[0] != "->" || ps[1].Connectors[1] != "->" { t.Fatalf("expected arrow connectors in Q") }
+    if ps[2].Name != "R" || len(ps[2].ErrorSteps) == 0 { t.Fatalf("pipeline R should have error steps") }
 }

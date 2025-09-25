@@ -28,13 +28,14 @@ Usage:
 ## get
 
 - Fetch a single package into the cache.
-- Supported URL forms (initial):
+- Supported backends (pluggable):
   - `git+ssh://git@host/org/repo.git#vX.Y.Z` (required semver tag)
-  - Local path: `./subproject` (copied into cache; version is `local`)
+  - `file://./subproject` or `./subproject` (copied into cache; version is `local`)
 - On success, logs the destination path and updates `ami.sum` when a tag is provided.
 
 Usage:
 - `ami mod get git+ssh://git@github.com/org/repo.git#v1.2.3`
+- `ami mod get ./local/package`
 
 ## list
 

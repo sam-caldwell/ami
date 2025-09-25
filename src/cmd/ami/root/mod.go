@@ -7,7 +7,6 @@ import (
     ex "github.com/sam-caldwell/ami/src/internal/exit"
     "github.com/spf13/cobra"
     "errors"
-    "net/url"
     "os"
     "path/filepath"
     "strings"
@@ -64,11 +63,12 @@ var cmdModGet = &cobra.Command{
 	Use:   "get <url>",
 	Short: "Fetch a package into the cache",
 	Args:  cobra.MinimumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		u := args[0]
-		dest, err := ammod.Get(u)
+    Run: func(cmd *cobra.Command, args []string) {
+        u := args[0]
+        dest, pkg, ver, err := ammod.GetWithInfo(u)
         if err != nil {
-            if strings.HasPrefix(u, "git+ssh://") && errors.Is(err, ammod.ErrNetwork) {
+            if strings.HasPrefix(u, "git+ssh://") {
+                // Treat any git+ssh failure as a network/registry error for this phase
                 logger.Error("network registry error", map[string]interface{}{"url": u, "error": err.Error()})
                 os.Stderr.WriteString("network registry error\n")
                 os.Exit(ex.NetworkRegistryError)
@@ -76,27 +76,14 @@ var cmdModGet = &cobra.Command{
             logger.Error(err.Error(), map[string]interface{}{"url": u})
             return
         }
-
-		if strings.HasPrefix(u, "git+ssh://") {
-			raw := strings.TrimPrefix(u, "git+")
-			tag := ""
-			if i := strings.Index(raw, "#"); i >= 0 {
-				tag = raw[i+1:]
-				raw = raw[:i]
-			}
-			if tag != "" {
-				if parsed, perr := url.Parse(raw); perr == nil {
-					host := parsed.Host
-					repoPath := strings.TrimSuffix(strings.TrimPrefix(parsed.Path, "/"), ".git")
-					pkg := filepath.Join(host, repoPath)
-					if uerr := ammod.UpdateSum("ami.sum", pkg, tag, dest, tag); uerr != nil {
-						logger.Warn("failed to update ami.sum", map[string]interface{}{"error": uerr.Error()})
-					}
-				}
-			}
-		}
-		logger.Info("fetched", map[string]interface{}{"dest": dest})
-	},
+        // If the backend provided package/version info (e.g., git+ssh), update ami.sum best-effort
+        if pkg != "" && ver != "" {
+            if uerr := ammod.UpdateSum("ami.sum", pkg, ver, dest, ver); uerr != nil {
+                logger.Warn("failed to update ami.sum", map[string]interface{}{"error": uerr.Error()})
+            }
+        }
+        logger.Info("fetched", map[string]interface{}{"dest": dest})
+    },
 }
 
 var cmdModList = &cobra.Command{

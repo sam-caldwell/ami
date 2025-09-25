@@ -1,0 +1,14 @@
+version: 1.0.0
+toolchain:
+  compiler:
+    concurrency: NUM_CPU
+    target: ./build
+    env: []
+  linker: {}
+  linter: {}
+packages:
+  - main:
+      version: 0.0.1
+      root: ./src
+      import: []
+

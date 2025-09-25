@@ -69,6 +69,10 @@ func (p *Parser) ParseFile() *astpkg.File {
                 if !ValidatePackageIdent(f.Package) {
                     p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_PACKAGE", Message: "invalid package identifier", File: p.file})
                 }
+                // disallow blank identifier as package name
+                if f.Package == "_" {
+                    p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_PACKAGE_BLANK", Message: "blank identifier '_' cannot be used as package name", File: p.file})
+                }
                 p.next()
                 continue
             }
@@ -107,18 +111,24 @@ func (p *Parser) ParseFile() *astpkg.File {
             // import alias "path" -> skip alias
             if p.cur.Kind == tok.IDENT {
                 alias := p.cur.Lexeme
-                p.next()
-                if p.cur.Kind == tok.STRING {
-                    path := unquote(p.cur.Lexeme)
-                    if !ValidateImportPath(path) {
-                        p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
-                    }
-                    f.Imports = append(f.Imports, path)
-                    f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path, Alias: alias})
-                    f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path, Alias: alias})
-                    p.next()
-                    continue
+                if alias == "_" {
+                    p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BLANK_IMPORT_ALIAS", Message: "blank identifier '_' cannot be used as import alias", File: p.file})
                 }
+                p.next()
+                    if p.cur.Kind == tok.STRING {
+                        path := unquote(p.cur.Lexeme)
+                        if alias == "_" {
+                            p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BLANK_IMPORT_ALIAS", Message: "blank identifier '_' cannot be used as import alias", File: p.file})
+                        }
+                        if !ValidateImportPath(path) {
+                            p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BAD_IMPORT", Message: "invalid import path", File: p.file})
+                        }
+                        f.Imports = append(f.Imports, path)
+                        f.Decls = append(f.Decls, astpkg.ImportDecl{Path: path, Alias: alias})
+                        f.Stmts = append(f.Stmts, astpkg.ImportDecl{Path: path, Alias: alias})
+                        p.next()
+                        continue
+                    }
             }
             // import ( ... )
             if p.cur.Kind == tok.LPAREN {
@@ -142,6 +152,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                     // optional alias before string
                     if p.cur.Kind == tok.IDENT {
                         alias := p.cur.Lexeme
+                        if alias == "_" {
+                            p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BLANK_IMPORT_ALIAS", Message: "blank identifier '_' cannot be used as import alias", File: p.file})
+                        }
                         p.next()
                         if p.cur.Kind == tok.STRING {
                             path := unquote(p.cur.Lexeme)
@@ -168,7 +181,13 @@ func (p *Parser) ParseFile() *astpkg.File {
         if p.cur.Kind == tok.KW_FUNC {
             p.next()
             name := ""
-            if p.cur.Kind == tok.IDENT { name = p.cur.Lexeme; p.next() } else { p.errorf("expected function name") }
+            if p.cur.Kind == tok.IDENT { 
+                name = p.cur.Lexeme
+                if name == "_" { p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_BLANK_IDENT_ILLEGAL", Message: "blank identifier '_' cannot be used as a function name", File: p.file}) }
+                p.next() 
+            } else { 
+                p.errorf("expected function name") 
+            }
             // params
             if p.cur.Kind == tok.LPAREN {
                 depth := 1; p.next()
@@ -212,7 +231,7 @@ func (p *Parser) ParseFile() *astpkg.File {
     return f
 }
 
-// parsePipelineDecl parses: pipeline IDENT { Node(args) ('.'|'->') Node(args) ... }
+// parsePipelineDecl parses: pipeline IDENT { Node(args) ('.'|'->') Node(args) ... } [ error { NodeChain } ]
 func (p *Parser) parsePipelineDecl() astpkg.PipelineDecl {
     // consume 'pipeline'
     p.next()
@@ -224,7 +243,14 @@ func (p *Parser) parsePipelineDecl() astpkg.PipelineDecl {
     steps, connectors := p.parseNodeChain()
     // require '}'
     if p.cur.Kind == tok.RBRACE { p.next() }
-    return astpkg.PipelineDecl{Name: name, Steps: steps, Connectors: connectors}
+    // optional error pipeline: 'error' '{' NodeChain '}'
+    errSteps := []astpkg.NodeCall{}
+    errConns := []string{}
+    if p.cur.Kind == tok.KW_ERROR || (p.cur.Kind == tok.IDENT && strings.ToLower(p.cur.Lexeme) == "error") {
+        p.next()
+        if p.cur.Kind == tok.LBRACE { p.next(); errSteps, errConns = p.parseNodeChain(); if p.cur.Kind == tok.RBRACE { p.next() } }
+    }
+    return astpkg.PipelineDecl{Name: name, Steps: steps, Connectors: connectors, ErrorSteps: errSteps, ErrorConnectors: errConns}
 }
 
 // parseNodeChain parses Node(args) ('.'|'->') Node(args) ... until '}' or EOF

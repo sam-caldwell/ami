@@ -85,53 +85,26 @@ func LoadSumForCLI(path string) (*Sum, error) { return loadSum(path) }
 func CommitDigestForCLI(repoPath, tag string) (string, error) { return commitDigest(repoPath, tag) }
 
 // Get fetches a package given a URL (git+ssh://host/path#tag or ./localpath)
+// Get fetches a module using the registered pluggable backends.
+// Use GetWithInfo if you also need package/version metadata for ami.sum updates.
 func Get(url string) (string, error) {
+    dest, _, _, err := GetWithInfo(url)
+    return dest, err
+}
+
+// GetWithInfo fetches a module using the registered backends and returns
+// the destination path and (optionally) the package and version if known
+// by the backend (e.g., git+ssh with a semver tag). For backends that do
+// not participate in ami.sum, pkg and ver will be empty strings.
+func GetWithInfo(url string) (string, string, string, error) {
     cache, err := CacheDir()
-    if err != nil { return "", err }
-    // local path: must be within workspace and declared in ami.workspace
-    if strings.HasPrefix(url, "./") || strings.HasPrefix(url, "../") || strings.HasPrefix(url, "/") {
-        cwd, _ := os.Getwd()
-        wsRoot, err := findWorkspaceRoot(cwd)
-        if err != nil { return "", err }
-        // Resolve absolute paths
-        absSrc, err := filepath.Abs(url)
-        if err != nil { return "", err }
-        // Ensure within workspace root
-        absRoot, _ := filepath.Abs(wsRoot)
-        relToRoot, err := filepath.Rel(absRoot, absSrc)
-        if err != nil { return "", err }
-        if strings.HasPrefix(relToRoot, "..") { return "", errors.New("local path must be within workspace") }
-        // Ensure declared in ami.workspace
-        wsPath := filepath.Join(wsRoot, "ami.workspace")
-        // Use ./ prefix form for comparison
-        relDecl := filepath.ToSlash("./" + relToRoot)
-        ok, err := isDeclaredLocalImport(wsPath, relDecl)
-        if err != nil { return "", err }
-        if !ok { return "", errors.New("local path not declared in ami.workspace imports") }
-        // Copy into cache
-        name := filepath.Base(absSrc)
-        dest := filepath.Join(cache, name+"@local")
-        _ = os.RemoveAll(dest)
-        if err := copyDir(absSrc, dest); err != nil { return "", err }
-        return dest, nil
+    if err != nil { return "", "", "", err }
+    b := selectBackend(url)
+    if b == nil {
+        return "", "", "", fmt.Errorf("unsupported url: %s", url)
     }
-    // git+ssh
-    if strings.HasPrefix(url, "git+ssh://") {
-        parts, err := parseGitPlusSSH(url)
-        if err != nil { return "", err }
-        // dest folder uses repo base name and version
-        dest := filepath.Join(cache, fmt.Sprintf("%s@%s", parts.Repo, parts.Tag))
-        _ = os.RemoveAll(dest)
-        auth, _ := gogitssh.NewSSHAgentAuth("git")
-        repo, err := git.PlainClone(dest, false, &git.CloneOptions{URL: parts.SSHURL, Auth: auth, Depth: 1})
-        if err != nil { return "", errors.Join(ErrNetwork, err) }
-        wt, err := repo.Worktree()
-        if err != nil { return "", err }
-        // checkout tag
-        if err := wt.Checkout(&git.CheckoutOptions{Branch: plumbing.NewTagReferenceName(parts.Tag)}); err != nil { return "", errors.Join(ErrNetwork, err) }
-        return dest, nil
-    }
-    return "", fmt.Errorf("unsupported url: %s", url)
+    dest, pkg, ver, err := b.Fetch(url, cache)
+    return dest, pkg, ver, err
 }
 
 func List() ([]string, error) {
@@ -232,8 +205,8 @@ func UpdateFromWorkspace(wsPath string) error {
             tag = t
         }
         if !strings.HasPrefix(tag, "v") { return fmt.Errorf("invalid or unsupported version: %s", tag) }
-        // Fetch using Get, then update ami.sum
-        dest, err := Get("git+" + sshURL + "#" + tag)
+        // Fetch using GetWithInfo, then update ami.sum
+        dest, _, _, err := GetWithInfo("git+" + sshURL + "#" + tag)
         if err != nil { return err }
         // pkg name uses host/path
         u := strings.TrimPrefix(sshURL, "ssh://")

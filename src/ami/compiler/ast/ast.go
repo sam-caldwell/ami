@@ -55,6 +55,8 @@ type PipelineDecl struct {
     Name       string
     Steps      []NodeCall
     Connectors []string // between steps: "." or "->"
+    ErrorSteps []NodeCall
+    ErrorConnectors []string
 }
 func (PipelineDecl) isNode() {}
 

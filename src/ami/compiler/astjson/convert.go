@@ -41,6 +41,18 @@ func ToSchemaAST(file *astpkg.File, filePath string) sch.ASTV1 {
                 call.Fields = fields
                 pd.Children = append(pd.Children, call)
             }
+            if len(n.ErrorSteps) > 0 {
+                errNode := sch.ASTNode{Kind: "ErrorPipeline", Pos: sch.Position{Line: 1, Column: 1, Offset: 0}}
+                errNode.Fields = map[string]interface{}{"connectors": n.ErrorConnectors}
+                for _, st := range n.ErrorSteps {
+                    call := sch.ASTNode{Kind: "NodeCall", Pos: sch.Position{Line: 1, Column: 1, Offset: 0}}
+                    fields := map[string]interface{}{"name": st.Name}
+                    if len(st.Args) > 0 { fields["args"] = st.Args }
+                    call.Fields = fields
+                    errNode.Children = append(errNode.Children, call)
+                }
+                pd.Children = append(pd.Children, errNode)
+            }
             root.Children = append(root.Children, pd)
         case astpkg.EnumDecl:
             en := sch.ASTNode{Kind: "EnumDecl", Pos: sch.Position{Line: 1, Column: 1, Offset: 0}}

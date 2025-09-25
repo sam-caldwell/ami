@@ -1,0 +1,19 @@
+// Example AMI program: simple ingress → egress pipeline
+
+package main
+
+// ingressWorker: mock data source (no-op body for demo)
+func ingressWorker() {
+    // pretend to fetch or produce data
+}
+
+// egressWorker: mock sink (no-op body for demo)
+func egressWorker() {
+    // pretend to write or emit data
+}
+
+// Demo pipeline starts with Ingress and ends with Egress
+pipeline Demo {
+    Ingress(ingressWorker).Egress(egressWorker)
+}
+

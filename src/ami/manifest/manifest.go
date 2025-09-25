@@ -4,16 +4,17 @@ import (
     "encoding/json"
     "errors"
     "os"
+    "sort"
     "time"
 )
 
 type Manifest struct {
-    Schema   string      `json:"schema"`
-    Project  Project     `json:"project"`
-    Packages []Package   `json:"packages"`
-    Artifacts []Artifact `json:"artifacts"`
-    Toolchain Toolchain  `json:"toolchain"`
-    CreatedAt string     `json:"createdAt"`
+    Schema    string      `json:"schema"`
+    Project   Project     `json:"project"`
+    Packages  []Package   `json:"packages"`
+    Artifacts []Artifact  `json:"artifacts"`
+    Toolchain Toolchain   `json:"toolchain"`
+    CreatedAt string      `json:"createdAt"`
 }
 
 type Project struct {
@@ -29,9 +30,9 @@ type Package struct {
 }
 
 type Artifact struct {
-    Path string `json:"path"`
-    Kind string `json:"kind"`
-    Size int64  `json:"size"`
+    Path   string `json:"path"`
+    Kind   string `json:"kind"`
+    Size   int64  `json:"size"`
     Sha256 string `json:"sha256"`
 }
 
@@ -49,6 +50,28 @@ func (m *Manifest) Validate() error {
     return nil
 }
 
+// CrossCheckWithSumFile loads ami.sum from the given path and ensures each
+// manifest package is present with the same digest. Returns an error on mismatch.
+func (m *Manifest) CrossCheckWithSumFile(sumPath string) error {
+    if m == nil { return errors.New("nil manifest") }
+    b, err := os.ReadFile(sumPath)
+    if err != nil { return err }
+    // local minimal shape matching ami.sum
+    var sum struct {
+        Schema   string                         `json:"schema"`
+        Packages map[string]map[string]string   `json:"packages"`
+    }
+    if err := json.Unmarshal(b, &sum); err != nil { return err }
+    for _, p := range m.Packages {
+        vers, ok := sum.Packages[p.Name]
+        if !ok { return errors.New("ami.sum missing package: " + p.Name) }
+        d, ok := vers[p.Version]
+        if !ok { return errors.New("ami.sum missing version for package: " + p.Name) }
+        if d != p.Digest { return errors.New("ami.sum digest mismatch for package: " + p.Name) }
+    }
+    return nil
+}
+
 func Load(path string) (*Manifest, error) {
     b, err := os.ReadFile(path)
     if err != nil { return nil, err }
@@ -60,7 +83,20 @@ func Load(path string) (*Manifest, error) {
 
 func Save(path string, m *Manifest) error {
     if err := m.Validate(); err != nil { return err }
-    b, err := json.MarshalIndent(m, "", "  ")
+    // deterministic ordering for packages and artifacts
+    pkgs := make([]Package, len(m.Packages))
+    copy(pkgs, m.Packages)
+    sort.Slice(pkgs, func(i, j int) bool {
+        if pkgs[i].Name == pkgs[j].Name { return pkgs[i].Version < pkgs[j].Version }
+        return pkgs[i].Name < pkgs[j].Name
+    })
+    arts := make([]Artifact, len(m.Artifacts))
+    copy(arts, m.Artifacts)
+    sort.Slice(arts, func(i, j int) bool { return arts[i].Path < arts[j].Path })
+    mc := *m
+    mc.Packages = pkgs
+    mc.Artifacts = arts
+    b, err := json.MarshalIndent(&mc, "", "  ")
     if err != nil { return err }
     tmp := path + ".tmp"
     if err := os.WriteFile(tmp, b, 0644); err != nil { return err }

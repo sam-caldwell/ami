@@ -1,8 +1,10 @@
 package scanner
 
 import (
+    "strings"
     "unicode"
     "unicode/utf8"
+
     tok "github.com/sam-caldwell/ami/src/ami/compiler/token"
 )
 
@@ -16,52 +18,219 @@ type Scanner struct {
 func New(src string) *Scanner { return &Scanner{src: src, line: 1, column: 1} }
 
 func (s *Scanner) Next() tok.Token {
-    s.skipSpace()
+    s.skipSpaceAndComments()
     if s.off >= len(s.src) {
         return tok.Token{Kind: tok.EOF, Line: s.line, Column: s.column}
     }
     r, w := utf8.DecodeRuneInString(s.src[s.off:])
     startCol := s.column
-    switch {
-    case unicode.IsLetter(r) || r == '_':
+
+    // Identifiers / keywords
+    if unicode.IsLetter(r) || r == '_' {
         start := s.off
-        s.off += w; s.column += w
+        s.advance(w)
         for s.off < len(s.src) {
             r, w = utf8.DecodeRuneInString(s.src[s.off:])
-            if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_') { break }
-            s.off += w; s.column += w
+            if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_') {
+                break
+            }
+            s.advance(w)
         }
-        return tok.Token{Kind: tok.IDENT, Lexeme: s.src[start:s.off], Line: s.line, Column: startCol}
-    case unicode.IsDigit(r):
+        lit := s.src[start:s.off]
+        if kw, ok := tok.Keywords[strings.ToLower(lit)]; ok {
+            return tok.Token{Kind: kw, Lexeme: lit, Line: s.line, Column: startCol}
+        }
+        return tok.Token{Kind: tok.IDENT, Lexeme: lit, Line: s.line, Column: startCol}
+    }
+
+    // Numbers (simple decimal / float)
+    if unicode.IsDigit(r) {
         start := s.off
-        s.off += w; s.column += w
+        s.advance(w)
+        dotUsed := false
         for s.off < len(s.src) {
             r, w = utf8.DecodeRuneInString(s.src[s.off:])
-            if !unicode.IsDigit(r) { break }
-            s.off += w; s.column += w
+            if r == '.' && !dotUsed {
+                dotUsed = true
+                s.advance(w)
+                continue
+            }
+            if !unicode.IsDigit(r) {
+                break
+            }
+            s.advance(w)
         }
         return tok.Token{Kind: tok.NUMBER, Lexeme: s.src[start:s.off], Line: s.line, Column: startCol}
-    case r == '"':
+    }
+
+    // Strings (double quotes, naive escapes)
+    if r == '"' {
         start := s.off
-        s.off += w; s.column += w
+        s.advance(w)
         for s.off < len(s.src) {
             r, w = utf8.DecodeRuneInString(s.src[s.off:])
-            if r == '"' { s.off += w; s.column += w; break }
-            if r == '\n' { s.line++; s.column = 1 } else { s.column += w }
-            s.off += w
+            if r == '\\' { // skip escape and next
+                s.advance(w)
+                if s.off < len(s.src) {
+                    _, w2 := utf8.DecodeRuneInString(s.src[s.off:])
+                    s.advance(w2)
+                }
+                continue
+            }
+            if r == '"' {
+                s.advance(w)
+                break
+            }
+            if r == '\n' {
+                s.line++
+                s.column = 1
+                s.advance(w)
+                continue
+            }
+            s.advance(w)
         }
         return tok.Token{Kind: tok.STRING, Lexeme: s.src[start:s.off], Line: s.line, Column: startCol}
+    }
+
+    // Multi-char operators
+    // ->, ==, !=, <=, >=
+    if r == '-' && s.peekRune() == '>' {
+        s.advance(w)
+        s.advance(1)
+        return tok.Token{Kind: tok.ARROW, Lexeme: "->", Line: s.line, Column: startCol}
+    }
+    if r == '=' && s.peekRune() == '=' {
+        s.advance(w)
+        s.advance(1)
+        return tok.Token{Kind: tok.EQ, Lexeme: "==", Line: s.line, Column: startCol}
+    }
+    if r == '!' && s.peekRune() == '=' {
+        s.advance(w)
+        s.advance(1)
+        return tok.Token{Kind: tok.NEQ, Lexeme: "!=", Line: s.line, Column: startCol}
+    }
+    if r == '<' && s.peekRune() == '=' {
+        s.advance(w)
+        s.advance(1)
+        return tok.Token{Kind: tok.LTE, Lexeme: "<=", Line: s.line, Column: startCol}
+    }
+    if r == '>' && s.peekRune() == '=' {
+        s.advance(w)
+        s.advance(1)
+        return tok.Token{Kind: tok.GTE, Lexeme: ">=", Line: s.line, Column: startCol}
+    }
+
+    // Single-char tokens and fallback
+    s.advance(w)
+    switch r {
+    case '(':
+        return tok.Token{Kind: tok.LPAREN, Lexeme: "(", Line: s.line, Column: startCol}
+    case ')':
+        return tok.Token{Kind: tok.RPAREN, Lexeme: ")", Line: s.line, Column: startCol}
+    case '{':
+        return tok.Token{Kind: tok.LBRACE, Lexeme: "{", Line: s.line, Column: startCol}
+    case '}':
+        return tok.Token{Kind: tok.RBRACE, Lexeme: "}", Line: s.line, Column: startCol}
+    case '[':
+        return tok.Token{Kind: tok.LBRACK, Lexeme: "[", Line: s.line, Column: startCol}
+    case ']':
+        return tok.Token{Kind: tok.RBRACK, Lexeme: "]", Line: s.line, Column: startCol}
+    case ',':
+        return tok.Token{Kind: tok.COMMA, Lexeme: ",", Line: s.line, Column: startCol}
+    case ';':
+        return tok.Token{Kind: tok.SEMI, Lexeme: ";", Line: s.line, Column: startCol}
+    case ':':
+        return tok.Token{Kind: tok.COLON, Lexeme: ":", Line: s.line, Column: startCol}
+    case '.':
+        return tok.Token{Kind: tok.DOT, Lexeme: ".", Line: s.line, Column: startCol}
+    case '=':
+        return tok.Token{Kind: tok.ASSIGN, Lexeme: "=", Line: s.line, Column: startCol}
+    case '|':
+        return tok.Token{Kind: tok.PIPE, Lexeme: "|", Line: s.line, Column: startCol}
+    case '+':
+        return tok.Token{Kind: tok.PLUS, Lexeme: "+", Line: s.line, Column: startCol}
+    case '-':
+        return tok.Token{Kind: tok.MINUS, Lexeme: "-", Line: s.line, Column: startCol}
+    case '*':
+        return tok.Token{Kind: tok.STAR, Lexeme: "*", Line: s.line, Column: startCol}
+    case '/':
+        return tok.Token{Kind: tok.SLASH, Lexeme: "/", Line: s.line, Column: startCol}
+    case '%':
+        return tok.Token{Kind: tok.PERCENT, Lexeme: "%", Line: s.line, Column: startCol}
+    case '<':
+        return tok.Token{Kind: tok.LT, Lexeme: "<", Line: s.line, Column: startCol}
+    case '>':
+        return tok.Token{Kind: tok.GT, Lexeme: ">", Line: s.line, Column: startCol}
+    case '\n':
+        s.line++
+        s.column = 1
+        return s.Next()
     default:
-        s.off += w; s.column += w
         return tok.Token{Kind: tok.ILLEGAL, Lexeme: string(r), Line: s.line, Column: startCol}
     }
 }
 
-func (s *Scanner) skipSpace() {
+func (s *Scanner) skipSpaceAndComments() {
     for s.off < len(s.src) {
         r, w := utf8.DecodeRuneInString(s.src[s.off:])
-        if r == '\n' { s.line++; s.column = 1; s.off += w; continue }
-        if unicode.IsSpace(r) { s.off += w; s.column += w; continue }
+        // whitespace
+        if unicode.IsSpace(r) {
+            if r == '\n' {
+                s.line++
+                s.column = 1
+            } else {
+                s.column += w
+            }
+            s.off += w
+            continue
+        }
+        // line comment //...
+        if r == '/' && s.peekRune() == '/' {
+            // consume until newline or end
+            for s.off < len(s.src) {
+                r2, w2 := utf8.DecodeRuneInString(s.src[s.off:])
+                s.off += w2
+                if r2 == '\n' {
+                    s.line++
+                    s.column = 1
+                    break
+                }
+            }
+            continue
+        }
+        // block comment /* ... */ (no nesting)
+        if r == '/' && s.peekRune() == '*' {
+            // skip '/*'
+            s.off += 2
+            for s.off < len(s.src) {
+                r2, w2 := utf8.DecodeRuneInString(s.src[s.off:])
+                if r2 == '\n' {
+                    s.line++
+                    s.column = 1
+                    s.off += w2
+                    continue
+                }
+                if r2 == '*' && s.peekRune() == '/' {
+                    s.off += 2
+                    break
+                }
+                s.off += w2
+            }
+            continue
+        }
         break
     }
+}
+
+func (s *Scanner) peekRune() rune {
+    if s.off+1 > len(s.src)-1 {
+        return 0
+    }
+    r, _ := utf8.DecodeRuneInString(s.src[s.off+1:])
+    return r
+}
+
+func (s *Scanner) advance(w int) {
+    s.off += w
+    s.column += w
 }

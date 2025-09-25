@@ -15,6 +15,7 @@ import (
 
     ammod "github.com/sam-caldwell/ami/src/ami/mod"
     rootcmd "github.com/sam-caldwell/ami/src/cmd/ami/root"
+    testutil "github.com/sam-caldwell/ami/src/internal/testutil"
 )
 
 // captureStdout reuses helper pattern from other tests
@@ -67,8 +68,9 @@ func TestModUpdateAndVerify_LocalRepo(t *testing.T) {
     cacheDir := filepath.Join(tmp, ".ami", "pkg")
     if err := os.MkdirAll(cacheDir, 0o755); err != nil { t.Fatalf("mkdir cache: %v", err) }
 
-    // workspace dir
-    ws := t.TempDir()
+    // workspace dir under ./build/test
+    ws, restore := testutil.ChdirToBuildTest(t)
+    defer restore()
     // local git repo under workspace
     repoPath := filepath.Join(ws, "example")
     _, latest := makeLocalRepo(t, repoPath)
@@ -94,10 +96,7 @@ packages:
     // src dir exists (not needed by mod, but keep structure tidy)
     _ = os.MkdirAll(filepath.Join(ws, "src"), 0o755)
 
-    // run from workspace
-    cwd, _ := os.Getwd()
-    defer os.Chdir(cwd)
-    _ = os.Chdir(ws)
+    // already in workspace
 
     // Run: ami mod update
     oldArgs := os.Args
@@ -147,4 +146,3 @@ packages:
         t.Fatalf("verify did not report success. stdout=\n%s\nparsed=%v", out, lines)
     }
 }
-

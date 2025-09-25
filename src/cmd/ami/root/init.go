@@ -17,6 +17,19 @@ var cmdInit = &cobra.Command{
     Use:   "init",
     Short: "Initialize the AMI workspace",
     Run: func(cmd *cobra.Command, args []string) {
+        // Require current directory to be a git repository unless --force is used.
+        // If not a repo and --force, initialize a new repo.
+        if _, err := os.Stat(filepath.Join(".git")); os.IsNotExist(err) {
+            if !initForce {
+                logger.Error("not a git repository (run `git init` or use --force)", nil)
+                return
+            }
+            if _, ierr := git.PlainInit(".", false); ierr != nil {
+                logger.Warn("git init failed", map[string]interface{}{"error": ierr.Error()})
+            } else {
+                logger.Info("initialized git repository", nil)
+            }
+        }
         wsPath := "ami.workspace"
         // Write ami.workspace
         if _, err := os.Stat(wsPath); err == nil && !initForce {
@@ -53,16 +66,6 @@ var cmdInit = &cobra.Command{
             logger.Error(fmt.Sprintf("failed writing %s: %v", mainPath, err), nil)
             return
         }
-        }
-        // Optional git init when --force is provided and not a repo
-        if initForce {
-            if _, err := os.Stat(filepath.Join(".git")); os.IsNotExist(err) {
-                if _, ierr := git.PlainInit(".", false); ierr != nil {
-                    logger.Warn("git init failed", map[string]interface{}{"error": ierr.Error()})
-                } else {
-                    logger.Info("initialized git repository", nil)
-                }
-            }
         }
         logger.Info("workspace initialized", map[string]interface{}{"workspace": wsPath, "source": mainPath})
     },

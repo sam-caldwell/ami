@@ -9,6 +9,7 @@ import (
     "testing"
 
     rootcmd "github.com/sam-caldwell/ami/src/cmd/ami/root"
+    testutil "github.com/sam-caldwell/ami/src/internal/testutil"
 )
 
 type diagRecord struct {
@@ -46,18 +47,16 @@ func TestModList_JSON_IncludesDigestFromAmiSum(t *testing.T) {
     if err := os.MkdirAll(filepath.Join(cacheDir, "repo@v1.2.3"), 0o755); err != nil { t.Fatalf("mkdir entry: %v", err) }
     if err := os.MkdirAll(filepath.Join(cacheDir, "other@v0.1.0"), 0o755); err != nil { t.Fatalf("mkdir entry: %v", err) }
 
-    // Workspace with ami.sum
-    ws := t.TempDir()
+    // Workspace under ./build/test
+    ws, restore := testutil.ChdirToBuildTest(t)
+    defer restore()
     if err := os.WriteFile(filepath.Join(ws, "ami.sum"), []byte(`{
   "schema": "ami.sum/v1",
   "packages": {
     "github.com/example/repo": {"v1.2.3": "deadbeefcafebabe"}
   }
 }`), 0o644); err != nil { t.Fatalf("write ami.sum: %v", err) }
-    // Run from workspace directory
-    cwd, _ := os.Getwd()
-    defer os.Chdir(cwd)
-    _ = os.Chdir(ws)
+    // Already running from workspace directory
 
     // Execute CLI: ami --json mod list
     oldArgs := os.Args
@@ -102,4 +101,3 @@ func TestModList_JSON_IncludesDigestFromAmiSum(t *testing.T) {
         t.Fatalf("expected both entries listed; seenRepo=%v seenOther=%v", seenRepo, seenOther)
     }
 }
-

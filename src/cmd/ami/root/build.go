@@ -12,6 +12,7 @@ import (
     ammod "github.com/sam-caldwell/ami/src/ami/mod"
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
 	"github.com/sam-caldwell/ami/src/internal/logger"
+	ex "github.com/sam-caldwell/ami/src/internal/exit"
 	sch "github.com/sam-caldwell/ami/src/schemas"
 	"github.com/spf13/cobra"
 	"os"
@@ -32,12 +33,12 @@ var cmdBuild = &cobra.Command{
 			return
 		}
 		_ = ws
-		plan := sch.BuildPlanV1{
-			Schema:    "buildplan.v1",
-			Workspace: ".",
-			Toolchain: sch.ToolchainV1{AmiVersion: "v0.0.0-dev", GoVersion: "1.25"},
-			Targets:   []sch.BuildTarget{},
-		}
+        plan := sch.BuildPlanV1{
+            Schema:    "buildplan.v1",
+            Workspace: ".",
+            Toolchain: sch.ToolchainV1{AmiVersion: "v0.0.0-dev", GoVersion: "1.25.1"},
+            Targets:   []sch.BuildTarget{},
+        }
 		if buildVerbose {
 			_ = os.MkdirAll("build/debug/source", 0755)
 			_ = os.MkdirAll("build/debug/ast", 0755)
@@ -90,7 +91,41 @@ var cmdBuild = &cobra.Command{
 			b, _ := json.MarshalIndent(resolved, "", "  ")
 			_ = os.WriteFile(filepath.Join("build", "debug", "source", "resolved.json"), b, 0644)
 		}
-		// Write ami.manifest with artifacts/toolchain and cross-check ami.sum
+        // Validate cache integrity against ami.sum (fail build on mismatch)
+        if sum, err := ammod.LoadSumForCLI("ami.sum"); err == nil {
+            cacheDir, cerr := ammod.CacheDir()
+            if cerr == nil {
+                ok := true
+                for pkg, vers := range sum.Packages {
+                    base := filepath.Base(pkg)
+                    for ver, digest := range vers {
+                        entry := filepath.Join(cacheDir, base+"@"+ver)
+                        if fi, e := os.Stat(entry); e != nil || !fi.IsDir() {
+                            ok = false
+                            logger.Error("integrity: cache entry missing", map[string]interface{}{"pkg": pkg, "version": ver, "path": entry})
+                            continue
+                        }
+                        d2, e := ammod.CommitDigestForCLI(entry, ver)
+                        if e != nil {
+                            ok = false
+                            logger.Error("integrity: digest compute failed", map[string]interface{}{"pkg": pkg, "version": ver, "error": e.Error()})
+                            continue
+                        }
+                        if d2 != digest {
+                            ok = false
+                            logger.Error("integrity: digest mismatch", map[string]interface{}{"pkg": pkg, "version": ver})
+                        }
+                    }
+                }
+                if !ok {
+                    // Fail build with integrity violation exit code
+                    os.Stderr.WriteString("integrity violation: ami.sum does not match cache\n")
+                    os.Exit(ex.IntegrityViolationError)
+                }
+            }
+        }
+
+        // Write ami.manifest with artifacts/toolchain and cross-check ami.sum
         artifacts := []manifest.Artifact{}
         for _, path := range []struct{p,kind string}{{"build/debug/source/resolved.json","resolved"},{"build/debug/ast/main/main.ami.ast.json","ast"},{"build/debug/ir/main/main.ami.ir.json","ir"},{"build/debug/asm/main/main.ami.s","asm"},{"build/debug/asm/index.json","asmIndex"}} {
             if fi, err := os.Stat(path.p); err==nil && !fi.IsDir() {

@@ -13,7 +13,8 @@ Initial backends:
   - `./path`, `../path`, `/abs/path`, or `file://…` → `file` backend.
   - `git+ssh://…#vX.Y.Z` → `git+ssh` backend.
 - Each backend stages the module under `${HOME}/.ami/pkg/<name>@<version>` and logs the destination.
-- When a backend returns a package name and a concrete semantic version (e.g., `git+ssh`), `ami mod get` updates `ami.sum` with the commit digest.
+- When a backend returns a package name and a concrete semantic version (e.g., `git+ssh`), `ami mod get` 
+  updates `ami.sum` with the commit digest.
 
 ## `file` Backend
 
@@ -22,7 +23,8 @@ Initial backends:
   - Path must be inside the current workspace root (detected via `ami.workspace`).
   - Path must be declared in `packages.import` of `ami.workspace`.
 - Copies the project directory into the cache as `<base>@local`.
-- Does not update `ami.sum` directly (no tag). Use `ami mod update` with local repositories when you need versioned digests.
+- Does not update `ami.sum` directly (no tag). Use `ami mod update` with local repositories when you need versioned 
+  digests.
 
 Examples:
 - `./build/ami mod get ./subproject`
@@ -40,5 +42,6 @@ Examples:
 
 ## Extensibility
 
-Backends implement a simple interface in `src/ami/mod` and are registered at init‑time. New schemes (e.g., `git+https`) can be added without changing the CLI.
+Backends implement a simple interface in `src/ami/mod` and are registered at init‑time. New schemes (e.g., `git+https`)
+can be added without changing the CLI.
 

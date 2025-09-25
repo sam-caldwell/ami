@@ -23,6 +23,7 @@ type ASMUnit struct {
 type Result struct {
     AST []sch.ASTV1
     IR  []sch.IRV1
+    Pipelines []sch.PipelinesV1
     ASM []ASMUnit // assembly text per unit
 }
 
@@ -47,6 +48,9 @@ func Compile(files []string, opts Options) (Result, error) {
         irMod.LowerPipelines(fileAST)
         irOut := irMod.ToSchema()
         res.IR = append(res.IR, irOut)
+        // Pipelines debug IR
+        pipes := irMod.ToPipelinesSchema()
+        res.Pipelines = append(res.Pipelines, pipes)
 
         // Generate assembly text
         asmText := cg.GenerateASM(irMod)

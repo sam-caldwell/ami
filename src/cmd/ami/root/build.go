@@ -119,6 +119,16 @@ var cmdBuild = &cobra.Command{
                     _ = os.WriteFile(out, b, 0644)
                     logger.Info("build.debug.artifact", map[string]interface{}{"kind":"ir", "path": out})
                 }
+                // Pipelines debug IR per package/unit
+                for _, p := range res.Pipelines {
+                    pkgDir := filepath.Join("build","debug","ir", p.Package)
+                    _ = os.MkdirAll(pkgDir, 0755)
+                    unit := filepath.Base(p.File)
+                    b, _ := json.MarshalIndent(p, "", "  ")
+                    out := filepath.Join(pkgDir, unit+".pipelines.json")
+                    _ = os.WriteFile(out, b, 0644)
+                    logger.Info("build.debug.artifact", map[string]interface{}{"kind":"pipelines", "path": out})
+                }
                 // ASM per package/unit + per-package index (use compiler codegen output)
                 asmByPkg := map[string][]sch.ASMFile{}
                 for _, unit := range res.ASM {
@@ -210,7 +220,7 @@ var cmdBuild = &cobra.Command{
 
         // Write ami.manifest with artifacts/toolchain and cross-check ami.sum
         artifacts := []manifest.Artifact{}
-        for _, path := range []struct{p,kind string}{{"build/debug/source/resolved.json","resolved"},{"build/debug/ast/main/main.ami.ast.json","ast"},{"build/debug/ir/main/main.ami.ir.json","ir"},{"build/debug/asm/main/main.ami.s","asm"},{"build/debug/asm/index.json","asmIndex"}} {
+        for _, path := range []struct{p,kind string}{{"build/debug/source/resolved.json","resolved"},{"build/debug/ast/main/main.ami.ast.json","ast"},{"build/debug/ir/main/main.ami.ir.json","ir"},{"build/debug/ir/main/main.ami.pipelines.json","pipelines"},{"build/debug/asm/main/main.ami.s","asm"},{"build/debug/asm/index.json","asmIndex"}} {
             if fi, err := os.Stat(path.p); err==nil && !fi.IsDir() {
                 sha, size, _ := fileSHA256(path.p)
                 artifacts = append(artifacts, manifest.Artifact{Path: path.p, Kind: path.kind, Size: size, Sha256: sha})

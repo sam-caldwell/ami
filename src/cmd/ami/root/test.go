@@ -18,6 +18,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     "github.com/sam-caldwell/ami/src/ami/compiler/sem"
     "github.com/sam-caldwell/ami/src/ami/workspace"
+    kv "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
     ex "github.com/sam-caldwell/ami/src/internal/exit"
     "github.com/sam-caldwell/ami/src/internal/logger"
     sch "github.com/sam-caldwell/ami/src/schemas"
@@ -33,6 +34,8 @@ var (
     testFailFast  bool
     testRunFilter string
     testPkgParallel int
+    testKVAutoEmit bool
+    testKVDump bool
 )
 
 // per-package counters
@@ -74,6 +77,9 @@ func newTestCmd() *cobra.Command {
     cmd.Flags().IntVar(&testPkgParallel, "pkg-parallel", 0, "number of packages to test in parallel (maps to 'go test -p')")
     cmd.Flags().BoolVar(&testFailFast, "failfast", false, "stop after first test failure")
     cmd.Flags().StringVar(&testRunFilter, "run", "", "run only tests matching regular expression")
+    // Runtime tester KV observability flags
+    cmd.Flags().BoolVar(&testKVAutoEmit, "kv-metrics", false, "emit kvstore.metrics at end of runtime tests")
+    cmd.Flags().BoolVar(&testKVDump, "kv-dump", false, "dump kvstore snapshots at end of runtime tests (human mode)")
     return cmd
 }
 
@@ -390,6 +396,7 @@ func runAmiTests(pass, fail, skip *int, get func(pkg string) *ctot) {
                 })
             }
             r := tester.New()
+            if testKVAutoEmit { r.EnableAutoEmitKV(true) }
             // Deterministic iteration over pipelines
             var pipes []string
             for p := range byPipe { pipes = append(pipes, p) }
@@ -442,6 +449,15 @@ func runAmiTests(pass, fail, skip *int, get func(pkg string) *ctot) {
                     default:
                         logger.Warn(fmt.Sprintf("test SKIP %s %s", pkg, name), nil)
                     }
+                }
+            }
+        }
+        // At the end of runtime tests for this file set, optionally dump kv snapshots
+        if testKVDump {
+            infos := kv.Default().Snapshot()
+            for _, inf := range infos {
+                if !flagJSON {
+                    logger.Info("kvstore.dump "+inf.Pipeline+"/"+inf.Node, map[string]interface{}{"summary": inf.Stats, "dump": inf.Dump})
                 }
             }
         }

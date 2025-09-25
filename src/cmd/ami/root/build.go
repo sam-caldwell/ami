@@ -21,6 +21,7 @@ import (
     "runtime"
     "time"
     "strings"
+    kv "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
 )
 
 var buildVerbose bool
@@ -315,6 +316,19 @@ func newBuildCmd() *cobra.Command {
                     logger.Info(fmt.Sprintf("build plan written: %s", planPath), map[string]interface{}{"targets": len(plan.Targets)})
                 }
 		}
+        // Emit kvstore metrics/dumps (verbose only)
+        if buildVerbose {
+            infos := kv.Default().Snapshot()
+            for _, inf := range infos {
+                // metrics as diag.v1
+                if s := kv.Default().Get(inf.Pipeline, inf.Node); s != nil { s.EmitMetrics(inf.Pipeline, inf.Node) }
+                // dump only in human mode to avoid large JSON spam
+                if !flagJSON {
+                    logger.Info("kvstore.dump "+inf.Pipeline+"/"+inf.Node, map[string]interface{}{"summary": inf.Stats, "dump": inf.Dump})
+                }
+            }
+        }
+
         // Emit build plan as a JSON record in --json mode
         if flagJSON {
             if err := plan.Validate(); err == nil {

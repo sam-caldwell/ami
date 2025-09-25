@@ -703,6 +703,10 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
                     if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
                         apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity", pkgName, filePath, nil)
                     }
+                    // Edge smell: tiny bounded capacity with drop backpressure (likely data loss amplification)
+                    if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
+                        apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1)", pkgName, filePath, nil)
+                    }
                 }
             }
             for _, st := range pd.ErrorSteps {
@@ -713,6 +717,9 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
                 if spec, ok := parseEdgeSpecFromArgsLint(st.Args); ok {
                     if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
                         apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity (error path)", pkgName, filePath, nil)
+                    }
+                    if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
+                        apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1) (error path)", pkgName, filePath, nil)
                     }
                 }
             }

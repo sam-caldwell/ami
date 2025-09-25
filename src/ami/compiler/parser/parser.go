@@ -4,7 +4,7 @@ import (
     astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     scan "github.com/sam-caldwell/ami/src/ami/compiler/scanner"
     tok "github.com/sam-caldwell/ami/src/ami/compiler/token"
-    "regexp"
+    "strings"
 )
 
 type Parser struct {
@@ -23,7 +23,62 @@ func (p *Parser) next() { p.cur = p.s.Next() }
 func (p *Parser) ParseFile() *astpkg.File {
     f := &astpkg.File{}
     for p.cur.Kind != tok.EOF {
-        // placeholder: consume tokens into Bad nodes
+        // package clause
+        if p.cur.Kind == tok.IDENT && p.cur.Lexeme == "package" {
+            p.next()
+            if p.cur.Kind == tok.IDENT {
+                f.Package = p.cur.Lexeme
+                p.next()
+                continue
+            }
+        }
+        // import declarations
+        if p.cur.Kind == tok.IDENT && p.cur.Lexeme == "import" {
+            p.next()
+            // import "path"
+            if p.cur.Kind == tok.STRING {
+                f.Imports = append(f.Imports, unquote(p.cur.Lexeme))
+                p.next()
+                continue
+            }
+            // import alias "path" -> skip alias
+            if p.cur.Kind == tok.IDENT {
+                p.next()
+                if p.cur.Kind == tok.STRING {
+                    f.Imports = append(f.Imports, unquote(p.cur.Lexeme))
+                    p.next()
+                    continue
+                }
+            }
+            // import ( ... )
+            if p.cur.Kind == tok.ILLEGAL && p.cur.Lexeme == "(" {
+                p.next()
+                for p.cur.Kind != tok.EOF {
+                    if p.cur.Kind == tok.STRING {
+                        f.Imports = append(f.Imports, unquote(p.cur.Lexeme))
+                        p.next()
+                        continue
+                    }
+                    if p.cur.Kind == tok.ILLEGAL && p.cur.Lexeme == ")" {
+                        p.next()
+                        break
+                    }
+                    // optional alias before string
+                    if p.cur.Kind == tok.IDENT {
+                        p.next()
+                        if p.cur.Kind == tok.STRING {
+                            f.Imports = append(f.Imports, unquote(p.cur.Lexeme))
+                            p.next()
+                            continue
+                        }
+                    }
+                    // skip
+                    p.next()
+                }
+                continue
+            }
+        }
+        // Keep unparsed token as Bad node for now
         f.Stmts = append(f.Stmts, astpkg.Bad{Tok: p.cur})
         p.next()
     }
@@ -38,17 +93,16 @@ func (p *Parser) ParseFile() *astpkg.File {
 //     "b"
 //   )
 func ExtractImports(src string) []string {
-    reSingle := regexp.MustCompile(`(?m)\bimport\s+"([^"]+)"`)
-    reBlock := regexp.MustCompile(`(?m)\bimport\s*\((?s:.*?)\)`)
-    imports := []string{}
-    for _, m := range reSingle.FindAllStringSubmatch(src, -1) {
-        if len(m) > 1 { imports = append(imports, m[1]) }
+    p := New(src)
+    f := p.ParseFile()
+    out := make([]string, len(f.Imports))
+    copy(out, f.Imports)
+    return out
+}
+
+func unquote(s string) string {
+    if len(s) >= 2 && strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"") {
+        return s[1:len(s)-1]
     }
-    for _, blk := range reBlock.FindAllString(src, -1) {
-        reQ := regexp.MustCompile(`"([^"]+)"`)
-        for _, m := range reQ.FindAllStringSubmatch(blk, -1) {
-            if len(m) > 1 { imports = append(imports, m[1]) }
-        }
-    }
-    return imports
+    return s
 }

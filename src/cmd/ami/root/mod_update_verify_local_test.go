@@ -63,6 +63,9 @@ func TestModUpdateAndVerify_LocalRepo(t *testing.T) {
 
     // ami.workspace with local import ==latest
     wsContent := `version: 1.0.0
+project:
+  name: demo
+  version: 0.0.1
 toolchain:
   compiler:
     concurrency: NUM_CPU

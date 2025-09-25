@@ -52,6 +52,9 @@ func TestBuild_IntegrityViolation_ExitCode3(t *testing.T) {
     ws := t.TempDir()
     // Minimal workspace file
     wsContent := `version: 1.0.0
+project:
+  name: demo
+  version: 0.0.1
 toolchain:
   compiler:
     concurrency: NUM_CPU

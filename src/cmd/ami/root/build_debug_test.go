@@ -51,6 +51,9 @@ func TestBuildDebugArtifacts_SchemasAndSha256(t *testing.T) {
 
     // workspace and source
     wsContent := `version: 1.0.0
+project:
+  name: demo
+  version: 0.0.1
 toolchain:
   compiler:
     concurrency: NUM_CPU

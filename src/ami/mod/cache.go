@@ -11,6 +11,7 @@ import (
     "path/filepath"
     "regexp"
     "strings"
+    "sort"
 
     git "github.com/go-git/go-git/v5"
     gitcfg "github.com/go-git/go-git/v5/config"
@@ -275,3 +276,59 @@ func copyDir(src, dst string) error {
 }
 
 // Expose helpers for CLI without exporting internals broadly
+
+
+// resolveConstraint selects a tag for a given constraint string.
+func resolveConstraint(sshURL, cons string) (string, error) {
+    cons = strings.TrimSpace(cons)
+    if cons == "" || cons == "==latest" {
+        return latestTag(sshURL)
+    }
+    if isSemVer(cons) {
+        return cons, nil
+    }
+    r := git.NewRemote(nil, &gitcfg.RemoteConfig{URLs: []string{sshURL}})
+    auth, _ := gogitssh.NewSSHAgentAuth("git")
+    refs, err := r.List(&git.ListOptions{Auth: auth})
+    if err != nil { return "", err }
+    tags := collectSemverTags(refs)
+    if len(tags)==0 { return "", errors.New("no semver tags found") }
+    sortSemver(tags)
+    var filt []string
+    switch {
+    case strings.HasPrefix(cons, ">="):
+        base := strings.TrimSpace(strings.TrimPrefix(cons, ">="))
+        for _, t := range tags { if !semverLess(t, base) { filt = append(filt, t) } }
+    case strings.HasPrefix(cons, ">"):
+        base := strings.TrimSpace(strings.TrimPrefix(cons, ">"))
+        for _, t := range tags { if semverLess(base, t) { filt = append(filt, t) } }
+    case strings.HasPrefix(cons, "^"):
+        base := strings.TrimSpace(strings.TrimPrefix(cons, "^"))
+        bv := parseSemVer(base)
+        for _, t := range tags { tv:=parseSemVer(t); if tv[0]==bv[0] && !semverLess(t, base) { filt=append(filt,t) } }
+    case strings.HasPrefix(cons, "~"):
+        base := strings.TrimSpace(strings.TrimPrefix(cons, "~"))
+        bv := parseSemVer(base)
+        for _, t := range tags { tv:=parseSemVer(t); if tv[0]==bv[0] && tv[1]==bv[1] && !semverLess(t, base) { filt=append(filt,t) } }
+    default:
+        return "", fmt.Errorf("unsupported constraint: %s", cons)
+    }
+    if len(filt)==0 { return "", errors.New("no matching tags for constraint") }
+    return filt[len(filt)-1], nil
+}
+
+func collectSemverTags(refs []*plumbing.Reference) []string {
+    out := []string{}
+    for _, ref := range refs {
+        n := ref.Name().String()
+        if strings.HasPrefix(n, "refs/tags/") {
+            tag := strings.TrimPrefix(n, "refs/tags/")
+            if isSemVer(tag) { out = append(out, tag) }
+        }
+    }
+    return out
+}
+
+func sortSemver(tags []string) {
+    sort.Slice(tags, func(i,j int) bool { return semverLess(tags[i], tags[j]) })
+}

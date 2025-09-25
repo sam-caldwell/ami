@@ -20,6 +20,7 @@ type Module struct {
     Capabilities []string
     Trust        string
     Backpressure string
+    Scheduling   string
     Pipelines    []PipelineIR
 }
 
@@ -48,6 +49,8 @@ func (m *Module) ApplyDirectives(dirs []astpkg.Directive) {
             m.Trust = strings.TrimSpace(d.Payload)
         case "backpressure":
             m.Backpressure = strings.TrimSpace(d.Payload)
+        case "scheduling", "schedule":
+            m.Scheduling = strings.ToLower(strings.TrimSpace(d.Payload))
         }
     }
 }

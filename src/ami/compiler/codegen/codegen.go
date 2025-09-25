@@ -25,6 +25,11 @@ func GenerateASM(m ir.Module) string {
         b.WriteString(m.Backpressure)
         b.WriteString("\n")
     }
+    if m.Scheduling != "" {
+        b.WriteString("; scheduling ")
+        b.WriteString(m.Scheduling)
+        b.WriteString("\n")
+    }
     if len(m.Capabilities) > 0 {
         b.WriteString("; capabilities ")
         b.WriteString(strings.Join(m.Capabilities, ","))

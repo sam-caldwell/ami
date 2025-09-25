@@ -7,7 +7,7 @@ import (
 
 func TestRAII_OwnedParam_NotReleased_Error(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<string>, r Owned<string>, st *State) Event<string> { }`
+func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> { }`
     p := parser.New(src)
     f := p.ParseFile()
     res := AnalyzeFile(f)
@@ -18,7 +18,7 @@ func f(ctx Context, ev Event<string>, r Owned<string>, st *State) Event<string> 
 
 func TestRAII_OwnedParam_Release_OK(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<string>, r Owned<string>, st *State) Event<string> { mut { r.Close() } }`
+func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> { mutate(r.Close()) }`
     p := parser.New(src)
     f := p.ParseFile()
     res := AnalyzeFile(f)
@@ -30,7 +30,7 @@ func f(ctx Context, ev Event<string>, r Owned<string>, st *State) Event<string> 
 func TestRAII_DoubleRelease_Error(t *testing.T) {
     src := `package p
 func release(o Owned<string>) Ack {}
-func f(ctx Context, ev Event<string>, r Owned<string>, st *State) Event<string> { mut { release(r); release(r) } }`
+func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> { mutate(release(r)); mutate(release(r)) }`
     p := parser.New(src)
     f := p.ParseFile()
     res := AnalyzeFile(f)
@@ -42,7 +42,7 @@ func f(ctx Context, ev Event<string>, r Owned<string>, st *State) Event<string> 
 func TestRAII_UseAfterRelease_Error(t *testing.T) {
     src := `package p
 func release(o Owned<string>) Ack {}
-func f(ctx Context, ev Event<string>, r Owned<string>, st *State) Event<string> { mut { release(r) } r }`
+func f(ctx Context, ev Event<string>, r Owned<string>, st State) Event<string> { mutate(release(r)) r }`
     p := parser.New(src)
     f := p.ParseFile()
     res := AnalyzeFile(f)

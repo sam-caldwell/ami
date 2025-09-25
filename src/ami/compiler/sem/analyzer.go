@@ -66,11 +66,11 @@ func AnalyzeFile(f *astpkg.File) Result {
             _ = res.Scope.Insert(&types.Object{Kind: types.ObjFunc, Name: fd.Name, Type: types.Function{Params: ps, Results: rs}})
             seen[fd.Name] = true
             funcs[fd.Name] = fd
-            // Mutability analysis: default immutable, assignments require mut { }
-            res.Diagnostics = append(res.Diagnostics, analyzeMutability(fd)...)
-            // Pointer/address safety (2.3.2): safe deref and address-of rules
-            res.Diagnostics = append(res.Diagnostics, analyzePointerSafety(fd)...)
-            // Imperative type checks (2.3): simple assignment and deref type rules
+            // Mutability: enforce AMI semantics (no mut blocks; '*' LHS marker required)
+            res.Diagnostics = append(res.Diagnostics, analyzeMutationMarkers(fd)...)
+            // Pointer/address prohibitions (2.3.2): '&' not allowed
+            res.Diagnostics = append(res.Diagnostics, analyzePointerProhibitions(fd)...)
+            // Imperative type checks (2.3): simple assignment type rules (no raw pointers)
             res.Diagnostics = append(res.Diagnostics, analyzeImperativeTypes(fd)...)
             // Event contracts (1.7): event parameter immutability
             res.Diagnostics = append(res.Diagnostics, analyzeEventContracts(fd)...)
@@ -375,42 +375,59 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl) []
     return diags
 }
 
-// analyzeMutability enforces that assignments occur only within explicit mut { } blocks.
-// Implementation scans captured body tokens and tracks a parallel brace stack, marking
-// frames opened by `mut {` as mutable. Any '=' token outside a mutable frame yields a diagnostic.
-func analyzeMutability(fd astpkg.FuncDecl) []diag.Diagnostic {
+// analyzeMutationMarkers enforces AMI mutability rules:
+// - No Rust-like `mut { ... }` blocks are permitted.
+// - Any assignment must use `*` on the left-hand side to mark mutation.
+// - Unary '*' is not a dereference and is invalid in expression (RHS) position.
+func analyzeMutationMarkers(fd astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
-    if len(fd.Body) == 0 { return diags }
-    mutStack := []bool{}
-    mutDepth := 0
-    expectMutLBrace := false
-    for _, t := range fd.Body {
-        switch t.Kind {
-        case tok.KW_MUT:
-            expectMutLBrace = true
-        case tok.LBRACE:
-            isMut := false
-            if expectMutLBrace {
-                isMut = true
-                mutDepth++
-                expectMutLBrace = false
+    if len(fd.Body) == 0 && len(fd.BodyStmts) == 0 { return diags }
+    if len(fd.BodyStmts) > 0 {
+        var walkExpr func(astpkg.Expr, bool)
+        walkExpr = func(e astpkg.Expr, isLHS bool) {
+            switch v := e.(type) {
+            case astpkg.UnaryExpr:
+                if v.Op == "*" {
+                    if !isLHS {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_STAR_MISUSED", Message: "'*' is not a dereference; only allowed on assignment left-hand side as a mutability marker"})
+                    }
+                    walkExpr(v.X, isLHS)
+                }
+                // '&' is handled by parser; ignore here
+            case astpkg.CallExpr:
+                for _, a := range v.Args { walkExpr(a, false) }
+            case astpkg.SelectorExpr:
+                walkExpr(v.X, false)
             }
-            mutStack = append(mutStack, isMut)
-        case tok.RBRACE:
-            if n := len(mutStack); n > 0 {
-                wasMut := mutStack[n-1]
-                mutStack = mutStack[:n-1]
-                if wasMut && mutDepth > 0 { mutDepth-- }
+        }
+        var walkStmt func(astpkg.Stmt)
+        walkStmt = func(s astpkg.Stmt) {
+            switch v := s.(type) {
+            case astpkg.AssignStmt:
+                if ue, ok := v.LHS.(astpkg.UnaryExpr); !ok || ue.Op != "*" {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_ASSIGN_UNMARKED", Message: "assignment must be marked with '*' on left-hand side to indicate mutation"})
+                }
+                walkExpr(v.RHS, false)
+            case astpkg.MutBlockStmt:
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_BLOCK_UNSUPPORTED", Message: "mut { ... } blocks are not part of AMI; use mutate(expr) or '*' on assignment LHS"})
+                for _, ss := range v.Body.Stmts { walkStmt(ss) }
+            case astpkg.BlockStmt:
+                for _, ss := range v.Stmts { walkStmt(ss) }
+            case astpkg.ExprStmt:
+                walkExpr(v.X, false)
             }
-            expectMutLBrace = false
-        case tok.ASSIGN:
-            if mutDepth == 0 {
-                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_ASSIGN_OUTSIDE", Message: "assignment outside mut block is not allowed"})
+        }
+        for _, s := range fd.BodyStmts { walkStmt(s) }
+        return diags
+    }
+    // Token-based fallback
+    for _, t := range fd.Body { if t.Kind == tok.KW_MUT { diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_BLOCK_UNSUPPORTED", Message: "mut { ... } blocks are not part of AMI; use mutate(expr) or '*' on assignment LHS"}) } }
+    toks := fd.Body
+    for i := 0; i < len(toks); i++ {
+        if toks[i].Kind == tok.ASSIGN {
+            if !(i-2 >= 0 && toks[i-2].Kind == tok.STAR && toks[i-1].Kind == tok.IDENT) {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MUT_ASSIGN_UNMARKED", Message: "assignment must be marked with '*' on left-hand side to indicate mutation"})
             }
-            expectMutLBrace = false
-        default:
-            // any other token cancels a pending mut if not followed by '{'
-            // but we leave expectMutLBrace until a non-brace token? keep conservative
         }
     }
     return diags
@@ -578,70 +595,14 @@ func typeRefToString(t astpkg.TypeRef) string {
     return b.String()
 }
 
-// analyzePointerSafety enforces minimal pointer/address semantic rules (2.3.2):
-// - Unsafe deref: using '*' IDENT outside of a block guarded by `IDENT != nil` (or `nil != IDENT`) emits E_DEREF_UNSAFE.
-// - Invalid deref operand: '*' applied to literal or nil emits E_DEREF_OPERAND.
-// - Invalid address-of target: '&' applied to literal or nil emits E_ADDR_OF_LITERAL.
-func analyzePointerSafety(fd astpkg.FuncDecl) []diag.Diagnostic {
+// analyzePointerProhibitions enforces AMI 2.3.2: no raw pointer/address operators.
+// Specifically, disallow '&' anywhere in function bodies.
+func analyzePointerProhibitions(fd astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
     if len(fd.Body) == 0 { return diags }
-
-    // Stack of safe identifiers (per block) from `x != nil {` or `nil != x {` guards.
-    safeStack := []map[string]bool{}
-    push := func(s map[string]bool) { safeStack = append(safeStack, s) }
-    pop := func() {
-        if n := len(safeStack); n > 0 { safeStack = safeStack[:n-1] }
-    }
-    isSafe := func(name string) bool {
-        for i := len(safeStack) - 1; i >= 0; i-- {
-            if safeStack[i][name] { return true }
-        }
-        return false
-    }
-
-    toks := fd.Body
-    for i := 0; i < len(toks); i++ {
-        t := toks[i]
-        switch t.Kind {
-        case tok.LBRACE:
-            // Determine if preceding tokens form a nil-guard for an identifier.
-            // Patterns before '{': IDENT '!=' nil   or   nil '!=' IDENT
-            name := ""
-            if i >= 3 && toks[i-1].Kind == tok.KW_NIL && toks[i-2].Kind == tok.NEQ && toks[i-3].Kind == tok.IDENT {
-                name = toks[i-3].Lexeme
-            }
-            if i >= 3 && toks[i-1].Kind == tok.IDENT && toks[i-2].Kind == tok.NEQ && toks[i-3].Kind == tok.KW_NIL {
-                name = toks[i-1].Lexeme
-            }
-            if name != "" {
-                push(map[string]bool{name: true})
-            } else {
-                push(map[string]bool{})
-            }
-        case tok.RBRACE:
-            pop()
-        case tok.AMP:
-            // address-of next token
-            if i+1 < len(toks) {
-                n := toks[i+1]
-                switch n.Kind {
-                case tok.NUMBER, tok.STRING, tok.KW_TRUE, tok.KW_FALSE, tok.KW_NIL:
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_ADDR_OF_LITERAL", Message: "cannot take address of literal or nil"})
-                }
-            }
-        case tok.STAR:
-            // deref next token
-            if i+1 < len(toks) {
-                n := toks[i+1]
-                switch n.Kind {
-                case tok.NUMBER, tok.STRING, tok.KW_TRUE, tok.KW_FALSE, tok.KW_NIL:
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_DEREF_OPERAND", Message: "cannot dereference literal or nil"})
-                case tok.IDENT:
-                    if !isSafe(n.Lexeme) {
-                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_DEREF_UNSAFE", Message: "unsafe pointer dereference; guard with 'x != nil' in the same block"})
-                    }
-                }
-            }
+    for _, t := range fd.Body {
+        if t.Kind == tok.AMP {
+            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_PTR_UNSUPPORTED_SYNTAX", Message: "'&' address-of operator is not allowed; AMI does not expose raw pointers (see 2.3.2)"})
         }
     }
     return diags
@@ -672,7 +633,7 @@ func analyzeEventContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
 
 // analyzeStateContracts enforces basic node-state parameter rules:
 // - State parameter is immutable (cannot be reassigned): E_STATE_PARAM_ASSIGN
-// - Address-of state parameter is invalid: E_STATE_ADDR_PARAM
+// (No address-of in AMI 2.3.2)
 func analyzeStateContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
     if len(fd.Params) < 3 || len(fd.Body) == 0 { return diags }
@@ -689,88 +650,17 @@ func analyzeStateContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
                 }
             }
         }
-        // Address-of state param: '&' IDENT where IDENT is *State
-        if toks[i].Kind == tok.AMP {
-            if i+1 < len(toks) && toks[i+1].Kind == tok.IDENT {
-                if tr, ok := env[toks[i+1].Lexeme]; ok && tr.Name == "State" && tr.Ptr {
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_STATE_ADDR_PARAM", Message: "cannot take address of state parameter"})
-                }
-            }
-        }
+        // No address-of in AMI 2.3.2
     }
     return diags
 }
 
 // analyzeMemoryDomains enforces basic allocation domain separation (6.5/Ch.2.4):
-// - Event heap (Event<T>), Node-state (*State), Ephemeral stack (locals/others).
+// - Event heap (Event<T>), Node-state (State), Ephemeral stack (locals/others).
 // Forbidden cross-domain references:
 // - Assigning address of non-state value into state memory, e.g., `*st = &ev` or `*st = &x`.
 //   Emits E_CROSS_DOMAIN_REF.
-func analyzeMemoryDomains(fd astpkg.FuncDecl) []diag.Diagnostic {
-    var diags []diag.Diagnostic
-    if len(fd.Params) == 0 || (len(fd.Body) == 0 && len(fd.BodyStmts) == 0) { return diags }
-    // Build env map and identify state params
-    env := map[string]astpkg.TypeRef{}
-    isState := map[string]bool{}
-    for _, p := range fd.Params {
-        if p.Name == "" { continue }
-        env[p.Name] = p.Type
-        if p.Type.Name == "State" && p.Type.Ptr { isState[p.Name] = true }
-    }
-    if len(fd.BodyStmts) > 0 {
-        // AST-level matching
-        var walk func(astpkg.Stmt)
-        walk = func(s astpkg.Stmt) {
-            switch v := s.(type) {
-            case astpkg.AssignStmt:
-                // *st = &x
-                if lhsUE, ok := v.LHS.(astpkg.UnaryExpr); ok && lhsUE.Op == "*" {
-                    if id, ok2 := lhsUE.X.(astpkg.Ident); ok2 && isState[id.Name] {
-                        if rhsUE, ok3 := v.RHS.(astpkg.UnaryExpr); ok3 && rhsUE.Op == "&" {
-                            if rid, ok4 := rhsUE.X.(astpkg.Ident); ok4 {
-                                if tr, ok5 := env[rid.Name]; ok5 { if !(tr.Name == "State" && tr.Ptr) { diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "forbidden cross-domain reference into state from non-state domain"}) } } else {
-                                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "forbidden cross-domain reference into state from ephemeral value"})
-                                }
-                            }
-                        }
-                    }
-                }
-            case astpkg.MutBlockStmt:
-                for _, ss := range v.Body.Stmts { walk(ss) }
-            case astpkg.BlockStmt:
-                for _, ss := range v.Stmts { walk(ss) }
-            }
-        }
-        for _, s := range fd.BodyStmts { walk(s) }
-        // do not return; also run token-level fallback to be robust to partial parses
-    }
-    // Token-level fallback
-    toks := fd.Body
-    for i := 0; i < len(toks); i++ {
-        if toks[i].Kind == tok.STAR && i+1 < len(toks) && toks[i+1].Kind == tok.IDENT {
-            lhs := toks[i+1].Lexeme
-            // find '=' after lhs
-            j := i+2
-            for j < len(toks) && toks[j].Kind != tok.ASSIGN && toks[j].Kind != tok.SEMI && toks[j].Kind != tok.RBRACE { j++ }
-            if j >= len(toks) || toks[j].Kind != tok.ASSIGN { continue }
-            // find '&' ident after '='
-            k := j+1
-            for k < len(toks) && toks[k].Kind != tok.AMP && toks[k].Kind != tok.SEMI && toks[k].Kind != tok.RBRACE { k++ }
-            if k+1 >= len(toks) || toks[k].Kind != tok.AMP || toks[k+1].Kind != tok.IDENT { continue }
-            rhs := toks[k+1].Lexeme
-            if isState[lhs] {
-                if tr, ok := env[rhs]; ok {
-                    if !(tr.Name == "State" && tr.Ptr) {
-                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "forbidden cross-domain reference into state from non-state domain"})
-                    }
-                } else {
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "forbidden cross-domain reference into state from ephemeral value"})
-                }
-            }
-        }
-    }
-    return diags
-}
+func analyzeMemoryDomains(fd astpkg.FuncDecl) []diag.Diagnostic { return nil }
 
 // analyzeRAII enforces minimal ownership/RAII rules for Owned<T> parameters:
 // - E_RAII_OWNED_NOT_RELEASED: Owned param must be released or transferred.
@@ -980,6 +870,8 @@ func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []
                         if len(owned) == 1 { for k := range owned { released[k] = true } }
                     }
                 }
+                // Always visit args to catch nested calls (e.g., mutate(release(x)))
+                for _, a := range v.Args { walkExpr(a) }
                 // transfer via owned parameter position
                 if callee, ok := funcs[name]; ok {
                     calleeHasOwned := false
@@ -1128,11 +1020,6 @@ func analyzeImperativeTypes(fd astpkg.FuncDecl) []diag.Diagnostic {
     }
     // helpers
     typeStr := func(tr astpkg.TypeRef) string { return typeRefToString(tr) }
-    // element type of pointer; if not pointer, ok=false
-    elemOfPtr := func(tr astpkg.TypeRef) (astpkg.TypeRef, bool) {
-        if tr.Ptr { out := tr; out.Ptr = false; return out, true }
-        return astpkg.TypeRef{}, false
-    }
     // resolve expression type starting at token index i; returns type string and ok
     // Supports IDENT, '*' IDENT, '&' IDENT, STRING→string, NUMBER→int
     resolve := func(toks []tok.Token, i int) (string, bool, bool) {
@@ -1142,23 +1029,8 @@ func analyzeImperativeTypes(fd astpkg.FuncDecl) []diag.Diagnostic {
         case tok.IDENT:
             if tr, ok := env[toks[i].Lexeme]; ok { return typeStr(tr), true, false }
             return "", false, false
-        case tok.STAR:
-            if i+1 < len(toks) && toks[i+1].Kind == tok.IDENT {
-                if tr, ok := env[toks[i+1].Lexeme]; ok {
-                    if el, ok2 := elemOfPtr(tr); ok2 { return typeStr(el), true, false }
-                    // '*' applied to non-pointer param
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_DEREF_TYPE", Message: "cannot dereference non-pointer"})
-                    return "", false, true
-                }
-            }
-            return "", false, false
-        case tok.AMP:
-            if i+1 < len(toks) && toks[i+1].Kind == tok.IDENT {
-                if tr, ok := env[toks[i+1].Lexeme]; ok {
-                    ptr := tr; ptr.Ptr = true
-                    return typeStr(ptr), true, false
-                }
-            }
+        case tok.STAR, tok.AMP:
+            // no raw pointer semantics in AMI
             return "", false, false
         case tok.STRING:
             return "string", true, false
@@ -1175,12 +1047,6 @@ func analyzeImperativeTypes(fd astpkg.FuncDecl) []diag.Diagnostic {
             // LHS type
             var lhs string
             var okL bool
-            // Prefer '* ident' as a single lvalue first
-            if i-2 >= 0 && toks[i-2].Kind == tok.STAR && toks[i-1].Kind == tok.IDENT {
-                if tr, ok := env[toks[i-1].Lexeme]; ok {
-                    if el, ok2 := elemOfPtr(tr); ok2 { lhs, okL = typeStr(el), true } else { /* already handled by resolve on '*' path */ }
-                }
-            }
             if !okL && i-1 >= 0 && toks[i-1].Kind == tok.IDENT {
                 if tr, ok := env[toks[i-1].Lexeme]; ok { lhs, okL = typeStr(tr), true }
             }
@@ -1199,17 +1065,20 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
     env := map[string]astpkg.TypeRef{}
     for _, p := range fd.Params { if p.Name != "" { env[p.Name] = p.Type } }
     typeStr := func(tr astpkg.TypeRef) string { return typeRefToString(tr) }
-    elemOfPtr := func(tr astpkg.TypeRef) (astpkg.TypeRef, bool) { if tr.Ptr { out := tr; out.Ptr = false; return out, true }; return astpkg.TypeRef{}, false }
-    var exprType func(astpkg.Expr) (astpkg.TypeRef, bool)
-    exprType = func(e astpkg.Expr) (astpkg.TypeRef, bool) {
+    var exprType func(astpkg.Expr, bool) (astpkg.TypeRef, bool)
+    exprType = func(e astpkg.Expr, isLHS bool) (astpkg.TypeRef, bool) {
         switch v := e.(type) {
         case astpkg.Ident:
             if tr, ok := env[v.Name]; ok { return tr, true }
             return astpkg.TypeRef{}, false
         case astpkg.UnaryExpr:
-            t, ok := exprType(v.X); if !ok { return astpkg.TypeRef{}, false }
-            if v.Op == "*" { if el, ok2 := elemOfPtr(t); ok2 { return el, true }; diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_DEREF_TYPE", Message: "cannot dereference non-pointer"}); return astpkg.TypeRef{}, false }
-            if v.Op == "&" { t.Ptr = true; return t, true }
+            // '*' is a marker: yields the same type as its operand on LHS
+            if v.Op == "*" {
+                t, ok := exprType(v.X, isLHS); if !ok { return astpkg.TypeRef{}, false }
+                if isLHS && t.Ptr { t.Ptr = false }
+                return t, true
+            }
+            // '&' is prohibited; treat as unknown here
             return astpkg.TypeRef{}, false
         case astpkg.BasicLit:
             switch v.Kind { case "string": return astpkg.TypeRef{Name: "string"}, true; case "number": return astpkg.TypeRef{Name: "int"}, true }
@@ -1221,7 +1090,7 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
     var walkStmt func(astpkg.Stmt)
     walkStmt = func(s astpkg.Stmt) {
         if as, ok := s.(astpkg.AssignStmt); ok {
-            lt, lok := exprType(as.LHS); rt, rok := exprType(as.RHS)
+            lt, lok := exprType(as.LHS, true); rt, rok := exprType(as.RHS, false)
             if lok && rok && typeStr(lt) != typeStr(rt) {
                 diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_ASSIGN_TYPE_MISMATCH", Message: "assignment type mismatch: " + typeStr(lt) + " != " + typeStr(rt)})
             }
@@ -1231,8 +1100,6 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
         case astpkg.ExprStmt:
             // nothing needed
             _ = v
-        case astpkg.MutBlockStmt:
-            for _, ss := range v.Body.Stmts { walkStmt(ss) }
         case astpkg.BlockStmt:
             for _, ss := range v.Stmts { walkStmt(ss) }
         }
@@ -1242,14 +1109,14 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
 }
 
 func isWorkerSignature(fd astpkg.FuncDecl) bool {
-    // params: (Context, Event<T>, *State)
+    // params: (Context, Event<T>, State)
     if len(fd.Params) != 3 { return false }
     p1 := fd.Params[0].Type
     p2 := fd.Params[1].Type
     p3 := fd.Params[2].Type
     if !(p1.Name == "Context" && !p1.Ptr && !p1.Slice) { return false }
     if !(p2.Name == "Event" && len(p2.Args) == 1 && !p2.Ptr) { return false }
-    if !(p3.Name == "State" && p3.Ptr) { return false }
+    if !(p3.Name == "State" && !p3.Ptr) { return false }
     // results: exactly one of Event<U>, []Event<U>, Error<E>, Drop/Ack
     if len(fd.Result) != 1 { return false }
     r := fd.Result[0]

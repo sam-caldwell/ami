@@ -39,11 +39,9 @@ Default severities unless overridden by config/strict:
   - `W_PIPELINE_INGRESS_POS` (info): ingress position hint when present.
   - `W_PIPELINE_EGRESS_POS` (info): egress position hint when present.
 
-- Pointer safety hints:
-  - `W_PTR_TYPE_HINT` (info): pointer type used in signatures/structs; consider nil-guard before dereference.
 
 - RAII usage hints:
-  - `W_RAII_OWNED_HINT` (info): Owned<T> in signatures/structs should be released (Close/Release) within a `mut {}` block.
+  - `W_RAII_OWNED_HINT` (info): Owned<T> in signatures/structs should be released using `mutate(release(x))` or an equivalent explicit release call.
 
 - Collection constraints (mirrors as hints):
   - `W_MAP_ARITY_HINT` (warn): map requires two type parameters (`map<K,V>`).

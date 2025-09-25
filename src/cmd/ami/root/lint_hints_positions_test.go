@@ -41,7 +41,7 @@ packages:
     out := captureStdoutLint(t, func(){ _ = rootcmd.Execute() })
     os.Args = old
 
-    want := map[string]bool{"W_RAII_OWNED_HINT": false, "W_MAP_KEY_TYPE_HINT": false, "W_PTR_TYPE_HINT": false}
+    want := map[string]bool{"W_RAII_OWNED_HINT": false, "W_MAP_KEY_TYPE_HINT": false}
     sc := bufio.NewScanner(strings.NewReader(out))
     for sc.Scan() {
         var obj map[string]any
@@ -57,4 +57,3 @@ packages:
     }
     for k, v := range want { if !v { t.Fatalf("expected position for %s; out=\n%s", k, out) } }
 }
-

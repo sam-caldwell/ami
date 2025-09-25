@@ -10,7 +10,7 @@ func TestDriver_Compile_EmitsPipelinesSchema(t *testing.T) {
     defer func(){ osReadFile = orig }()
     osReadFile = func(path string) ([]byte, error) {
         src := `package main
-func x(ctx Context, ev Event<T>, st *State) Event<U>
+func x(ctx Context, ev Event<T>, st State) Event<U>
 pipeline P { Transform(x) }`
         return []byte(src), nil
     }
@@ -21,4 +21,3 @@ pipeline P { Transform(x) }`
     if p.Schema != "pipelines.v1" || p.Package == "" || p.File == "" { t.Fatalf("invalid pipelines schema header: %+v", p) }
     if len(p.Pipelines) != 1 || p.Pipelines[0].Name != "P" { t.Fatalf("unexpected pipelines content: %+v", p.Pipelines) }
 }
-

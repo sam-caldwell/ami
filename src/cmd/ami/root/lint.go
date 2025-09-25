@@ -581,12 +581,7 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
         var p *srcset.Position
         // prefer exact AST offset when available
         if tr.Offset >= 0 { p = toPos(tr.Offset) } else if off >= 0 { p = toPos(off) }
-        if tr.Ptr {
-            if !emitted["W_PTR_TYPE_HINT"+key] {
-                apply(diag.Info, "W_PTR_TYPE_HINT", "pointer type used; consider nil-guard before dereference", pkgName, filePath, p)
-                emitted["W_PTR_TYPE_HINT"+key] = true
-            }
-        }
+        // no pointer type hints in AMI 2.3.2
         name := strings.ToLower(tr.Name)
         switch name {
         case "owned":

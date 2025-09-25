@@ -7,7 +7,7 @@ This scaffold models per-node state as an explicit capability argument in worker
 
 Access Rules
 
-- Writes must occur inside `mut { ... }` blocks (enforced by existing mutability rule `E_MUT_ASSIGN_OUTSIDE`).
+- Writes must be explicitly marked: use `*stateField = value` to assign, or wrap state-mutating calls with `mutate(expr)`.
 - AMI does not expose pointers; there is no address-of or dereference for `st`.
 - State parameter is immutable (scaffold): reassignment is flagged (when detectable from tokens) as `E_STATE_PARAM_ASSIGN`.
 

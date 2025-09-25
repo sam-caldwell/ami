@@ -26,7 +26,7 @@ enum E { A = 1 }
 // before struct
 struct S { F string }
 // before func
-func f(ctx Context, ev Event<string>, st *State) Event<string> { }
+func f(ctx Context, ev Event<string>, st State) Event<string> { }
 // before pipeline
 pipeline P {
   // step ingress
@@ -80,4 +80,3 @@ pipeline P {
     if len(pd.Steps[0].Comments) == 0 || !strings.Contains(pd.Steps[0].Comments[0].Text, "step ingress") { t.Fatalf("expected step comment on first node call; got %+v", pd.Steps[0].Comments) }
     if pd.Pos.Line <= 0 { t.Fatalf("expected pipeline pos set") }
 }
-

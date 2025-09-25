@@ -4,9 +4,9 @@ This scaffold implements minimal type checks for imperative constructs using par
 
 Checks
 
-- Assignment type match: For simple forms `x = y`, `*p = y`, and `x = &y`, where `x`, `y` are function parameters or literals, the checker ensures left and right types match (emits `E_ASSIGN_TYPE_MISMATCH` when they do not).
-- Dereference type: `*x` where `x` is a non-pointer parameter emits `E_DEREF_TYPE`.
-- Existing safety/literal checks: `*` on literal or `nil` (`E_DEREF_OPERAND`); `&` on literal or `nil` (`E_ADDR_OF_LITERAL`). Safe deref requires a nil-guard (`E_DEREF_UNSAFE`).
+- Assignment type match: For simple forms `*x = y` and `*p = y` (LHS marked with `*`), where `x`, `y` are function parameters or literals, the checker ensures left and right types match (emits `E_ASSIGN_TYPE_MISMATCH` when they do not). When `x` is a pointer parameter, the LHS type uses the element type for comparison.
+- Unary `*` is not a dereference: using `*` in an expression (RHS) emits `E_STAR_MISUSED`.
+- Address-of is disallowed: `&` anywhere in source emits `E_PTR_UNSUPPORTED_SYNTAX`.
 
 Scope
 
@@ -15,4 +15,3 @@ Scope
 Tests
 
 - See `src/ami/compiler/sem/imperative_typecheck_test.go` for happy/sad cases.
-

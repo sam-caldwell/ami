@@ -5,47 +5,33 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
 )
 
-func TestMutability_AssignOutsideMut_Error(t *testing.T) {
+func TestMutability_UnmarkedAssignment_Error(t *testing.T) {
     src := `package p
-func f() { x = 1 }
-`
+func f() { x = 1 }`
     p := parser.New(src)
     f := p.ParseFile()
     res := AnalyzeFile(f)
     found := false
-    for _, d := range res.Diagnostics { if d.Code == "E_MUT_ASSIGN_OUTSIDE" { found = true; break } }
-    if !found { t.Fatalf("expected E_MUT_ASSIGN_OUTSIDE; diags=%v", res.Diagnostics) }
+    for _, d := range res.Diagnostics { if d.Code == "E_MUT_ASSIGN_UNMARKED" { found = true; break } }
+    if !found { t.Fatalf("expected E_MUT_ASSIGN_UNMARKED; diags=%v", res.Diagnostics) }
 }
 
-func TestMutability_AssignInsideMut_OK(t *testing.T) {
+func TestMutability_StarLHS_AllowsAssignment_OK(t *testing.T) {
     src := `package p
-func f() { mut { x = 1 } }
-`
+func f() { *x = 1 }`
     p := parser.New(src)
     f := p.ParseFile()
     res := AnalyzeFile(f)
-    for _, d := range res.Diagnostics { if d.Code == "E_MUT_ASSIGN_OUTSIDE" { t.Fatalf("unexpected mutability error: %v", d) } }
+    for _, d := range res.Diagnostics { if d.Code == "E_MUT_ASSIGN_UNMARKED" { t.Fatalf("unexpected mutability error: %v", d) } }
 }
 
-func TestMutability_NestedBlocksInsideMut_OK(t *testing.T) {
+func TestMutability_StarMisusedOnRHS_Error(t *testing.T) {
     src := `package p
-func f() { mut { { { x = 1 } } } }
-`
-    p := parser.New(src)
-    f := p.ParseFile()
-    res := AnalyzeFile(f)
-    for _, d := range res.Diagnostics { if d.Code == "E_MUT_ASSIGN_OUTSIDE" { t.Fatalf("unexpected mutability error: %v", d) } }
-}
-
-func TestMutability_AfterMutBlock_Error(t *testing.T) {
-    src := `package p
-func f() { mut { } x = 1 }
-`
+func f(a int) { *x = *a }`
     p := parser.New(src)
     f := p.ParseFile()
     res := AnalyzeFile(f)
     found := false
-    for _, d := range res.Diagnostics { if d.Code == "E_MUT_ASSIGN_OUTSIDE" { found = true; break } }
-    if !found { t.Fatalf("expected E_MUT_ASSIGN_OUTSIDE; diags=%v", res.Diagnostics) }
+    for _, d := range res.Diagnostics { if d.Code == "E_STAR_MISUSED" { found = true; break } }
+    if !found { t.Fatalf("expected E_STAR_MISUSED; diags=%v", res.Diagnostics) }
 }
-

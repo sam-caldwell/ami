@@ -529,28 +529,8 @@ func parseBodyStmts(toks []tok.Token) []astpkg.Stmt {
 }
 
 func (bp *bodyParser) parseStmt() (astpkg.Stmt, bool) {
-    t := bp.cur()
-    // mut { ... }
-    if t.Kind == tok.KW_MUT {
-        // find following '{'
-        bp.next()
-        if bp.cur().Kind == tok.LBRACE {
-            // collect tokens until matching '}'
-            depth := 1; bp.next()
-            start := bp.i
-            for !bp.atEnd() && depth > 0 {
-                switch bp.cur().Kind {
-                case tok.LBRACE:
-                    depth++
-                case tok.RBRACE:
-                    depth--
-                }
-                bp.next()
-            }
-            inner := parseBodyStmts(bp.toks[start : bp.i-1])
-            return astpkg.MutBlockStmt{Body: astpkg.BlockStmt{Stmts: inner}}, true
-        }
-    }
+    // Note: AMI does not support Rust-like `mut { ... }` blocks.
+    // Any appearance of `mut` is treated as an identifier token in expressions.
     // assignment or call expr
     // Try parse LHS expr
     save := bp.i

@@ -8,7 +8,7 @@ import (
 func TestEdgeTypeSafety_Mismatch(t *testing.T) {
     // f outputs Event<string> but edge declares type=int
     src := `package p
-func f(ctx Context, ev Event<string>, st *State) Event<string> { }
+func f(ctx Context, ev Event<string>, st State) Event<string> { }
 pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=int)) }`
     p := parser.New(src)
     f := p.ParseFile()
@@ -20,7 +20,7 @@ pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapa
 
 func TestEdgeTypeSafety_Match(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<string>, st *State) Event<string> { }
+func f(ctx Context, ev Event<string>, st State) Event<string> { }
 pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=string)) }`
     p := parser.New(src)
     f := p.ParseFile()
@@ -50,4 +50,3 @@ pipeline B { Ingress(cfg).Egress(in=edge.Pipeline(name=A)) }`
     res := AnalyzeFile(f)
     for _, d := range res.Diagnostics { if d.Code == "E_CYCLE_DETECTED" { t.Fatalf("unexpected cycle diag: %v", d) } }
 }
-

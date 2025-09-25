@@ -9,7 +9,7 @@ import (
 func TestAnalyzeFile_FunctionTypeInference(t *testing.T) {
     src := `package p
 import "util"
-func f(ctx Context, ev Event<string>, st *State) Event<string> { }
+func f(ctx Context, ev Event<string>, st State) Event<string> { }
 `
     p := parser.New(src)
     f := p.ParseFile()

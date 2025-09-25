@@ -18,13 +18,9 @@ Event Flow Contracts
 Immutability
 
 - Event parameter is immutable: assignments to the event parameter identifier are illegal (emits `E_EVENT_PARAM_ASSIGN`).
-- Existing rules also apply:
-  - `E_DEREF_UNSAFE`: `*x` outside `x != nil` guarded block.
-  - `E_DEREF_OPERAND`: `*` on literals or `nil`.
-  - `E_ADDR_OF_LITERAL`: `&` on literals or `nil`.
+- Pointer/address safety (2.3.2): AMI does not expose raw pointers; `&` is not allowed (`E_PTR_UNSUPPORTED_SYNTAX`). Unary `*` is not a dereference and is only valid on the assignment LHS as a mutability marker.
 
 Tests
 
 - See `src/ami/compiler/sem/event_contracts_test.go` for event flow and parameter immutability.
 - See `src/ami/compiler/sem/worker_test.go` for worker signature enforcement.
-

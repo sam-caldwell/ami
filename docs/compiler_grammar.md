@@ -19,7 +19,7 @@ FuncDecl = "func" identifier ParamList [ ResultList ] Block ;
 ParamList = "(" { /* tokens until matching ')' */ } ")" ;
 ResultList = "(" { /* optional tuple */ } ")" ;
 Block = "{" { Stmt | MutBlock } "}" ;
-MutBlock = "mut" "{" { Stmt } "}" ;
+// No Rust-like mut blocks in AMI; mutability is expressed per-assignment or via mutate(...).
 Stmt = /* imperative subset evolves; assignment `=` tokens are only permitted within MutBlock in this phase */ ;
 
 PipelineDecl = "pipeline" identifier "{" NodeChain "}" ;
@@ -39,8 +39,8 @@ Note on `edge.*` constructs:
 - See `docs/edges.md` for semantics and performance considerations.
 
 Mutability rules (subset)
-- Default is immutable: assignments are only legal within `mut { ... }` blocks.
-- Parser captures function body tokens; semantics enforce that `=` occurs only when inside a `mut` block.
+- Default is immutable: assignments must be explicitly marked using `*` on the LHS, e.g., `*x = y`.
+- `mutate(expr)` may wrap side-effectful expressions to signal mutation.
 
 Container types (subset)
 - Map: `map<K,V>` where `K` and `V` are types. In this phase:

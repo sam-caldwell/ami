@@ -7,7 +7,7 @@ import (
 
 func TestWorkers_Transform_ResolvesFunction(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<string>, st *State) Event<string> {}
+func f(ctx Context, ev Event<string>, st State) Event<string> {}
 pipeline P { Ingress(cfg).Transform(f).Egress(cfg) }`
     p := parser.New(src)
     f := p.ParseFile()
@@ -19,7 +19,7 @@ pipeline P { Ingress(cfg).Transform(f).Egress(cfg) }`
 
 func TestWorkers_Transform_ResolvesFactoryCall(t *testing.T) {
     src := `package p
-func NewWorker(ctx Context, ev Event<string>, st *State) Event<string> {}
+func NewWorker(ctx Context, ev Event<string>, st State) Event<string> {}
 pipeline P { Ingress(cfg).Transform(NewWorker(cfg)).Egress(cfg) }`
     p := parser.New(src)
     f := p.ParseFile()

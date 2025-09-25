@@ -7,8 +7,8 @@ import (
 
 func TestEventTypeFlow_Mismatch_Error(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<string>, st *State) Event<string> {}
-func g(ctx Context, ev Event<int>, st *State) Event<int> {}
+func f(ctx Context, ev Event<string>, st State) Event<string> {}
+func g(ctx Context, ev Event<int>, st State) Event<int> {}
 pipeline P { Ingress(cfg).Transform(f).Transform(g).Egress(cfg) }`
     p := parser.New(src)
     f := p.ParseFile()
@@ -20,8 +20,8 @@ pipeline P { Ingress(cfg).Transform(f).Transform(g).Egress(cfg) }`
 
 func TestEventTypeFlow_Match_OK(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<string>, st *State) Event<string> {}
-func g(ctx Context, ev Event<string>, st *State) Event<string> {}
+func f(ctx Context, ev Event<string>, st State) Event<string> {}
+func g(ctx Context, ev Event<string>, st State) Event<string> {}
 pipeline P { Ingress(cfg).Transform(f).Transform(g).Egress(cfg) }`
     p := parser.New(src)
     f := p.ParseFile()
@@ -35,8 +35,8 @@ pipeline P { Ingress(cfg).Transform(f).Transform(g).Egress(cfg) }`
 
 func TestEventParam_Immutable_Assign_Error(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<string>, st *State) Event<string> {
-    mut { ev = ev }
+func f(ctx Context, ev Event<string>, st State) Event<string> {
+    *ev = ev
 }
 pipeline P { Ingress(cfg).Transform(f).Egress(cfg) }`
     p := parser.New(src)
@@ -46,4 +46,3 @@ pipeline P { Ingress(cfg).Transform(f).Egress(cfg) }`
     for _, d := range res.Diagnostics { if d.Code == "E_EVENT_PARAM_ASSIGN" { found = true; break } }
     if !found { t.Fatalf("expected E_EVENT_PARAM_ASSIGN; diags=%v", res.Diagnostics) }
 }
-

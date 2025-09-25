@@ -17,6 +17,9 @@ func TestBuild_ExistingManifestVsSum_JSONMismatch(t *testing.T) {
 
     ws := t.TempDir()
     wsContent := `version: 1.0.0
+project:
+  name: demo
+  version: 0.0.1
 toolchain:
   compiler:
     concurrency: NUM_CPU
@@ -92,4 +95,3 @@ packages:
         t.Fatalf("did not observe 'integrity: existing manifest vs ami.sum mismatch' record in JSON logs. stdout=\n%s", string(out))
     }
 }
-

@@ -14,6 +14,7 @@ import (
 
 type Workspace struct {
     Version   string    `yaml:"version"`
+    Project   Project   `yaml:"project"`
     Toolchain Toolchain `yaml:"toolchain"`
     Packages  []any     `yaml:"packages"`
 }
@@ -35,6 +36,12 @@ type EnvTarget struct {
 }
 
 var osArchRe = regexp.MustCompile(`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
+var semverRe = regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
+
+type Project struct {
+    Name    string `yaml:"name"`
+    Version string `yaml:"version"`
+}
 
 func Load(path string) (*Workspace, error) {
     b, err := os.ReadFile(path)
@@ -54,6 +61,13 @@ func Load(path string) (*Workspace, error) {
 func (w *Workspace) Validate(repoRoot string) error {
     if w.Version == "" {
         return errors.New("workspace.version required (schema semver)")
+    }
+    // Project is required
+    if w.Project.Name == "" {
+        return errors.New("project.name required")
+    }
+    if w.Project.Version == "" || !semverRe.MatchString(w.Project.Version) {
+        return errors.New("project.version must be SemVer (e.g., 0.0.1)")
     }
     // Compiler target default
     if strings.TrimSpace(w.Toolchain.Compiler.Target) == "" {
@@ -114,4 +128,3 @@ func (w *Workspace) ResolveConcurrency() int {
     }
     return 1
 }
-

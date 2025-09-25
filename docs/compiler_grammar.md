@@ -7,11 +7,15 @@ Notation: terminals in quotes, `/* comments */`, `// line comments` ignored by s
 
 Program = PackageDecl? { ImportDecl | TopDecl } ;
 
-PackageDecl = "package" identifier ;
+PackageDecl = "package" identifier ':' Version ;
+Version = /* SemVer */ ('v'? digit {digit} '.' digit {digit} '.' digit {digit} [ '-' {alpha|digit|'.'|'-'} ] [ '+' {alpha|digit|'.'|'-'} ]) ;
 
-ImportDecl = "import" ( StringLit | ImportBlock | ImportAlias ) ;
+ImportDecl = "import" ( StringLit | ImportBlock | ImportAlias | ImportUnquoted ) ;
 ImportAlias = identifier StringLit ;
-ImportBlock = "(" { (identifier? StringLit) } ")" ;
+ImportUnquoted = ModulePath [ Constraint ] ;
+ImportBlock = "(" { (identifier? StringLit) | (ModulePath [ Constraint ]) } ")" ;
+Constraint = ">=" Version ;
+ModulePath = identifier { ( "/" identifier ) | ( "." identifier ) | ( "-" identifier ) } ;
 
 TopDecl = FuncDecl | PipelineDecl ;
 

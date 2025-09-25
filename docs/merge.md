@@ -55,7 +55,7 @@ Note: examples are illustrative and show intended AMI syntax. Normal/verbose whi
 ### 1) Time‑sorted Collect with stable ordering and watermark
 
 ```
-package main
+package main:0.0.1
 
 func parse(ctx Context, ev Event<string>, st State) Event<Log> {}
 func sink(ctx Context, ev Event<Log>, st State) Ack {}
@@ -83,7 +83,7 @@ pipeline Logs {
 ### 2) Descending severity with bounded drop buffer
 
 ```
-package main
+package main:0.0.1
 
 func normalize(ctx Context, ev Event<string>, st State) Event<Alert> {}
 func alertSink(ctx Context, ev Event<Alert>, st State) Ack {}
@@ -106,7 +106,7 @@ pipeline Alerts {
 ### 3) Partitioned merge by tenant with per‑partition sort by id
 
 ```
-package main
+package main:0.0.1
 
 func decode(ctx Context, ev Event<string>, st State) Event<Record> {}
 func out(ctx Context, ev Event<Record>, st State) Ack {}

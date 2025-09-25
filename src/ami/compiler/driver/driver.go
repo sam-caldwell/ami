@@ -42,8 +42,9 @@ func Compile(files []string, opts Options) (Result, error) {
 
         // Lower to IR and convert to schema
         irMod := irpkg.FromASTFile(pkgName, f, fileAST)
-        // Apply pragma-derived attributes
+        // Apply pragma-derived attributes and lower pipelines for worker/factory info
         irMod.ApplyDirectives(fileAST.Directives)
+        irMod.LowerPipelines(fileAST)
         irOut := irMod.ToSchema()
         res.IR = append(res.IR, irOut)
 

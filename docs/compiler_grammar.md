@@ -31,3 +31,7 @@ StringLit = '"' { character | escape } '"' ;
 This grammar is intentionally permissive in `ParamList`, `ResultList`, and `ArgList` to allow the parser to advance and
 collect errors without requiring a complete type system.
 
+Note on `edge.*` constructs:
+- Within node argument lists, authors may specify declarative edge specifications such as `edge.FIFO(...)`, `edge.LIFO(...)`, or `edge.Pipeline(...)`.
+- These are compiler-generated artifacts, not runtime function calls. The compiler recognizes them and emits high-performance queue/bridge implementations during code generation.
+- See `docs/edges.md` for semantics and performance considerations.

@@ -2,6 +2,7 @@ package parser
 
 import (
     "strings"
+    "unicode"
 
     astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/diag"
@@ -177,7 +178,7 @@ func (p *Parser) ParseFile() *astpkg.File {
             p.synchronize()
             continue
         }
-        // func declaration scaffold: func IDENT (...) { ... }
+        // func declaration: func IDENT (params) [result] { ... }
         if p.cur.Kind == tok.KW_FUNC {
             p.next()
             name := ""
@@ -189,22 +190,20 @@ func (p *Parser) ParseFile() *astpkg.File {
                 p.errorf("expected function name") 
             }
             // params
+            var params []astpkg.Param
+            var results []astpkg.TypeRef
             if p.cur.Kind == tok.LPAREN {
-                depth := 1; p.next()
-                for depth > 0 && p.cur.Kind != tok.EOF {
-                    if p.cur.Kind == tok.LPAREN { depth++ }
-                    if p.cur.Kind == tok.RPAREN { depth--; if depth==0 { p.next(); break } }
-                    p.next()
-                }
+                p.next()
+                params = p.parseParamList()
+                if p.cur.Kind == tok.RPAREN { p.next() }
             }
-            // optional result list (skip naive)
+            // optional result list or single type
             if p.cur.Kind == tok.LPAREN { // tuple
-                depth := 1; p.next()
-                for depth > 0 && p.cur.Kind != tok.EOF {
-                    if p.cur.Kind == tok.LPAREN { depth++ }
-                    if p.cur.Kind == tok.RPAREN { depth--; if depth==0 { p.next(); break } }
-                    p.next()
-                }
+                p.next()
+                results = p.parseResultList()
+                if p.cur.Kind == tok.RPAREN { p.next() }
+            } else {
+                if tr, ok := p.parseType(); ok { results = append(results, tr) }
             }
             // body block
             if p.cur.Kind == tok.LBRACE {
@@ -215,7 +214,7 @@ func (p *Parser) ParseFile() *astpkg.File {
                     p.next()
                 }
             } else { p.errorf("expected function body") }
-            fd := astpkg.FuncDecl{Name: name}
+            fd := astpkg.FuncDecl{Name: name, Params: params, Result: results}
             f.Decls = append(f.Decls, fd)
             f.Stmts = append(f.Stmts, fd)
             if p.cur.Kind != tok.SEMI && p.cur.Kind != tok.KW_FUNC {
@@ -294,6 +293,7 @@ func (p *Parser) parseNodeCall() (astpkg.NodeCall, bool) {
     // parse arguments as raw strings; handle nesting and commas at depth=1
     p.next() // consume '('
     args := []string{}
+    workers := []astpkg.WorkerRef{}
     var buf strings.Builder
     depth := 1
     for p.cur.Kind != tok.EOF && depth > 0 {
@@ -306,7 +306,10 @@ func (p *Parser) parseNodeCall() (astpkg.NodeCall, bool) {
             depth--
             if depth == 0 { // finish current arg if non-empty
                 s := strings.TrimSpace(buf.String())
-                if s != "" { args = append(args, s) }
+                if s != "" {
+                    args = append(args, s)
+                    if w, ok := parseWorkerRef(s); ok { workers = append(workers, w) }
+                }
                 buf.Reset()
                 p.next()
                 break
@@ -317,6 +320,7 @@ func (p *Parser) parseNodeCall() (astpkg.NodeCall, bool) {
             if depth == 1 {
                 s := strings.TrimSpace(buf.String())
                 args = append(args, s)
+                if w, ok := parseWorkerRef(s); ok { workers = append(workers, w) }
                 buf.Reset()
                 p.next()
                 continue
@@ -328,7 +332,7 @@ func (p *Parser) parseNodeCall() (astpkg.NodeCall, bool) {
             p.next()
         }
     }
-    return astpkg.NodeCall{Name: name, Args: args}, true
+    return astpkg.NodeCall{Name: name, Args: args, Workers: workers}, true
 }
 
 // ExtractImports finds import paths in a minimal Go-like syntax:
@@ -347,8 +351,99 @@ func ExtractImports(src string) []string {
 }
 
 func unquote(s string) string {
-	if len(s) >= 2 && strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"") {
-		return s[1 : len(s)-1]
-	}
-	return s
+    if len(s) >= 2 && strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"") {
+        return s[1 : len(s)-1]
+    }
+    return s
+}
+
+// parseWorkerRef tries to interpret an argument string as a worker/factory reference.
+func parseWorkerRef(s string) (astpkg.WorkerRef, bool) {
+    // name or name(...)
+    name := s
+    hasCall := false
+    if i := strings.IndexRune(s, '('); i >= 0 {
+        name = strings.TrimSpace(s[:i])
+        hasCall = true
+    }
+    if !isIdentLexeme(name) { return astpkg.WorkerRef{}, false }
+    kind := "function"
+    if hasCall || strings.HasPrefix(name, "New") { kind = "factory" }
+    return astpkg.WorkerRef{Name: name, Kind: kind}, true
+}
+
+func isIdentLexeme(s string) bool {
+    if s == "" { return false }
+    r0 := []rune(s)[0]
+    if !(unicode.IsLetter(r0) || r0 == '_') { return false }
+    for _, r := range s[1:] {
+        if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_') { return false }
+    }
+    return true
+}
+
+// parseParamList parses zero or more parameters until ')'
+func (p *Parser) parseParamList() []astpkg.Param {
+    var params []astpkg.Param
+    for p.cur.Kind != tok.RPAREN && p.cur.Kind != tok.EOF {
+        if p.cur.Kind == tok.COMMA { p.next(); continue }
+        var name string
+        if p.cur.Kind == tok.IDENT {
+            ident := p.cur.Lexeme
+            // try to parse type after ident
+            // save position by making a copy of parser state is complex; instead try parseType and if fails treat as type-only
+            p.next()
+            if tr, ok := p.parseType(); ok {
+                name = ident
+                params = append(params, astpkg.Param{Name: name, Type: tr})
+            } else {
+                // ident was a type name
+                params = append(params, astpkg.Param{Name: "", Type: astpkg.TypeRef{Name: ident}})
+            }
+        } else {
+            if tr, ok := p.parseType(); ok {
+                params = append(params, astpkg.Param{Name: "", Type: tr})
+            } else {
+                p.next()
+            }
+        }
+        if p.cur.Kind == tok.COMMA { p.next() }
+    }
+    return params
+}
+
+func (p *Parser) parseResultList() []astpkg.TypeRef {
+    var results []astpkg.TypeRef
+    for p.cur.Kind != tok.RPAREN && p.cur.Kind != tok.EOF {
+        if p.cur.Kind == tok.COMMA { p.next(); continue }
+        if tr, ok := p.parseType(); ok { results = append(results, tr) } else { p.next() }
+        if p.cur.Kind == tok.COMMA { p.next() }
+    }
+    return results
+}
+
+// parseType parses '*'? '[]'? IDENT ('<' Type {',' Type } '>')?
+func (p *Parser) parseType() (astpkg.TypeRef, bool) {
+    var tr astpkg.TypeRef
+    // pointer
+    if p.cur.Kind == tok.STAR { tr.Ptr = true; p.next() }
+    // slice []
+    if p.cur.Kind == tok.LBRACK {
+        p.next()
+        if p.cur.Kind == tok.RBRACK { tr.Slice = true; p.next() }
+    }
+    if p.cur.Kind != tok.IDENT { return tr, false }
+    tr.Name = p.cur.Lexeme
+    p.next()
+    // generics
+    if p.cur.Kind == tok.LT {
+        p.next()
+        for p.cur.Kind != tok.EOF {
+            if p.cur.Kind == tok.GT { p.next(); break }
+            if p.cur.Kind == tok.COMMA { p.next(); continue }
+            if arg, ok := p.parseType(); ok { tr.Args = append(tr.Args, arg); continue }
+            p.next()
+        }
+    }
+    return tr, true
 }

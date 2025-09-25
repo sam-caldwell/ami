@@ -38,7 +38,12 @@ type FuncDecl struct {
 func (FuncDecl) isNode() {}
 
 type Param struct { Name string; Type TypeRef }
-type TypeRef struct { Name string }
+type TypeRef struct {
+    Name  string
+    Args  []TypeRef // generic arguments, e.g., Event<T>
+    Ptr   bool      // pointer
+    Slice bool      // slice []
+}
 
 // EnumDecl scaffold
 type EnumDecl struct { Name string; Members []EnumMember }
@@ -64,6 +69,14 @@ func (PipelineDecl) isNode() {}
 type NodeCall struct {
     Name string
     Args []string // raw argument expressions (scaffold)
+    Workers []WorkerRef
+}
+
+// WorkerRef represents a referenced worker in a pipeline step argument list.
+// Kind is "function" or "factory".
+type WorkerRef struct {
+    Name string
+    Kind string
 }
 
 // Directive captures a top-level `#pragma` directive and payload.

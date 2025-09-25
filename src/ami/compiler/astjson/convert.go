@@ -38,6 +38,11 @@ func ToSchemaAST(file *astpkg.File, filePath string) sch.ASTV1 {
                 call := sch.ASTNode{Kind: "NodeCall", Pos: sch.Position{Line: 1, Column: 1, Offset: 0}}
                 fields := map[string]interface{}{"name": st.Name}
                 if len(st.Args) > 0 { fields["args"] = st.Args }
+                if len(st.Workers) > 0 {
+                    var ws []map[string]string
+                    for _, w := range st.Workers { ws = append(ws, map[string]string{"name": w.Name, "kind": w.Kind}) }
+                    fields["workers"] = ws
+                }
                 call.Fields = fields
                 pd.Children = append(pd.Children, call)
             }
@@ -48,6 +53,11 @@ func ToSchemaAST(file *astpkg.File, filePath string) sch.ASTV1 {
                     call := sch.ASTNode{Kind: "NodeCall", Pos: sch.Position{Line: 1, Column: 1, Offset: 0}}
                     fields := map[string]interface{}{"name": st.Name}
                     if len(st.Args) > 0 { fields["args"] = st.Args }
+                    if len(st.Workers) > 0 {
+                        var ws []map[string]string
+                        for _, w := range st.Workers { ws = append(ws, map[string]string{"name": w.Name, "kind": w.Kind}) }
+                        fields["workers"] = ws
+                    }
                     call.Fields = fields
                     errNode.Children = append(errNode.Children, call)
                 }

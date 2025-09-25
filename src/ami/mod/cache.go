@@ -51,6 +51,10 @@ func saveSum(path string, s *Sum) error {
     return os.Rename(tmp, path)
 }
 
+// Expose helpers for CLI without exporting internals broadly
+func LoadSumForCLI(path string) (*Sum, error) { return loadSum(path) }
+func CommitDigestForCLI(repoPath, tag string) (string, error) { return commitDigest(repoPath, tag) }
+
 // Get fetches a package given a URL (git+ssh://host/path#tag or ./localpath)
 func Get(url string) (string, error) {
     cache, err := CacheDir()
@@ -146,5 +150,3 @@ func copyDir(src, dst string) error {
 }
 
 // Expose helpers for CLI without exporting internals broadly
-func LoadSumForCLI(path string) (*Sum, error) { return loadSum(path) }
-func CommitDigestForCLI(repoPath, tag string) (string, error) { return commitDigest(repoPath, tag) }

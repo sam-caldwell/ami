@@ -5,6 +5,7 @@ import (
 	"github.com/sam-caldwell/ami/src/internal/logger"
 	"github.com/spf13/cobra"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -38,10 +39,30 @@ var cmdModGet = &cobra.Command{
 	Short: "Fetch a package into the cache",
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		dest, err := ammod.Get(args[0])
+		u := args[0]
+		dest, err := ammod.Get(u)
 		if err != nil {
-			logger.Error(err.Error(), map[string]interface{}{"url": args[0]})
+			logger.Error(err.Error(), map[string]interface{}{"url": u})
 			return
+		}
+
+		if strings.HasPrefix(u, "git+ssh://") {
+			raw := strings.TrimPrefix(u, "git+")
+			tag := ""
+			if i := strings.Index(raw, "#"); i >= 0 {
+				tag = raw[i+1:]
+				raw = raw[:i]
+			}
+			if tag != "" {
+				if parsed, perr := url.Parse(raw); perr == nil {
+					host := parsed.Host
+					repoPath := strings.TrimSuffix(strings.TrimPrefix(parsed.Path, "/"), ".git")
+					pkg := filepath.Join(host, repoPath)
+					if uerr := ammod.UpdateSum("ami.sum", pkg, tag, dest, tag); uerr != nil {
+						logger.Warn("failed to update ami.sum", map[string]interface{}{"error": uerr.Error()})
+					}
+				}
+			}
 		}
 		logger.Info("fetched", map[string]interface{}{"dest": dest})
 	},
@@ -86,9 +107,28 @@ var cmdModVerify = &cobra.Command{
 			return
 		}
 		ok := true
-		_ = cacheDir
-		_ = sum
-		_ = ok
-		logger.Info("ami mod verify: not yet implemented", nil)
+		for pkg, vers := range sum.Packages {
+			base := filepath.Base(pkg)
+			for ver, digest := range vers {
+				entry := filepath.Join(cacheDir, base+"@"+ver)
+				fi, err := os.Stat(entry)
+				if err != nil || !fi.IsDir() {
+					ok = false
+					logger.Error("cache entry missing", map[string]interface{}{"pkg": pkg, "version": ver, "path": entry})
+					continue
+				}
+				d2, err := ammod.CommitDigestForCLI(entry, ver)
+				if err != nil {
+					ok = false
+					logger.Error("digest compute failed", map[string]interface{}{"pkg": pkg, "version": ver, "error": err.Error()})
+					continue
+				}
+				if d2 != digest {
+					ok = false
+					logger.Error("digest mismatch", map[string]interface{}{"pkg": pkg, "version": ver})
+				}
+			}
+		}
+		if ok { logger.Info("ami.sum verified", nil) }
 	},
 }

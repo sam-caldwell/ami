@@ -49,3 +49,24 @@ func main() { /* body */ }
     }
     if count != 1 { t.Fatalf("expected 1 FuncDecl; got %d", count) }
 }
+
+func TestParsePipeline_Chain_DotAndArrow(t *testing.T) {
+    src := `package pkg
+pipeline P {
+  Ingress(cfg).Transform(f).FanOut(a,b).Collect().Egress(cfg)
+}
+pipeline Q {
+  Ingress(cfg) -> Transform(f) -> Egress(cfg)
+}`
+    p := New(src)
+    f := p.ParseFile()
+    var ps []astpkg.PipelineDecl
+    for _, d := range f.Decls {
+        if pd, ok := d.(astpkg.PipelineDecl); ok { ps = append(ps, pd) }
+    }
+    if len(ps) != 2 { t.Fatalf("expected 2 pipelines; got %d", len(ps)) }
+    if ps[0].Name != "P" || len(ps[0].Steps) != 5 { t.Fatalf("pipeline P steps=%d", len(ps[0].Steps)) }
+    if ps[0].Steps[0].Name != "Ingress" || ps[0].Steps[4].Name != "Egress" { t.Fatalf("unexpected step names in P") }
+    if ps[1].Name != "Q" || len(ps[1].Steps) != 3 { t.Fatalf("pipeline Q steps=%d", len(ps[1].Steps)) }
+    if ps[1].Connectors[0] != "->" || ps[1].Connectors[1] != "->" { t.Fatalf("expected arrow connectors in Q") }
+}

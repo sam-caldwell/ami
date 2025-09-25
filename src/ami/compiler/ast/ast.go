@@ -50,5 +50,15 @@ type Field struct { Name string; Type TypeRef }
 func (StructDecl) isNode() {}
 
 // PipelineDecl scaffold: e.g., Pipeline(name) { ... }
-type PipelineDecl struct { Name string }
+type PipelineDecl struct {
+    Name       string
+    Steps      []NodeCall
+    Connectors []string // between steps: "." or "->"
+}
 func (PipelineDecl) isNode() {}
+
+// NodeCall represents a node invocation in a pipeline chain.
+type NodeCall struct {
+    Name string
+    Args []string // raw argument expressions (scaffold)
+}

@@ -186,15 +186,16 @@ func (s *Scanner) skipSpaceAndComments() {
         }
         // line comment //...
         if r == '/' && s.peekRune() == '/' {
-            // consume until newline or end
-            for s.off < len(s.src) {
-                r2, w2 := utf8.DecodeRuneInString(s.src[s.off:])
-                s.off += w2
-                if r2 == '\n' {
-                    s.line++
-                    s.column = 1
-                    break
-                }
+            // skip '//'
+            s.off += 2
+            // find next newline
+            if idx := strings.IndexByte(s.src[s.off:], '\n'); idx >= 0 {
+                s.off += idx + 1
+                s.line++
+                s.column = 1
+            } else {
+                // no newline; consume to end
+                s.off = len(s.src)
             }
             continue
         }
@@ -202,19 +203,20 @@ func (s *Scanner) skipSpaceAndComments() {
         if r == '/' && s.peekRune() == '*' {
             // skip '/*'
             s.off += 2
-            for s.off < len(s.src) {
-                r2, w2 := utf8.DecodeRuneInString(s.src[s.off:])
-                if r2 == '\n' {
-                    s.line++
+            // find closing '*/'
+            if idx := strings.Index(s.src[s.off:], "*/"); idx >= 0 {
+                segment := s.src[s.off : s.off+idx]
+                // count newlines to adjust line/column
+                if nl := strings.Count(segment, "\n"); nl > 0 {
+                    s.line += nl
                     s.column = 1
-                    s.off += w2
-                    continue
+                } else {
+                    s.column += len(segment)
                 }
-                if r2 == '*' && s.peekRune() == '/' {
-                    s.off += 2
-                    break
-                }
-                s.off += w2
+                s.off += idx + 2
+            } else {
+                // unterminated; consume to end
+                s.off = len(s.src)
             }
             continue
         }

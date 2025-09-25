@@ -252,7 +252,15 @@ func semverLess(a, b string) bool {
     pb := parseSemVer(b)
     if pa[0] != pb[0] { return pa[0] < pb[0] }
     if pa[1] != pb[1] { return pa[1] < pb[1] }
-    return pa[2] < pb[2]
+    if pa[2] != pb[2] { return pa[2] < pb[2] }
+    // tie-breaker on prerelease: prerelease < release
+    apre := prerelease(a)
+    bpre := prerelease(b)
+    if apre == "" && bpre == "" { return false }
+    if apre == "" && bpre != "" { return false } // a is release, not less
+    if apre != "" && bpre == "" { return true }  // a is prerelease, less than release
+    // both prereleases: lexical compare as a simple deterministic order
+    return apre < bpre
 }
 
 func parseSemVer(v string) [3]int {
@@ -269,6 +277,14 @@ func parseSemVer(v string) [3]int {
         _ = n
     }
     return out
+}
+
+// prerelease returns the prerelease portion (without '-') if present, else empty string.
+func prerelease(v string) string {
+    v = strings.TrimPrefix(v, "v")
+    if i := strings.Index(v, "+"); i >= 0 { v = v[:i] }
+    if i := strings.Index(v, "-"); i >= 0 { return v[i+1:] }
+    return ""
 }
 
 // commitDigest computes SHA-256 of the raw commit object for the tag.
@@ -323,6 +339,13 @@ func resolveConstraint(sshURL, cons string) (string, error) {
     refs, err := r.List(&git.ListOptions{Auth: auth})
     if err != nil { return "", err }
     tags := collectSemverTags(refs)
+    // Exclude prereleases by default unless constraint specifies a prerelease
+    allowPre := hasPrereleaseInConstraint(cons)
+    if !allowPre {
+        filt := tags[:0]
+        for _, t := range tags { if !isPrerelease(t) { filt = append(filt, t) } }
+        tags = filt
+    }
     if len(tags)==0 { return "", errors.New("no semver tags found") }
     sortSemver(tags)
     var filt []string
@@ -362,6 +385,17 @@ func collectSemverTags(refs []*plumbing.Reference) []string {
 
 func sortSemver(tags []string) {
     sort.Slice(tags, func(i,j int) bool { return semverLess(tags[i], tags[j]) })
+}
+
+// hasPrereleaseInConstraint returns true if the version part of the constraint
+// includes a prerelease identifier (contains a '-').
+func hasPrereleaseInConstraint(cons string) bool {
+    cons = strings.TrimSpace(cons)
+    base := cons
+    for _, p := range []string{">=", ">", "^", "~"} {
+        if strings.HasPrefix(base, p) { base = strings.TrimSpace(strings.TrimPrefix(base, p)); break }
+    }
+    return strings.Contains(base, "-")
 }
 
 // latestTagLocal returns the latest non-prerelease semver tag from a local repository path.

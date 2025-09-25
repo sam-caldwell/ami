@@ -30,7 +30,7 @@ type IRInstr struct {
 
 // IRParam describes a function parameter in the IR with light annotations
 // useful for memory model analysis and tooling.
-// - Type: rendered type string, e.g., "Event<string>", "*State", "Owned<T>".
+// - Type: rendered type string, e.g., "Event<string>", "State", "Owned<T>".
 // - Ownership: "owned" when parameter type is Owned<…>, otherwise "borrowed".
 // - Domain: one of "event", "state", "ephemeral" where applicable.
 type IRParam struct {

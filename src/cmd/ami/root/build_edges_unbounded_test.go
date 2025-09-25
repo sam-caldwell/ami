@@ -13,6 +13,7 @@ import (
 
 // Assert an unbounded edge (maxCapacity=0) emits bounded=false and delivery=bestEffort (backpressure=drop).
 func TestBuild_Edges_UnboundedBestEffort(t *testing.T) {
+    t.Setenv("AMI_SEM_DIAGS", "0")
     tmp := t.TempDir()
     t.Setenv("HOME", tmp)
     _, restore := testutil.ChdirToBuildTest(t)
@@ -39,7 +40,7 @@ packages:
     if err := os.WriteFile("ami.workspace", []byte(wsContent), 0o644); err != nil { t.Fatalf("write workspace: %v", err) }
     if err := os.MkdirAll("src", 0o755); err != nil { t.Fatalf("mkdir src: %v", err) }
     src := `package main
-func f(Context, Event<string>, *State) Event<string> { }
+func f(ctx Context, ev Event<string>, st *State) Event<string> { }
 pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=drop,type=string)) }
 `
     if err := os.WriteFile(filepath.Join("src","main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write src: %v", err) }
@@ -69,4 +70,3 @@ pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapa
     }
     if !ok { t.Fatalf("expected FIFO edge P.step2.in with bounded=false bestEffort in edges.json; got: %+v", edges.Items) }
 }
-

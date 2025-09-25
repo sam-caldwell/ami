@@ -15,18 +15,20 @@ type Module struct {
     Package   string
     Unit      string // file path
     Functions []Function
+    AST       *astpkg.File
     // Directive-derived attributes (scaffold)
     Concurrency int
     Capabilities []string
     Trust        string
     Backpressure string
     Scheduling   string
+    Telemetry    []string
     Pipelines    []PipelineIR
 }
 
 // FromASTFile builds a simple IR module enumerating function declarations.
 func FromASTFile(pkg, unit string, f *astpkg.File) Module {
-    m := Module{Package: pkg, Unit: unit}
+    m := Module{Package: pkg, Unit: unit, AST: f}
     for _, d := range f.Decls {
         if fd, ok := d.(astpkg.FuncDecl); ok {
             m.Functions = append(m.Functions, Function{Name: fd.Name})
@@ -51,6 +53,14 @@ func (m *Module) ApplyDirectives(dirs []astpkg.Directive) {
             m.Backpressure = strings.TrimSpace(d.Payload)
         case "scheduling", "schedule":
             m.Scheduling = strings.ToLower(strings.TrimSpace(d.Payload))
+        case "telemetry":
+            // payload is comma or space separated tokens; normalize to lower-case
+            payload := strings.ReplaceAll(strings.TrimSpace(d.Payload), ",", " ")
+            fields := strings.Fields(payload)
+            for _, f := range fields {
+                f = strings.ToLower(strings.TrimSpace(f))
+                if f != "" { m.Telemetry = append(m.Telemetry, f) }
+            }
         }
     }
 }
@@ -64,8 +74,37 @@ func splitCSV(s string) []string {
 // ToSchema converts the module into a schemas.IRV1 for debug output.
 func (m Module) ToSchema() sch.IRV1 {
     out := sch.IRV1{Schema: "ir.v1", Package: m.Package, File: m.Unit}
+    // Build a name→FuncDecl map for parameter introspection if AST present.
+    fdecls := map[string]astpkg.FuncDecl{}
+    if m.AST != nil {
+        for _, d := range m.AST.Decls { if fd, ok := d.(astpkg.FuncDecl); ok { fdecls[fd.Name] = fd } }
+    }
     for _, fn := range m.Functions {
-        out.Functions = append(out.Functions, sch.IRFunction{Name: fn.Name, Blocks: []sch.IRBlock{{Label: "entry"}}})
+        irfn := sch.IRFunction{Name: fn.Name, Blocks: []sch.IRBlock{{Label: "entry"}}}
+        if fd, ok := fdecls[fn.Name]; ok {
+            for _, p := range fd.Params {
+                dom := ""
+                switch {
+                case strings.ToLower(p.Type.Name) == "event":
+                    dom = "event"
+                case p.Type.Name == "State" && p.Type.Ptr:
+                    dom = "state"
+                default:
+                    dom = "ephemeral"
+                }
+                own := "borrowed"
+                if strings.ToLower(p.Type.Name) == "owned" && len(p.Type.Args) == 1 {
+                    own = "owned"
+                }
+                irfn.Params = append(irfn.Params, sch.IRParam{
+                    Name: p.Name,
+                    Type: typeRefToString(p.Type),
+                    Ownership: own,
+                    Domain: dom,
+                })
+            }
+        }
+        out.Functions = append(out.Functions, irfn)
     }
     return out
 }

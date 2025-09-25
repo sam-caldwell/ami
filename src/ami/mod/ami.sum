@@ -1,0 +1,17 @@
+{
+  "schema": "ami.sum/v1",
+  "packages": {
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2655121466/002/absrepo": {
+      "v1.0.0": "89646b6b6172c7c18d9eb76accd93d39fac56c91e600fed15a6c8872a2425d10"
+    },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion274897012/002/absrepo": {
+      "v1.0.0": "486fadac6c2d5b6744e9199de7d6412b2d4fe50e35c047e92d37d3166a39a8ce"
+    },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion3484084705/002/absrepo": {
+      "v1.0.0": "ce91e6bbf9ae270870bf0847d45723a08899d9d7b9a29dc5f35c1b24e0dabc28"
+    },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion3990121141/002/absrepo": {
+      "v1.0.0": "26eaa564f2d9d33ac63f3e9b54872afd308ef28144fad9ff50dae95c72824e6d"
+    }
+  }
+}

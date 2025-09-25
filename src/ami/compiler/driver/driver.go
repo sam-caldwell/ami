@@ -7,10 +7,14 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     astjson "github.com/sam-caldwell/ami/src/ami/compiler/astjson"
     sch "github.com/sam-caldwell/ami/src/schemas"
+    cdiag "github.com/sam-caldwell/ami/src/ami/compiler/diag"
+    "github.com/sam-caldwell/ami/src/ami/compiler/sem"
 )
 
-// Options placeholder for future flags
-type Options struct{}
+// Options controls driver behaviors
+type Options struct{
+    SemDiags bool
+}
 
 // ASMUnit contains generated assembly text for a compilation unit.
 type ASMUnit struct {
@@ -28,13 +32,24 @@ type Result struct {
     ASM []ASMUnit // assembly text per unit
 }
 
-// Compile parses, lowers to IR, and generates assembly text deterministically.
-func Compile(files []string, opts Options) (Result, error) {
+// CompileWithDiagnostics is like Compile but also returns parser/driver diagnostics.
+func CompileWithDiagnostics(files []string, opts Options) (Result, []cdiag.Diagnostic, error) {
     res := Result{}
+    var diags []cdiag.Diagnostic
     for _, f := range files {
         // Parse to internal AST
         p := parser.New(mustReadFile(f))
         fileAST := p.ParseFile()
+        // collect any parse diagnostics and attach file path
+        if errs := p.Errors(); len(errs) > 0 {
+            for _, d := range errs { d.File = f; diags = append(diags, d) }
+        }
+        // Optional: include semantic diagnostics
+        if opts.SemDiags {
+            if sres := sem.AnalyzeFile(fileAST); len(sres.Diagnostics) > 0 {
+                for _, d := range sres.Diagnostics { if d.File == "" { d.File = f }; diags = append(diags, d) }
+            }
+        }
         pkgName := fileAST.Package
         if pkgName == "" { pkgName = "main" }
 
@@ -71,7 +86,13 @@ func Compile(files []string, opts Options) (Result, error) {
         }
         res.EventMeta = append(res.EventMeta, em)
     }
-    return res, nil
+    return res, diags, nil
+}
+
+// Compile parses, lowers to IR, and generates assembly text deterministically.
+func Compile(files []string, opts Options) (Result, error) {
+    res, _, err := CompileWithDiagnostics(files, opts)
+    return res, err
 }
 
 // mustReadFile returns source or empty string on error; build path already validated by caller.
@@ -85,3 +106,6 @@ func mustReadFile(path string) string {
 
 // indirection for testing/mocking if needed in future
 var osReadFile = func(path string) ([]byte, error) { return os.ReadFile(path) }
+
+// indirection for semantic analysis to keep import surface minimal
+// no indirection required for sem

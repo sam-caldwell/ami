@@ -36,6 +36,6 @@ Rules:
 - Verify dependency digests: `./build/ami mod verify`
 - Build: `./build/ami build` (use `--verbose` for debug artifacts)
 - Print version: `./build/ami version` (works with `--json`)
+ - Test: `./build/ami test ./...` (use `--json` for event stream)
 
 For details on each command, see the files in `docs/` like `mod.md`, `build.md`, and `workspace.md`.
-

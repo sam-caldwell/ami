@@ -34,7 +34,8 @@ type FuncDecl struct {
     Params []Param
     Result []TypeRef
     // Body is omitted in scaffold; parser skips over it
-    Body   []tok.Token // captured tokens for simple semantic checks (e.g., mutability)
+    Body      []tok.Token // captured tokens for simple semantic checks (e.g., mutability)
+    BodyStmts []Stmt      // simple statement AST parsed from tokens (scaffold)
 }
 func (FuncDecl) isNode() {}
 
@@ -104,6 +105,30 @@ func (BasicLit) isExpr() {}
 
 type CallExpr struct { Fun Expr; Args []Expr }
 func (CallExpr) isExpr() {}
+
+// UnaryExpr represents a simple unary operation like &x or *p
+type UnaryExpr struct { Op string; X Expr }
+func (UnaryExpr) isExpr() {}
+
+// SelectorExpr represents a qualified selector: recv.method
+type SelectorExpr struct { X Expr; Sel string }
+func (SelectorExpr) isExpr() {}
+
+// --- Simple statement nodes for function bodies ---
+
+type Stmt interface{ isStmt() }
+
+type ExprStmt struct { X Expr }
+func (ExprStmt) isStmt() {}
+
+type AssignStmt struct { LHS Expr; RHS Expr }
+func (AssignStmt) isStmt() {}
+
+type BlockStmt struct { Stmts []Stmt }
+func (BlockStmt) isStmt() {}
+
+type MutBlockStmt struct { Body BlockStmt }
+func (MutBlockStmt) isStmt() {}
 
 // EdgeSpec captures an explicit edge with policy/config (future use).
 type EdgeSpec struct {

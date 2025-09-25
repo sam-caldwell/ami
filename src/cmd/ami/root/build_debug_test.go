@@ -44,6 +44,7 @@ func fileSHA256Test(path string) (string, int64, error) {
 }
 
 func TestBuildDebugArtifacts_SchemasAndSha256(t *testing.T) {
+    t.Setenv("AMI_SEM_DIAGS", "0")
     tmp := t.TempDir()
     t.Setenv("HOME", tmp)
     _, restore := testutil.ChdirToBuildTest(t)
@@ -78,7 +79,7 @@ import (
 pipeline P {
   Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=1,maxCapacity=2,backpressure=block,type=[]byte))
 }
-func f(Context, Event<string>, *State) Event<string> { }
+func f(ctx Context, ev Event<string>, st *State) Event<string> { }
 `
     if err := os.WriteFile(filepath.Join("src","main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write src: %v", err) }
 

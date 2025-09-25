@@ -94,6 +94,71 @@ func newBuildCmd() *cobra.Command {
                 Steps:   []string{"parse","typecheck","ir","codegen"},
             })
         }
+
+        // Guarded I/O: ensure each declared file is readable; emit JSON diag and exit 2 on failure
+        for _, f := range allFiles {
+            if _, err := os.ReadFile(f); err != nil {
+                if flagJSON {
+                    d := sch.DiagV1{Schema: "diag.v1", Timestamp: sch.FormatTimestamp(nowUTC()), Level: "error", Code: "E_SYS_IO", Message: fmt.Sprintf("failed to read source: %v", err), File: f}
+                    if d.Validate() == nil { _ = json.NewEncoder(os.Stdout).Encode(d) }
+                } else {
+                    fmt.Fprintln(os.Stderr, fmt.Sprintf("system I/O error: failed to read %s: %v", f, err))
+                }
+                os.Exit(ex.SystemIOError)
+            }
+        }
+
+        // Parse/compile once to surface syntax errors early (regardless of verbosity)
+        var compRes driver.Result
+        if len(allFiles) > 0 {
+            // Enable semantic diagnostics by default; allow opt-out via AMI_SEM_DIAGS=0/false
+            semEnabled := true
+            if v := os.Getenv("AMI_SEM_DIAGS"); v == "0" || strings.EqualFold(v, "false") { semEnabled = false }
+            if r, diags, _ := driver.CompileWithDiagnostics(allFiles, driver.Options{SemDiags: semEnabled}); true {
+                compRes = r
+                if len(diags) > 0 {
+                    // Emit diagnostics and exit with USER_ERROR
+                    if flagJSON {
+                        enc := json.NewEncoder(os.Stdout)
+                        for _, d := range diags { _ = enc.Encode(d.ToSchema()) }
+                    } else {
+                        for _, d := range diags { logger.Error(d.Message, map[string]interface{}{"code": d.Code, "file": d.File}) }
+                    }
+                    os.Exit(ex.UserError)
+                }
+            }
+        }
+
+        // Produce non-debug build outputs (scaffold): write per-unit ASM into build/obj/<pkg>/<unit>.s
+        if len(compRes.ASM) > 0 {
+            _ = os.MkdirAll(filepath.Join("build","obj"), 0o755)
+            // collect per-package index entries
+            type objFile struct{ Unit, Path string; Size int64; Sha256 string }
+            byPkg := map[string][]objFile{}
+            for _, unit := range compRes.ASM {
+                pkgDir := filepath.Join("build","obj", unit.Package)
+                _ = os.MkdirAll(pkgDir, 0o755)
+                base := filepath.Base(unit.Unit)
+                out := filepath.Join(pkgDir, base+".s")
+                content := []byte(unit.Text)
+                _ = os.WriteFile(out, content, 0o644)
+                logger.Info("build.obj.artifact", map[string]interface{}{"path": out})
+                size := int64(len(content))
+                sum := sha256.Sum256(content)
+                byPkg[unit.Package] = append(byPkg[unit.Package], objFile{Unit: unit.Unit, Path: out, Size: size, Sha256: hex.EncodeToString(sum[:])})
+            }
+            // write per-package indexes using schema
+            for pkg, files := range byPkg {
+                // convert to schema files
+                var outFiles []sch.ObjFile
+                for _, f := range files { outFiles = append(outFiles, sch.ObjFile{Unit: f.Unit, Path: f.Path, Size: f.Size, Sha256: f.Sha256}) }
+                idx := sch.ObjIndexV1{Schema: "objindex.v1", Timestamp: sch.FormatTimestamp(nowUTC()), Package: pkg, Files: outFiles}
+                if idx.Validate() == nil {
+                    b, _ := json.MarshalIndent(idx, "", "  ")
+                    _ = os.WriteFile(filepath.Join("build","obj", pkg, "index.json"), b, 0o644)
+                }
+            }
+        }
 		if buildVerbose {
 			_ = os.MkdirAll("build/debug/source", 0755)
 			_ = os.MkdirAll("build/debug/ast", 0755)
@@ -102,13 +167,13 @@ func newBuildCmd() *cobra.Command {
 			// Resolved sources and compiler driver scaffolds
 			resolved := sch.SourcesV1{Schema: "sources.v1", Units: []sch.SourceUnit{}}
 			var files []string
-            if _, err := os.Stat("src/main.ami"); err == nil { files = append(files, "src/main.ami") }
+            files = append(files, allFiles...)
             if len(files) > 0 {
 				srcBytes, _ := os.ReadFile(files[0])
                 imports := parser.ExtractImports(string(srcBytes))
                 resolved.Units = append(resolved.Units, sch.SourceUnit{Package: "main", File: files[0], Imports: imports, Source: string(srcBytes)})
-				// Use compiler driver to create AST/IR
-                res, _ := driver.Compile(files, driver.Options{})
+				// Use compiler driver result from earlier parse
+                res := compRes
                 // AST per package/unit
                 for _, a := range res.AST {
                     pkgDir := filepath.Join("build","debug","ast", a.Package)
@@ -292,6 +357,16 @@ func newBuildCmd() *cobra.Command {
                 artifacts = append(artifacts, manifest.Artifact{Path: path.p, Kind: path.kind, Size: size, Sha256: sha})
             }
         }
+        // Include non-debug obj artifacts if present
+        if matches, _ := filepath.Glob(filepath.Join("build","obj","*","*.s")); len(matches) > 0 {
+            sort.Strings(matches)
+            for _, p := range matches {
+                if fi, err := os.Stat(p); err==nil && !fi.IsDir() {
+                    sha, size, _ := fileSHA256(p)
+                    artifacts = append(artifacts, manifest.Artifact{Path: p, Kind: "obj", Size: size, Sha256: sha})
+                }
+            }
+        }
         wd, _ := os.Getwd()
         projName := filepath.Base(wd)
         projVersion := "0.0.0"
@@ -325,6 +400,7 @@ func newBuildCmd() *cobra.Command {
             logger.Error(fmt.Sprintf("failed to write ami.manifest: %v", err), nil)
             return
         }
+        // (obj index already written above)
         logger.Info("build completed (scaffold)", map[string]interface{}{"targets": len(plan.Targets)})
 	    },
     }

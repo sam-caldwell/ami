@@ -20,11 +20,12 @@ func New(src string) *Scanner { return &Scanner{src: src, line: 1, column: 1} }
 func (s *Scanner) Next() tok.Token {
     s.skipSpaceAndComments()
     if s.off >= len(s.src) {
-        return tok.Token{Kind: tok.EOF, Line: s.line, Column: s.column}
+        return tok.Token{Kind: tok.EOF, Line: s.line, Column: s.column, Offset: s.off}
     }
     // Compiler directives: #pragma <directive> [payload...] to end of line
     if strings.HasPrefix(s.src[s.off:], "#pragma") {
         startCol := s.column
+        startOff := s.off
         // consume '#pragma'
         s.off += len("#pragma")
         s.column += len("#pragma")
@@ -46,10 +47,11 @@ func (s *Scanner) Next() tok.Token {
             s.line++
             s.column = 1
         }
-        return tok.Token{Kind: tok.PRAGMA, Lexeme: lex, Line: s.line - 1, Column: startCol}
+        return tok.Token{Kind: tok.PRAGMA, Lexeme: lex, Line: s.line - 1, Column: startCol, Offset: startOff}
     }
     r, w := utf8.DecodeRuneInString(s.src[s.off:])
     startCol := s.column
+    startOff := s.off
 
     // Identifiers / keywords
     if unicode.IsLetter(r) || r == '_' {
@@ -64,9 +66,9 @@ func (s *Scanner) Next() tok.Token {
         }
         lit := s.src[start:s.off]
         if kw, ok := tok.Keywords[strings.ToLower(lit)]; ok {
-            return tok.Token{Kind: kw, Lexeme: lit, Line: s.line, Column: startCol}
+            return tok.Token{Kind: kw, Lexeme: lit, Line: s.line, Column: startCol, Offset: startOff}
         }
-        return tok.Token{Kind: tok.IDENT, Lexeme: lit, Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.IDENT, Lexeme: lit, Line: s.line, Column: startCol, Offset: startOff}
     }
 
     // Numbers (simple decimal / float)
@@ -86,7 +88,7 @@ func (s *Scanner) Next() tok.Token {
             }
             s.advance(w)
         }
-        return tok.Token{Kind: tok.NUMBER, Lexeme: s.src[start:s.off], Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.NUMBER, Lexeme: s.src[start:s.off], Line: s.line, Column: startCol, Offset: startOff}
     }
 
     // Strings (double quotes, naive escapes)
@@ -115,7 +117,7 @@ func (s *Scanner) Next() tok.Token {
             }
             s.advance(w)
         }
-        return tok.Token{Kind: tok.STRING, Lexeme: s.src[start:s.off], Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.STRING, Lexeme: s.src[start:s.off], Line: s.line, Column: startCol, Offset: startOff}
     }
 
     // Multi-char operators
@@ -123,78 +125,78 @@ func (s *Scanner) Next() tok.Token {
     if r == '-' && s.peekRune() == '>' {
         s.advance(w)
         s.advance(1)
-        return tok.Token{Kind: tok.ARROW, Lexeme: "->", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.ARROW, Lexeme: "->", Line: s.line, Column: startCol, Offset: startOff}
     }
     if r == '=' && s.peekRune() == '=' {
         s.advance(w)
         s.advance(1)
-        return tok.Token{Kind: tok.EQ, Lexeme: "==", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.EQ, Lexeme: "==", Line: s.line, Column: startCol, Offset: startOff}
     }
     if r == '!' && s.peekRune() == '=' {
         s.advance(w)
         s.advance(1)
-        return tok.Token{Kind: tok.NEQ, Lexeme: "!=", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.NEQ, Lexeme: "!=", Line: s.line, Column: startCol, Offset: startOff}
     }
     if r == '<' && s.peekRune() == '=' {
         s.advance(w)
         s.advance(1)
-        return tok.Token{Kind: tok.LTE, Lexeme: "<=", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.LTE, Lexeme: "<=", Line: s.line, Column: startCol, Offset: startOff}
     }
     if r == '>' && s.peekRune() == '=' {
         s.advance(w)
         s.advance(1)
-        return tok.Token{Kind: tok.GTE, Lexeme: ">=", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.GTE, Lexeme: ">=", Line: s.line, Column: startCol, Offset: startOff}
     }
 
     // Single-char tokens and fallback
     s.advance(w)
     switch r {
     case '(':
-        return tok.Token{Kind: tok.LPAREN, Lexeme: "(", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.LPAREN, Lexeme: "(", Line: s.line, Column: startCol, Offset: startOff}
     case ')':
-        return tok.Token{Kind: tok.RPAREN, Lexeme: ")", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.RPAREN, Lexeme: ")", Line: s.line, Column: startCol, Offset: startOff}
     case '{':
-        return tok.Token{Kind: tok.LBRACE, Lexeme: "{", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.LBRACE, Lexeme: "{", Line: s.line, Column: startCol, Offset: startOff}
     case '}':
-        return tok.Token{Kind: tok.RBRACE, Lexeme: "}", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.RBRACE, Lexeme: "}", Line: s.line, Column: startCol, Offset: startOff}
     case '[':
-        return tok.Token{Kind: tok.LBRACK, Lexeme: "[", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.LBRACK, Lexeme: "[", Line: s.line, Column: startCol, Offset: startOff}
     case ']':
-        return tok.Token{Kind: tok.RBRACK, Lexeme: "]", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.RBRACK, Lexeme: "]", Line: s.line, Column: startCol, Offset: startOff}
     case ',':
-        return tok.Token{Kind: tok.COMMA, Lexeme: ",", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.COMMA, Lexeme: ",", Line: s.line, Column: startCol, Offset: startOff}
     case ';':
-        return tok.Token{Kind: tok.SEMI, Lexeme: ";", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.SEMI, Lexeme: ";", Line: s.line, Column: startCol, Offset: startOff}
     case ':':
-        return tok.Token{Kind: tok.COLON, Lexeme: ":", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.COLON, Lexeme: ":", Line: s.line, Column: startCol, Offset: startOff}
     case '.':
-        return tok.Token{Kind: tok.DOT, Lexeme: ".", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.DOT, Lexeme: ".", Line: s.line, Column: startCol, Offset: startOff}
     case '=':
-        return tok.Token{Kind: tok.ASSIGN, Lexeme: "=", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.ASSIGN, Lexeme: "=", Line: s.line, Column: startCol, Offset: startOff}
     case '|':
-        return tok.Token{Kind: tok.PIPE, Lexeme: "|", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.PIPE, Lexeme: "|", Line: s.line, Column: startCol, Offset: startOff}
     case '+':
-        return tok.Token{Kind: tok.PLUS, Lexeme: "+", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.PLUS, Lexeme: "+", Line: s.line, Column: startCol, Offset: startOff}
     case '-':
-        return tok.Token{Kind: tok.MINUS, Lexeme: "-", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.MINUS, Lexeme: "-", Line: s.line, Column: startCol, Offset: startOff}
     case '*':
-        return tok.Token{Kind: tok.STAR, Lexeme: "*", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.STAR, Lexeme: "*", Line: s.line, Column: startCol, Offset: startOff}
     case '/':
-        return tok.Token{Kind: tok.SLASH, Lexeme: "/", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.SLASH, Lexeme: "/", Line: s.line, Column: startCol, Offset: startOff}
     case '%':
-        return tok.Token{Kind: tok.PERCENT, Lexeme: "%", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.PERCENT, Lexeme: "%", Line: s.line, Column: startCol, Offset: startOff}
     case '&':
-        return tok.Token{Kind: tok.AMP, Lexeme: "&", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.AMP, Lexeme: "&", Line: s.line, Column: startCol, Offset: startOff}
     case '<':
-        return tok.Token{Kind: tok.LT, Lexeme: "<", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.LT, Lexeme: "<", Line: s.line, Column: startCol, Offset: startOff}
     case '>':
-        return tok.Token{Kind: tok.GT, Lexeme: ">", Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.GT, Lexeme: ">", Line: s.line, Column: startCol, Offset: startOff}
     case '\n':
         s.line++
         s.column = 1
         return s.Next()
     default:
-        return tok.Token{Kind: tok.ILLEGAL, Lexeme: string(r), Line: s.line, Column: startCol}
+        return tok.Token{Kind: tok.ILLEGAL, Lexeme: string(r), Line: s.line, Column: startCol, Offset: startOff}
     }
 }
 

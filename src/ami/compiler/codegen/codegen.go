@@ -30,6 +30,11 @@ func GenerateASM(m ir.Module) string {
         b.WriteString(m.Scheduling)
         b.WriteString("\n")
     }
+    if len(m.Telemetry) > 0 {
+        b.WriteString("; telemetry ")
+        b.WriteString(strings.Join(m.Telemetry, ","))
+        b.WriteString("\n")
+    }
     if len(m.Capabilities) > 0 {
         b.WriteString("; capabilities ")
         b.WriteString(strings.Join(m.Capabilities, ","))

@@ -14,6 +14,7 @@ import (
 // Verifies that build --verbose emits a .pipelines.json file and that it
 // validates against the pipelines.v1 schema.
 func TestBuild_PipelinesIR_EmittedAndValid(t *testing.T) {
+    t.Setenv("AMI_SEM_DIAGS", "0")
     tmp := t.TempDir()
     t.Setenv("HOME", tmp)
     _, restore := testutil.ChdirToBuildTest(t)

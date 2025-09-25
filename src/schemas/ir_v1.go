@@ -13,6 +13,8 @@ type IRV1 struct {
 type IRFunction struct {
     Name   string    `json:"name"`
     Blocks []IRBlock `json:"blocks"`
+    // Optional: parameter metadata with ownership/domain annotations.
+    Params []IRParam `json:"params,omitempty"`
 }
 
 type IRBlock struct {
@@ -26,10 +28,21 @@ type IRInstr struct {
     Result string        `json:"result,omitempty"`
 }
 
+// IRParam describes a function parameter in the IR with light annotations
+// useful for memory model analysis and tooling.
+// - Type: rendered type string, e.g., "Event<string>", "*State", "Owned<T>".
+// - Ownership: "owned" when parameter type is Owned<…>, otherwise "borrowed".
+// - Domain: one of "event", "state", "ephemeral" where applicable.
+type IRParam struct {
+    Name      string `json:"name"`
+    Type      string `json:"type"`
+    Ownership string `json:"ownership,omitempty"`
+    Domain    string `json:"domain,omitempty"`
+}
+
 func (i *IRV1) Validate() error {
     if i == nil { return errors.New("nil ir") }
     if i.Schema == "" { i.Schema = "ir.v1" }
     if i.Schema != "ir.v1" { return errors.New("invalid schema") }
     return nil
 }
-

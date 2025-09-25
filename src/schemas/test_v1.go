@@ -10,6 +10,11 @@ type TestRunStart struct {
     Timestamp string   `json:"timestamp"`
     Workspace string   `json:"workspace"`
     Packages  []string `json:"packages"`
+    Timeout   string   `json:"timeout,omitempty"`
+    Parallel  int      `json:"parallel,omitempty"`
+    PkgParallel int    `json:"pkg_parallel,omitempty"`
+    FailFast  bool     `json:"failfast,omitempty"`
+    Run       string   `json:"run,omitempty"`
 }
 
 type TestStart struct {
@@ -52,6 +57,16 @@ type TestRunEnd struct {
         Skip   int `json:"skip"`
         Cases  int `json:"cases"`
     } `json:"totals"`
+    Packages   []TestPackageSummary `json:"packages,omitempty"`
+}
+
+// Per-package summary reported at run_end
+type TestPackageSummary struct {
+    Package string `json:"package"`
+    Pass    int    `json:"pass"`
+    Fail    int    `json:"fail"`
+    Skip    int    `json:"skip"`
+    Cases   int    `json:"cases"`
 }
 
 func (e *TestRunStart) Validate() error { if e.Schema=="" { e.Schema="test.v1" }; if e.Schema!="test.v1" { return errors.New("invalid schema") }; if e.Type=="" { e.Type="run_start" }; if e.Type!="run_start" { return errors.New("invalid type") }; return nil }
@@ -59,4 +74,3 @@ func (e *TestStart) Validate() error    { if e.Schema=="" { e.Schema="test.v1" }
 func (e *TestOutput) Validate() error   { if e.Schema=="" { e.Schema="test.v1" }; if e.Schema!="test.v1" { return errors.New("invalid schema") }; if e.Type=="" { e.Type="test_output" }; if e.Type!="test_output" { return errors.New("invalid type") }; if e.Stream!="stdout" && e.Stream!="stderr" { return errors.New("invalid stream") }; return nil }
 func (e *TestEnd) Validate() error      { if e.Schema=="" { e.Schema="test.v1" }; if e.Schema!="test.v1" { return errors.New("invalid schema") }; if e.Type=="" { e.Type="test_end" }; if e.Type!="test_end" { return errors.New("invalid type") }; switch e.Status { case "pass","fail","skip": default: return errors.New("invalid status") }; return nil }
 func (e *TestRunEnd) Validate() error   { if e.Schema=="" { e.Schema="test.v1" }; if e.Schema!="test.v1" { return errors.New("invalid schema") }; if e.Type=="" { e.Type="run_end" }; if e.Type!="run_end" { return errors.New("invalid type") }; return nil }
-

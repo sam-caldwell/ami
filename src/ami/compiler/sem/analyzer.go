@@ -58,6 +58,8 @@ func AnalyzeFile(f *astpkg.File) Result {
             res.Diagnostics = append(res.Diagnostics, analyzeEventContracts(fd)...)
             // State contracts (2.2.14/2.3.5): state param immutability/address-of
             res.Diagnostics = append(res.Diagnostics, analyzeStateContracts(fd)...)
+            // Memory domains (2.4): forbid cross-domain references into state
+            res.Diagnostics = append(res.Diagnostics, analyzeMemoryDomains(fd)...)
             // Memory model (2.4): ownership & RAII scaffolding
             res.Diagnostics = append(res.Diagnostics, analyzeRAII(fd, funcs)...)
         }
@@ -85,6 +87,12 @@ func AnalyzeFile(f *astpkg.File) Result {
     res.Diagnostics = append(res.Diagnostics, analyzeMapTypes(f)...)
     res.Diagnostics = append(res.Diagnostics, analyzeSetTypes(f)...)
     res.Diagnostics = append(res.Diagnostics, analyzeSliceTypes(f)...)
+    // Memory domains (2.4 scaffold) across functions
+    for _, d := range f.Decls {
+        if fd, ok := d.(astpkg.FuncDecl); ok {
+            res.Diagnostics = append(res.Diagnostics, analyzeMemoryDomains(fd)...)
+        }
+    }
     // Cross-pipeline cycle detection (unless cycle pragma present)
     res.Diagnostics = append(res.Diagnostics, analyzeCycles(f)...)
     return res
@@ -675,6 +683,77 @@ func analyzeStateContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
     return diags
 }
 
+// analyzeMemoryDomains enforces basic allocation domain separation (6.5/Ch.2.4):
+// - Event heap (Event<T>), Node-state (*State), Ephemeral stack (locals/others).
+// Forbidden cross-domain references:
+// - Assigning address of non-state value into state memory, e.g., `*st = &ev` or `*st = &x`.
+//   Emits E_CROSS_DOMAIN_REF.
+func analyzeMemoryDomains(fd astpkg.FuncDecl) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    if len(fd.Params) == 0 || (len(fd.Body) == 0 && len(fd.BodyStmts) == 0) { return diags }
+    // Build env map and identify state params
+    env := map[string]astpkg.TypeRef{}
+    isState := map[string]bool{}
+    for _, p := range fd.Params {
+        if p.Name == "" { continue }
+        env[p.Name] = p.Type
+        if p.Type.Name == "State" && p.Type.Ptr { isState[p.Name] = true }
+    }
+    if len(fd.BodyStmts) > 0 {
+        // AST-level matching
+        var walk func(astpkg.Stmt)
+        walk = func(s astpkg.Stmt) {
+            switch v := s.(type) {
+            case astpkg.AssignStmt:
+                // *st = &x
+                if lhsUE, ok := v.LHS.(astpkg.UnaryExpr); ok && lhsUE.Op == "*" {
+                    if id, ok2 := lhsUE.X.(astpkg.Ident); ok2 && isState[id.Name] {
+                        if rhsUE, ok3 := v.RHS.(astpkg.UnaryExpr); ok3 && rhsUE.Op == "&" {
+                            if rid, ok4 := rhsUE.X.(astpkg.Ident); ok4 {
+                                if tr, ok5 := env[rid.Name]; ok5 { if !(tr.Name == "State" && tr.Ptr) { diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "forbidden cross-domain reference into state from non-state domain"}) } } else {
+                                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "forbidden cross-domain reference into state from ephemeral value"})
+                                }
+                            }
+                        }
+                    }
+                }
+            case astpkg.MutBlockStmt:
+                for _, ss := range v.Body.Stmts { walk(ss) }
+            case astpkg.BlockStmt:
+                for _, ss := range v.Stmts { walk(ss) }
+            }
+        }
+        for _, s := range fd.BodyStmts { walk(s) }
+        // do not return; also run token-level fallback to be robust to partial parses
+    }
+    // Token-level fallback
+    toks := fd.Body
+    for i := 0; i < len(toks); i++ {
+        if toks[i].Kind == tok.STAR && i+1 < len(toks) && toks[i+1].Kind == tok.IDENT {
+            lhs := toks[i+1].Lexeme
+            // find '=' after lhs
+            j := i+2
+            for j < len(toks) && toks[j].Kind != tok.ASSIGN && toks[j].Kind != tok.SEMI && toks[j].Kind != tok.RBRACE { j++ }
+            if j >= len(toks) || toks[j].Kind != tok.ASSIGN { continue }
+            // find '&' ident after '='
+            k := j+1
+            for k < len(toks) && toks[k].Kind != tok.AMP && toks[k].Kind != tok.SEMI && toks[k].Kind != tok.RBRACE { k++ }
+            if k+1 >= len(toks) || toks[k].Kind != tok.AMP || toks[k+1].Kind != tok.IDENT { continue }
+            rhs := toks[k+1].Lexeme
+            if isState[lhs] {
+                if tr, ok := env[rhs]; ok {
+                    if !(tr.Name == "State" && tr.Ptr) {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "forbidden cross-domain reference into state from non-state domain"})
+                    }
+                } else {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_CROSS_DOMAIN_REF", Message: "forbidden cross-domain reference into state from ephemeral value"})
+                }
+            }
+        }
+    }
+    return diags
+}
+
 // analyzeRAII enforces minimal ownership/RAII rules for Owned<T> parameters:
 // - E_RAII_OWNED_NOT_RELEASED: Owned param must be released or transferred.
 // - E_RAII_DOUBLE_RELEASE: multiple releases/transfers for same variable.
@@ -685,6 +764,10 @@ func analyzeStateContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
 func analyzeRAII(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
     if len(fd.Body) == 0 { return diags }
+    if len(fd.BodyStmts) > 0 {
+        return analyzeRAIIFromAST(fd, funcs)
+    }
+    // Token-based fallback analysis
     // collect Owned<T> parameters by name
     owned := map[string]bool{}
     for _, p := range fd.Params {
@@ -812,12 +895,152 @@ func analyzeRAII(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []diag.Di
         }
     }
     // end-of-function: any owned param not released/transferred -> diagnostic
-    for name := range owned {
-        if !released[name] {
-            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_OWNED_NOT_RELEASED", Message: "owned value not released or transferred before function end"})
+    if !isSinkFunction(fd) {
+        for name := range owned {
+            if !released[name] {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_OWNED_NOT_RELEASED", Message: "owned value not released or transferred before function end"})
+            }
         }
     }
     return diags
+}
+
+func analyzeRAIIFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    // owned params
+    owned := map[string]bool{}
+    for _, p := range fd.Params { if p.Name != "" && strings.ToLower(p.Type.Name) == "owned" && len(p.Type.Args) == 1 { owned[p.Name] = true } }
+    if len(owned) == 0 { return diags }
+    released := map[string]bool{}
+    usedAfter := map[string]bool{}
+    // helpers
+    isReleaser := func(name string) bool { switch strings.ToLower(name) { case "release","drop","free","dispose": return true }; return false }
+    var walkExpr func(astpkg.Expr)
+    walkExpr = func(e astpkg.Expr) {
+        switch v := e.(type) {
+        case astpkg.Ident:
+            if owned[v.Name] && released[v.Name] && !usedAfter[v.Name] {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_USE_AFTER_RELEASE", Message: "use of owned value after release/transfer"})
+                usedAfter[v.Name] = true
+            }
+        case astpkg.UnaryExpr:
+            walkExpr(v.X)
+        case astpkg.SelectorExpr:
+            // receiver use counts as use-after
+            if id, ok := v.X.(astpkg.Ident); ok {
+                if owned[id.Name] {
+                    if strings.EqualFold(v.Sel, "close") || strings.EqualFold(v.Sel, "release") || strings.EqualFold(v.Sel, "free") || strings.EqualFold(v.Sel, "dispose") {
+                        if released[id.Name] {
+                            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
+                        }
+                        released[id.Name] = true
+                    } else if released[id.Name] && !usedAfter[id.Name] {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_USE_AFTER_RELEASE", Message: "use of owned value after release/transfer"})
+                        usedAfter[id.Name] = true
+                    }
+                }
+            }
+        case astpkg.CallExpr:
+            // function/method calls
+            switch f := v.Fun.(type) {
+            case astpkg.Ident:
+                name := f.Name
+                // releaser by name
+                if isReleaser(name) {
+                    mark := false
+                    for _, a := range v.Args {
+                        if id, ok := a.(astpkg.Ident); ok && owned[id.Name] {
+                            if released[id.Name] {
+                                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
+                            }
+                            released[id.Name] = true
+                            mark = true
+                        }
+                    }
+                    if !mark {
+                        // conservative: release single owned param if only one
+                        if len(owned) == 1 { for k := range owned { released[k] = true } }
+                    }
+                }
+                // transfer via owned parameter position
+                if callee, ok := funcs[name]; ok {
+                    calleeHasOwned := false
+                    for _, p := range callee.Params { if strings.ToLower(p.Type.Name) == "owned" && len(p.Type.Args) == 1 { calleeHasOwned = true; break } }
+                    matched := false
+                    for idx, a := range v.Args {
+                        if id, ok := a.(astpkg.Ident); ok && owned[id.Name] {
+                            if idx < len(callee.Params) { pt := callee.Params[idx].Type; if strings.ToLower(pt.Name) == "owned" && len(pt.Args) == 1 { released[id.Name] = true; matched = true } }
+                        }
+                    }
+                    if !matched && calleeHasOwned && len(owned) == 1 { for k := range owned { released[k] = true } }
+                }
+            case astpkg.SelectorExpr:
+                // Method call: receiver.method(args)
+                // Treat known releaser methods as release operations.
+                if id, ok := f.X.(astpkg.Ident); ok && owned[id.Name] {
+                    if strings.EqualFold(f.Sel, "close") || strings.EqualFold(f.Sel, "release") || strings.EqualFold(f.Sel, "free") || strings.EqualFold(f.Sel, "dispose") {
+                        if released[id.Name] {
+                            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "double release of owned value"})
+                        }
+                        released[id.Name] = true
+                    } else if released[id.Name] && !usedAfter[id.Name] {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_USE_AFTER_RELEASE", Message: "use of owned value after release/transfer"})
+                        usedAfter[id.Name] = true
+                    }
+                }
+                // Visit args for use-after detection in their subtrees
+                for _, a := range v.Args { walkExpr(a) }
+            default:
+                for _, a := range v.Args { walkExpr(a) }
+            }
+        }
+    }
+    var walkStmt func(astpkg.Stmt)
+    walkStmt = func(s astpkg.Stmt) {
+        switch v := s.(type) {
+        case astpkg.AssignStmt:
+            walkExpr(v.LHS); walkExpr(v.RHS)
+        case astpkg.ExprStmt:
+            walkExpr(v.X)
+        case astpkg.MutBlockStmt:
+            for _, ss := range v.Body.Stmts { walkStmt(ss) }
+        case astpkg.BlockStmt:
+            for _, ss := range v.Stmts { walkStmt(ss) }
+        }
+    }
+    for _, s := range fd.BodyStmts { walkStmt(s) }
+    if !isSinkFunction(fd) {
+        for name := range owned {
+            if !released[name] {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RAII_OWNED_NOT_RELEASED", Message: "owned value not released or transferred before function end"})
+            }
+        }
+    }
+    return diags
+}
+
+// analyzeMemoryDomains detects cross-domain references between Event payload and State
+// specifically: *st = &ev (assigning address of event into state) emits E_CROSS_DOMAIN_REF.
+// (Removed old duplicate analyzeMemoryDomains; consolidated above.)
+
+// isSinkFunction heuristically identifies helper functions that consume Owned<T>
+// parameters and are not subject to RAII not-released enforcement. Criteria:
+// - Function is not a worker signature; and
+// - Has at least one parameter of type Owned<…>; and
+// - Returns Ack or Drop (common sink pattern) OR has exactly one parameter.
+func isSinkFunction(fd astpkg.FuncDecl) bool {
+    if isWorkerSignature(fd) { return false }
+    hasOwned := false
+    for _, p := range fd.Params {
+        if strings.EqualFold(p.Type.Name, "owned") && len(p.Type.Args) == 1 { hasOwned = true; break }
+    }
+    if !hasOwned { return false }
+    if len(fd.Result) == 1 {
+        r := fd.Result[0]
+        if (r.Name == "Ack" || r.Name == "Drop") && len(r.Args) == 0 { return true }
+    }
+    if len(fd.Params) == 1 { return true }
+    return false
 }
 
 // analyzeEventTypeFlow ensures that the payload type of upstream worker outputs
@@ -877,6 +1100,9 @@ func analyzeEventTypeFlow(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDe
 func analyzeImperativeTypes(fd astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
     if len(fd.Body) == 0 { return diags }
+    if len(fd.BodyStmts) > 0 {
+        return analyzeImperativeTypesFromAST(fd)
+    }
     // env maps parameter identifiers to their TypeRef
     env := map[string]astpkg.TypeRef{}
     for _, p := range fd.Params {
@@ -947,6 +1173,53 @@ func analyzeImperativeTypes(fd astpkg.FuncDecl) []diag.Diagnostic {
             }
         }
     }
+    return diags
+}
+
+func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    env := map[string]astpkg.TypeRef{}
+    for _, p := range fd.Params { if p.Name != "" { env[p.Name] = p.Type } }
+    typeStr := func(tr astpkg.TypeRef) string { return typeRefToString(tr) }
+    elemOfPtr := func(tr astpkg.TypeRef) (astpkg.TypeRef, bool) { if tr.Ptr { out := tr; out.Ptr = false; return out, true }; return astpkg.TypeRef{}, false }
+    var exprType func(astpkg.Expr) (astpkg.TypeRef, bool)
+    exprType = func(e astpkg.Expr) (astpkg.TypeRef, bool) {
+        switch v := e.(type) {
+        case astpkg.Ident:
+            if tr, ok := env[v.Name]; ok { return tr, true }
+            return astpkg.TypeRef{}, false
+        case astpkg.UnaryExpr:
+            t, ok := exprType(v.X); if !ok { return astpkg.TypeRef{}, false }
+            if v.Op == "*" { if el, ok2 := elemOfPtr(t); ok2 { return el, true }; diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_DEREF_TYPE", Message: "cannot dereference non-pointer"}); return astpkg.TypeRef{}, false }
+            if v.Op == "&" { t.Ptr = true; return t, true }
+            return astpkg.TypeRef{}, false
+        case astpkg.BasicLit:
+            switch v.Kind { case "string": return astpkg.TypeRef{Name: "string"}, true; case "number": return astpkg.TypeRef{Name: "int"}, true }
+            return astpkg.TypeRef{}, false
+        default:
+            return astpkg.TypeRef{}, false
+        }
+    }
+    var walkStmt func(astpkg.Stmt)
+    walkStmt = func(s astpkg.Stmt) {
+        if as, ok := s.(astpkg.AssignStmt); ok {
+            lt, lok := exprType(as.LHS); rt, rok := exprType(as.RHS)
+            if lok && rok && typeStr(lt) != typeStr(rt) {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_ASSIGN_TYPE_MISMATCH", Message: "assignment type mismatch: " + typeStr(lt) + " != " + typeStr(rt)})
+            }
+            return
+        }
+        switch v := s.(type) {
+        case astpkg.ExprStmt:
+            // nothing needed
+            _ = v
+        case astpkg.MutBlockStmt:
+            for _, ss := range v.Body.Stmts { walkStmt(ss) }
+        case astpkg.BlockStmt:
+            for _, ss := range v.Stmts { walkStmt(ss) }
+        }
+    }
+    for _, s := range fd.BodyStmts { walkStmt(s) }
     return diags
 }
 

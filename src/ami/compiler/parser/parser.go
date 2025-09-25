@@ -229,12 +229,13 @@ func (p *Parser) ParseFile() *astpkg.File {
             } else {
                 if tr, ok := p.parseType(); ok { results = append(results, tr) }
             }
-            // body block: capture tokens for simple semantics (mutability)
+            // body block: capture tokens and build a simple statement AST (scaffold)
             var body []tok.Token
+            var bodyStmts []astpkg.Stmt
             if p.cur.Kind == tok.LBRACE {
                 depth := 1; p.next()
+                // collect tokens inside body
                 for depth > 0 && p.cur.Kind != tok.EOF {
-                    // record current token inside body (excluding outermost braces)
                     body = append(body, p.cur)
                     if p.cur.Kind == tok.LBRACE { depth++ }
                     if p.cur.Kind == tok.RBRACE {
@@ -243,8 +244,10 @@ func (p *Parser) ParseFile() *astpkg.File {
                     }
                     p.next()
                 }
+                // build simple statement list from captured tokens
+                bodyStmts = parseBodyStmts(body)
             } else { p.errorf("expected function body") }
-            fd := astpkg.FuncDecl{Name: name, Params: params, Result: results, Body: body}
+            fd := astpkg.FuncDecl{Name: name, Params: params, Result: results, Body: body, BodyStmts: bodyStmts}
             f.Decls = append(f.Decls, fd)
             f.Stmts = append(f.Stmts, fd)
             if p.cur.Kind != tok.SEMI && p.cur.Kind != tok.KW_FUNC {
@@ -462,6 +465,139 @@ func unquote(s string) string {
     return s
 }
 
+// --- Simple body statement parsing from captured tokens ---
+
+type bodyParser struct {
+    toks []tok.Token
+    i    int
+}
+
+func (bp *bodyParser) atEnd() bool { return bp.i >= len(bp.toks) }
+func (bp *bodyParser) cur() tok.Token { if bp.atEnd() { return tok.Token{Kind: tok.EOF} }; return bp.toks[bp.i] }
+func (bp *bodyParser) next() { if !bp.atEnd() { bp.i++ } }
+
+func parseBodyStmts(toks []tok.Token) []astpkg.Stmt {
+    bp := &bodyParser{toks: toks}
+    var out []astpkg.Stmt
+    for !bp.atEnd() {
+        if s, ok := bp.parseStmt(); ok { out = append(out, s); continue }
+        bp.next()
+    }
+    return out
+}
+
+func (bp *bodyParser) parseStmt() (astpkg.Stmt, bool) {
+    t := bp.cur()
+    // mut { ... }
+    if t.Kind == tok.KW_MUT {
+        // find following '{'
+        bp.next()
+        if bp.cur().Kind == tok.LBRACE {
+            // collect tokens until matching '}'
+            depth := 1; bp.next()
+            start := bp.i
+            for !bp.atEnd() && depth > 0 {
+                switch bp.cur().Kind {
+                case tok.LBRACE:
+                    depth++
+                case tok.RBRACE:
+                    depth--
+                }
+                bp.next()
+            }
+            inner := parseBodyStmts(bp.toks[start : bp.i-1])
+            return astpkg.MutBlockStmt{Body: astpkg.BlockStmt{Stmts: inner}}, true
+        }
+    }
+    // assignment or call expr
+    // Try parse LHS expr
+    save := bp.i
+    if lhs, ok := bp.parseExpr(); ok {
+        if bp.cur().Kind == tok.ASSIGN {
+            bp.next()
+            if rhs, ok2 := bp.parseExpr(); ok2 {
+                return astpkg.AssignStmt{LHS: lhs, RHS: rhs}, true
+            }
+            // rollback
+            bp.i = save
+        } else {
+            // treat any standalone expression as a statement for semantic scans
+            return astpkg.ExprStmt{X: lhs}, true
+        }
+    }
+    bp.i = save
+    return nil, false
+}
+
+func (bp *bodyParser) parseExpr() (astpkg.Expr, bool) {
+    t := bp.cur()
+    switch t.Kind {
+    case tok.STAR:
+        bp.next()
+        if x, ok := bp.parseExpr(); ok { return astpkg.UnaryExpr{Op: "*", X: x}, true }
+        return nil, false
+    case tok.AMP:
+        bp.next()
+        if x, ok := bp.parseExpr(); ok { return astpkg.UnaryExpr{Op: "&", X: x}, true }
+        return nil, false
+    case tok.IDENT:
+        // method call: recv . method (args)
+        // or simple call: name(args)
+        name := t.Lexeme
+        bp.next()
+        // method selector
+        if bp.cur().Kind == tok.DOT {
+            // recv.name
+            recv := astpkg.Ident{Name: name}
+            bp.next()
+            if bp.cur().Kind == tok.IDENT {
+                sel := bp.cur().Lexeme
+                bp.next()
+                // call?
+                if bp.cur().Kind == tok.LPAREN {
+                    args := bp.parseArgs()
+                    return astpkg.CallExpr{Fun: astpkg.SelectorExpr{X: recv, Sel: sel}, Args: args}, true
+                }
+                return astpkg.SelectorExpr{X: recv, Sel: sel}, true
+            }
+            return astpkg.Ident{Name: name}, true
+        }
+        // simple call
+        if bp.cur().Kind == tok.LPAREN {
+            args := bp.parseArgs()
+            return astpkg.CallExpr{Fun: astpkg.Ident{Name: name}, Args: args}, true
+        }
+        return astpkg.Ident{Name: name}, true
+    case tok.STRING:
+        bp.next(); return astpkg.BasicLit{Kind: "string", Value: t.Lexeme}, true
+    case tok.NUMBER:
+        bp.next(); return astpkg.BasicLit{Kind: "number", Value: t.Lexeme}, true
+    default:
+        return nil, false
+    }
+}
+
+func (bp *bodyParser) parseArgs() []astpkg.Expr {
+    // assume current is '('
+    if bp.cur().Kind != tok.LPAREN { return nil }
+    bp.next()
+    var out []astpkg.Expr
+    depth := 1
+    for !bp.atEnd() && depth > 0 {
+        switch bp.cur().Kind {
+        case tok.LPAREN:
+            depth++; bp.next()
+        case tok.RPAREN:
+            depth--; bp.next()
+            if depth == 0 { break }
+        case tok.COMMA:
+            bp.next()
+        default:
+            if e, ok := bp.parseExpr(); ok { out = append(out, e) } else { bp.next() }
+        }
+    }
+    return out
+}
 // parseWorkerRef tries to interpret an argument string as a worker/factory reference.
 func parseWorkerRef(s string) (astpkg.WorkerRef, bool) {
     // name or name(...)

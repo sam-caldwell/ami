@@ -71,6 +71,7 @@ type Token struct {
     Lexeme string
     Line   int
     Column int
+    Offset int
 }
 
 // Keywords maps the lower‑case source lexeme to its keyword token kind.

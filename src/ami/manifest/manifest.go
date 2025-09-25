@@ -44,6 +44,7 @@ func (m *Manifest) Validate() error {
     if m == nil { return errors.New("nil manifest") }
     if m.Schema == "" { m.Schema = "ami.manifest/v1" }
     if m.Schema != "ami.manifest/v1" { return errors.New("invalid schema") }
+    if m.Project.Name == "" || m.Project.Version == "" { return errors.New("project.name and project.version required") }
     if m.CreatedAt == "" { m.CreatedAt = time.Now().UTC().Format(time.RFC3339Nano) }
     return nil
 }

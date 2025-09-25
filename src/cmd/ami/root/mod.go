@@ -75,18 +75,51 @@ var cmdModGet = &cobra.Command{
 }
 
 var cmdModList = &cobra.Command{
-	Use:   "list",
-	Short: "List cached packages",
-	Run: func(cmd *cobra.Command, args []string) {
-		items, err := ammod.List()
-		if err != nil {
-			logger.Error(err.Error(), nil)
-			return
-		}
-		for _, it := range items {
-			logger.Info(it, nil)
-		}
-	},
+    Use:   "list",
+    Short: "List cached packages",
+    Run: func(cmd *cobra.Command, args []string) {
+        items, err := ammod.List()
+        if err != nil {
+            logger.Error(err.Error(), nil)
+            return
+        }
+        // Attempt to load ami.sum for digest lookup (best-effort)
+        sum, _ := ammod.LoadSumForCLI("ami.sum")
+        for _, it := range items {
+            if flagJSON {
+                // it format: <name>@<version>
+                name := it
+                ver := ""
+                if i := strings.LastIndex(it, "@"); i >= 0 {
+                    name = it[:i]
+                    ver = it[i+1:]
+                }
+                // Find digest by matching base name against sum packages
+                var digest string
+                if sum != nil {
+                    for pkg, vers := range sum.Packages {
+                        if filepath.Base(pkg) == name {
+                            if d, ok := vers[ver]; ok {
+                                digest = d
+                                break
+                            }
+                        }
+                    }
+                }
+                data := map[string]interface{}{
+                    "entry":   it,
+                    "name":    name,
+                    "version": ver,
+                }
+                if digest != "" {
+                    data["digest"] = digest
+                }
+                logger.Info("cache.entry", data)
+            } else {
+                logger.Info(it, nil)
+            }
+        }
+    },
 }
 
 func init() {

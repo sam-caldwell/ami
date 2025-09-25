@@ -103,6 +103,7 @@ func List() ([]string, error) {
     if err != nil { return nil, err }
     out := []string{}
     for _, e := range entries { if e.IsDir() { out = append(out, e.Name()) } }
+    sort.Strings(out)
     return out, nil
 }
 

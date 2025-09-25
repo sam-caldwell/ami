@@ -2,16 +2,21 @@ package root
 
 import (
 	"crypto/sha256"
+	"io"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/sam-caldwell/ami/src/ami/compiler/driver"
 	"github.com/sam-caldwell/ami/src/ami/workspace"
+    "github.com/sam-caldwell/ami/src/ami/manifest"
+    ammod "github.com/sam-caldwell/ami/src/ami/mod"
+    "github.com/sam-caldwell/ami/src/ami/compiler/parser"
 	"github.com/sam-caldwell/ami/src/internal/logger"
 	sch "github.com/sam-caldwell/ami/src/schemas"
 	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
+    "runtime"
 )
 
 var buildVerbose bool
@@ -44,7 +49,8 @@ var cmdBuild = &cobra.Command{
             if _, err := os.Stat("src/main.ami"); err == nil { files = append(files, "src/main.ami") }
             if len(files) > 0 {
 				srcBytes, _ := os.ReadFile(files[0])
-                resolved.Units = append(resolved.Units, sch.SourceUnit{Package: "main", File: files[0], Imports: []string{}, Source: string(srcBytes)})
+                imports := parser.ExtractImports(string(srcBytes))
+                resolved.Units = append(resolved.Units, sch.SourceUnit{Package: "main", File: files[0], Imports: imports, Source: string(srcBytes)})
 				// Use compiler driver to create AST/IR
                 res, _ := driver.Compile(files, driver.Options{})
                 // AST per package/unit
@@ -84,10 +90,50 @@ var cmdBuild = &cobra.Command{
 			b, _ := json.MarshalIndent(resolved, "", "  ")
 			_ = os.WriteFile(filepath.Join("build", "debug", "source", "resolved.json"), b, 0644)
 		}
-		logger.Info("build completed (scaffold)", map[string]interface{}{"targets": len(plan.Targets)})
+		// Write ami.manifest with artifacts/toolchain and cross-check ami.sum
+        artifacts := []manifest.Artifact{}
+        for _, path := range []struct{p,kind string}{{"build/debug/source/resolved.json","resolved"},{"build/debug/ast/main/main.ami.ast.json","ast"},{"build/debug/ir/main/main.ami.ir.json","ir"},{"build/debug/asm/main/main.ami.s","asm"},{"build/debug/asm/index.json","asmIndex"}} {
+            if fi, err := os.Stat(path.p); err==nil && !fi.IsDir() {
+                sha, size, _ := fileSHA256(path.p)
+                artifacts = append(artifacts, manifest.Artifact{Path: path.p, Kind: path.kind, Size: size, Sha256: sha})
+            }
+        }
+        wd, _ := os.Getwd()
+        projName := filepath.Base(wd)
+        projVersion := "0.0.0"
+        amiVer := version
+        goVer := runtime.Version()
+        pkgs := []manifest.Package{}
+        if sum, err := ammod.LoadSumForCLI("ami.sum"); err == nil {
+            for name, vers := range sum.Packages {
+                for ver, digest := range vers {
+                    cache, _ := ammod.CacheDir()
+                    base := filepath.Base(name)
+                    src := filepath.Join(cache, base+"@"+ver)
+                    pkgs = append(pkgs, manifest.Package{Name: name, Version: ver, Digest: digest, Source: src})
+                }
+            }
+        }
+        man := manifest.Manifest{Schema: "ami.manifest/v1", Project: manifest.Project{Name: projName, Version: projVersion}, Packages: pkgs, Artifacts: artifacts, Toolchain: manifest.Toolchain{AmiVersion: amiVer, GoVersion: goVer}}
+        if err := manifest.Save("ami.manifest", &man); err != nil {
+            logger.Error(fmt.Sprintf("failed to write ami.manifest: %v", err), nil)
+            return
+        }
+        logger.Info("build completed (scaffold)", map[string]interface{}{"targets": len(plan.Targets)})
 	},
 }
 
 func init() {
 	cmdBuild.Flags().BoolVar(&buildVerbose, "verbose", false, "emit debug artifacts")
+}
+
+
+func fileSHA256(path string) (string, int64, error) {
+    f, err := os.Open(path)
+    if err != nil { return "", 0, err }
+    defer f.Close()
+    h := sha256.New()
+    n, err := io.Copy(h, f)
+    if err != nil { return "", 0, err }
+    return hex.EncodeToString(h.Sum(nil)), n, nil
 }

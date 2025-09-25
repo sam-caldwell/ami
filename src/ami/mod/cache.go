@@ -159,11 +159,41 @@ func UpdateFromWorkspace(wsPath string) error {
     for _, d := range deps {
         repoPath := d[0]
         cons := d[1]
-        // construct ssh URL
+        // Local repo path support for tests and offline development
+        if strings.HasPrefix(repoPath, "./") || strings.HasPrefix(repoPath, "../") || strings.HasPrefix(repoPath, "/") {
+            // resolve tag from local repository
+            tag := cons
+            var err error
+            if cons == "==latest" || cons == "" {
+                tag, err = latestTagLocal(repoPath)
+                if err != nil { return err }
+            } else if isSemVer(cons) {
+                tag = cons
+            } else {
+                tag, err = resolveConstraintLocal(repoPath, cons)
+                if err != nil { return err }
+            }
+            if !strings.HasPrefix(tag, "v") { return fmt.Errorf("invalid or unsupported version: %s", tag) }
+            cache, err := CacheDir()
+            if err != nil { return err }
+            base := filepath.Base(filepath.Clean(repoPath))
+            dest := filepath.Join(cache, base+"@"+tag)
+            _ = os.RemoveAll(dest)
+            if err := copyDir(repoPath, dest); err != nil { return err }
+            // Use repoPath for ami.sum key; verify uses base name to resolve cache entry
+            if err := UpdateSum("ami.sum", repoPath, tag, dest, tag); err != nil { return err }
+            continue
+        }
+        // Remote git over SSH
         sshURL := toSSHURL(repoPath)
         tag := cons
         if cons == "==latest" {
             t, err := latestTag(sshURL)
+            if err != nil { return err }
+            tag = t
+        } else if !isSemVer(cons) {
+            // resolve ranges for remote
+            t, err := resolveConstraint(sshURL, cons)
             if err != nil { return err }
             tag = t
         }
@@ -332,4 +362,67 @@ func collectSemverTags(refs []*plumbing.Reference) []string {
 
 func sortSemver(tags []string) {
     sort.Slice(tags, func(i,j int) bool { return semverLess(tags[i], tags[j]) })
+}
+
+// latestTagLocal returns the latest non-prerelease semver tag from a local repository path.
+func latestTagLocal(repoPath string) (string, error) {
+    repo, err := git.PlainOpen(repoPath)
+    if err != nil { return "", err }
+    refs, err := repo.References()
+    if err != nil { return "", err }
+    defer refs.Close()
+    best := ""
+    _ = refs.ForEach(func(ref *plumbing.Reference) error {
+        n := ref.Name().String()
+        if strings.HasPrefix(n, "refs/tags/") {
+            tag := strings.TrimPrefix(n, "refs/tags/")
+            if isSemVer(tag) && !isPrerelease(tag) {
+                if best == "" || semverLess(best, tag) { best = tag }
+            }
+        }
+        return nil
+    })
+    if best == "" { return "", errors.New("no semver tags found") }
+    return best, nil
+}
+
+// resolveConstraintLocal resolves a version constraint using tags from a local repository.
+func resolveConstraintLocal(repoPath, cons string) (string, error) {
+    repo, err := git.PlainOpen(repoPath)
+    if err != nil { return "", err }
+    it, err := repo.References()
+    if err != nil { return "", err }
+    defer it.Close()
+    tags := []string{}
+    _ = it.ForEach(func(ref *plumbing.Reference) error {
+        n := ref.Name().String()
+        if strings.HasPrefix(n, "refs/tags/") {
+            tag := strings.TrimPrefix(n, "refs/tags/")
+            if isSemVer(tag) { tags = append(tags, tag) }
+        }
+        return nil
+    })
+    if len(tags) == 0 { return "", errors.New("no semver tags found") }
+    sortSemver(tags)
+    var filt []string
+    switch {
+    case strings.HasPrefix(cons, ">="):
+        base := strings.TrimSpace(strings.TrimPrefix(cons, ">="))
+        for _, t := range tags { if !semverLess(t, base) { filt = append(filt, t) } }
+    case strings.HasPrefix(cons, ">"):
+        base := strings.TrimSpace(strings.TrimPrefix(cons, ">"))
+        for _, t := range tags { if semverLess(base, t) { filt = append(filt, t) } }
+    case strings.HasPrefix(cons, "^"):
+        base := strings.TrimSpace(strings.TrimPrefix(cons, "^"))
+        bv := parseSemVer(base)
+        for _, t := range tags { tv := parseSemVer(t); if tv[0]==bv[0] && !semverLess(t, base) { filt = append(filt, t) } }
+    case strings.HasPrefix(cons, "~"):
+        base := strings.TrimSpace(strings.TrimPrefix(cons, "~"))
+        bv := parseSemVer(base)
+        for _, t := range tags { tv := parseSemVer(t); if tv[0]==bv[0] && tv[1]==bv[1] && !semverLess(t, base) { filt = append(filt, t) } }
+    default:
+        return "", fmt.Errorf("unsupported constraint: %s", cons)
+    }
+    if len(filt) == 0 { return "", errors.New("no matching tags for constraint") }
+    return filt[len(filt)-1], nil
 }

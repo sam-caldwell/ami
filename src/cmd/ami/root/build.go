@@ -1,6 +1,8 @@
 package root
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/sam-caldwell/ami/src/ami/compiler/driver"
@@ -36,23 +38,48 @@ var cmdBuild = &cobra.Command{
 			_ = os.MkdirAll("build/debug/ast", 0755)
 			_ = os.MkdirAll("build/debug/ir", 0755)
 			_ = os.MkdirAll("build/debug/asm", 0755)
-			// Resolved sources (scaffold for src/main.ami)
+			// Resolved sources and compiler driver scaffolds
 			resolved := sch.SourcesV1{Schema: "sources.v1", Units: []sch.SourceUnit{}}
-			if _, err := os.Stat("src/main.ami"); err == nil {
-				resolved.Units = append(resolved.Units, sch.SourceUnit{Package: "main", File: "src/main.ami", Imports: []string{}, Source: ""})
-				// AST scaffold
-				ast := sch.ASTV1{Schema: "ast.v1", Package: "main", File: "src/main.ami", Root: sch.ASTNode{Kind: "File", Pos: sch.Position{Line: 1, Column: 1, Offset: 0}}}
-				b, _ := json.MarshalIndent(ast, "", "  ")
-				_ = os.WriteFile(filepath.Join("build", "debug", "ast", "main.ast.json"), b, 0644)
-				// IR scaffold
-				ir := sch.IRV1{Schema: "ir.v1", Package: "main", File: "src/main.ami", Functions: []sch.IRFunction{{Name: "main", Blocks: []sch.IRBlock{{Label: "entry"}}}}}
-				b, _ = json.MarshalIndent(ir, "", "  ")
-				_ = os.WriteFile(filepath.Join("build", "debug", "ir", "main.ir.json"), b, 0644)
-				// ASM scaffold
-				_ = os.WriteFile(filepath.Join("build", "debug", "asm", "main.s"), []byte("; AMI-IR assembly scaffold\n"), 0644)
-				asmIdx := sch.ASMIndexV1{Schema: "asm.v1", Package: "main", Files: []sch.ASMFile{{Unit: "src/main.ami", Path: "build/debug/asm/main.s", Size: 0, Sha256: ""}}}
-				b, _ = json.MarshalIndent(asmIdx, "", "  ")
-				_ = os.WriteFile(filepath.Join("build", "debug", "asm", "index.json"), b, 0644)
+			var files []string
+            if _, err := os.Stat("src/main.ami"); err == nil { files = append(files, "src/main.ami") }
+            if len(files) > 0 {
+				srcBytes, _ := os.ReadFile(files[0])
+                resolved.Units = append(resolved.Units, sch.SourceUnit{Package: "main", File: files[0], Imports: []string{}, Source: string(srcBytes)})
+				// Use compiler driver to create AST/IR
+                res, _ := driver.Compile(files, driver.Options{})
+                // AST per package/unit
+                for _, a := range res.AST {
+                    pkgDir := filepath.Join("build","debug","ast", a.Package)
+                    _ = os.MkdirAll(pkgDir, 0755)
+                    unit := filepath.Base(a.File)
+                    b, _ := json.MarshalIndent(a, "", "  ")
+                    _ = os.WriteFile(filepath.Join(pkgDir, unit+".ast.json"), b, 0644)
+                }
+				// IR per package/unit
+                for _, ir := range res.IR {
+                    pkgDir := filepath.Join("build","debug","ir", ir.Package)
+                    _ = os.MkdirAll(pkgDir, 0755)
+                    unit := filepath.Base(ir.File)
+                    b, _ := json.MarshalIndent(ir, "", "  ")
+                    _ = os.WriteFile(filepath.Join(pkgDir, unit+".ir.json"), b, 0644)
+                }
+				// ASM per package/unit + index
+                asmFiles := []sch.ASMFile{}
+                for _, f := range files {
+                    pkgDir := filepath.Join("build","debug","asm", "main")
+                    _ = os.MkdirAll(pkgDir, 0755)
+                    unit := filepath.Base(f)
+                    asmPath := filepath.Join(pkgDir, unit+".s")
+                    _ = os.WriteFile(asmPath, []byte("; AMI-IR assembly scaffold\n"), 0644)
+                    content := []byte("; AMI-IR assembly scaffold\n")
+                    _ = os.WriteFile(asmPath, content, 0644)
+                    size := int64(len(content))
+                    sum := sha256.Sum256(content)
+                    asmFiles = append(asmFiles, sch.ASMFile{Unit: f, Path: asmPath, Size: size, Sha256: hex.EncodeToString(sum[:])})
+                }
+                asmIdx := sch.ASMIndexV1{Schema: "asm.v1", Package: "main", Files: asmFiles}
+                b, _ := json.MarshalIndent(asmIdx, "", "  ")
+                _ = os.WriteFile(filepath.Join("build","debug","asm","index.json"), b, 0644)
 			}
 			b, _ := json.MarshalIndent(resolved, "", "  ")
 			_ = os.WriteFile(filepath.Join("build", "debug", "source", "resolved.json"), b, 0644)

@@ -6,6 +6,7 @@ import (
     "os"
     "path/filepath"
 
+    git "github.com/go-git/go-git/v5"
     "github.com/spf13/cobra"
     "github.com/sam-caldwell/ami/src/internal/logger"
 )
@@ -48,9 +49,19 @@ var cmdInit = &cobra.Command{
         if _, err := os.Stat(mainPath); errors.Is(err, os.ErrNotExist) || initForce {
             mainSrc := "// AMI main entrypoint (scaffold)\n" +
                 "// TODO: define your pipeline here.\n"
-            if err := os.WriteFile(mainPath, []byte(mainSrc), 0644); err != nil {
-                logger.Error(fmt.Sprintf("failed writing %s: %v", mainPath, err), nil)
-                return
+        if err := os.WriteFile(mainPath, []byte(mainSrc), 0644); err != nil {
+            logger.Error(fmt.Sprintf("failed writing %s: %v", mainPath, err), nil)
+            return
+        }
+        }
+        // Optional git init when --force is provided and not a repo
+        if initForce {
+            if _, err := os.Stat(filepath.Join(".git")); os.IsNotExist(err) {
+                if _, ierr := git.PlainInit(".", false); ierr != nil {
+                    logger.Warn("git init failed", map[string]interface{}{"error": ierr.Error()})
+                } else {
+                    logger.Info("initialized git repository", nil)
+                }
             }
         }
         logger.Info("workspace initialized", map[string]interface{}{"workspace": wsPath, "source": mainPath})

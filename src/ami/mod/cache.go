@@ -13,6 +13,7 @@ import (
     "strings"
 
     git "github.com/go-git/go-git/v5"
+    gitcfg "github.com/go-git/go-git/v5/config"
     "github.com/go-git/go-git/v5/plumbing"
     gogitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
@@ -112,6 +113,130 @@ func UpdateSum(sumPath, pkg, version, repoPath, tag string) error {
     if err != nil { return err }
     s.Packages[pkg][version] = digest
     return saveSum(sumPath, s)
+}
+
+// UpdateFromWorkspace parses ami.workspace and updates dependencies to selected tags.
+// Supports entries like:
+//   - github.com/org/repo ==latest
+//   - github.com/org/repo v1.2.3
+func UpdateFromWorkspace(wsPath string) error {
+    b, err := os.ReadFile(wsPath)
+    if err != nil { return err }
+    lines := strings.Split(string(b), "\n")
+    inImport := false
+    deps := [][2]string{} // [repo, constraint]
+    for _, ln := range lines {
+        s := strings.TrimSpace(ln)
+        if strings.HasPrefix(s, "import:") { inImport = true; continue }
+        if inImport {
+            if strings.HasPrefix(s, "-") {
+                item := strings.TrimSpace(strings.TrimPrefix(s, "-"))
+                // split by spaces, first token is path, rest constraint tokens
+                parts := strings.Fields(item)
+                if len(parts) >= 1 {
+                    repo := parts[0]
+                    if strings.HasPrefix(repo, "./") { continue }
+                    constraint := "==latest"
+                    for _, p := range parts[1:] {
+                        if p == "==latest" || strings.HasPrefix(p, "v") {
+                            constraint = p
+                            break
+                        }
+                    }
+                    deps = append(deps, [2]string{repo, constraint})
+                }
+            } else if s == "" || strings.HasPrefix(s, "#") {
+                // keep scanning
+            } else if strings.HasPrefix(s, "-") == false {
+                // end of import block
+                inImport = false
+            }
+        }
+    }
+    // For each dep, resolve tag and fetch into cache
+    for _, d := range deps {
+        repoPath := d[0]
+        cons := d[1]
+        // construct ssh URL
+        sshURL := toSSHURL(repoPath)
+        tag := cons
+        if cons == "==latest" {
+            t, err := latestTag(sshURL)
+            if err != nil { return err }
+            tag = t
+        }
+        if !strings.HasPrefix(tag, "v") { return fmt.Errorf("invalid or unsupported version: %s", tag) }
+        // Fetch using Get, then update ami.sum
+        dest, err := Get("git+" + sshURL + "#" + tag)
+        if err != nil { return err }
+        // pkg name uses host/path
+        u := strings.TrimPrefix(sshURL, "ssh://")
+        u = strings.TrimPrefix(u, "git@")
+        parts := strings.SplitN(u, ":", 2)
+        host := parts[0]
+        path := ""
+        if len(parts) == 2 { path = parts[1] } else { if i:=strings.Index(host, "/"); i>0 { path=host[i+1:]; host=host[:i] } }
+        pkg := filepath.Join(host, strings.TrimSuffix(path, ".git"))
+        if err := UpdateSum("ami.sum", pkg, tag, dest, tag); err != nil { return err }
+    }
+    return nil
+}
+
+func toSSHURL(repo string) string {
+    // repo like github.com/org/repo
+    if strings.HasPrefix(repo, "ssh://") || strings.HasPrefix(repo, "git@") { return repo }
+    return "ssh://git@" + strings.TrimSuffix(repo, ".git") + ".git"
+}
+
+// latestTag returns the latest semver tag (non-prerelease) from remote.
+func latestTag(sshURL string) (string, error) {
+    // Build remote and list refs
+    r := git.NewRemote(nil, &gitcfg.RemoteConfig{URLs: []string{sshURL}})
+    auth, _ := gogitssh.NewSSHAgentAuth("git")
+    refs, err := r.List(&git.ListOptions{Auth: auth})
+    if err != nil { return "", err }
+    best := ""
+    for _, ref := range refs {
+        name := ref.Name().String()
+        if strings.HasPrefix(name, "refs/tags/") {
+            tag := strings.TrimPrefix(name, "refs/tags/")
+            if isSemVer(tag) && !isPrerelease(tag) {
+                if best == "" || semverLess(best, tag) {
+                    best = tag
+                }
+            }
+        }
+    }
+    if best == "" { return "", errors.New("no semver tags found") }
+    return best, nil
+}
+
+func isSemVer(v string) bool { return versionRe.MatchString(v) }
+func isPrerelease(v string) bool { return strings.Contains(v, "-") }
+
+// semverLess returns true if a<b (so if best==a, and semverLess(best, tag) is true, pick tag)
+func semverLess(a, b string) bool {
+    pa := parseSemVer(a)
+    pb := parseSemVer(b)
+    if pa[0] != pb[0] { return pa[0] < pb[0] }
+    if pa[1] != pb[1] { return pa[1] < pb[1] }
+    return pa[2] < pb[2]
+}
+
+func parseSemVer(v string) [3]int {
+    v = strings.TrimPrefix(v, "v")
+    // strip prerelease/build
+    if i := strings.IndexAny(v, "-+"); i >= 0 { v = v[:i] }
+    parts := strings.Split(v, ".")
+    out := [3]int{}
+    for i := 0; i < 3 && i < len(parts); i++ {
+        // ignore errors -> zero
+        var n int
+        for _, ch := range parts[i] { if ch < '0' || ch > '9' { n = 0; break } }
+        fmt.Sscanf(parts[i], "%d", &out[i])
+        _ = n
+    }
+    return out
 }
 
 // commitDigest computes SHA-256 of the raw commit object for the tag.

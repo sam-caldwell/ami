@@ -31,7 +31,13 @@ var cmdModClean = &cobra.Command{
 var cmdModUpdate = &cobra.Command{
 	Use:   "update",
 	Short: "Update project dependencies",
-	Run:   func(cmd *cobra.Command, args []string) { logger.Info("ami mod update: not yet implemented", nil) },
+	Run:   func(cmd *cobra.Command, args []string) {
+        if err := ammod.UpdateFromWorkspace("ami.workspace"); err != nil {
+            logger.Error(err.Error(), nil)
+            return
+        }
+        logger.Info("dependencies updated (ami.sum)", nil)
+    },
 }
 
 var cmdModGet = &cobra.Command{

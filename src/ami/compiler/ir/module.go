@@ -1,0 +1,37 @@
+package ir
+
+import (
+    "sort"
+    astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+    sch "github.com/sam-caldwell/ami/src/schemas"
+)
+
+type Function struct { Name string }
+
+type Module struct {
+    Package   string
+    Unit      string // file path
+    Functions []Function
+}
+
+// FromASTFile builds a simple IR module enumerating function declarations.
+func FromASTFile(pkg, unit string, f *astpkg.File) Module {
+    m := Module{Package: pkg, Unit: unit}
+    for _, d := range f.Decls {
+        if fd, ok := d.(astpkg.FuncDecl); ok {
+            m.Functions = append(m.Functions, Function{Name: fd.Name})
+        }
+    }
+    sort.Slice(m.Functions, func(i, j int) bool { return m.Functions[i].Name < m.Functions[j].Name })
+    return m
+}
+
+// ToSchema converts the module into a schemas.IRV1 for debug output.
+func (m Module) ToSchema() sch.IRV1 {
+    out := sch.IRV1{Schema: "ir.v1", Package: m.Package, File: m.Unit}
+    for _, fn := range m.Functions {
+        out.Functions = append(out.Functions, sch.IRFunction{Name: fn.Name, Blocks: []sch.IRBlock{{Label: "entry"}}})
+    }
+    return out
+}
+

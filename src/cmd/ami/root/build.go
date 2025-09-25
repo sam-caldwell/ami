@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
     "runtime"
+    "time"
 )
 
 var buildVerbose bool
@@ -29,8 +30,21 @@ var cmdBuild = &cobra.Command{
         wsPath := "ami.workspace"
         ws, err := workspace.Load(wsPath)
         if err != nil {
-            logger.Error(fmt.Sprintf("failed to load %s: %v", wsPath, err), nil)
-            return
+            // Build-time enforcement of workspace schema constraints
+            if flagJSON {
+                d := sch.DiagV1{Schema: "diag.v1", Timestamp: sch.FormatTimestamp(nowUTC()), Level: "error", Code: "E_WS_SCHEMA", Message: fmt.Sprintf("workspace validation failed: %v", err), File: wsPath}
+                if verr := d.Validate(); verr == nil {
+                    enc := json.NewEncoder(os.Stdout)
+                    _ = enc.Encode(d)
+                } else {
+                    // fallback: plain message to stdout if schema couldn't validate (shouldn't happen)
+                    fmt.Fprintln(os.Stdout, "{\"schema\":\"diag.v1\",\"level\":\"error\",\"message\":\"workspace validation failed\"}")
+                }
+            } else {
+                // Human mode: plain text to stderr and exit USER_ERROR
+                fmt.Fprintln(os.Stderr, fmt.Sprintf("workspace error: %v", err))
+            }
+            os.Exit(ex.UserError)
         }
         _ = ws
         // If an existing ami.manifest is present, cross-check it against ami.sum
@@ -130,6 +144,11 @@ var cmdBuild = &cobra.Command{
                     }
                 }
                 if !ok {
+                    // Emit JSON diagnostic summary in JSON mode
+                    if flagJSON {
+                        d := sch.DiagV1{Schema: "diag.v1", Timestamp: sch.FormatTimestamp(nowUTC()), Level: "error", Code: "E_INTEGRITY", Message: "integrity violation: ami.sum does not match cache"}
+                        if verr := d.Validate(); verr == nil { _ = json.NewEncoder(os.Stdout).Encode(d) }
+                    }
                     // Fail build with integrity violation exit code
                     os.Stderr.WriteString("integrity violation: ami.sum does not match cache\n")
                     os.Exit(ex.IntegrityViolationError)
@@ -166,6 +185,10 @@ var cmdBuild = &cobra.Command{
         if _, err := os.Stat("ami.sum"); err == nil {
             if err := man.CrossCheckWithSumFile("ami.sum"); err != nil {
                 logger.Error("integrity: manifest vs ami.sum mismatch", map[string]interface{}{"error": err.Error()})
+                if flagJSON {
+                    d := sch.DiagV1{Schema: "diag.v1", Timestamp: sch.FormatTimestamp(nowUTC()), Level: "error", Code: "E_INTEGRITY_MANIFEST", Message: "integrity violation: manifest and ami.sum do not match"}
+                    if verr := d.Validate(); verr == nil { _ = json.NewEncoder(os.Stdout).Encode(d) }
+                }
                 os.Stderr.WriteString("integrity violation: manifest and ami.sum do not match\n")
                 os.Exit(ex.IntegrityViolationError)
             }
@@ -192,3 +215,5 @@ func fileSHA256(path string) (string, int64, error) {
     if err != nil { return "", 0, err }
     return hex.EncodeToString(h.Sum(nil)), n, nil
 }
+
+func nowUTC() time.Time { return time.Now().UTC() }

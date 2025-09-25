@@ -4,6 +4,7 @@ import (
     "strings"
 
     astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+    "github.com/sam-caldwell/ami/src/ami/compiler/diag"
     scan "github.com/sam-caldwell/ami/src/ami/compiler/scanner"
     tok "github.com/sam-caldwell/ami/src/ami/compiler/token"
 )
@@ -11,15 +12,36 @@ import (
 type Parser struct {
     s   *scan.Scanner
     cur tok.Token
+    file   string
+    errors []diag.Diagnostic
 }
 
 func New(src string) *Parser {
-	p := &Parser{s: scan.New(src)}
-	p.next()
-	return p
+    p := &Parser{s: scan.New(src), file: "input.ami"}
+    p.next()
+    return p
 }
 
+// Errors returns collected diagnostics from tolerant parsing.
+func (p *Parser) Errors() []diag.Diagnostic { return append([]diag.Diagnostic(nil), p.errors...) }
+
 func (p *Parser) next() { p.cur = p.s.Next() }
+
+func (p *Parser) errorf(msg string) {
+    p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_PARSE", Message: msg, File: p.file})
+}
+
+// synchronize advances the parser until a likely statement boundary is found.
+func (p *Parser) synchronize() {
+    for p.cur.Kind != tok.EOF {
+        if p.cur.Kind == tok.SEMI { p.next(); return }
+        switch p.cur.Kind {
+        case tok.KW_FUNC, tok.KW_IMPORT, tok.KW_PIPELINE, tok.KW_PACKAGE, tok.RBRACE:
+            return
+        }
+        p.next()
+    }
+}
 
 func (p *Parser) ParseFile() *astpkg.File {
     f := &astpkg.File{}
@@ -32,6 +54,8 @@ func (p *Parser) ParseFile() *astpkg.File {
                 p.next()
                 continue
             }
+            p.errorf("expected package name")
+            p.synchronize()
         }
         // pipeline declaration: pipeline IDENT { <chain> }
         if p.cur.Kind == tok.KW_PIPELINE {
@@ -41,6 +65,9 @@ func (p *Parser) ParseFile() *astpkg.File {
                 f.Stmts = append(f.Stmts, decl)
                 continue
             }
+            p.errorf("invalid pipeline declaration")
+            p.synchronize()
+            continue
         }
         // import declarations
         if p.cur.Kind == tok.KW_IMPORT || (p.cur.Kind == tok.IDENT && p.cur.Lexeme == "import") {
@@ -101,12 +128,15 @@ func (p *Parser) ParseFile() *astpkg.File {
                 }
                 continue
             }
+            p.errorf("invalid import declaration")
+            p.synchronize()
+            continue
         }
         // func declaration scaffold: func IDENT (...) { ... }
         if p.cur.Kind == tok.KW_FUNC {
             p.next()
             name := ""
-            if p.cur.Kind == tok.IDENT { name = p.cur.Lexeme; p.next() }
+            if p.cur.Kind == tok.IDENT { name = p.cur.Lexeme; p.next() } else { p.errorf("expected function name") }
             // params
             if p.cur.Kind == tok.LPAREN {
                 depth := 1; p.next()
@@ -133,10 +163,14 @@ func (p *Parser) ParseFile() *astpkg.File {
                     if p.cur.Kind == tok.RBRACE { depth--; if depth==0 { p.next(); break } }
                     p.next()
                 }
-            }
+            } else { p.errorf("expected function body") }
             fd := astpkg.FuncDecl{Name: name}
             f.Decls = append(f.Decls, fd)
             f.Stmts = append(f.Stmts, fd)
+            if p.cur.Kind != tok.SEMI && p.cur.Kind != tok.KW_FUNC {
+                // attempt to move forward to next statement
+                p.synchronize()
+            }
             continue
         }
         // Keep unparsed token as Bad node for now

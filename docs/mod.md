@@ -13,6 +13,13 @@ Usage:
 ## update
 
 - Resolve and fetch all dependencies declared in `ami.workspace` under `packages[].import`.
+- Supports constraints on each import item:
+  - Exact: `1.2.3` or `v1.2.3`
+  - Caret: `^1.2.3`
+  - Tilde: `~1.2.3`
+  - Greater-than: `>1.2.3`
+  - Greater-than-or-equal: `>=1.2.3`
+  - Macro latest: `==latest`
 - Updates `ami.sum` with the resolved version → digest mapping.
 
 Usage:

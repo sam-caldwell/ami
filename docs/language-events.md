@@ -4,7 +4,7 @@ This scaffold enforces core event/error typing rules and worker contracts:
 
 Worker Contracts
 
-- Signature: `func f(ctx Context, ev Event<T>, st *State) R`
+- Signature: `func f(ctx Context, ev Event<T>, st State) R`
   - `R ∈ { Event<U>, []Event<U>, Error<E>, Drop, Ack }`
   - Enforced when used as workers in pipelines. Invalid signatures emit `E_WORKER_SIGNATURE`.
 

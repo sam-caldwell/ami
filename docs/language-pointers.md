@@ -10,9 +10,9 @@ Usage of `*`:
 Compiler behavior:
 
 - `&` anywhere in source is rejected (`E_PTR_UNSUPPORTED_SYNTAX`).
-- Unary `*` in expression position is rejected (`E_STAR_MISUSED`).
-- Types may include `*` for AMI-defined roles (e.g., `*State` in worker signatures). This does not introduce raw pointer operations.
-- Mutability rules: AMI has no `mut { ... }` blocks. Mark assignments with `*` on the left-hand side (e.g., `*x = value`) or wrap side-effectful expressions in `mutate(expr)`.
+- Unary `*` is not a dereference; using it outside the assignment left-hand side is not supported.
+- Pointer type markers in signatures are not part of AMI (e.g., `*State` is invalid). Use `State` as a capability argument.
+  Mutability remains explicit by language rules (see `docs/language-mutability.md`).
 
 Notes:
 

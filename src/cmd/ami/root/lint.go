@@ -8,6 +8,7 @@ import (
     "sort"
     "strings"
     "regexp"
+    "strconv"
 
     "github.com/spf13/cobra"
 
@@ -116,6 +117,8 @@ func runLint() {
     for _, u := range ulist {
         diags = append(diags, lintUnit(u.pkg, u.file, u.src, u.ast, lcfg)...)
     }
+    // Cross-unit hygiene within a package: duplicate function declarations across files
+    diags = append(diags, lintDuplicateFunctionsAcrossUnits(ulist)...)
     // Cross-package constraint checks
     diags = append(diags, lintCrossPackageConstraints(ws, pkgRoots, ulist)...)
 
@@ -170,6 +173,42 @@ func runLint() {
         }
     }
     logger.Info(fmt.Sprintf("lint: summary: %d warnings, %d errors", warns, errs), nil)
+}
+
+// lintDuplicateFunctionsAcrossUnits warns when the same function name is declared
+// in multiple units within the same package.
+func lintDuplicateFunctionsAcrossUnits(units []lintUnitRec) []diag.Diagnostic {
+    var out []diag.Diagnostic
+    // pkg -> name -> []unit indices
+    idx := map[string]map[string][]int{}
+    for i, u := range units {
+        if idx[u.pkg] == nil { idx[u.pkg] = map[string][]int{} }
+        for _, d := range u.ast.Decls {
+            if fd, ok := d.(astpkg.FuncDecl); ok && fd.Name != "" {
+                idx[u.pkg][fd.Name] = append(idx[u.pkg][fd.Name], i)
+            }
+        }
+    }
+    for pkg, names := range idx {
+        for name, list := range names {
+            if len(list) <= 1 { continue }
+            // emit a warning for each duplicate beyond the first occurrence
+            for _, i := range list[1:] {
+                u := units[i]
+                // find position via AST
+                var pos *srcset.Position
+                for _, d := range u.ast.Decls {
+                    if fd, ok := d.(astpkg.FuncDecl); ok && fd.Name == name {
+                        fs := srcset.NewFileSet(); sf := fs.AddFileFromSource(u.file, u.src); p := sf.PositionFor(fd.Pos.Offset)
+                        pos = &p
+                        break
+                    }
+                }
+                out = append(out, diag.Diagnostic{Level: diag.Warn, Code: "W_DUP_FUNC_ACROSS_FILES", Message: "duplicate function declared across multiple units: " + name, Package: pkg, File: u.file, Pos: pos})
+            }
+        }
+    }
+    return out
 }
 
 // parseWorkspacePackages extracts a map of package name -> root directory
@@ -348,6 +387,20 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
         d := diag.Diagnostic{Level: level, Code: code, Message: message, Package: pkg, File: file}
         if pos != nil { d.Pos = pos }
         out = append(out, d)
+    }
+    // Language reminders and compatibility hints
+    if off := findPackageIdentOffset(src); off >= 0 {
+        apply(diag.Warn, "W_LANG_NOT_GO", "AMI is not Go; semantics differ (no address-of '&', '*' is not dereference). Use '*' on assignment LHS and mutate(expr) for side effects.", pkgName, filePath, toPos(off))
+    } else {
+        apply(diag.Warn, "W_LANG_NOT_GO", "AMI is not Go; semantics differ (no address-of '&', '*' is not dereference). Use '*' on assignment LHS and mutate(expr) for side effects.", pkgName, filePath, nil)
+    }
+    // Heuristic detection of common Go-specific syntax
+    var goHits []string
+    patterns := []string{" var ", "\nvar ", ":=", " chan ", "\nchan ", " go ", "\ndefer ", " range ", "\ninterface ", " map[", " make(", " new("}
+    for _, ptn := range patterns { if strings.Contains(src, ptn) { goHits = append(goHits, strings.TrimSpace(ptn)) } }
+    if len(goHits) > 0 {
+        msg := "Go syntax detected (e.g., " + strings.Join(goHits, ", ") + "); AMI is not Go. See docs/language-mutability.md and docs/language-pointers.md."
+        apply(diag.Warn, "W_GO_SYNTAX_DETECTED", msg, pkgName, filePath, nil)
     }
     // Parser-level errors captured already during AST creation
     p := parser.New(src)
@@ -586,7 +639,7 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
         switch name {
         case "owned":
             if !emitted["W_RAII_OWNED_HINT"+key] {
-                apply(diag.Info, "W_RAII_OWNED_HINT", "Owned<T> requires Close/Release within a mut block", pkgName, filePath, p)
+                apply(diag.Info, "W_RAII_OWNED_HINT", "Owned<T> should be explicitly released: use mutate(release(x)) or an equivalent explicit release call.", pkgName, filePath, p)
                 emitted["W_RAII_OWNED_HINT"+key] = true
             }
         case "map":
@@ -638,9 +691,99 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
         if sd, ok := d.(astpkg.StructDecl); ok {
             for _, fld := range sd.Fields { hintType(fld.Type) }
         }
+        if pd, ok := d.(astpkg.PipelineDecl); ok {
+            // Node with no workers on transform/fanout: warn
+            for _, st := range pd.Steps {
+                kind := strings.ToLower(st.Name)
+                if (kind == "transform" || kind == "fanout") && len(st.Workers) == 0 {
+                    apply(diag.Warn, "W_NODE_NO_WORKERS", "node has no workers; verify configuration", pkgName, filePath, nil)
+                }
+                // Edge smell: unbounded capacity with block backpressure
+                if spec, ok := parseEdgeSpecFromArgsLint(st.Args); ok {
+                    if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
+                        apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity", pkgName, filePath, nil)
+                    }
+                }
+            }
+            for _, st := range pd.ErrorSteps {
+                kind := strings.ToLower(st.Name)
+                if (kind == "transform" || kind == "fanout") && len(st.Workers) == 0 {
+                    apply(diag.Warn, "W_NODE_NO_WORKERS", "error-path node has no workers; verify configuration", pkgName, filePath, nil)
+                }
+                if spec, ok := parseEdgeSpecFromArgsLint(st.Args); ok {
+                    if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
+                        apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity (error path)", pkgName, filePath, nil)
+                    }
+                }
+            }
+        }
     }
     return out
 }
+
+// --- Minimal edge spec parser for lint smells (tolerant) ---
+type edgeSpecLint struct { Kind string; Name string; MinCapacity int; MaxCapacity int; Backpressure string; Type string }
+
+func parseEdgeSpecFromArgsLint(args []string) (edgeSpecLint, bool) {
+    for _, a := range args {
+        s := strings.TrimSpace(a)
+        if !strings.HasPrefix(s, "in=") { continue }
+        v := strings.TrimPrefix(s, "in=")
+        switch {
+        case strings.HasPrefix(v, "edge.FIFO(") && strings.HasSuffix(v, ")"):
+            m := parseKVListLint(v[len("edge.FIFO(") : len(v)-1])
+            return edgeSpecLint{Kind: "fifo", MinCapacity: atoi0(m["minCapacity"]), MaxCapacity: atoi0(m["maxCapacity"]), Backpressure: m["backpressure"], Type: m["type"]}, true
+        case strings.HasPrefix(v, "edge.LIFO(") && strings.HasSuffix(v, ")"):
+            m := parseKVListLint(v[len("edge.LIFO(") : len(v)-1])
+            return edgeSpecLint{Kind: "lifo", MinCapacity: atoi0(m["minCapacity"]), MaxCapacity: atoi0(m["maxCapacity"]), Backpressure: m["backpressure"], Type: m["type"]}, true
+        case strings.HasPrefix(v, "edge.Pipeline(") && strings.HasSuffix(v, ")"):
+            m := parseKVListLint(v[len("edge.Pipeline(") : len(v)-1])
+            return edgeSpecLint{Kind: "pipeline", Name: m["name"], MinCapacity: atoi0(m["minCapacity"]), MaxCapacity: atoi0(m["maxCapacity"]), Backpressure: m["backpressure"], Type: m["type"]}, true
+        }
+    }
+    return edgeSpecLint{}, false
+}
+
+func parseKVListLint(s string) map[string]string {
+    out := map[string]string{}
+    parts := splitTopLevelCommasLint(s)
+    for _, p := range parts {
+        p = strings.TrimSpace(p)
+        if p == "" { continue }
+        if eq := strings.IndexByte(p, '='); eq >= 0 {
+            k := strings.TrimSpace(p[:eq])
+            v := strings.TrimSpace(p[eq+1:])
+            if len(v) >= 2 && ((v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'')) {
+                v = v[1:len(v)-1]
+            }
+            out[k] = v
+        }
+    }
+    return out
+}
+
+func splitTopLevelCommasLint(s string) []string {
+    var out []string
+    depth := 0
+    last := 0
+    for i := 0; i < len(s); i++ {
+        switch s[i] {
+        case '(':
+            depth++
+        case ')':
+            if depth > 0 { depth-- }
+        case ',':
+            if depth == 0 {
+                out = append(out, s[last:i])
+                last = i+1
+            }
+        }
+    }
+    out = append(out, s[last:])
+    return out
+}
+
+func atoi0(s string) int { n, _ := strconv.Atoi(s); return n }
 
 func pathBase(p string) string {
     if i := strings.LastIndex(p, "/"); i >= 0 { return p[i+1:] }

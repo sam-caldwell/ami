@@ -10,7 +10,7 @@ Forms
 Constraints
 
 - Arity (generic form): `slice<T>` must have exactly one type argument. Using zero or more than one emits `E_SLICE_ARITY`.
-- Element type: No special restrictions beyond nested type validation (e.g., `map` key rules apply when present). Both pointers and generic element types are allowed, e.g., `[]*T`, `[]Event<U>`.
+- Element type: No special restrictions beyond nested type validation (e.g., `map` key rules apply when present). Pointer types are not part of AMI; generic element types are allowed, e.g., `[]Event<U>`.
 
 Examples
 
@@ -20,4 +20,3 @@ Examples
 Testing
 
 - Unit tests for arity and bracket/generic forms live under `src/ami/compiler/sem/slice_semantics_test.go`.
-

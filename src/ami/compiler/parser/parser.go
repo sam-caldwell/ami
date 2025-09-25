@@ -656,6 +656,11 @@ func (p *Parser) parseParamList() []astpkg.Param {
             // try to parse type after ident
             // save position by making a copy of parser state is complex; instead try parseType and if fails treat as type-only
             p.next()
+            // AMI 2.3.2: reject pointer type syntax proactively
+            if p.cur.Kind == tok.STAR {
+                p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_PTR_UNSUPPORTED_SYNTAX", Message: "'*' pointer type/dereference is not allowed; AMI does not expose raw pointers (see 2.3.2)", File: p.file})
+                p.next()
+            }
             if tr, ok := p.parseType(); ok {
                 name = ident
                 params = append(params, astpkg.Param{Name: name, Type: tr})
@@ -679,6 +684,11 @@ func (p *Parser) parseResultList() []astpkg.TypeRef {
     var results []astpkg.TypeRef
     for p.cur.Kind != tok.RPAREN && p.cur.Kind != tok.EOF {
         if p.cur.Kind == tok.COMMA { p.next(); continue }
+        // reject pointer type syntax proactively
+        if p.cur.Kind == tok.STAR {
+            p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_PTR_UNSUPPORTED_SYNTAX", Message: "'*' pointer type/dereference is not allowed; AMI does not expose raw pointers (see 2.3.2)", File: p.file})
+            p.next()
+        }
         if tr, ok := p.parseType(); ok { results = append(results, tr) } else { p.next() }
         if p.cur.Kind == tok.COMMA { p.next() }
     }

@@ -35,19 +35,20 @@ Default severities unless overridden by config/strict:
   - `W_FIXME_COMMENT` (warn): FIXME marker found in comment.
   - `W_BLANK_IDENT_USAGE` (warn/off by default): '_' identifier outside allowed sinks. Disabled by default to avoid noise; enable via config.
 
-- Pipeline hints:
+ - Pipeline hints:
   - `W_PIPELINE_INGRESS_POS` (info): ingress position hint when present.
   - `W_PIPELINE_EGRESS_POS` (info): egress position hint when present.
 
+ - Language reminders:
 
-- RAII usage hints:
+ - RAII usage hints:
   - `W_RAII_OWNED_HINT` (info): Owned<T> in signatures/structs should be released using `mutate(release(x))` or an equivalent explicit release call.
 
 - Collection constraints (mirrors as hints):
   - `W_MAP_ARITY_HINT` (warn): map requires two type parameters (`map<K,V>`).
-  - `W_MAP_KEY_TYPE_HINT` (warn): map key should be scalar; avoid pointers, slices, or maps.
+  - `W_MAP_KEY_TYPE_HINT` (warn): map key should be scalar; slices or maps are not allowed.
   - `W_SET_ARITY_HINT` (warn): set requires one type parameter (`set<T>`).
-  - `W_SET_ELEM_TYPE_HINT` (warn): set element should be scalar; avoid pointers, slices, or maps.
+  - `W_SET_ELEM_TYPE_HINT` (warn): set element should be scalar; slices or maps are not allowed.
   - `W_SLICE_ARITY_HINT` (warn): slice requires one type parameter (`slice<T>`).
 
 - Workspace & cross‑package:

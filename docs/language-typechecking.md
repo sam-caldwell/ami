@@ -4,8 +4,7 @@ This scaffold implements minimal type checks for imperative constructs using par
 
 Checks
 
-- Assignment type match: For simple forms `*x = y` and `*p = y` (LHS marked with `*`), where `x`, `y` are function parameters or literals, the checker ensures left and right types match (emits `E_ASSIGN_TYPE_MISMATCH` when they do not). When `x` is a pointer parameter, the LHS type uses the element type for comparison.
-- Unary `*` is not a dereference: using `*` in an expression (RHS) emits `E_STAR_MISUSED`.
+- Assignment type match: For simple forms `x = y` where `x`, `y` are function parameters or literals, the checker ensures left and right types match (emits `E_ASSIGN_TYPE_MISMATCH` when they do not).
 - Address-of is disallowed: `&` anywhere in source emits `E_PTR_UNSUPPORTED_SYNTAX`.
 
 Scope

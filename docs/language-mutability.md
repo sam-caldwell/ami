@@ -7,7 +7,7 @@ AMI does not support Rust-like `mut { ... }` blocks. Mutability is explicit and 
 Rules
 
 - Unmarked assignment: any `x = y` without `*` on the left-hand side emits `E_MUT_ASSIGN_UNMARKED`.
-- `*` is a marker, not deref: unary `*` is not a pointer dereference. It is only permitted on the assignment left-hand side; using `*` in an expression position emits `E_STAR_MISUSED`.
+- `*` is a marker, not deref: unary `*` is not a pointer dereference. It is intended only for the assignment left-hand side.
 
 Notes
 

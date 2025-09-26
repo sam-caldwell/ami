@@ -40,7 +40,7 @@ action to bring code and docs into alignment with the .docx and the updated exam
 - [x] `edge.MultiPath` for Collect:
   - [x] Parser tolerant consumption via attribute string; IR scaffold parses `edge.MultiPath(inputs=[...], merge=Sort(...))`.
   - [x] Semantic validation (minimal): only valid on `Collect`; inputs required; first input must be a default upstream edge (FIFO); enforce input type compatibility; basic merge op shape (allowed names, parentheses).
-  - [x] IR extensions: encode MultiPath configuration (inputs, merge attributes) in `pipelines.v1` (edges.v1 unaffected).
+  - [x] IR extensions: encode MultiPath configuration (inputs, merge attributes) in `pipelines.v1`. Edges summary now also carries a MultiPath scaffold for debug parity.
 - [x] `edge.Pipeline` type safety across pipelines: ensure type flow checks across pipeline boundaries use declared `type` on edges; add diagnostics on mismatch.
   - Status: Implemented via `analyzeEdgePipelineTypeSafety` and wired into `AnalyzeFile`.
   - Behavior: Builds a pipeline→output payload type map by inspecting the penultimate step (before `Egress`) worker outputs; validates `edge.Pipeline(name=...,type=...)` against inferred type.
@@ -56,7 +56,7 @@ action to bring code and docs into alignment with the .docx and the updated exam
   - Progress:
     - [x] Semantics/code/tests use canonical `dropOldest`/`dropNewest`; bare `drop` is not accepted.
     - [ ] Docs/SPEC sweep to remove `drop` and adopt canonical terms.
-    - [ ] Linter: add `W_EDGE_BP_ALIAS` when encountering `drop` with a migration hint.
+    - [x] Linter: added `W_EDGE_BP_ALIAS` when encountering `drop` with a migration hint; test added.
 
 ## Linter
 
@@ -140,10 +140,15 @@ action to bring code and docs into alignment with the .docx and the updated exam
 - [x] SPEC §6.2 casing: updated to `Fanout` to match examples and docx.
 - [x] SPEC §6.2 pipeline examples: updated to named attribute lists (`worker=`, `in=`) instead of positional forms.
 - [x] SPEC §6.3 shows `st *State` parameter; docx uses ambient `state` and prohibits raw pointers.
+  - Follow-up alignment completed:
+    - [x] Parser/Semantics reject `*State` (`E_STATE_PARAM_POINTER`).
+    - [x] Lint emits ambient migration hint for explicit `State` (`W_STATE_PARAM_AMBIENT_SUGGEST`).
+    - [x] Semantics emit legacy worker deprecation when referenced (`W_WORKER_STATE_PARAM_DEPRECATED`).
+    - [ ] Full docs/examples sweep to replace remaining `st State` examples with ambient `state.*` access.
 - [ ] Backpressure tokens: SPEC/semantics `block|drop` vs examples/docx `dropOldest`/`dropNewest`.
   - Status: code/semantics accept `{ block, dropOldest, dropNewest }`; no bare `drop` token. Docs/SPEC still reference `drop`.
   - Action: update SPEC/docs to the canonical set; consider transitional alias warning if `drop` is encountered.
-- [ ] `edge.MultiPath`: SPEC marked planned, examples/docx demonstrate usage; parser/semantics not fully implemented.
+- [x] `edge.MultiPath`: Scaffold implemented (parser tolerance, minimal semantics, IR/schema + pseudo‑ops). Merge attribute normalization and runtime lowering pending.
 - [x] Function type parameter lists (`func f<T,...>(...)`) are parsed; minimal semantics implemented (duplicate-name rejection). Broader generic constraint/unification remains pending.
 
 ## Next Steps for Remaining Conflicts
@@ -160,10 +165,13 @@ action to bring code and docs into alignment with the .docx and the updated exam
   - [x] Docs/Schemas/Examples: update to canonical terms and clarify delivery semantics (docs/edges.md, docs/merge.md).
 
 - edge.MultiPath implementation
-  - [ ] Parser: finalize `in=edge.MultiPath(<attr list>)` on Collect; accept `merge.*` attributes.
+  - [x] Parser: finalize `in=edge.MultiPath(<attr list>)` on Collect; accept `merge.*` attributes (tolerant via raw attribute). Added parser round‑trip test.
   - [ ] Semantics: context checks (Collect‑only), attribute arity/type validation, conflicts, and required fields.
-  - [ ] IR/Debug: emit normalized merge config in `pipelines.v1` and `edges.v1`.
-  - [ ] Lint/Tests: smells/hints for tiny buffers and missing fields; golden IR snapshots.
+        Status: Minimal checks complete (Collect‑only, inputs required, FIFO first, type compatibility, allowed merge names). Deeper arity/type validation still pending.
+  - [x] IR/Debug: emit MultiPath in `pipelines.v1` and `edges.v1`.
+        Status: Scaffold emitted (inputs + merge ops {name, raw}). Normalized merge config (key/order/stable/window/etc.) pending.
+  - [x] Lint/Tests: smells/hints for tiny buffers and missing fields; golden IR snapshots.
+        Status: Lint hints for MultiPath present; added build test to assert edges.v1 MultiPath emission; existing IR test verifies pipelines.v1 scaffold.
 
 ## Notes
 

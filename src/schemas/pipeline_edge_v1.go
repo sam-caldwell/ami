@@ -20,6 +20,8 @@ type PipelineEdgeV1 struct {
 type MultiPathV1 struct {
     Inputs []PipelineEdgeV1 `json:"inputs"`
     Merge  []MergeOpV1      `json:"merge,omitempty"`
+    // Normalized merge configuration (when recognized).
+    MergeConfig *MergeConfigV1 `json:"mergeConfig,omitempty"`
 }
 
 // MergeOpV1 is a minimal representation of a merge operation.

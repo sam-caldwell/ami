@@ -910,10 +910,7 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
                     if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
                         apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1)", pkgName, filePath, nil)
                     }
-                    // Backpressure tokens alignment: warn on legacy ambiguous 'drop'
-                    if strings.ToLower(spec.Backpressure) == "drop" {
-                        apply(diag.Warn, "W_EDGE_BP_AMBIGUOUS_DROP", "backpressure=drop is ambiguous; use dropOldest or dropNewest", pkgName, filePath, nil)
-                    }
+                    // Backpressure tokens alignment: 'drop' is invalid (use dropOldest or dropNewest). No linter alias warning; semantics emit E_EDGE_BP_INVALID.
                 }
             }
             for _, st := range pd.ErrorSteps {
@@ -943,9 +940,7 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
                     if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
                         apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1) (error path)", pkgName, filePath, nil)
                     }
-                    if strings.ToLower(spec.Backpressure) == "drop" {
-                        apply(diag.Warn, "W_EDGE_BP_AMBIGUOUS_DROP", "backpressure=drop is ambiguous; use dropOldest or dropNewest", pkgName, filePath, nil)
-                    }
+                    // 'drop' invalid here as well; semantics handle error emission.
                 }
             }
         }

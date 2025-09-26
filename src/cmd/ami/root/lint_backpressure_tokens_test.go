@@ -25,7 +25,7 @@ func captureStdoutBP(t *testing.T, fn func()) string {
     return b.String()
 }
 
-func TestLint_JSON_WarnsOn_AmbiguousDrop(t *testing.T) {
+func TestLint_JSON_Errors_On_LegacyDrop(t *testing.T) {
     ws := t.TempDir()
     // Minimal workspace
     content := `version: 1.0.0
@@ -55,17 +55,16 @@ packages:
     oldArgs := os.Args
     out := captureStdoutBP(t, func() { os.Args = []string{"ami", "--json", "lint"}; _ = rootcmd.Execute() })
     os.Args = oldArgs
-    // Scan for our warning
+    // Scan for invalid backpressure error
     seen := false
     sc := bufio.NewScanner(strings.NewReader(out))
     for sc.Scan() {
         var m map[string]any
         if json.Unmarshal([]byte(sc.Text()), &m) != nil { continue }
         if m["schema"] != "diag.v1" { continue }
-        if m["code"] == "W_EDGE_BP_AMBIGUOUS_DROP" { seen = true; break }
+        if m["code"] == "E_EDGE_BP_INVALID" { seen = true; break }
     }
     if !seen {
-        t.Fatalf("expected W_EDGE_BP_AMBIGUOUS_DROP; out=\n%s", out)
+        t.Fatalf("expected E_EDGE_BP_INVALID for backpressure=drop; out=\n%s", out)
     }
 }
-

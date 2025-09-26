@@ -54,3 +54,22 @@ Notes
 
 See also
 - `docs/merge.md` for `Collect`-specific merge behavior configured via `edge.MultiPath(...)` and `merge.*(...)` attributes (sorting, stability, watermarking, buffering, and partitioning).
+
+## MultiPath Scaffold Status
+
+The current implementation supports `edge.MultiPath(...)` at a scaffold level:
+
+- Parser accepts `in=edge.MultiPath(inputs=[...], merge=Name(args))` on `Collect` nodes.
+- Semantics enforce basic rules (Collect-only, first input must be a default upstream edge, type compatibility across inputs, minimal merge-op name validation).
+- IR/Schema: `pipelines.v1` includes MultiPath inputs and raw merge ops; `edges.v1` carries a debug snapshot. ASM listings emit `mp_*` pseudo-ops to aid testing and future integration.
+
+For details and progress, see `SPECIFICATION.md` (sections 6.6 and 6.7) and `CONFLICTS.md` (edge.MultiPath section).
+
+## Remaining Work (Merge Normalization)
+
+Normalization and full validation of `merge.*` attributes are planned:
+
+- Normalize merge configuration (key, sort {field, order, stable}, dedup, window, watermark {field, lateness}, timeout, buffer {capacity, backpressure}, partitionBy) into `pipelines.v1`.
+- Validate per-attribute arity/types, detect conflicts, and enforce required fields.
+- Map merge configuration to runtime orchestration with deterministic buffering and policy handling.
+- Extend lints for merge smells (e.g., tiny buffers with drop policies, missing fields) and add golden tests for normalized IR.

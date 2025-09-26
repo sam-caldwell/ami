@@ -178,6 +178,9 @@
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion196883544/002/absrepo": {
       "v1.0.0": "40a0890ef53e98657f3ca4d34ea8b19d1c7e322c3dca2400fa2b1b261d88193b"
     },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion1973273818/002/absrepo": {
+      "v1.0.0": "896d7da8447a1354682ad6410b91e1d8d5a637aa20c1d5e838b54709672db2c0"
+    },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion1987593014/002/absrepo": {
       "v1.0.0": "f04972f7b3fa7f3e2395e7f5e9dfc593532a9fe12c08b3c9dcd64d0fd8cc7b1f"
     },
@@ -210,6 +213,9 @@
     },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2117481668/002/absrepo": {
       "v1.0.0": "520f7dab3e5613a7ce0b3906964ce0d70bd3e0db58408d1c3336c9841e07e23e"
+    },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2154408807/002/absrepo": {
+      "v1.0.0": "7f7f5a231665d2f61e29a44bf8950b70f3cf7adeb99224e1e8119c29d9f2851b"
     },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2176851380/002/absrepo": {
       "v1.0.0": "418ef47ee7c1d527c328e7f6da4ff5632c52947f67d7b9843ae0c0f6943478bf"
@@ -271,6 +277,9 @@
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion246832981/002/absrepo": {
       "v1.0.0": "8a708935a3131e5db4a95bccfc9c014a83115175d5021d8e15eabf188e312732"
     },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2475821340/002/absrepo": {
+      "v1.0.0": "9b7d44ffa813885b3d6ba985dbb1f39b487b2b420ea05977103408adc9869810"
+    },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion249161673/002/absrepo": {
       "v1.0.0": "4a7fdbb488cebb75f242fa770e3a63d974d1b73a0f8419b821de4858e54e0a31"
     },
@@ -285,6 +294,9 @@
     },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2554234168/002/absrepo": {
       "v1.0.0": "838e96331cfe4ccfff42f87c0375c7132da1556aa4ba8faa6102dc34e28f2b15"
+    },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2560034479/002/absrepo": {
+      "v1.0.0": "baf595e7a794cc256bda9c63a24988cda17d7f5dd8d0ecdd410184c49b63f738"
     },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2564312915/002/absrepo": {
       "v1.0.0": "60a80a3c8f078e0a1cf1262aba7c3559940fd2fe799bb48b52fa95ef1bf86710"
@@ -339,6 +351,9 @@
     },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2758016788/002/absrepo": {
       "v1.0.0": "b7363e3538d68e57866d579ac8e4d3ee1be42b179396bba1f82e6d1126c71b99"
+    },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2758732975/002/absrepo": {
+      "v1.0.0": "7eeabb688f221a5342f25c21e8bbcaf0a4b39606113475c3f39a9367717d36ac"
     },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion2765417714/002/absrepo": {
       "v1.0.0": "1e7f33a9f3dcccc8a5b73992a09450f369213072a072432ff2d124e715bbafb8"
@@ -418,6 +433,9 @@
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion3331529075/002/absrepo": {
       "v1.0.0": "14f688b4c2a1c52fc0baddceb550c6a3deccfb3f72e38b5bfaabf68077a0ec79"
     },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion333399436/002/absrepo": {
+      "v1.0.0": "5c41e095c097d13ef9d97fb29e58a7ef91a96a3f70a633128e1776a23515af39"
+    },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion3339396930/002/absrepo": {
       "v1.0.0": "6f06473f1436f113363333f17bb76a316a04ed3e0d63ac1b1a94584bb387f83b"
     },
@@ -486,6 +504,9 @@
     },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion3624250406/002/absrepo": {
       "v1.0.0": "aad2f0cf8668c19ed60345bd6491c8a39f05713bf63283606fe74a8f22bb68e6"
+    },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion362806783/002/absrepo": {
+      "v1.0.0": "6642156fe7839ee8b98917b9068f6af902a14b368772b1f0cef90fe9d1986a23"
     },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion3634060169/002/absrepo": {
       "v1.0.0": "99c31df2a0265f1a0262301c7b2f4a53399628a6650b9f4c42af7fbeef9b03fe"

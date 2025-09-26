@@ -9,7 +9,7 @@ import (
 // and propagate through return unification.
 func TestReturn_CallGeneric_Instantiate_OK(t *testing.T) {
     src := `package p
-func g(x Event<T>) Event<T> { return x }
+func g(x Event<T>) Event<T> { }
 func f(ev Event<string>) Event<string> { return g(ev) }`
     p := parser.New(src)
     f := p.ParseFile()
@@ -23,7 +23,7 @@ func f(ev Event<string>) Event<string> { return g(ev) }`
 
 func TestReturn_CallGeneric_Instantiate_Mismatch_Error(t *testing.T) {
     src := `package p
-func g(x Event<T>) Event<T> { return x }
+func g(x Event<T>) Event<T> { }
 func f(ev Event<int>) Event<string> { return g(ev) }`
     p := parser.New(src)
     f := p.ParseFile()
@@ -55,4 +55,3 @@ func g() map<string,int> { var m = map{"a":1}; return m }`
         }
     }
 }
-

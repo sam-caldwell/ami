@@ -51,6 +51,10 @@ Goal: Implement a deterministic, scriptable CLI `ami` for workspace management, 
   - Validation occurs during flag parsing; the process exits with `USER_ERROR (1)`.
   - Error message is written as plain text to stderr (not JSON, not colored) because rendering mode is undefined.
   - Tests cover: `--json --color` on root and subcommands, ensuring exit code 1 and a clear message.
+## Coding Style Guidelines
+- Keep Go source files minimal: limit each file to a single top-level declaration—either one function, one type (including a struct), one const block, or one var block.
+- For every .go file there will be a corresponding _test.go file containing at least one happy path and one sad path test.
+- Use docstrings to describe what each top-level declaration is and what it does in clear language.
 ## Deliverables Checklist
 - [ ] Binary: `ami` with subcommand scaffold and flag plumbing
   - [ ] Global flag handling (`--help`, `--json`, `--verbose`, `--color`)

@@ -67,7 +67,7 @@ func analyzePipeline(pd astpkg.PipelineDecl) []diag.Diagnostic {
         n := strings.ToLower(step.Name)
         switch n {
         case "transform", "fanout", "collect":
-            if len(step.Workers) == 0 {
+            if len(step.Workers) == 0 && step.InlineWorker == nil && strings.TrimSpace(step.Attrs["worker"]) == "" {
                 diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_PIPELINE_WORKERS", Message: n + " step requires at least one worker"})
             }
         }

@@ -103,7 +103,7 @@ func TestScanner_IllegalToken(t *testing.T) {
 }
 
 func TestScanner_Pragma_Directives(t *testing.T) {
-    src := "#pragma capabilities net,fs\n#pragma trust sandboxed\n#pragma backpressure drop\npackage x"
+    src := "#pragma capabilities net,fs\n#pragma trust sandboxed\n#pragma backpressure dropOldest\npackage x"
     s := New(src)
     // Expect three pragma tokens then package
     t1 := s.Next()
@@ -129,4 +129,3 @@ func TestScanner_Pragma_Directives(t *testing.T) {
         t.Fatalf("expected package after pragmas, got %v", t4.Kind)
     }
 }
-

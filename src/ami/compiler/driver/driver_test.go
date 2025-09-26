@@ -9,7 +9,7 @@ import (
 
 func TestDriver_PragmaBackpressure_FlowsIntoASM(t *testing.T) {
 	dir := t.TempDir()
-	src := "#pragma backpressure drop\npackage p\nfunc main(){}\n"
+src := "#pragma backpressure dropOldest\npackage p\nfunc main(){}\n"
 	path := filepath.Join(dir, "main.ami")
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
@@ -22,7 +22,7 @@ func TestDriver_PragmaBackpressure_FlowsIntoASM(t *testing.T) {
 		t.Fatalf("expected 1 asm unit; got %d", len(res.ASM))
 	}
 	asm := res.ASM[0].Text
-	if !strings.Contains(asm, "; backpressure drop") {
+if !strings.Contains(asm, "; backpressure dropOldest") {
 		t.Fatalf("asm missing backpressure: %q", asm)
 	}
 }

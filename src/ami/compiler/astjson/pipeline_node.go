@@ -14,6 +14,12 @@ func buildPipelineNode(n astpkg.PipelineDecl) sch.ASTNode {
         if len(st.Args) > 0 {
             fields["args"] = st.Args
         }
+        if st.Attrs != nil && len(st.Attrs) > 0 {
+            fields["attrs"] = st.Attrs
+        }
+        if st.InlineWorker != nil {
+            fields["inlineWorker"] = map[string]interface{}{"kind": "FuncLit"}
+        }
         if len(st.Workers) > 0 {
             var ws []map[string]string
             for _, w := range st.Workers {
@@ -33,6 +39,12 @@ func buildPipelineNode(n astpkg.PipelineDecl) sch.ASTNode {
             if len(st.Args) > 0 {
                 fields["args"] = st.Args
             }
+            if st.Attrs != nil && len(st.Attrs) > 0 {
+                fields["attrs"] = st.Attrs
+            }
+            if st.InlineWorker != nil {
+                fields["inlineWorker"] = map[string]interface{}{"kind": "FuncLit"}
+            }
             if len(st.Workers) > 0 {
                 var ws []map[string]string
                 for _, w := range st.Workers {
@@ -47,4 +59,3 @@ func buildPipelineNode(n astpkg.PipelineDecl) sch.ASTNode {
     }
     return pd
 }
-

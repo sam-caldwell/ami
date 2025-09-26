@@ -19,7 +19,7 @@ func TestPipeline_PushPop_FIFOOrder(t *testing.T) {
 }
 
 func TestPipeline_Backpressure_DropOldest(t *testing.T) {
-	q := &Pipeline{UpstreamName: "ing", MaxCapacity: 2, Backpressure: BackpressureDrop}
+q := &Pipeline{UpstreamName: "ing", MaxCapacity: 2, Backpressure: BackpressureDropOldest}
 	_ = q.Push(Event{Payload: 1})
 	_ = q.Push(Event{Payload: 2})
 	_ = q.Push(Event{Payload: 3})

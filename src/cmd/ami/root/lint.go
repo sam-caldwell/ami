@@ -15,7 +15,6 @@ import (
 	astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
 	"github.com/sam-caldwell/ami/src/ami/compiler/diag"
 	"github.com/sam-caldwell/ami/src/ami/compiler/parser"
-	scan "github.com/sam-caldwell/ami/src/ami/compiler/scanner"
 	"github.com/sam-caldwell/ami/src/ami/compiler/sem"
 	srcset "github.com/sam-caldwell/ami/src/ami/compiler/source"
 	tok "github.com/sam-caldwell/ami/src/ami/compiler/token"
@@ -83,12 +82,17 @@ func runLint() {
 		for _, f := range files {
 			b, _ := os.ReadFile(f)
 			src := string(b)
-			imports := parser.ExtractImports(src)
-			// keep AST for lint rules
-			p := parser.New(src)
-			ast := p.ParseFile()
-			ulist = append(ulist, lintUnitRec{pkg: pkg, file: f, src: src, imports: imports, ast: ast})
-			sources.Units = append(sources.Units, sch.SourceUnit{Package: pkg, File: f, Imports: imports, Source: src})
+            imports := parser.ExtractImports(src)
+            // also capture detailed imports (alias/constraint) for sources.v1
+            var importsDetailed []sch.SourceImport
+            for _, it := range parser.ExtractImportItems(src) {
+                importsDetailed = append(importsDetailed, sch.SourceImport{Path: it.Path, Alias: it.Alias, Constraint: it.Constraint})
+            }
+            // keep AST for lint rules
+            p := parser.New(src)
+            ast := p.ParseFile()
+            ulist = append(ulist, lintUnitRec{pkg: pkg, file: f, src: src, imports: imports, ast: ast})
+            sources.Units = append(sources.Units, sch.SourceUnit{Package: pkg, File: f, Imports: imports, ImportsDetailed: importsDetailed, Source: src})
 		}
 	}
 

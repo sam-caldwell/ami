@@ -36,7 +36,7 @@ func TestLowerPipelines_ParsesEdgePipelineInArg(t *testing.T) {
 		Name: "Q",
 		Steps: []astpkg.NodeCall{{
 			Name: "Transform",
-			Args: []string{"in=edge.Pipeline(name=csvReaderPipeline,minCapacity=64,maxCapacity=128,backpressure=drop,type=csv.Record)"},
+            Args: []string{"in=edge.Pipeline(name=csvReaderPipeline,minCapacity=64,maxCapacity=128,backpressure=dropOldest,type=csv.Record)"},
 		}},
 	}
 	f := &astpkg.File{Decls: []astpkg.Node{pd}}
@@ -47,7 +47,7 @@ func TestLowerPipelines_ParsesEdgePipelineInArg(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected Pipeline spec, got %#v", in)
 	}
-	if p.UpstreamName != "csvReaderPipeline" || p.MinCapacity != 64 || p.MaxCapacity != 128 || p.Backpressure != edg.BackpressureDrop || p.TypeName != "csv.Record" {
+    if p.UpstreamName != "csvReaderPipeline" || p.MinCapacity != 64 || p.MaxCapacity != 128 || p.Backpressure != edg.BackpressureDropOldest || p.TypeName != "csv.Record" {
 		t.Fatalf("unexpected Pipeline fields: %#v", p)
 	}
 }

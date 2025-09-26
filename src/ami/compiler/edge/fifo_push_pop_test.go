@@ -26,7 +26,7 @@ func TestFIFO_PushPop_FIFOOrder(t *testing.T) {
 }
 
 func TestFIFO_Backpressure_DropOldest(t *testing.T) {
-	fq := &FIFO{MaxCapacity: 2, Backpressure: BackpressureDrop}
+fq := &FIFO{MaxCapacity: 2, Backpressure: BackpressureDropOldest}
 	_ = fq.Push(Event{Payload: 1})
 	_ = fq.Push(Event{Payload: 2})
 	_ = fq.Push(Event{Payload: 3}) // drop 1

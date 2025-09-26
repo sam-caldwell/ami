@@ -44,8 +44,8 @@ pipeline P { Ingress(cfg).Egress(in=edge.FIFO(minCapacity=3,maxCapacity=2,backpr
 }
 
 func TestAnalyzeEdges_MinNegative(t *testing.T) {
-	src := `package p
-pipeline P { Ingress(cfg).Egress(in=edge.LIFO(minCapacity=-1,maxCapacity=2,backpressure=drop,type=T)) }
+src := `package p
+pipeline P { Ingress(cfg).Egress(in=edge.LIFO(minCapacity=-1,maxCapacity=2,backpressure=dropOldest,type=T)) }
 `
 	p := parser.New(src)
 	f := p.ParseFile()

@@ -20,7 +20,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-    "time"
 )
 
 var buildVerbose bool

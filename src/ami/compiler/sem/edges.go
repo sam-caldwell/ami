@@ -22,7 +22,7 @@ func analyzeEdges(pd astpkg.PipelineDecl) []diag.Diagnostic {
                 if v.Max < v.Min {
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_EDGE_CAP_ORDER", Message: "edge FIFO: maxCapacity must be >= minCapacity"})
                 }
-                if v.BP != "" && v.BP != "block" && v.BP != "drop" {
+                if v.BP != "" && v.BP != "block" && v.BP != "dropOldest" && v.BP != "dropNewest" {
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_EDGE_BP_INVALID", Message: "edge FIFO: invalid backpressure policy"})
                 }
             case lifoSpec:
@@ -32,7 +32,7 @@ func analyzeEdges(pd astpkg.PipelineDecl) []diag.Diagnostic {
                 if v.Max < v.Min {
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_EDGE_CAP_ORDER", Message: "edge LIFO: maxCapacity must be >= minCapacity"})
                 }
-                if v.BP != "" && v.BP != "block" && v.BP != "drop" {
+                if v.BP != "" && v.BP != "block" && v.BP != "dropOldest" && v.BP != "dropNewest" {
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_EDGE_BP_INVALID", Message: "edge LIFO: invalid backpressure policy"})
                 }
             case pipeSpec:
@@ -45,7 +45,7 @@ func analyzeEdges(pd astpkg.PipelineDecl) []diag.Diagnostic {
                 if v.Max < v.Min {
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_EDGE_CAP_ORDER", Message: "edge Pipeline: maxCapacity must be >= minCapacity"})
                 }
-                if v.BP != "" && v.BP != "block" && v.BP != "drop" {
+                if v.BP != "" && v.BP != "block" && v.BP != "dropOldest" && v.BP != "dropNewest" {
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_EDGE_BP_INVALID", Message: "edge Pipeline: invalid backpressure policy"})
                 }
             }
@@ -211,4 +211,3 @@ func typeRefToString(t astpkg.TypeRef) string {
     }
     return b.String()
 }
-

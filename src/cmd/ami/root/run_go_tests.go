@@ -196,7 +196,7 @@ func runGoTests(patterns []string) int {
         }
     }
     // Wait for process and decide exit
-    err := cmd.Wait()
+    err = cmd.Wait()
     // After Go tests, run native AMI tests (discovery under workspace)
     // This step updates pass/fail/skip totals and per-package counts and emits test events.
     runAmiTests(&pass, &fail, &skip, get)
@@ -253,4 +253,3 @@ func runGoTests(patterns []string) int {
     }
     return ex.SystemIOError
 }
-

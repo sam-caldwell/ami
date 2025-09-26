@@ -22,7 +22,7 @@ func TestLIFO_PushPop_LIFOOrder(t *testing.T) {
 }
 
 func TestLIFO_Backpressure_DropOldest(t *testing.T) {
-	st := &LIFO{MaxCapacity: 2, Backpressure: BackpressureDrop}
+st := &LIFO{MaxCapacity: 2, Backpressure: BackpressureDropOldest}
 	_ = st.Push(Event{Payload: 1})
 	_ = st.Push(Event{Payload: 2})
 	_ = st.Push(Event{Payload: 3}) // drop 1 keep [2,3]

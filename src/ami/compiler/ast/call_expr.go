@@ -4,8 +4,8 @@ package ast
 type CallExpr struct {
     Fun  Expr
     Args []Expr
+    TypeArgs []TypeRef
     Pos  Position
 }
 
 func (CallExpr) isExpr() {}
-

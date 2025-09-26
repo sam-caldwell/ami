@@ -29,11 +29,11 @@ func (f *FIFO) Validate() error {
 	if f.MaxCapacity < f.MinCapacity {
 		return errors.New("maxCapacity must be >= minCapacity")
 	}
-	switch f.Backpressure {
-	case "", BackpressureBlock, BackpressureDrop:
-	default:
-		return errors.New("invalid backpressure policy")
-	}
+    switch f.Backpressure {
+    case "", BackpressureBlock, BackpressureDropOldest, BackpressureDropNewest:
+    default:
+        return errors.New("invalid backpressure policy")
+    }
 	return nil
 }
 
@@ -46,31 +46,35 @@ func (f *FIFO) Count() uint32 {
 	return atomic.LoadUint32(&f.n)
 }
 
-// Push appends an event to the FIFO. When capacity is bounded and the buffer
-// is full, behavior depends on backpressure:
-//   - block: returns ErrFull (would block in real runtime)
-//   - drop: drops the oldest event to make room, then appends
-func (f *FIFO) Push(e Event) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	// bounded
-	if f.MaxCapacity > 0 && len(f.q) >= f.MaxCapacity {
-		switch f.Backpressure {
-		case BackpressureBlock:
-			return ErrFull
-		case BackpressureDrop:
-			// drop oldest (front); net count stays the same after append
-			if len(f.q) > 0 {
-				f.q = f.q[1:]
-			}
-		}
-	} else {
-		// increase queue size by 1
-		atomic.AddUint32(&f.n, 1)
-	}
-	f.q = append(f.q, any(e))
-	return nil
-}
+    // Push appends an event to the FIFO. When capacity is bounded and the buffer
+    // is full, behavior depends on backpressure:
+    //   - block: returns ErrFull (would block in real runtime)
+    //   - dropOldest: drops the oldest event to make room, then appends
+    //   - dropNewest: drops the incoming event (no enqueue)
+    func (f *FIFO) Push(e Event) error {
+        f.mu.Lock()
+        defer f.mu.Unlock()
+        // bounded
+        if f.MaxCapacity > 0 && len(f.q) >= f.MaxCapacity {
+            switch f.Backpressure {
+            case BackpressureBlock:
+                return ErrFull
+            case BackpressureDropOldest:
+                // drop oldest (front); net count stays the same after append
+                if len(f.q) > 0 {
+                    f.q = f.q[1:]
+                }
+            case BackpressureDropNewest:
+                // drop incoming; nothing enqueued, count unchanged
+                return nil
+            }
+        } else {
+            // increase queue size by 1
+            atomic.AddUint32(&f.n, 1)
+        }
+        f.q = append(f.q, any(e))
+        return nil
+    }
 
 // Pop removes and returns the oldest event. ok=false when empty.
 func (f *FIFO) Pop() (Event, bool) {

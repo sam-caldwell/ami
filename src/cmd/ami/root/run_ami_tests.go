@@ -7,12 +7,10 @@ import (
     "os"
     "path/filepath"
     "sort"
-    "strconv"
     "strings"
     "time"
 
-    astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
-    "github.com/sam-caldwell/ami/src/ami/compiler/diag"
+    diag "github.com/sam-caldwell/ami/src/ami/compiler/diag"
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     "github.com/sam-caldwell/ami/src/ami/compiler/sem"
     kv "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
@@ -69,13 +67,26 @@ func runAmiTests(pass, fail, skip *int, get func(pkg string) *ctot) {
             cases = []amiCase{{name: filepath.Base(file), file: file, pkg: pkg, expects: []amiExpect{{kind: "no_errors"}}}}
         }
         // Run compiler front-end to collect diagnostics
-        diags := sem.Check(f)
+        // Collect diagnostics from parser and semantics for evaluation
+        diags := []diag.Diagnostic{}
+        for _, d := range p.Errors() { diags = append(diags, d) }
+        diags = append(diags, sem.Check(f)...)
         if flagJSON {
             // emit per-case start, then end with status and optional details
             for _, c := range cases {
                 s := sch.TestStart{Schema: "test.v1", Type: "test_start", Timestamp: sch.FormatTimestamp(time.Now().UTC()), Package: pkg, Name: c.name}
                 if s.Validate() == nil {
                     _ = json.NewEncoder(os.Stdout).Encode(s)
+                }
+                // honor skip directive
+                if strings.TrimSpace(c.skipReason) != "" {
+                    e := sch.TestEnd{Schema: "test.v1", Type: "test_end", Timestamp: sch.FormatTimestamp(time.Now().UTC()), Package: pkg, Name: c.name, Status: "skip", DurationMs: 0}
+                    if e.Validate() == nil {
+                        _ = json.NewEncoder(os.Stdout).Encode(e)
+                    }
+                    *skip++
+                    get(pkg).skip++
+                    continue
                 }
                 ok, details := evalAmiExpectations(c, diags)
                 status := "pass"
@@ -89,9 +100,16 @@ func runAmiTests(pass, fail, skip *int, get func(pkg string) *ctot) {
                 if !ok {
                     _ = details // in this phase, just ignore details in JSON stream
                 }
+                if status == "pass" { *pass++; get(pkg).pass++ } else { *fail++; get(pkg).fail++ }
             }
         } else {
             for _, c := range cases {
+                if strings.TrimSpace(c.skipReason) != "" {
+                    *skip++
+                    get(pkg).skip++
+                    logger.Warn(fmt.Sprintf("test SKIP %s %s", pkg, c.name), nil)
+                    continue
+                }
                 ok, _ := evalAmiExpectations(c, diags)
                 if ok {
                     *pass++
@@ -193,4 +211,3 @@ func runAmiTests(pass, fail, skip *int, get func(pkg string) *ctot) {
         }
     }
 }
-

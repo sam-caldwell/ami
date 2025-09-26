@@ -175,6 +175,22 @@ func List() ([]string, error) {
 	return out, nil
 }
 
+// ListCache lists cached package entries under the provided cacheDir path.
+func ListCache(cacheDir string) ([]string, error) {
+    entries, err := os.ReadDir(cacheDir)
+    if err != nil {
+        return nil, err
+    }
+    out := []string{}
+    for _, e := range entries {
+        if e.IsDir() {
+            out = append(out, e.Name())
+        }
+    }
+    sort.Strings(out)
+    return out, nil
+}
+
 func UpdateSum(sumPath, pkg, version, repoPath, tag string) error {
 	s, err := loadSum(sumPath)
 	if err != nil {

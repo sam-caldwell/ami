@@ -11,7 +11,7 @@ import (
 	sch "github.com/sam-caldwell/ami/src/schemas"
 )
 
-// Assert an unbounded edge (maxCapacity=0) emits bounded=false and delivery=bestEffort (backpressure=drop).
+// Assert an unbounded edge (maxCapacity=0) emits bounded=false and delivery=bestEffort (backpressure=dropOldest).
 func TestBuild_Edges_UnboundedBestEffort(t *testing.T) {
 	t.Setenv("AMI_SEM_DIAGS", "0")
 	tmp := t.TempDir()
@@ -45,7 +45,7 @@ packages:
 	}
 	src := `package main
 func f(ctx Context, ev Event<string>, st State) Event<string> { }
-pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=drop,type=string)) }
+pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=dropOldest,type=string)) }
 `
 	if err := os.WriteFile(filepath.Join("src", "main.ami"), []byte(src), 0o644); err != nil {
 		t.Fatalf("write src: %v", err)

@@ -6,7 +6,7 @@ func TestParser_CollectsPragmas(t *testing.T) {
 	src := `#pragma concurrency 4
 #pragma capabilities net,fs
 #pragma trust sandboxed
-#pragma backpressure drop
+#pragma backpressure dropOldest
 package p`
 	p := New(src)
 	f := p.ParseFile()
@@ -16,9 +16,9 @@ package p`
 	if f.Directives[0].Name != "concurrency" {
 		t.Fatalf("first directive name=%q", f.Directives[0].Name)
 	}
-	if f.Directives[3].Name != "backpressure" || f.Directives[3].Payload != "drop" {
-		t.Fatalf("backpressure payload mismatch: %+v", f.Directives[3])
-	}
+    if f.Directives[3].Name != "backpressure" || f.Directives[3].Payload != "dropOldest" {
+        t.Fatalf("backpressure payload mismatch: %+v", f.Directives[3])
+    }
 }
 
 func TestParser_PackageAndImportValidation_Diagnostics(t *testing.T) {

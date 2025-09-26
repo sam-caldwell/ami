@@ -235,8 +235,9 @@ func (bp *bodyParser) parsePrimary() (astpkg.Expr, bool) {
         }
         if bp.cur().Kind == tok.RBRACE { bp.next() }
         return astpkg.ContainerLit{Kind: "map", TypeArgs: args, MapElems: kvs, Pos: toPos(start)}, true
-    case tok.IDENT:
-        name := t.Lexeme
+    case tok.KW_STATE:
+        // Treat reserved 'state' as an identifier for method calls/selectors
+        name := "state"
         bp.next()
         if bp.cur().Kind == tok.DOT {
             recv := astpkg.Ident{Name: name, Pos: toPos(t)}
@@ -252,6 +253,78 @@ func (bp *bodyParser) parsePrimary() (astpkg.Expr, bool) {
         }
         if bp.cur().Kind == tok.LPAREN { args := bp.parseArgs(); return astpkg.CallExpr{Fun: astpkg.Ident{Name: name, Pos: toPos(t)}, Args: args, Pos: toPos(t)}, true }
         return astpkg.Ident{Name: name, Pos: toPos(t)}, true
+    case tok.IDENT:
+        name := t.Lexeme
+        bp.next()
+        // Optional type arguments: IDENT '<' Type {',' Type} '>'
+        var typeArgs []astpkg.TypeRef
+        if bp.cur().Kind == tok.LT {
+            bp.next()
+            for !bp.atEnd() {
+                if bp.cur().Kind == tok.GT { bp.next(); break }
+                if bp.cur().Kind == tok.COMMA { bp.next(); continue }
+                if a, ok := bp.parseTypeRef(); ok { typeArgs = append(typeArgs, a); continue }
+                bp.next()
+            }
+        }
+        if bp.cur().Kind == tok.DOT {
+            recv := astpkg.Ident{Name: name, Pos: toPos(t)}
+            bp.next()
+            if bp.cur().Kind == tok.IDENT {
+                sel := bp.cur().Lexeme
+                selTok := bp.cur()
+                bp.next()
+                if bp.cur().Kind == tok.LPAREN { args := bp.parseArgs(); return astpkg.CallExpr{Fun: astpkg.SelectorExpr{X: recv, Sel: sel, Pos: toPos(selTok)}, Args: args, TypeArgs: typeArgs, Pos: toPos(t)}, true }
+                return astpkg.SelectorExpr{X: recv, Sel: sel, Pos: toPos(selTok)}, true
+            }
+            return astpkg.Ident{Name: name, Pos: toPos(t)}, true
+        }
+        if bp.cur().Kind == tok.LPAREN { args := bp.parseArgs(); return astpkg.CallExpr{Fun: astpkg.Ident{Name: name, Pos: toPos(t)}, Args: args, TypeArgs: typeArgs, Pos: toPos(t)}, true }
+        return astpkg.Ident{Name: name, Pos: toPos(t)}, true
+    case tok.KW_FUNC:
+        // Minimal function literal: capture body tokens; params/results omitted (scaffold)
+        start := t
+        bp.next()
+        // Skip params if present: '(' ... ')'
+        if bp.cur().Kind == tok.LPAREN {
+            depth := 1
+            bp.next()
+            for !bp.atEnd() && depth > 0 {
+                if bp.cur().Kind == tok.LPAREN { depth++ }
+                if bp.cur().Kind == tok.RPAREN { depth--; if depth == 0 { bp.next(); break } }
+                bp.next()
+            }
+        }
+        // Optional result: either '(' ... ')' or a single type; skip heuristically
+        if bp.cur().Kind == tok.LPAREN {
+            depth := 1
+            bp.next()
+            for !bp.atEnd() && depth > 0 {
+                if bp.cur().Kind == tok.LPAREN { depth++ }
+                if bp.cur().Kind == tok.RPAREN { depth--; if depth == 0 { bp.next(); break } }
+                bp.next()
+            }
+        } else {
+            // best-effort skip a single type token sequence until '{' or '('
+            for !bp.atEnd() && bp.cur().Kind != tok.LBRACE && bp.cur().Kind != tok.LPAREN {
+                // stop on separators
+                if bp.cur().Kind == tok.COMMA || bp.cur().Kind == tok.SEMI { break }
+                bp.next()
+            }
+        }
+        // Body tokens between '{' and matching '}'
+        var body []tok.Token
+        if bp.cur().Kind == tok.LBRACE {
+            depth := 1
+            bp.next()
+            for !bp.atEnd() && depth > 0 {
+                if bp.cur().Kind == tok.LBRACE { depth++ }
+                if bp.cur().Kind == tok.RBRACE { depth--; if depth == 0 { bp.next(); break } }
+                if depth > 0 { body = append(body, bp.cur()) }
+                bp.next()
+            }
+        }
+        return astpkg.FuncLit{Body: body, Pos: toPos(start)}, true
     case tok.STRING:
         bp.next(); return astpkg.BasicLit{Kind: "string", Value: t.Lexeme, Pos: toPos(t)}, true
     case tok.NUMBER:

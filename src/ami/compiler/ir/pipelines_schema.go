@@ -13,10 +13,11 @@ func (m Module) ToPipelinesSchema() sch.PipelinesV1 {
         conv := func(steps []StepIR) []sch.PipelineStepV1 {
             var res []sch.PipelineStepV1
             for _, st := range steps {
-                ps := sch.PipelineStepV1{Node: st.Node}
+                ps := sch.PipelineStepV1{Node: st.Node, Attrs: st.Attrs}
+                // Attrs are not in StepIR yet; attach later if extended
                 for _, w := range st.Workers {
                     ps.Workers = append(ps.Workers, sch.PipelineWorkerV1{
-                        Name: w.Name, Kind: w.Kind, HasContext: w.HasContext, HasState: w.HasState,
+                        Name: w.Name, Kind: w.Kind, Origin: w.Origin, HasContext: w.HasContext, HasState: w.HasState,
                         Input: w.Input, OutputKind: w.OutputKind, Output: w.Output,
                     })
                 }
@@ -56,10 +57,9 @@ func deliveryFromBP(bp string) string {
     switch bp {
     case string(edg.BackpressureBlock):
         return "atLeastOnce"
-    case string(edg.BackpressureDrop):
+    case string(edg.BackpressureDropOldest), string(edg.BackpressureDropNewest):
         return "bestEffort"
     default:
         return ""
     }
 }
-

@@ -99,6 +99,7 @@ func (p *Parser) parseNodeCall() (astpkg.NodeCall, bool) {
     p.next() // consume '('
     args := []string{}
     workers := []astpkg.WorkerRef{}
+    attrs := map[string]string{}
     var buf strings.Builder
     depth := 1
     for p.cur.Kind != tok.EOF && depth > 0 {
@@ -145,6 +146,67 @@ func (p *Parser) parseNodeCall() (astpkg.NodeCall, bool) {
             p.next()
         }
     }
-    return astpkg.NodeCall{Name: name, Args: args, Workers: workers, Pos: p.posFrom(startTok), Comments: pending}, true
+    // Derive structured attributes from top-level args while preserving args for compatibility
+    // Recognized keys
+    isKey := func(k string) bool {
+        switch k {
+        case "in", "worker", "minWorkers", "maxWorkers", "onError", "capabilities", "type":
+            return true
+        default:
+            return false
+        }
+    }
+    for _, a := range args {
+        // split on first '=' only
+        if eq := strings.IndexByte(a, '='); eq > 0 {
+            key := strings.TrimSpace(a[:eq])
+            val := strings.TrimSpace(a[eq+1:])
+                if isKey(key) {
+                attrs[key] = val
+                if key == "worker" {
+                    // Inline literal: do not treat as a reference worker
+                    if strings.HasPrefix(val, "func") {
+                        // Tokenize the value and parse a primary expression
+                        p2 := New(val)
+                        // collect tokens until EOF
+                        var toks []tok.Token
+                        for p2.cur.Kind != tok.EOF {
+                            toks = append(toks, p2.cur)
+                            p2.next()
+                        }
+                        bp := &bodyParser{toks: toks}
+                        if expr, ok := bp.parsePrimary(); ok {
+                            if fl, ok2 := expr.(astpkg.FuncLit); ok2 {
+                                // allocate to set pointer
+                                lit := fl
+                                if attrs == nil { attrs = map[string]string{} }
+                                // store on NodeCall below
+                                // We'll attach after loop using local variable
+                                _ = lit // placeholder for clarity
+                            }
+                        }
+                    } else {
+                        if w, ok := parseWorkerRef(val); ok {
+                            workers = append(workers, w)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Attach inline worker literal if parsed
+    var inline *astpkg.FuncLit
+    if wsrc, ok := attrs["worker"]; ok && strings.HasPrefix(wsrc, "func") {
+        p2 := New(wsrc)
+        var toks []tok.Token
+        for p2.cur.Kind != tok.EOF { toks = append(toks, p2.cur); p2.next() }
+        bp := &bodyParser{toks: toks}
+        if expr, ok := bp.parsePrimary(); ok {
+            if fl, ok2 := expr.(astpkg.FuncLit); ok2 {
+                lit := fl
+                inline = &lit
+            }
+        }
+    }
+    return astpkg.NodeCall{Name: name, Args: args, Attrs: attrs, InlineWorker: inline, Workers: workers, Pos: p.posFrom(startTok), Comments: pending}, true
 }
-

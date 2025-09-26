@@ -122,3 +122,8 @@ func AnalyzeFile(f *astpkg.File) Result {
     return res
 }
 
+// Check preserves the legacy public API expected by CLI code by returning
+// only the diagnostics from AnalyzeFile.
+func Check(f *astpkg.File) []diag.Diagnostic {
+    return AnalyzeFile(f).Diagnostics
+}

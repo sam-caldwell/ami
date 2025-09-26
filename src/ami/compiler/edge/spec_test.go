@@ -23,7 +23,7 @@ func TestFIFO_Validate_Sad(t *testing.T) {
 }
 
 func TestLIFO_Validate_Happy(t *testing.T) {
-	l := &LIFO{MinCapacity: 0, MaxCapacity: 4, Backpressure: BackpressureDrop, TypeName: "some.T"}
+    l := &LIFO{MinCapacity: 0, MaxCapacity: 4, Backpressure: BackpressureDropOldest, TypeName: "some.T"}
 	if err := l.Validate(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

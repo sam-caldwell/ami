@@ -1,10 +1,10 @@
 package root
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
+    "crypto/sha256"
+    "encoding/hex"
+    "encoding/json"
+    "fmt"
 	"github.com/sam-caldwell/ami/src/ami/compiler/driver"
 	"github.com/sam-caldwell/ami/src/ami/compiler/parser"
 	"github.com/sam-caldwell/ami/src/ami/manifest"
@@ -15,13 +15,12 @@ import (
 	"github.com/sam-caldwell/ami/src/internal/logger"
 	sch "github.com/sam-caldwell/ami/src/schemas"
 	"github.com/spf13/cobra"
-	"io"
-	"os"
+    "os"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
-	"time"
+    "time"
 )
 
 var buildVerbose bool
@@ -513,18 +512,4 @@ func newBuildCmd() *cobra.Command {
 	return cmd
 }
 
-func fileSHA256(path string) (string, int64, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", 0, err
-	}
-	defer f.Close()
-	h := sha256.New()
-	n, err := io.Copy(h, f)
-	if err != nil {
-		return "", 0, err
-	}
-	return hex.EncodeToString(h.Sum(nil)), n, nil
-}
-
-func nowUTC() time.Time { return time.Now().UTC() }
+// helpers moved to filehash.go and now.go

@@ -1,19 +1,10 @@
 package root
 
 import (
-	"github.com/sam-caldwell/ami/src/internal/logger"
-	"github.com/spf13/cobra"
-	"os"
+    "github.com/sam-caldwell/ami/src/internal/logger"
+    "github.com/spf13/cobra"
+    "os"
 )
-
-func hasAnyWritePermission(dir string) bool {
-	fi, err := os.Stat(dir)
-	if err != nil {
-		return false
-	}
-	// coarse check: any of user/group/other write bits
-	return fi.Mode().Perm()&0o222 != 0
-}
 
 func newCleanCmd() *cobra.Command {
 	return &cobra.Command{

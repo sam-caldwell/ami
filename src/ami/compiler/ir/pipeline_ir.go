@@ -15,10 +15,11 @@ type PipelineIR struct {
 }
 
 type StepIR struct {
-	Node    string
-	Workers []WorkerIR
-	In      edg.Spec
-	Attrs   map[string]string
+    Node    string
+    Workers []WorkerIR
+    In      edg.Spec
+    Attrs   map[string]string
+    InMulti *MultiPathIR
 }
 
 type WorkerIR struct {
@@ -160,7 +161,11 @@ func (m *Module) LowerPipelines(f *astpkg.File) {
         for _, st := range pd.Steps {
             step := StepIR{Node: st.Name, Workers: mkWorkers(st), Attrs: st.Attrs}
             if v := strings.TrimSpace(st.Attrs["in"]); v != "" {
-                if spec, ok := parseEdgeSpecFromValue(v); ok { step.In = spec }
+                if strings.HasPrefix(v, "edge.MultiPath(") {
+                    if mp, ok := parseMultiPathSpec(v); ok { step.InMulti = mp }
+                } else if spec, ok := parseEdgeSpecFromValue(v); ok {
+                    step.In = spec
+                }
             } else if spec, ok := parseEdgeSpecFromArgs(st.Args); ok {
                 step.In = spec
             }
@@ -169,7 +174,11 @@ func (m *Module) LowerPipelines(f *astpkg.File) {
         for _, st := range pd.ErrorSteps {
             step := StepIR{Node: st.Name, Workers: mkWorkers(st), Attrs: st.Attrs}
             if v := strings.TrimSpace(st.Attrs["in"]); v != "" {
-                if spec, ok := parseEdgeSpecFromValue(v); ok { step.In = spec }
+                if strings.HasPrefix(v, "edge.MultiPath(") {
+                    if mp, ok := parseMultiPathSpec(v); ok { step.InMulti = mp }
+                } else if spec, ok := parseEdgeSpecFromValue(v); ok {
+                    step.In = spec
+                }
             } else if spec, ok := parseEdgeSpecFromArgs(st.Args); ok {
                 step.In = spec
             }

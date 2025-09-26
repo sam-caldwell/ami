@@ -1,5 +1,8 @@
 package ir
 
 // Function represents a declared function in a module.
-type Function struct{ Name string }
-
+// TypeParams surfaces generic type parameter names for tooling/IR schemas.
+type Function struct{
+    Name       string
+    TypeParams []string
+}

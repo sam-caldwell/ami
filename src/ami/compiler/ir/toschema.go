@@ -22,6 +22,11 @@ func (m Module) ToSchema() sch.IRV1 {
     for _, fn := range m.Functions {
         irfn := sch.IRFunction{Name: fn.Name, Blocks: []sch.IRBlock{{Label: "entry"}}}
         if fd, ok := fdecls[fn.Name]; ok {
+            if len(fd.TypeParams) > 0 {
+                for _, tp := range fd.TypeParams {
+                    irfn.TypeParams = append(irfn.TypeParams, sch.IRTypeParam{Name: tp.Name, Constraint: tp.Constraint})
+                }
+            }
             for _, p := range fd.Params {
                 dom := ""
                 switch {
@@ -101,4 +106,3 @@ func (m Module) ToSchema() sch.IRV1 {
     }
     return out
 }
-

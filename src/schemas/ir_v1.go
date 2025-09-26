@@ -12,10 +12,12 @@ type IRV1 struct {
 }
 
 type IRFunction struct {
-	Name   string    `json:"name"`
-	Blocks []IRBlock `json:"blocks"`
-	// Optional: parameter metadata with ownership/domain annotations.
-	Params []IRParam `json:"params,omitempty"`
+    Name   string    `json:"name"`
+    Blocks []IRBlock `json:"blocks"`
+    // Optional: parameter metadata with ownership/domain annotations.
+    Params []IRParam `json:"params,omitempty"`
+    // Optional: generic type parameters with optional constraints (e.g., any)
+    TypeParams []IRTypeParam `json:"typeParams,omitempty"`
 }
 
 type IRBlock struct {
@@ -39,6 +41,12 @@ type IRParam struct {
 	Type      string `json:"type"`
 	Ownership string `json:"ownership,omitempty"`
 	Domain    string `json:"domain,omitempty"`
+}
+
+// IRTypeParam describes a generic type parameter on a function.
+type IRTypeParam struct {
+    Name       string `json:"name"`
+    Constraint string `json:"constraint,omitempty"`
 }
 
 func (i *IRV1) Validate() error {

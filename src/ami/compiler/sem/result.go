@@ -41,6 +41,8 @@ func AnalyzeFile(f *astpkg.File) Result {
                 res.Diagnostics = append(res.Diagnostics, diag.Diagnostic{Level: diag.Error, Code: "E_BLANK_IDENT_ILLEGAL", Message: "blank identifier '_' cannot be used as a function name"})
                 continue
             }
+            // Type parameters: reject duplicate type parameter names
+            res.Diagnostics = append(res.Diagnostics, analyzeFuncTypeParams(fd)...)
             // parameters: disallow blank identifier as a parameter name
             for _, p := range fd.Params {
                 if p.Name == "_" {
@@ -70,8 +72,7 @@ func AnalyzeFile(f *astpkg.File) Result {
             funcs[fd.Name] = fd
             // Mutability: enforce AMI semantics (no mut blocks; '*' LHS marker required)
             res.Diagnostics = append(res.Diagnostics, analyzeMutationMarkers(fd)...)
-            // Type parameters: reject duplicate type parameter names
-            res.Diagnostics = append(res.Diagnostics, analyzeFuncTypeParams(fd)...)
+            // (duplicate type param check already performed above)
             // Pointer/address prohibitions (2.3.2): '&' not allowed
             res.Diagnostics = append(res.Diagnostics, analyzePointerProhibitions(fd)...)
             // Imperative type checks (2.3): simple assignment type rules (no raw pointers)

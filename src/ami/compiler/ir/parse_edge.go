@@ -119,6 +119,78 @@ func parseEdgeSpecFromValue(v string) (edg.Spec, bool) {
     return nil, false
 }
 
+// --- MultiPath (scaffold) ---
+
+// MultiPathIR is an IR-only scaffold for edge.MultiPath used in pipelines debug schema.
+type MultiPathIR struct {
+    Inputs []edg.Spec
+    Merge  []MergeOpIR
+}
+
+// MergeOpIR carries a merge operation name and raw argument string.
+type MergeOpIR struct {
+    Name string
+    Raw  string
+}
+
+// parseMultiPathSpec parses a value starting with edge.MultiPath( ... ).
+// Supported shape (tolerant): edge.MultiPath(inputs=[ <edgeSpec>{, <edgeSpec>} ], merge=Name(args...))
+func parseMultiPathSpec(v string) (*MultiPathIR, bool) {
+    s := strings.TrimSpace(v)
+    if !strings.HasPrefix(s, "edge.MultiPath(") || !strings.HasSuffix(s, ")") { return nil, false }
+    inner := s[len("edge.MultiPath(") : len(s)-1]
+    // find inputs=[ ... ]
+    idx := strings.Index(inner, "inputs=")
+    if idx < 0 { return nil, false }
+    after := inner[idx+len("inputs="):]
+    after = strings.TrimSpace(after)
+    if len(after) == 0 || after[0] != '[' { return nil, false }
+    // capture bracketed list
+    i := 1
+    depth := 1
+    for i < len(after) && depth > 0 {
+        switch after[i] {
+        case '[': depth++
+        case ']': depth--
+        }
+        i++
+    }
+    if depth != 0 { return nil, false }
+    list := after[1 : i-1]
+    // split at top-level commas (respecting parentheses)
+    parts := splitTopLevelCommas(list)
+    var inputs []edg.Spec
+    for _, p := range parts {
+        p = strings.TrimSpace(p)
+        if p == "" { continue }
+        if spec, ok := parseEdgeSpecFromValue(p); ok {
+            inputs = append(inputs, spec)
+        }
+    }
+    mp := &MultiPathIR{Inputs: inputs}
+    // optional merge=Name(args)
+    rest := strings.TrimSpace(after[i:])
+    if j := strings.Index(rest, "merge="); j >= 0 {
+        mv := strings.TrimSpace(rest[j+len("merge="):])
+        // Name(args)
+        if k := strings.IndexByte(mv, '('); k > 0 {
+            name := strings.TrimSpace(mv[:k])
+            // find matching ')'
+            m := k + 1
+            d := 1
+            for m < len(mv) && d > 0 {
+                if mv[m] == '(' { d++ }
+                if mv[m] == ')' { d-- }
+                m++
+            }
+            args := ""
+            if d == 0 { args = mv[k+1 : m-1] }
+            mp.Merge = append(mp.Merge, MergeOpIR{Name: name, Raw: args})
+        }
+    }
+    return mp, true
+}
+
 // parseKVList parses a simple comma-separated list of `key=value` entries.
 func parseKVList(s string) map[string]string {
     out := map[string]string{}

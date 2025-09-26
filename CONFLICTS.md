@@ -127,7 +127,7 @@ action to bring code and docs into alignment with the .docx and the updated exam
     - [x] Backpressure policy validation: FIFO/LIFO/Pipeline (min/max order, policy set) with sad-path coverage.
     - [x] MultiPath checks: Collect-only, first input FIFO required, input type compatibility, merge operator validation.
 - [x] IR tests: inline worker metadata; function type params (with constraints) round-trip.
-  - [ ] IR tests: MultiPath inputs/merge pending (after scaffold).
+  - [x] IR tests: MultiPath inputs/merge covered (see `src/ami/compiler/ir/multipath_schema_test.go` verifying inputs array and merge ops in `pipelines.v1`).
 - [x] Linter: pipeline smells prefer structured attrs; existing tests cover no-workers and unbounded/block warnings.
 - [x] Linter JSON: duplicate type params test asserts `E_DUP_TYPE_PARAM` appears in `ami --json lint` output.
 - [x] Pipelines debug IR: extended test asserts step `Attrs` include `worker`, `minWorkers`, `maxWorkers`, `onError`, `capabilities`, and that `in=edge.*` (FIFO/LIFO/Pipeline) appears both in raw attrs and structured `inEdge`.

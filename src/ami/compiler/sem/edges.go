@@ -12,6 +12,8 @@ import (
 // backpressure policies. For edge.Pipeline, also requires a non-empty name.
 func analyzeEdges(pd astpkg.PipelineDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
+    // Validate MultiPath usage when present
+    diags = append(diags, analyzeMultiPath(pd)...)
     parseFromNode := func(st astpkg.NodeCall) (interface{}, bool) {
         if v := strings.TrimSpace(st.Attrs["in"]); v != "" {
             if spec, ok := parseEdgeSpecFromValue(v); ok { return spec, true }
@@ -140,6 +142,103 @@ func parseEdgeSpecFromArgs(args []string) (interface{}, bool) {
         }
     }
     return nil, false
+}
+
+// --- MultiPath tolerant parser and validations ---
+
+type mpSpec struct {
+    Inputs []interface{}
+    // Merge ops are opaque here; shape enforcement happens elsewhere
+}
+
+func parseMultiPathFromValue(v string) (mpSpec, bool) {
+    s := strings.TrimSpace(v)
+    if !strings.HasPrefix(s, "edge.MultiPath(") || !strings.HasSuffix(s, ")") { return mpSpec{}, false }
+    inner := s[len("edge.MultiPath(") : len(s)-1]
+    // locate inputs=[ ... ]
+    idx := strings.Index(inner, "inputs=")
+    if idx < 0 { return mpSpec{}, false }
+    after := strings.TrimSpace(inner[idx+len("inputs="):])
+    if len(after) == 0 || after[0] != '[' { return mpSpec{}, false }
+    // capture bracket block
+    i := 1
+    depth := 1
+    for i < len(after) && depth > 0 {
+        switch after[i] {
+        case '[': depth++
+        case ']': depth--
+        }
+        i++
+    }
+    if depth != 0 { return mpSpec{}, false }
+    list := after[1 : i-1]
+    parts := splitTopLevelCommas(list)
+    var inputs []interface{}
+    for _, p := range parts {
+        p = strings.TrimSpace(p)
+        if p == "" { continue }
+        if spec, ok := parseEdgeSpecFromValue(p); ok {
+            inputs = append(inputs, spec)
+        }
+    }
+    return mpSpec{Inputs: inputs}, true
+}
+
+// analyzeMultiPath enforces minimal multi-path rules:
+// - Only valid on Collect nodes.
+// - inputs must be non-empty; inputs[0] must be a default upstream edge (FIFO).
+// - All inputs must agree on payload Type when specified.
+func analyzeMultiPath(pd astpkg.PipelineDecl) []diag.Diagnostic {
+    var diags []diag.Diagnostic
+    check := func(st astpkg.NodeCall) {
+        v := strings.TrimSpace(st.Attrs["in"])
+        if v == "" || !strings.HasPrefix(v, "edge.MultiPath(") { return }
+        // Only on collect
+        if strings.ToLower(st.Name) != "collect" {
+            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MP_ONLY_COLLECT", Message: "edge.MultiPath is only valid on Collect nodes"})
+        }
+        mp, ok := parseMultiPathFromValue(v)
+        if !ok {
+            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MP_INVALID", Message: "invalid edge.MultiPath specification"})
+            return
+        }
+        if len(mp.Inputs) == 0 {
+            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MP_INPUTS_EMPTY", Message: "edge.MultiPath requires at least one input"})
+            return
+        }
+        // First input must be FIFO default upstream edge
+        switch mp.Inputs[0].(type) {
+        case fifoSpec:
+            // ok
+        default:
+            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MP_INPUT0_KIND", Message: "first MultiPath input must be a FIFO default upstream edge"})
+        }
+        // Type compatibility across inputs (when provided)
+        var base string
+        for _, in := range mp.Inputs {
+            var t string
+            switch v := in.(type) {
+            case fifoSpec:
+                t = v.Type
+            case lifoSpec:
+                t = v.Type
+            case pipeSpec:
+                t = v.Type
+            }
+            if t == "" { continue }
+            if base == "" {
+                base = t
+                continue
+            }
+            if base != t {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MP_INPUT_TYPE_MISMATCH", Message: "MultiPath inputs have mismatched payload types"})
+                break
+            }
+        }
+    }
+    for _, st := range pd.Steps { check(st) }
+    for _, st := range pd.ErrorSteps { check(st) }
+    return diags
 }
 
 // parseEdgeSpecFromValue parses an edge spec given the value part (e.g., "edge.FIFO(...)").

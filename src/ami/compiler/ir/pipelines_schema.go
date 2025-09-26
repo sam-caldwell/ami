@@ -23,6 +23,17 @@ func (m Module) ToPipelinesSchema() sch.PipelinesV1 {
                 }
                 if st.In != nil {
                     ps.InEdge = toSchemaEdge(st.In)
+                } else if st.InMulti != nil {
+                    // Convert MultiPath IR into schema
+                    var inputs []sch.PipelineEdgeV1
+                    for _, e := range st.InMulti.Inputs {
+                        if pe := toSchemaEdge(e); pe != nil { inputs = append(inputs, *pe) }
+                    }
+                    var merge []sch.MergeOpV1
+                    for _, op := range st.InMulti.Merge {
+                        merge = append(merge, sch.MergeOpV1{Name: op.Name, Raw: op.Raw})
+                    }
+                    ps.InEdge = &sch.PipelineEdgeV1{Kind: "edge.MultiPath", MultiPath: &sch.MultiPathV1{Inputs: inputs, Merge: merge}}
                 }
                 res = append(res, ps)
             }

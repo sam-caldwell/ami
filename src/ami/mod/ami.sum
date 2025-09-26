@@ -40,6 +40,9 @@
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion1205006980/002/absrepo": {
       "v1.0.0": "07d4d390c5c237ae80b73766bb8cfa6a8b1ac23ecf31f78c6adb192690d04bcd"
     },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion1254830859/002/absrepo": {
+      "v1.0.0": "2ef5f471a120f816d8cd8b75524c5a9ae7b29529f630e0cbc993fc6af1de1666"
+    },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion1371396908/002/absrepo": {
       "v1.0.0": "1fc0d14b725316e9e403e1cb11f35c2eeab0aaa179314d1dfd6e0d4fa694de22"
     },

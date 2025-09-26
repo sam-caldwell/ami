@@ -18,16 +18,29 @@ action to bring code and docs into alignment with the .docx and the updated exam
 ## Semantics & IR
 
 - [ ] Worker signature rules: standardize all node worker function signatures to `func(ev Event<T>) (Event<U>,error)`.
+  - Status: current analyzer tolerates `(Context, Event<T>, State)` parameters and allows result kinds `Event<U> | []Event<U> | Error<E>` for worker references.
+  - Impact: pipelines and tests assume the broader forms; IR captures `HasContext/HasState` and `OutputKind` accordingly.
+  - Plan:
+    - Decide target canonical form per docx (Context/State ambient vs. explicit params; single vs. multi-event vs. error channel).
+    - Update `analyzeWorkers`/signature checks to enforce the canonical signature; add diagnostics (e.g., `E_WORKER_SIGNATURE`) for mismatches with positions.
+    - Adjust IR lowering to normalize worker metadata and deprecate `HasContext/HasState` if moving to ambient state.
+    - Update code examples and tests to use the canonical signature; keep compatibility window (warnings) if necessary.
 - [x] Standardize on attribute‑driven worker resolution: prefer `worker=` (ref or inline) and prefer `in=` for edges over positional heuristics.
 - [ ] `edge.MultiPath` for Collect:
-  - [ ] Parser support for `edge.MultiPath(inputs=[...], merge=Sort(...))`.
-  - [ ] Semantic validation: only valid on `Collect`; inputs[0] must be the default upstream edge; each entry must be a valid `EdgeSpecifier`; type compatibility across inputs.
-  - [ ] IR extensions: encode MultiPath configuration (inputs, merge attributes) in `pipelines.v1` and `edges.v1` summaries.
+  - [x] Parser tolerant consumption via attribute string; IR scaffold parses `edge.MultiPath(inputs=[...], merge=Sort(...))`.
+  - [x] Semantic validation (minimal): only valid on `Collect`; inputs required; first input must be a default upstream edge (FIFO); enforce input type compatibility.
+  - [x] IR extensions: encode MultiPath configuration (inputs, merge attributes) in `pipelines.v1` (edges.v1 unaffected).
 - [ ] `edge.Pipeline` type safety across pipelines: ensure type flow checks across pipeline boundaries use declared `type` on edges; add diagnostics on mismatch.
+  - Status: Intra-pipeline edge type checks exist (declared `type=` vs. previous step worker outputs). Cross-pipeline verification for `edge.Pipeline(name=...)` is not implemented yet.
+  - Plan:
+    - Build a pipeline→output payload type map during semantics by inspecting the final step workers of each pipeline (tolerate empty/error steps with a conservative rule).
+    - When parsing `edge.Pipeline(name=X, type=T)`, verify `T` matches the output payload type of pipeline `X`; on mismatch, emit `E_EDGE_PIPE_TYPE_MISMATCH` with source positions.
+    - Add tests: happy (match), sad (mismatch), and unknown pipeline name (`E_EDGE_PIPE_NOT_FOUND`).
 - [ ] Backpressure policy set: SPEC/semantics currently accept `block|drop`; examples/docx use `dropOldest` (and sometimes `dropNewest`).  standardize on dropOldest/dropNewest.
 - [ ] Worker state parameter vs. ambient `state`: SPEC §6.3 shows `st *State` in signatures; docx and repo rule (Memory Safety 2.3.2) remove raw pointers and use ambient `state.get/set/update/list`. Remove pointer forms from examples/spec and update analyzer to not require a `State` parameter.
  - [x] Type parameters: emit `E_DUP_TYPE_PARAM` for duplicate type parameter names; enforced in semantics and exposed via lint.
  - [x] IR debug: surface function `typeParams` in `ir.v1` for tooling.
+ - [x] Diagnostics positions: `E_DUP_TYPE_PARAM` includes a source position (function start). Per‑parameter offsets are a future enhancement.
 
 ## Codegen & Tooling
 

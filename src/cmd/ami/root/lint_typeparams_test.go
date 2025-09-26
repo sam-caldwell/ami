@@ -65,8 +65,13 @@ packages:
             continue
         }
         if obj["schema"] == "diag.v1" && obj["code"] == "E_DUP_TYPE_PARAM" {
-            seen = true
-            break
+            // basic position presence check
+            if pos, ok := obj["pos"].(map[string]any); ok {
+                if _, ok2 := pos["line"]; ok2 {
+                    seen = true
+                    break
+                }
+            }
         }
     }
     if !seen {

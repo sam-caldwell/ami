@@ -157,6 +157,9 @@
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion1814431466/002/absrepo": {
       "v1.0.0": "01d93cf5206229c8dd2b74cbe10f533c34838b8bc2974acedebe34ba54182db3"
     },
+    "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion1818753674/002/absrepo": {
+      "v1.0.0": "23dfa0f2a63b945124ddb0aca8a1a5c2aca1e6955499b10fa82a2ae44fd1b848"
+    },
     "/var/folders/0_/8_52nvgd45d5wn3w9hnz6nl00000gn/T/TestUpdateFromWorkspace_LocalRepo_ExactVersion1833133001/002/absrepo": {
       "v1.0.0": "edc3facb2a2f14164951ef3cbd5e4f5179191098d761a79d9e09127886c72dbc"
     },

@@ -20,7 +20,8 @@ func analyzeImperativeTypes(fd astpkg.FuncDecl) []diag.Diagnostic {
         return diags
     }
     if len(fd.BodyStmts) > 0 {
-        return analyzeImperativeTypesFromAST(fd)
+        // AST-based analysis is handled by AnalyzeFile via analyzeImperativeTypesFromAST with funcs context
+        return diags
     }
     // env maps parameter identifiers to their TypeRef
     env := map[string]astpkg.TypeRef{}
@@ -77,7 +78,7 @@ func analyzeImperativeTypes(fd astpkg.FuncDecl) []diag.Diagnostic {
     return diags
 }
 
-func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
+func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
     env := map[string]astpkg.TypeRef{}
     for _, p := range fd.Params {
@@ -113,6 +114,25 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
         }
         return true
     }
+    // applySubst replaces single-letter type variables in a TypeRef using subst map
+    var applySubst func(astpkg.TypeRef, map[string]astpkg.TypeRef) astpkg.TypeRef
+    applySubst = func(t astpkg.TypeRef, subst map[string]astpkg.TypeRef) astpkg.TypeRef {
+        if len(t.Name) == 1 && t.Name[0] >= 'A' && t.Name[0] <= 'Z' && len(t.Args) == 0 {
+            if b, ok := subst[t.Name]; ok {
+                return b
+            }
+        }
+        if len(t.Args) > 0 {
+            out := t
+            out.Args = make([]astpkg.TypeRef, len(t.Args))
+            for i, a := range t.Args {
+                out.Args[i] = applySubst(a, subst)
+            }
+            return out
+        }
+        return t
+    }
+
     var exprType func(astpkg.Expr, bool) (astpkg.TypeRef, bool)
     exprType = func(e astpkg.Expr, isLHS bool) (astpkg.TypeRef, bool) {
         switch v := e.(type) {
@@ -219,10 +239,23 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl) []diag.Diagnostic {
             }
             return astpkg.TypeRef{}, true
         case astpkg.CallExpr:
-            // infer return type for simple functions if available in env/defs
+            // infer instantiated return type for known local functions with single result
             if id, ok := v.Fun.(astpkg.Ident); ok {
-                // not tracking function return types in env; skip
-                _ = id
+                if decl, ok := funcs[id.Name]; ok {
+                    // Build substitution from params <- args
+                    subst := map[string]astpkg.TypeRef{}
+                    n := len(v.Args)
+                    if len(decl.Params) < n { n = len(decl.Params) }
+                    for i := 0; i < n; i++ {
+                        if at, aok := exprType(v.Args[i], false); aok {
+                            _ = unify(decl.Params[i].Type, at, subst)
+                        }
+                    }
+                    if len(decl.Result) == 1 {
+                        rt := applySubst(decl.Result[0], subst)
+                        return rt, true
+                    }
+                }
             }
             return astpkg.TypeRef{}, false
         case astpkg.BasicLit:

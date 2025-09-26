@@ -15,22 +15,27 @@ action to bring code and docs into alignment with the .docx and the updated exam
 - [x] Function type parameters: parsed with tolerant grammar; added `FuncDecl.TypeParams` and `TypeParam{Name, Constraint}`; minimal semantics (reject duplicate names); IR surfaces `{name,constraint}`.
 - [x] SPEC §6.2 pipeline examples vs. examples/docx: examples updated to canonical `worker=`/`in=` attributes and `Fanout` casing; parser supports attribute lists; SPEC/docs aligned with docx for these items.
   - [x] Repo formatting baseline: applied one‑declaration‑per‑file to struct AST types (`StructDecl`, `Field`), aligning with token package pattern.
+ - [x] Function‑body comments: attach leading comments to body statements (`VarDeclStmt`, `ExprStmt`, `AssignStmt`, `DeferStmt`, `ReturnStmt`) via token‑offset map; covered by `parser/body_comments_test.go`.
 
 ## Semantics & IR
 
-- [ ] Worker signature rules: standardize all node worker function signatures to `func(ev Event<T>) (Event<U>,error)`.
-  - Status: current analyzer tolerates `(Context, Event<T>, State)` parameters and allows result kinds `Event<U> | []Event<U> | Error<E>` for worker references.
-  - Impact: pipelines and tests assume the broader forms; IR captures `HasContext/HasState` and `OutputKind` accordingly.
+- [ ] Worker signature rules: standardize all node worker function signatures to `func(ev Event<T>) (Event<U>, error)`.
+  - Status: analyzer now accepts the canonical ambient form and continues to tolerate legacy `(Context, Event<T>, State)` during migration. Result kinds for legacy remain `Event<U> | []Event<U> | Error<E>`; canonical uses `(Event<U>, error)`.
+  - Impact: pipelines/tests previously assumed broader forms; IR still captures `HasContext/HasState` and `OutputKind` for compatibility during transition.
   - Plan:
-    - Decide target canonical form per docx (Context/State ambient vs. explicit params; single vs. multi-event vs. error channel).
-    - Update `analyzeWorkers`/signature checks to enforce the canonical signature; add diagnostics (e.g., `E_WORKER_SIGNATURE`) for mismatches with positions.
-    - Adjust IR lowering to normalize worker metadata and deprecate `HasContext/HasState` if moving to ambient state.
-    - Update code examples and tests to use the canonical signature; keep compatibility window (warnings) if necessary.
+    - Enforce canonical ambient signature by default; keep a deprecation window for explicit `State` parameters.
+    - Maintain clear diagnostics with positions (`E_WORKER_SIGNATURE`).
+    - Deprecate IR `HasState/HasContext` after downstream tooling is updated.
+    - Migrate examples/tests to ambient signature; retain explicit tests for deprecation path.
   - Progress:
-    - [x] Added lint/build diagnostics with positions for `E_WORKER_SIGNATURE`.
-    - [x] Added transitional info diagnostic `W_WORKER_SIGNATURE_DEPRECATED` for 3‑parameter worker signatures; included lint test.
-    - [x] Added positions to `E_WORKER_UNDEFINED` for clearer source pinpointing.
-    - [ ] Future: escalate to warnings/errors once canonical signature is finalized; remove `HasContext/HasState` from IR.
+    - [x] `E_WORKER_SIGNATURE` includes positions (lint/build JSON tests updated).
+    - [x] `E_WORKER_UNDEFINED` includes positions.
+    - [x] Canonical acceptance: `func(ev Event<T>) (Event<U>, error)` recognized by semantics; legacy remains accepted.
+    - [x] Deprecations:
+      - Lint: `W_STATE_PARAM_AMBIENT_SUGGEST` for explicit `State` parameters (info).
+      - Semantics: `W_WORKER_STATE_PARAM_DEPRECATED` when a legacy worker is referenced (info).
+    - [x] IR: derives Input/Output from canonical signature (ignores trailing `error`).
+    - [ ] Future: escalate legacy to warn/error and remove `HasContext/HasState` from IR; migrate all docs/examples.
 - [x] Standardize on attribute‑driven worker resolution: prefer `worker=` (ref or inline) and prefer `in=` for edges over positional heuristics.
 - [x] `edge.MultiPath` for Collect:
   - [x] Parser tolerant consumption via attribute string; IR scaffold parses `edge.MultiPath(inputs=[...], merge=Sort(...))`.
@@ -69,8 +74,8 @@ action to bring code and docs into alignment with the .docx and the updated exam
 - [ ] MultiPath codegen mapping (future):
   - Lower `edge.MultiPath` to runtime merge orchestration with deterministic buffering and policy handling.
   - Map merge operators (`Sort`, `Stable`, `Key`, `Dedup`, `Window`, `Watermark`, `Timeout`, `Buffer`, `PartitionBy`) to concrete strategies.
-- [ ] Worker state parameter vs. ambient `state`: SPEC §6.3 shows `st *State` in signatures; docx and repo rule (Memory Safety 2.3.2) remove raw pointers and use ambient `state.get/set/update/list`. Remove pointer forms from examples/spec and update analyzer to not require a `State` parameter.
-  - Status: parser/semantics reject pointer `*State` parameters (emits `E_STATE_PARAM_POINTER`). Non‑pointer `State` parameters are still tolerated; ambient `state.*` helpers are available and used in docs/tests. Canonical signature migration is planned.
+- [x] Worker state parameter vs. ambient `state`: SPEC §6.3 shows `st *State` in signatures; docx and repo rule (Memory Safety 2.3.2) remove raw pointers and use ambient `state.get/set/update/list`. Remove pointer forms from examples/spec and update analyzer to not require a `State` parameter.
+  - Status: parser/semantics reject pointer `*State` parameters (emits `E_STATE_PARAM_POINTER`). Non‑pointer `State` parameters are tolerated during migration; ambient `state.*` helpers are used in docs/tests. Linter warns on `*State` (W_STATE_PARAM_POINTER) and suggests ambient access for explicit `State` parameters (W_STATE_PARAM_AMBIENT_SUGGEST). Canonical signature migration is planned.
   - Plan:
     - Enforce canonical worker signature without explicit `State` param once finalized (escalate transitional notice to warn/error).
     - Linter: add guidance to remove explicit `State` parameters (e.g., `W_STATE_PARAM_AMBIENT_SUGGEST`) and flag pointer forms at parse or lint time.
@@ -117,20 +122,24 @@ action to bring code and docs into alignment with the .docx and the updated exam
 - [x] Parser tests for: package version, import constraints, attribute lists, inline workers, `state.*` usage, generic-like calls.
   - [ ] Parser/IR tests for `edge.MultiPath` pending (after lowering).
 - [x] Semantics: duplicate function type parameter names.
-  - [ ] Additional: worker signature variants, backpressure policy validation, MultiPath checks.
+  - [x] Additional:
+    - [x] Worker signature variants: invalid/canonical/legacy across attribute and positional refs (lint/build diagnostics).
+    - [x] Backpressure policy validation: FIFO/LIFO/Pipeline (min/max order, policy set) with sad-path coverage.
+    - [x] MultiPath checks: Collect-only, first input FIFO required, input type compatibility, merge operator validation.
 - [x] IR tests: inline worker metadata; function type params (with constraints) round-trip.
   - [ ] IR tests: MultiPath inputs/merge pending (after scaffold).
 - [x] Linter: pipeline smells prefer structured attrs; existing tests cover no-workers and unbounded/block warnings.
 - [x] Linter JSON: duplicate type params test asserts `E_DUP_TYPE_PARAM` appears in `ami --json lint` output.
 - [x] Pipelines debug IR: extended test asserts step `Attrs` include `worker`, `minWorkers`, `maxWorkers`, `onError`, `capabilities`, and that `in=edge.*` (FIFO/LIFO/Pipeline) appears both in raw attrs and structured `inEdge`.
- - [x] Lint JSON: worker signature deprecated info (`W_WORKER_SIGNATURE_DEPRECATED`) test added.
+ - [x] Lint JSON: ambient state migration hint (`W_STATE_PARAM_AMBIENT_SUGGEST`) test added; semantics emit `W_WORKER_STATE_PARAM_DEPRECATED` on legacy worker use.
  - [x] Lint/Build JSON: `E_WORKER_SIGNATURE` includes `pos` (position) tests added.
+ - [x] Lint JSON: state pointer (`W_STATE_PARAM_POINTER`) and ambient suggestion (`W_STATE_PARAM_AMBIENT_SUGGEST`) tests added.
 
 ## Known SPEC vs Code Conflicts (Quick Index)
 
 - [x] SPEC §6.2 casing: updated to `Fanout` to match examples and docx.
 - [x] SPEC §6.2 pipeline examples: updated to named attribute lists (`worker=`, `in=`) instead of positional forms.
-- [ ] SPEC §6.3 shows `st *State` parameter; docx uses ambient `state` and prohibits raw pointers.
+- [x] SPEC §6.3 shows `st *State` parameter; docx uses ambient `state` and prohibits raw pointers.
 - [ ] Backpressure tokens: SPEC/semantics `block|drop` vs examples/docx `dropOldest`/`dropNewest`.
   - Status: code/semantics accept `{ block, dropOldest, dropNewest }`; no bare `drop` token. Docs/SPEC still reference `drop`.
   - Action: update SPEC/docs to the canonical set; consider transitional alias warning if `drop` is encountered.
@@ -141,9 +150,9 @@ action to bring code and docs into alignment with the .docx and the updated exam
 
 - Ambient state (SPEC §6.3)
   - [x] Parser/Semantics: reject pointer `*State` parameters (E_STATE_PARAM_POINTER).
-  - [ ] Linter: add rule to flag `*State` in function parameters (W_STATE_PARAM_POINTER).
-  - [ ] Linter: add suggestion to remove non‑pointer `State` params in favor of ambient access (W_STATE_PARAM_AMBIENT_SUGGEST).
-  - [ ] Docs/Examples: sweep to remove pointer forms; align with Memory Safety 2.3.2 guidance.
+  - [x] Linter: add rule to flag `*State` in function parameters (W_STATE_PARAM_POINTER).
+  - [x] Linter: add suggestion to remove non‑pointer `State` params in favor of ambient access (W_STATE_PARAM_AMBIENT_SUGGEST).
+  - [x] Docs/Examples: sweep to remove pointer forms; align with Memory Safety 2.3.2 guidance.
 
 - Backpressure tokens alignment
   - [x] Parser/Semantics: accept `dropOldest`/`dropNewest` tokens and map deterministically to runtime policy.

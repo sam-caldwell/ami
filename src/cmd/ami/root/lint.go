@@ -816,19 +816,36 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
     for _, d := range f.Decls {
         if fd, ok := d.(astpkg.FuncDecl); ok {
             // Soft migration: suggest removing explicit State parameter (ambient state)
-            for _, prm := range fd.Params {
-                if strings.EqualFold(prm.Type.Name, "state") && !prm.Type.Ptr {
-                    var p *srcset.Position
-                    if prm.Type.Offset >= 0 { p = toPos(prm.Type.Offset) }
-                    apply(diag.Info, "W_STATE_PARAM_AMBIENT_SUGGEST", "State is ambient; prefer ambient access (state.get/set/update/list) over passing State parameter", pkgName, filePath, p)
+            // Be tolerant of parser idiosyncrasies: detect legacy 3-parameter worker signature
+            legacy3Param := func(fd astpkg.FuncDecl) (bool, *srcset.Position) {
+                if len(fd.Params) != 3 { return false, nil }
+                p1 := fd.Params[0].Type
+                p2 := fd.Params[1].Type
+                p3 := fd.Params[2]
+                if !(p1.Name == "Context" && !p1.Ptr && !p1.Slice) { return false, nil }
+                if !(p2.Name == "Event" && len(p2.Args) == 1 && !p2.Ptr) { return false, nil }
+                // Third param: type may be mis-attributed; accept either type name State or identifier/name 'st'
+                isStateType := strings.EqualFold(p3.Type.Name, "state")
+                isStateIdent := strings.EqualFold(p3.Name, "st") || strings.EqualFold(p3.Type.Name, "st")
+                if !(isStateType || isStateIdent) { return false, nil }
+                // Prefer type offset when available; otherwise function-level position
+                if p3.Type.Offset >= 0 { return true, toPos(p3.Type.Offset) }
+                return true, nil
+            }
+            if ok, pos := legacy3Param(fd); ok {
+                apply(diag.Info, "W_STATE_PARAM_AMBIENT_SUGGEST", "State is ambient; prefer ambient access (state.get/set/update/list) over passing State parameter", pkgName, filePath, pos)
+            } else {
+                // Fallback: direct scan for explicit non-pointer State params when signature is not the legacy worker form
+                for _, prm := range fd.Params {
+                    if strings.EqualFold(prm.Type.Name, "state") && !prm.Type.Ptr {
+                        var p *srcset.Position
+                        if prm.Type.Offset >= 0 { p = toPos(prm.Type.Offset) }
+                        apply(diag.Info, "W_STATE_PARAM_AMBIENT_SUGGEST", "State is ambient; prefer ambient access (state.get/set/update/list) over passing State parameter", pkgName, filePath, p)
+                    }
                 }
             }
-            for _, p := range fd.Params {
-                hintType(p.Type)
-            }
-            for _, r := range fd.Result {
-                hintType(r)
-            }
+            for _, p := range fd.Params { hintType(p.Type) }
+            for _, r := range fd.Result { hintType(r) }
         }
 		if sd, ok := d.(astpkg.StructDecl); ok {
 			for _, fld := range sd.Fields {

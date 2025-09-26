@@ -77,6 +77,10 @@ func AnalyzeFile(f *astpkg.File) Result {
             res.Diagnostics = append(res.Diagnostics, analyzePointerProhibitions(fd)...)
             // Imperative type checks (2.3): simple assignment type rules (no raw pointers)
             res.Diagnostics = append(res.Diagnostics, analyzeImperativeTypes(fd)...)
+            // AST-based imperative typing and return checks with call instantiation
+            if len(fd.BodyStmts) > 0 {
+                res.Diagnostics = append(res.Diagnostics, analyzeImperativeTypesFromAST(fd, funcs)...)
+            }
             // Call argument type checks with simple generic unification
             res.Diagnostics = append(res.Diagnostics, analyzeCallTypes(fd, funcs)...)
             // Operators: arithmetic/comparison operand compatibility

@@ -50,6 +50,7 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl, sc
                 } else if isLegacyWorkerSignature(fd) {
                     // Transitional notice: explicit State parameter is deprecated; ambient state is preferred
                     diags = append(diags, diag.Diagnostic{Level: diag.Info, Code: "W_WORKER_STATE_PARAM_DEPRECATED", Message: "explicit State parameter is deprecated; state is ambient. Use state.get/set/update/list", Pos: pos})
+                    diags = append(diags, diag.Diagnostic{Level: diag.Info, Code: "W_STATE_PARAM_AMBIENT_SUGGEST", Message: "State is ambient; prefer ambient access (state.get/set/update/list) over passing State parameter", Pos: pos})
                 }
             }
             return
@@ -70,6 +71,7 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl, sc
                     diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: fmt.Sprintf("worker %q has invalid signature", name), Pos: pos})
                 } else if isLegacyWorkerSignature(fd) {
                     diags = append(diags, diag.Diagnostic{Level: diag.Info, Code: "W_WORKER_STATE_PARAM_DEPRECATED", Message: "explicit State parameter is deprecated; state is ambient. Use state.get/set/update/list", Pos: pos})
+                    diags = append(diags, diag.Diagnostic{Level: diag.Info, Code: "W_STATE_PARAM_AMBIENT_SUGGEST", Message: "State is ambient; prefer ambient access (state.get/set/update/list) over passing State parameter", Pos: pos})
                 }
             } else if w.Kind == "factory" {
                 diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: fmt.Sprintf("unknown worker/factory %q", name), Pos: pos})
@@ -115,8 +117,11 @@ func isLegacyWorkerSignature(fd astpkg.FuncDecl) bool {
     if !(p2.Name == "Event" && len(p2.Args) == 1 && !p2.Ptr) {
         return false
     }
-    if !(p3.Name == "State") {
-        return false
+    if p3.Name != "State" {
+        // tolerate common identifier name 'st' for the third param when parser mis-attributes name/type
+        if !(len(fd.Params) >= 3 && (strings.EqualFold(fd.Params[2].Name, "st") || strings.EqualFold(p3.Name, "st"))) {
+            return false
+        }
     }
     // results: exactly one of Event<U>, []Event<U>, Error<E>
     if len(fd.Result) != 1 {

@@ -2,7 +2,6 @@ package kvstore
 
 import (
     "container/list"
-    "time"
 )
 
 // New creates a Store with the given options.
@@ -21,4 +20,3 @@ func New(opts Options) *Store {
     }
     return s
 }
-

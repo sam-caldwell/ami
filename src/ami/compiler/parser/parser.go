@@ -1160,12 +1160,14 @@ func (bp *bodyParser) precedence(k tok.Kind) int {
 }
 
 func (bp *bodyParser) parseBinaryRHS(minPrec int, left astpkg.Expr) (astpkg.Expr, bool) {
-	for {
-		opTok := bp.cur()
-		prec := bp.precedence(opTok.Kind)
-		if prec < minPrec {
-			break
-		}
+    for {
+        // defensive: ensure forward progress to avoid pathological loops
+        beforeI := bp.i
+        opTok := bp.cur()
+        prec := bp.precedence(opTok.Kind)
+        if prec < minPrec {
+            break
+        }
 		// treat '*' as multiplication only when not the LHS mutation marker: pattern '*' IDENT '='
 		if opTok.Kind == tok.STAR {
 			if bp.i+2 < len(bp.toks) && bp.toks[bp.i+1].Kind == tok.IDENT && bp.toks[bp.i+2].Kind == tok.ASSIGN {
@@ -1179,19 +1181,25 @@ func (bp *bodyParser) parseBinaryRHS(minPrec int, left astpkg.Expr) (astpkg.Expr
 		if !ok {
 			return left, true
 		}
-		// If next operator has higher precedence, parse it first
-		for {
-			nextPrec := bp.precedence(bp.cur().Kind)
-			if nextPrec > prec {
-				var ok2 bool
-				right, ok2 = bp.parseBinaryRHS(prec+1, right)
-				if !ok2 {
-					break
-				}
-			} else {
-				break
-			}
-		}
+        // If next operator has higher precedence, parse it first
+        for {
+            nextPrec := bp.precedence(bp.cur().Kind)
+            // Do not cross a mutating assignment boundary: '* IDENT ='
+            if bp.cur().Kind == tok.STAR {
+                if bp.i+2 < len(bp.toks) && bp.toks[bp.i+1].Kind == tok.IDENT && bp.toks[bp.i+2].Kind == tok.ASSIGN {
+                    nextPrec = -1
+                }
+            }
+            if nextPrec > prec {
+                var ok2 bool
+                right, ok2 = bp.parseBinaryRHS(prec+1, right)
+                if !ok2 {
+                    break
+                }
+            } else {
+                break
+            }
+        }
 		op := opTok.Lexeme
 		if op == "" {
 			switch opTok.Kind {
@@ -1219,9 +1227,12 @@ func (bp *bodyParser) parseBinaryRHS(minPrec int, left astpkg.Expr) (astpkg.Expr
 				op = "!="
 			}
 		}
-		left = astpkg.BinaryExpr{X: left, Op: op, Y: right}
-	}
-	return left, true
+        left = astpkg.BinaryExpr{X: left, Op: op, Y: right}
+        if bp.i == beforeI { // no progress; bail out to avoid infinite loop
+            break
+        }
+    }
+    return left, true
 }
 
 // parseTypeRef parses a simple TypeRef in function bodies, mirroring Parser.parseType

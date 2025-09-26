@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sam-caldwell/ami/src/ami/compiler/token"
 	rootcmd "github.com/sam-caldwell/ami/src/cmd/ami/root"
 	testutil "github.com/sam-caldwell/ami/src/internal/testutil"
 )

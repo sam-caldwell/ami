@@ -1,8 +1,6 @@
 package parser
 
 import (
-    "strings"
-
     astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/diag"
     scan "github.com/sam-caldwell/ami/src/ami/compiler/scanner"
@@ -63,4 +61,3 @@ func (p *Parser) synchronize() {
         p.next()
     }
 }
-

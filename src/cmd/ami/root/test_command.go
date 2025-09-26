@@ -1,6 +1,9 @@
 package root
 
-import "github.com/spf13/cobra"
+import (
+    "os"
+    "github.com/spf13/cobra"
+)
 
 func newTestCmd() *cobra.Command {
     cmd := &cobra.Command{
@@ -31,10 +34,7 @@ func newTestCmd() *cobra.Command {
             }
             code := runGoTests(args)
             // Ensure process exit reflects result for callers
-            // Note: root.Execute handles os.Exit; here we propagate code back.
-            if code != 0 {
-                // handled by caller
-            }
+            os.Exit(code)
         },
     }
     // Flags
@@ -48,4 +48,3 @@ func newTestCmd() *cobra.Command {
     cmd.Flags().BoolVar(&testKVDump, "kv-dump", false, "dump kvstore snapshots at end of runtime tests (human mode)")
     return cmd
 }
-

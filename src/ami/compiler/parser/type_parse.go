@@ -62,7 +62,7 @@ func (p *Parser) parseType() (astpkg.TypeRef, bool) {
     if p.cur.Kind == tok.STAR { tr.Ptr = true; p.next(); start = p.cur.Offset }
     if p.cur.Kind == tok.LBRACK { start = p.cur.Offset; p.next(); if p.cur.Kind == tok.RBRACK { tr.Slice = true; p.next() } }
     switch p.cur.Kind {
-    case tok.IDENT, tok.KW_MAP, tok.KW_SET, tok.KW_SLICE:
+    case tok.IDENT, tok.KW_MAP, tok.KW_SET, tok.KW_SLICE, tok.KW_ERROR:
     default:
         return tr, false
     }

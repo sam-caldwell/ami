@@ -10,12 +10,13 @@ import (
 // parameter (commonly named 'ev') cannot be assigned.
 func analyzeEventContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
-    if len(fd.Params) < 2 || len(fd.Body) == 0 {
+    if len(fd.Params) < 1 || len(fd.Body) == 0 {
         return diags
     }
     // detect event parameter name
     evName := ""
-    if p := fd.Params[1]; p.Type.Name == "Event" && len(p.Type.Args) == 1 && p.Name != "" {
+    // canonical: first parameter is Event<T>
+    if p := fd.Params[0]; p.Type.Name == "Event" && len(p.Type.Args) == 1 && p.Name != "" {
         evName = p.Name
     }
     if evName == "" {
@@ -32,4 +33,3 @@ func analyzeEventContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
     }
     return diags
 }
-

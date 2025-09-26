@@ -15,16 +15,15 @@ func analyzeEdgeTypeSafety(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncD
         if !ok {
             return "", false
         }
-        if len(fd.Result) != 1 {
-            return "", false
-        }
-        r := fd.Result[0]
-        // Event<U> or []Event<U>
-        if r.Name == "Event" && len(r.Args) == 1 {
-            return typeRefToString(fd.Result[0].Args[0]), true
-        }
-        if r.Name == "Error" && len(r.Args) == 1 {
-            return typeRefToString(fd.Result[0].Args[0]), true
+        // Canonical: first result Event<U>, second result error
+        if len(fd.Result) >= 1 {
+            r := fd.Result[0]
+            if r.Name == "Event" && len(r.Args) == 1 {
+                return typeRefToString(r.Args[0]), true
+            }
+            if r.Name == "Error" && len(r.Args) == 1 {
+                return typeRefToString(r.Args[0]), true
+            }
         }
         return "", false
     }
@@ -74,4 +73,3 @@ func analyzeEdgeTypeSafety(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncD
     }
     return diags
 }
-

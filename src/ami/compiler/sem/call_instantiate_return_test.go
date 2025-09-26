@@ -55,3 +55,16 @@ func g() map<string,int> { var m = map{"a":1}; return m }`
         }
     }
 }
+
+func TestReturn_SetLiteral_Infer_OK(t *testing.T) {
+    src := `package p
+func f() set<string> { var s = set{"a","b"}; return s }`
+    p := parser.New(src)
+    f := p.ParseFile()
+    res := AnalyzeFile(f)
+    for _, d := range res.Diagnostics {
+        if d.Code == "E_RETURN_TYPE_MISMATCH" || d.Code == "E_ASSIGN_TYPE_MISMATCH" || d.Code == "E_TYPE_MISMATCH" {
+            t.Fatalf("unexpected diag: %v", d)
+        }
+    }
+}

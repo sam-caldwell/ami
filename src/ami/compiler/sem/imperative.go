@@ -326,6 +326,48 @@ func analyzeImperativeTypesFromAST(fd astpkg.FuncDecl, funcs map[string]astpkg.F
                 }
                 return
             }
+            // Special-case: single returned call expression with tuple results
+            if len(v.Results) == 1 {
+                if call, ok := v.Results[0].(astpkg.CallExpr); ok {
+                    if id, ok2 := call.Fun.(astpkg.Ident); ok2 {
+                        if decl, ok3 := funcs[id.Name]; ok3 && len(decl.Result) == len(fd.Result) && len(decl.Result) > 1 {
+                            // Build substitution from callee params using call args
+                            subst := map[string]astpkg.TypeRef{}
+                            n := len(call.Args)
+                            if len(decl.Params) < n { n = len(decl.Params) }
+                            for i := 0; i < n; i++ {
+                                if at, aok := exprType(call.Args[i], false); aok {
+                                    _ = unify(decl.Params[i].Type, at, subst)
+                                }
+                            }
+                            // Helper to detect remaining type variables
+                            var containsTypeVar func(astpkg.TypeRef) bool
+                            containsTypeVar = func(t astpkg.TypeRef) bool {
+                                if len(t.Name) == 1 && t.Name[0] >= 'A' && t.Name[0] <= 'Z' { return true }
+                                for _, a := range t.Args { if containsTypeVar(a) { return true } }
+                                return false
+                            }
+                            for i := range decl.Result {
+                                inst := applySubst(decl.Result[i], subst)
+                                want := fd.Result[i]
+                                subst2 := map[string]astpkg.TypeRef{}
+                                if !unify(want, inst, subst2) {
+                                    d := diag.Diagnostic{Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch: got " + typeStr(inst) + ", want " + typeStr(want)}
+                                    d.Pos = &srcset.Position{Line: v.Pos.Line, Column: v.Pos.Column, Offset: v.Pos.Offset}
+                                    diags = append(diags, d)
+                                    // continue checking other components for more diags
+                                }
+                                if containsTypeVar(inst) {
+                                    d := diag.Diagnostic{Level: diag.Error, Code: "E_TYPE_UNINFERRED", Message: "return type contains uninferred type variables"}
+                                    d.Pos = &srcset.Position{Line: v.Pos.Line, Column: v.Pos.Column, Offset: v.Pos.Offset}
+                                    diags = append(diags, d)
+                                }
+                            }
+                            return
+                        }
+                    }
+                }
+            }
             if len(fd.Result) != len(v.Results) {
                 diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return value count does not match function result arity"})
                 return

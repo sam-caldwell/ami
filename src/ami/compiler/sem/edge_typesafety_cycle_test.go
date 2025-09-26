@@ -8,7 +8,7 @@ import (
 func TestEdgeTypeSafety_Mismatch(t *testing.T) {
 	// f outputs Event<string> but edge declares type=int
 	src := `package p
-func f(ctx Context, ev Event<string>, st State) Event<string> { }
+func f(ev Event<string>) (Event<string>, error) { }
 pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=int)) }`
 	p := parser.New(src)
 	f := p.ParseFile()
@@ -27,7 +27,7 @@ pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapa
 
 func TestEdgeTypeSafety_Match(t *testing.T) {
 	src := `package p
-func f(ctx Context, ev Event<string>, st State) Event<string> { }
+func f(ev Event<string>) (Event<string>, error) { }
 pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=string)) }`
 	p := parser.New(src)
 	f := p.ParseFile()

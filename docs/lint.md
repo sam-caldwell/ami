@@ -115,33 +115,34 @@ Examples
 
 ### Examples (rules above)
 
-- Flag `*State` parameter usage (warn) and suggest ambient access (info):
+- Flag `*State` parameter usage (warn) and reject legacy state parameter in workers:
 
   package demo
 - State and ambient access:
   - `W_STATE_PARAM_POINTER` (warn): do not use `*State` in function parameters. State is ambient; use `state.get/set/update/list`. The parser also emits `E_STATE_PARAM_POINTER` as an error; this linter rule provides early guidance during authoring.
-  - `W_STATE_PARAM_AMBIENT_SUGGEST` (info): prefer ambient state access; suggests removing explicit `State` parameter even when non-pointer.
+  - Legacy explicit `State` worker parameter is rejected during semantic checks with `E_WORKER_SIGNATURE`.
 
 - Edge backpressure alignment:
-  - `W_EDGE_BP_AMBIGUOUS_DROP` (warn): `backpressure=drop` is ambiguous. Use `dropOldest` or `dropNewest` explicitly.
+- `E_EDGE_BP_INVALID` (error): `backpressure=drop` is invalid. Use `dropOldest` or `dropNewest` explicitly.
+- `W_EDGE_BP_ALIAS` (warn): legacy `backpressure=drop` detected; a pointer position is attached to the `backpressure=drop` substring to aid fixes.
 
-  func worker(ctx Context, ev Event<int>, st *State) Event<int> { ev }
+  func worker(ev Event<int>) (Event<int>, error) { ev }
 
   # Emits
-  - W_STATE_PARAM_POINTER (warn)
+  - (no state warnings; canonical form)
 
-- Suggest ambient access when `State` parameter is present:
+- Legacy `State` parameter in workers is rejected:
 
   package demo
   func worker(ctx Context, ev Event<int>, st State) Event<int> { ev }
 
   # Emits
-  - W_STATE_PARAM_AMBIENT_SUGGEST (info)
+  - E_WORKER_SIGNATURE (error)
 
 - Warn on ambiguous `drop` backpressure in edge specs:
 
   package demo
-  pipeline P { Ingress(cfg).Egress(in=edge.FIFO(minCapacity=1,maxCapacity=2,backpressure=drop,type=int)) }
+  pipeline P { Ingress(cfg).Egress(in=edge.FIFO(minCapacity=1,maxCapacity=2,backpressure=dropOldest,type=int)) }
 
   # Emits
   - W_EDGE_BP_AMBIGUOUS_DROP (warn)

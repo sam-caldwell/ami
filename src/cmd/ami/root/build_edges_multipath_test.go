@@ -40,7 +40,7 @@ packages:
     if err := os.WriteFile("ami.workspace", []byte(wsContent), 0o644); err != nil { t.Fatalf("write workspace: %v", err) }
     if err := os.MkdirAll("src", 0o755); err != nil { t.Fatalf("mkdir src: %v", err) }
     src := `package main
-func f(ctx Context, ev Event<int>, st State) Event<int> { }
+func f(ev Event<int>) (Event<int>, error) { }
 pipeline Up { Ingress(cfg).Transform(f).Egress() }
 pipeline P { Ingress(cfg).Collect(in=edge.MultiPath(inputs=[edge.FIFO(minCapacity=1,maxCapacity=2,backpressure=block,type=int), edge.Pipeline(name=Up,minCapacity=0,maxCapacity=0,backpressure=dropNewest,type=int)], merge=Sort("ts","asc"))).Egress() }
 `
@@ -70,4 +70,3 @@ pipeline P { Ingress(cfg).Collect(in=edge.MultiPath(inputs=[edge.FIFO(minCapacit
     }
     if !ok { t.Fatalf("edges.json missing MultiPath entry with details; items=%+v", edges.Items) }
 }
-

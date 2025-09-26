@@ -10,7 +10,7 @@ func TestDriver_Compile_EmitsPipelinesSchema(t *testing.T) {
 	defer func() { osReadFile = orig }()
 	osReadFile = func(path string) ([]byte, error) {
 		src := `package main
-func x(ctx Context, ev Event<T>, st State) Event<U>
+func x(ev Event<T>) (Event<U>, error)
 pipeline P { Transform(x) }`
 		return []byte(src), nil
 	}

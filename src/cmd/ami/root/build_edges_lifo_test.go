@@ -45,7 +45,7 @@ packages:
 		t.Fatalf("mkdir src: %v", err)
 	}
 	src := `package main
-func f(ctx Context, ev Event<string>, st State) Event<string> { }
+func f(ev Event<string>) (Event<string>, error) { }
 pipeline P { Ingress(cfg).Transform(f).Egress(in=edge.LIFO(minCapacity=2,maxCapacity=4,backpressure=block,type=int)) }
 `
 	if err := os.WriteFile(filepath.Join("src", "main.ami"), []byte(src), 0o644); err != nil {

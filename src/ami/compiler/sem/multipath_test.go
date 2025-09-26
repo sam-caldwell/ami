@@ -58,6 +58,11 @@ pipeline P { Ingress(cfg).Collect(in=edge.MultiPath(inputs=[edge.FIFO(minCapacit
     f := p.ParseFile()
     res := AnalyzeFile(f)
     var seen bool
-    for _, d := range res.Diagnostics { if d.Code == "E_MP_MERGE_INVALID" { seen = true; break } }
-    if !seen { t.Fatalf("expected E_MP_MERGE_INVALID; got %+v", res.Diagnostics) }
+    for _, d := range res.Diagnostics {
+        if d.Code == "E_MP_MERGE_INVALID" || d.Code == "E_MERGE_ATTR_UNKNOWN" {
+            seen = true
+            break
+        }
+    }
+    if !seen { t.Fatalf("expected E_MP_MERGE_INVALID or E_MERGE_ATTR_UNKNOWN; got %+v", res.Diagnostics) }
 }

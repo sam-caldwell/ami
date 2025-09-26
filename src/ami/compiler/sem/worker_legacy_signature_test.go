@@ -6,8 +6,8 @@ import (
     astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
 )
 
-// Ensure legacy 3-param worker signature is accepted and does not raise E_WORKER_SIGNATURE.
-func TestWorkers_LegacySignature_Accepted_WithDeprecatedInfo(t *testing.T) {
+// Ensure legacy 3-param worker signature is rejected with E_WORKER_SIGNATURE.
+func TestWorkers_LegacySignature_Rejected_Error(t *testing.T) {
     src := `package p
 func f(ctx Context, ev Event<int>, st State) Event<int> { }
 pipeline P { Ingress(cfg).Transform(f).Egress(cfg) }`
@@ -21,9 +21,9 @@ pipeline P { Ingress(cfg).Transform(f).Egress(cfg) }`
     if fd.Name == "" { t.Fatalf("func decl f not found") }
     if !isLegacyWorkerSignature(fd) { t.Fatalf("expected isLegacyWorkerSignature to be true for f; fd=%+v", fd) }
     res := AnalyzeFile(f)
+    found := false
     for _, d := range res.Diagnostics {
-        if d.Code == "E_WORKER_SIGNATURE" {
-            t.Fatalf("unexpected signature error for legacy worker: %+v", d)
-        }
+        if d.Code == "E_WORKER_SIGNATURE" { found = true; break }
     }
+    if !found { t.Fatalf("expected E_WORKER_SIGNATURE for legacy worker signature; diags=%v", res.Diagnostics) }
 }

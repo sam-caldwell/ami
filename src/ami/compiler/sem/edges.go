@@ -186,12 +186,14 @@ func parseMultiPathFromValue(v string) (mpSpec, bool) {
             inputs = append(inputs, spec)
         }
     }
-    // optional merge=Name(args)
+    // one or more merge=Name(args) occurrences
     rest := strings.TrimSpace(after[i:])
     var merge []mergeOpSpec
-    if j := strings.Index(rest, "merge="); j >= 0 {
-        mv := strings.TrimSpace(rest[j+len("merge="):])
-        // Name(args)
+    for idx := 0; idx < len(rest); {
+        j := strings.Index(rest[idx:], "merge=")
+        if j < 0 { break }
+        idx += j + len("merge=")
+        mv := strings.TrimSpace(rest[idx:])
         if k := strings.IndexByte(mv, '('); k > 0 {
             name := strings.TrimSpace(mv[:k])
             m := k + 1
@@ -204,8 +206,9 @@ func parseMultiPathFromValue(v string) (mpSpec, bool) {
             args := ""
             if d == 0 { args = mv[k+1 : m-1] }
             merge = append(merge, mergeOpSpec{Name: name, Raw: args})
+            idx += m
         } else {
-            merge = append(merge, mergeOpSpec{Name: "", Raw: ""})
+            break
         }
     }
     return mpSpec{Inputs: inputs, Merge: merge}, true
@@ -217,6 +220,13 @@ func parseMultiPathFromValue(v string) (mpSpec, bool) {
 // - All inputs must agree on payload Type when specified.
 func analyzeMultiPath(pd astpkg.PipelineDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
+    // helpers
+    splitArgs := func(raw string) []string { return splitTopLevelCommas(raw) }
+    trimq := func(s string) string {
+        s = strings.TrimSpace(s)
+        if len(s) >= 2 && ((s[0]=='"' && s[len(s)-1]=='"') || (s[0]=='\'' && s[len(s)-1]=='\'')) { return s[1:len(s)-1] }
+        return s
+    }
     check := func(st astpkg.NodeCall) {
         v := strings.TrimSpace(st.Attrs["in"])
         if v == "" || !strings.HasPrefix(v, "edge.MultiPath(") { return }
@@ -262,17 +272,90 @@ func analyzeMultiPath(pd astpkg.PipelineDecl) []diag.Diagnostic {
                 break
             }
         }
-        // Merge op shape (minimal)
-        if len(mp.Merge) > 0 {
-            allowed := map[string]bool{
-                "sort": true, "stable": true, "key": true, "dedup": true, "window": true, "watermark": true, "timeout": true, "buffer": true, "partitionby": true,
+        // Merge op validation and smells
+        allowed := map[string]bool{
+            "sort": true, "stable": true, "key": true, "dedup": true, "window": true, "watermark": true, "timeout": true, "buffer": true, "partitionby": true,
+        }
+        // Track conflicts across attributes (last-write-wins allowed, but conflicting different values flagged)
+        seen := map[string]string{}
+        record := func(k, v string) {
+            if v == "" { return }
+            if prev, ok := seen[k]; ok && prev != v {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "conflicting merge attributes"})
             }
-            for _, m := range mp.Merge {
-                name := strings.ToLower(strings.TrimPrefix(m.Name, "merge."))
-                if name == "" || !allowed[name] {
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MP_MERGE_INVALID", Message: "invalid merge operator in MultiPath"})
+            seen[k] = v
+        }
+        for _, m := range mp.Merge {
+            name := strings.ToLower(strings.TrimPrefix(m.Name, "merge."))
+            if name == "" || !allowed[name] {
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_UNKNOWN", Message: "unknown merge attribute in MultiPath"})
+                continue
+            }
+            args := splitArgs(m.Raw)
+            switch name {
+            case "sort":
+                if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field"})
+                } else if len(args) >= 2 {
+                    ord := strings.ToLower(trimq(args[1]))
+                    if ord != "asc" && ord != "desc" && ord != "" {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Sort order must be asc or desc"})
+                    }
+                    record("sort.order", ord)
                 }
-                // parentheses balanced already by parser; no further checks here
+                if len(args) >= 1 { record("sort.field", trimq(args[0])) }
+            case "stable":
+                if len(args) != 0 {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Stable takes no arguments"})
+                }
+                record("stable", "true")
+            case "key":
+                if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Key requires one field"})
+                }
+                if len(args) >= 1 { record("key", trimq(args[0])) }
+            case "dedup":
+                if len(args) > 1 {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Dedup accepts at most one optional field"})
+                }
+                record("dedup", "true")
+                if len(args) >= 1 { record("dedup.field", trimq(args[0])) }
+            case "window":
+                if len(args) != 1 {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Window requires one integer size"})
+                } else if atoiSafe(trimq(args[0])) <= 0 {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Warn, Code: "W_MERGE_WINDOW_ZERO_OR_NEGATIVE", Message: "merge.Window should be > 0"})
+                }
+                if len(args) == 1 { record("window", trimq(args[0])) }
+            case "watermark":
+                if len(args) < 1 {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Warn, Code: "W_MERGE_WATERMARK_MISSING_FIELD", Message: "merge.Watermark requires a field"})
+                }
+                if len(args) >= 1 { record("watermark.field", trimq(args[0])) }
+                if len(args) >= 2 { record("watermark.lateness", trimq(args[1])) }
+            case "timeout":
+                if len(args) != 1 {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Timeout requires one integer ms"})
+                }
+                if len(args) == 1 { record("timeout", trimq(args[0])) }
+            case "buffer":
+                if len(args) < 1 || len(args) > 2 {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Buffer requires capacity and optional backpressure"})
+                } else {
+                    capv := atoiSafe(trimq(args[0]))
+                    bp := ""
+                    if len(args) == 2 { bp = strings.ToLower(trimq(args[1])) }
+                    if (bp == "drop" || bp == "dropoldest" || bp == "dropnewest") && capv <= 1 && capv > 0 {
+                        diags = append(diags, diag.Diagnostic{Level: diag.Warn, Code: "W_MERGE_TINY_BUFFER", Message: "merge.Buffer capacity<=1 with drop policy may cause loss"})
+                    }
+                    record("buffer.capacity", trimq(args[0]))
+                    if bp != "" { record("buffer.bp", bp) }
+                }
+            case "partitionby":
+                if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.PartitionBy requires one field"})
+                }
+                if len(args) == 1 { record("partitionBy", trimq(args[0])) }
             }
         }
     }

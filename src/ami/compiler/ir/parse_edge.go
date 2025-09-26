@@ -125,6 +125,7 @@ func parseEdgeSpecFromValue(v string) (edg.Spec, bool) {
 type MultiPathIR struct {
     Inputs []edg.Spec
     Merge  []MergeOpIR
+    Config *MergeConfigIR
 }
 
 // MergeOpIR carries a merge operation name and raw argument string.
@@ -168,14 +169,16 @@ func parseMultiPathSpec(v string) (*MultiPathIR, bool) {
         }
     }
     mp := &MultiPathIR{Inputs: inputs}
-    // optional merge=Name(args)
+    // Optional one or more merge=Name(args) entries in the remaining string
     rest := strings.TrimSpace(after[i:])
-    if j := strings.Index(rest, "merge="); j >= 0 {
-        mv := strings.TrimSpace(rest[j+len("merge="):])
-        // Name(args)
+    // scan rest for top-level occurrences of "merge=" and capture Name(args)
+    for idx := 0; idx < len(rest); {
+        j := strings.Index(rest[idx:], "merge=")
+        if j < 0 { break }
+        idx += j + len("merge=")
+        mv := strings.TrimSpace(rest[idx:])
         if k := strings.IndexByte(mv, '('); k > 0 {
             name := strings.TrimSpace(mv[:k])
-            // find matching ')'
             m := k + 1
             d := 1
             for m < len(mv) && d > 0 {
@@ -186,7 +189,15 @@ func parseMultiPathSpec(v string) (*MultiPathIR, bool) {
             args := ""
             if d == 0 { args = mv[k+1 : m-1] }
             mp.Merge = append(mp.Merge, MergeOpIR{Name: name, Raw: args})
+            idx += m
+        } else {
+            // malformed; stop
+            break
         }
+    }
+    // Build normalized config (tolerant)
+    if cfg := normalizeMergeOps(mp.Merge); cfg != nil {
+        mp.Config = cfg
     }
     return mp, true
 }
@@ -237,4 +248,69 @@ func splitTopLevelCommas(s string) []string {
     return out
 }
 
+// SplitTopLevelCommasForCodegen exposes the comma splitter for codegen normalization without creating a new dependency.
+func SplitTopLevelCommasForCodegen(s string) []string { return splitTopLevelCommas(s) }
+
 func atoiSafe(s string) int { n, _ := strconv.Atoi(s); return n }
+
+// --- Merge normalization ---
+
+// MergeConfigIR mirrors schemas.MergeConfigV1 but stays internal to IR.
+type MergeConfigIR struct {
+    SortField, SortOrder string
+    Stable               bool
+    Key                  string
+    Dedup                bool
+    DedupField           string
+    Window               int
+    WatermarkField       string
+    WatermarkLateness    string
+    TimeoutMs            int
+    BufferCapacity       int
+    BufferBackpressure   string
+    PartitionBy          string
+}
+
+func normalizeMergeOps(ops []MergeOpIR) *MergeConfigIR {
+    if len(ops) == 0 { return nil }
+    cfg := &MergeConfigIR{}
+    for _, op := range ops {
+        name := strings.ToLower(strings.TrimPrefix(op.Name, "merge."))
+        args := splitTopLevelCommas(op.Raw)
+        trimq := func(s string) string {
+            s = strings.TrimSpace(s)
+            if len(s) >= 2 && ((s[0]=='"' && s[len(s)-1]=='"') || (s[0]=='\'' && s[len(s)-1]=='\'')) { return s[1:len(s)-1] }
+            return s
+        }
+        switch name {
+        case "sort":
+            if len(args) >= 1 {
+                cfg.SortField = trimq(args[0])
+            }
+            if len(args) >= 2 {
+                cfg.SortOrder = strings.ToLower(trimq(args[1]))
+            }
+            if cfg.SortOrder == "" { cfg.SortOrder = "asc" }
+        case "stable":
+            cfg.Stable = true
+        case "key":
+            if len(args) >= 1 { cfg.Key = trimq(args[0]) }
+        case "dedup":
+            cfg.Dedup = true
+            if len(args) >= 1 { cfg.DedupField = trimq(args[0]) }
+        case "window":
+            if len(args) >= 1 { cfg.Window = atoiSafe(trimq(args[0])) }
+        case "watermark":
+            if len(args) >= 1 { cfg.WatermarkField = trimq(args[0]) }
+            if len(args) >= 2 { cfg.WatermarkLateness = trimq(args[1]) }
+        case "timeout":
+            if len(args) >= 1 { cfg.TimeoutMs = atoiSafe(trimq(args[0])) }
+        case "buffer":
+            if len(args) >= 1 { cfg.BufferCapacity = atoiSafe(trimq(args[0])) }
+            if len(args) >= 2 { cfg.BufferBackpressure = trimq(args[1]) }
+        case "partitionby":
+            if len(args) >= 1 { cfg.PartitionBy = trimq(args[0]) }
+        }
+    }
+    return cfg
+}

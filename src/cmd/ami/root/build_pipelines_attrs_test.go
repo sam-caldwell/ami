@@ -49,7 +49,7 @@ packages:
     // Worker + pipelines with attrs: worker, min/max workers, onError, capabilities
     // and a variety of edge specs (FIFO/LIFO/Pipeline)
     src := `package main
-func doThing(ctx Context, ev Event<string>, st State) Event<string> { return ev }
+func doThing(ev Event<string>) (Event<string>, error) { return ev, nil }
 pipeline P {
   Ingress(cfg).
   Transform(worker=doThing,minWorkers=2,maxWorkers=4,onError=drop,capabilities=net).

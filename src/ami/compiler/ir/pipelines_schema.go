@@ -33,7 +33,18 @@ func (m Module) ToPipelinesSchema() sch.PipelinesV1 {
                     for _, op := range st.InMulti.Merge {
                         merge = append(merge, sch.MergeOpV1{Name: op.Name, Raw: op.Raw})
                     }
-                    ps.InEdge = &sch.PipelineEdgeV1{Kind: "edge.MultiPath", MultiPath: &sch.MultiPathV1{Inputs: inputs, Merge: merge}}
+                    mp := &sch.MultiPathV1{Inputs: inputs, Merge: merge}
+                    if st.InMulti.Config != nil {
+                        c := st.InMulti.Config
+                        mp.MergeConfig = &sch.MergeConfigV1{
+                            SortField: c.SortField, SortOrder: c.SortOrder, Stable: c.Stable,
+                            Key: c.Key, Dedup: c.Dedup, DedupField: c.DedupField, Window: c.Window,
+                            WatermarkField: c.WatermarkField, WatermarkLateness: c.WatermarkLateness,
+                            TimeoutMs: c.TimeoutMs, BufferCapacity: c.BufferCapacity, BufferBackpressure: c.BufferBackpressure,
+                            PartitionBy: c.PartitionBy,
+                        }
+                    }
+                    ps.InEdge = &sch.PipelineEdgeV1{Kind: "edge.MultiPath", MultiPath: mp}
                 }
                 res = append(res, ps)
             }

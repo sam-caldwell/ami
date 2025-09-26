@@ -20,14 +20,14 @@ Semantics (summary)
   The .docx is authoritative for behavior details.
 - Type: specifies the payload type carried (`type=T`), enabling static analysis and specialization.
  - Bounded/unbounded: when `maxCapacity > 0` the edge is bounded; when `maxCapacity == 0` it is treated as unbounded.
- - Delivery guarantees (derived): `block` → `atLeastOnce`; `drop` → `bestEffort`.
+ - Delivery guarantees (derived): `block` → `atLeastOnce`; `dropOldest`/`dropNewest` → `bestEffort`.
 
 Performance considerations
 - Lock‑free or low‑contention rings: MPMC circular buffers sized to powers of two for cache‑friendly masking.
 - Contiguous memory: pre‑allocated storage managed via RAII; AMI has no garbage collection. Capacity may grow within `[minCapacity,maxCapacity]` as configured.
 - Zero‑copy handoff: pass event envelopes by reference; copy payloads only when required by isolation semantics.
 - Cache locality: producer/consumer padding to prevent false sharing; per‑core shards if contention warrants.
-- Backpressure fast paths: branch‑predictable states for `block` vs `drop`, minimal atomics on enqueue/dequeue.
+- Backpressure fast paths: branch‑predictable states for `block` vs `dropOldest`/`dropNewest`, minimal atomics on enqueue/dequeue.
 - Pooling: bounded object pools for event envelopes and internal nodes to reduce allocations.
 
 Compiler mapping
@@ -67,9 +67,9 @@ For details and progress, see `SPECIFICATION.md` (sections 6.6 and 6.7) and `CON
 
 ## Remaining Work (Merge Normalization)
 
-Normalization and full validation of `merge.*` attributes are planned:
+Normalization and full validation of `merge.*` attributes are planned and partially implemented:
 
-- Normalize merge configuration (key, sort {field, order, stable}, dedup, window, watermark {field, lateness}, timeout, buffer {capacity, backpressure}, partitionBy) into `pipelines.v1`.
+- Normalize merge configuration (key, sort {field, order, stable}, dedup, window, watermark {field, lateness}, timeout, buffer {capacity, backpressure}, partitionBy) into `pipelines.v1` and `edges.v1` (debug): DONE for tolerant normalization.
 - Validate per-attribute arity/types, detect conflicts, and enforce required fields.
 - Map merge configuration to runtime orchestration with deterministic buffering and policy handling.
-- Extend lints for merge smells (e.g., tiny buffers with drop policies, missing fields) and add golden tests for normalized IR.
+- Extend lints for merge smells (e.g., tiny buffers with `dropOldest`/`dropNewest` policies, missing fields) and add golden tests for normalized IR.

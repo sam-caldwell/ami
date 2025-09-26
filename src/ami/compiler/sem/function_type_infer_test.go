@@ -1,15 +1,16 @@
 package sem
 
 import (
-	"github.com/sam-caldwell/ami/src/ami/compiler/parser"
-	"github.com/sam-caldwell/ami/src/ami/compiler/types"
-	"testing"
+    "github.com/sam-caldwell/ami/src/ami/compiler/parser"
+    "github.com/sam-caldwell/ami/src/ami/compiler/types"
+    "strings"
+    "testing"
 )
 
 func TestAnalyzeFile_FunctionTypeInference(t *testing.T) {
 	src := `package p
 import "util"
-func f(ctx Context, ev Event<string>, st State) Event<string> { }
+func f(ev Event<string>) (Event<string>, error) { }
 `
 	p := parser.New(src)
 	f := p.ParseFile()
@@ -30,14 +31,14 @@ func f(ctx Context, ev Event<string>, st State) Event<string> { }
 	if !ok {
 		t.Fatalf("wrong type: %T", obj.Type)
 	}
-	if len(fn.Params) != 3 || len(fn.Results) != 1 {
-		t.Fatalf("wrong arity: %+v", fn)
-	}
+    if len(fn.Params) != 1 || len(fn.Results) != 2 {
+        t.Fatalf("wrong arity: %+v", fn)
+    }
 	// check a few renderings
-	if fn.Params[1].String() != "Event<string>" {
-		t.Fatalf("param1: %s", fn.Params[1].String())
-	}
-	if fn.Results[0].String() != "Event<string>" {
-		t.Fatalf("result: %s", fn.Results[0].String())
-	}
+    if fn.Params[0].String() != "Event<string>" {
+        t.Fatalf("param1: %s", fn.Params[1].String())
+    }
+    if fn.Results[0].String() != "Event<string>" || strings.ToLower(fn.Results[1].String()) != "error" {
+        t.Fatalf("result: %s", fn.Results[0].String())
+    }
 }

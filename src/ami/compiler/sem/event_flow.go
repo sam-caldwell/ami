@@ -14,27 +14,29 @@ func analyzeEventTypeFlow(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDe
     // helper to get worker output payload type string
     workerOut := func(name string) (string, bool) {
         fd, ok := funcs[name]
-        if !ok || len(fd.Result) != 1 {
+        if !ok { return "", false }
+        // Canonical: (Event<U>, error)
+        if len(fd.Result) == 2 {
+            r := fd.Result[0]
+            if r.Name == "Event" && len(r.Args) == 1 { return typeRefToString(r.Args[0]), true }
             return "", false
         }
-        r := fd.Result[0]
-        if r.Name == "Event" && len(r.Args) == 1 {
-            return typeRefToString(r.Args[0]), true
+        // Legacy single-result Event<U> accepted historically; keep tolerant read here
+        if len(fd.Result) == 1 {
+            r := fd.Result[0]
+            if r.Name == "Event" && len(r.Args) == 1 { return typeRefToString(r.Args[0]), true }
+            if r.Name == "Error" && len(r.Args) == 1 { return "", false }
         }
-        if r.Name == "Error" && len(r.Args) == 1 {
-            return "", false
-        } // skip error output in normal flow
         return "", false
     }
     // helper to get worker input payload type string
     workerIn := func(name string) (string, bool) {
         fd, ok := funcs[name]
-        if !ok || len(fd.Params) < 2 {
-            return "", false
-        }
-        p2 := fd.Params[1].Type
-        if p2.Name == "Event" && len(p2.Args) == 1 {
-            return typeRefToString(p2.Args[0]), true
+        if !ok { return "", false }
+        // Canonical: single parameter Event<T>
+        if len(fd.Params) >= 1 {
+            p := fd.Params[0].Type
+            if p.Name == "Event" && len(p.Args) == 1 { return typeRefToString(p.Args[0]), true }
         }
         return "", false
     }
@@ -94,4 +96,3 @@ func isGenericEvent(s string) bool {
     }
     return false
 }
-

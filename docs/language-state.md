@@ -2,9 +2,9 @@
 
 State is ambient and not passed as a parameter in worker functions:
 
-- Preferred: `func f(ev Event<T>) (Event<U>, error)` and access state via `state.get/set/update/list`.
-- Legacy `st State` parameter (third parameter) is deprecated but tolerated for now: `func f(ctx Context, ev Event<T>, st State) R`. Its use triggers `W_WORKER_STATE_PARAM_DEPRECATED`.
-- The compiler may still surface `HasState` on worker references in pipeline IR for debugging during the transition.
+- Canonical: `func f(ev Event<T>) (Event<U>, error)` and access state via `state.get/set/update/list`.
+- Legacy explicit `State` parameter is not accepted for workers; use ambient state APIs instead. Legacy forms are rejected with `E_WORKER_SIGNATURE`.
+- The compiler may still surface `HasState` on worker references in pipeline IR for debugging in other contexts.
 
 Access Rules
 

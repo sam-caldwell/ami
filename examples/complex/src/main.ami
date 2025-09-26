@@ -136,12 +136,12 @@ pipeline MergeCount {
                     type=uint64,
                 ),
             ],
-            // Merge/sort (shape only for example)
-            merge=Sort(
-                algorithm=ascendingTimeStamp,
-                window=60,
-                key=event.Created,
-            ),
+            // Merge behavior (tolerant attributes)
+            merge=Sort("event.ts","asc"),
+            merge=Stable(),
+            merge=Buffer(10,dropOldest),
+            merge=PartitionBy("event.source"),
+            merge=Watermark("event.ts","2s"),
         ),
         minWorkers=1,
         maxWorkers=4,

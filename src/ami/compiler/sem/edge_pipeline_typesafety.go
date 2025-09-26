@@ -21,18 +21,16 @@ func analyzeEdgePipelineTypeSafety(f *astpkg.File, funcs map[string]astpkg.FuncD
     // helper to get worker result payload type string
     workerOut := func(name string) (string, bool) {
         fd, ok := funcs[name]
-        if !ok {
-            return "", false
+        if !ok { return "", false }
+        // Canonical: first result Event<U>
+        if len(fd.Result) >= 1 {
+            r := fd.Result[0]
+            if r.Name == "Event" && len(r.Args) == 1 { return typeRefToString(r.Args[0]), true }
         }
-        if len(fd.Result) != 1 {
-            return "", false
-        }
-        r := fd.Result[0]
-        if r.Name == "Event" && len(r.Args) == 1 { // Event<U> or []Event<U>
-            return typeRefToString(r.Args[0]), true
-        }
-        if r.Name == "Error" && len(r.Args) == 1 { // Error<E>
-            return typeRefToString(r.Args[0]), true
+        // Legacy single result Event<U> or Error<E>
+        if len(fd.Result) == 1 {
+            r := fd.Result[0]
+            if r.Name == "Error" && len(r.Args) == 1 { return typeRefToString(r.Args[0]), true }
         }
         return "", false
     }
@@ -136,4 +134,3 @@ func analyzeEdgePipelineTypeSafety(f *astpkg.File, funcs map[string]astpkg.FuncD
     }
     return diags
 }
-

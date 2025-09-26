@@ -46,7 +46,7 @@ packages:
 	}
 	// A simple worker and pipeline so pipelines.json is non-empty
 	src := `package main
-func x(ctx Context, ev Event<T>, st State) Event<U> { }
+func x(ev Event<T>) (Event<U>, error) { }
 pipeline P { Ingress(cfg).Transform(x).Egress(cfg) }
 `
 	if err := os.WriteFile(filepath.Join("src", "main.ami"), []byte(src), 0o644); err != nil {

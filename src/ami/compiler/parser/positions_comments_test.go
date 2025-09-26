@@ -28,7 +28,7 @@ enum E { A = 1 }
 // before struct
 struct S { F string }
 // before func
-func f(ctx Context, ev Event<string>, st State) Event<string> { }
+func f(ev Event<string>) (Event<string>, error) { }
 // before pipeline
 pipeline P {
   // step ingress

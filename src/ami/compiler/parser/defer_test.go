@@ -7,7 +7,7 @@ import (
 
 func TestParser_Defer_ParsesCall(t *testing.T) {
 	src := `package p
-func f(ctx Context, ev Event<string>, st State) Event<string> {
+func f(ev Event<string>) (Event<string>, error) {
     defer cleanup()
 }`
 	p := New(src)
@@ -38,7 +38,7 @@ func f(ctx Context, ev Event<string>, st State) Event<string> {
 
 func TestParser_Defer_MethodCall(t *testing.T) {
 	src := `package p
-func f(ctx Context, ev Event<string>, st State) Event<string> {
+func f(ev Event<string>) (Event<string>, error) {
     defer r.Close()
 }`
 	p := New(src)

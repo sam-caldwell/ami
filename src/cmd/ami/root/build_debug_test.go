@@ -92,7 +92,7 @@ import (
 pipeline P {
   Ingress(cfg).Transform(f).Egress(in=edge.FIFO(minCapacity=1,maxCapacity=2,backpressure=block,type=[]byte))
 }
-func f(ctx Context, ev Event<string>, st State) Event<string> { }
+func f(ev Event<string>) (Event<string>, error) { }
 `
 	if err := os.WriteFile(filepath.Join("src", "main.ami"), []byte(src), 0o644); err != nil {
 		t.Fatalf("write src: %v", err)

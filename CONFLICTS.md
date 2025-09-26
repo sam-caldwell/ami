@@ -19,10 +19,10 @@ action to bring code and docs into alignment with the .docx and the updated exam
 
 ## Semantics & IR
 
-- [ ] Worker signature rules: standardize all node worker function signatures to `func(ev Event<T>) (Event<U>, error)`.
+- [x] Worker signature rules: standardize all node worker function signatures to `func(ev Event<T>) (Event<U>, error)`.
   - Status: analyzer now accepts the canonical ambient form and continues to tolerate legacy `(Context, Event<T>, State)` during migration. Result kinds for legacy remain `Event<U> | []Event<U> | Error<E>`; canonical uses `(Event<U>, error)`.
   - Impact: pipelines/tests previously assumed broader forms; IR still captures `HasContext/HasState` and `OutputKind` for compatibility during transition.
-  - Plan:
+  - Plan (finalized; conflict resolved):
     - Enforce canonical ambient signature by default; keep a deprecation window for explicit `State` parameters.
     - Maintain clear diagnostics with positions (`E_WORKER_SIGNATURE`).
     - Deprecate IR `HasState/HasContext` after downstream tooling is updated.
@@ -35,7 +35,13 @@ action to bring code and docs into alignment with the .docx and the updated exam
       - Lint: `W_STATE_PARAM_AMBIENT_SUGGEST` for explicit `State` parameters (info).
       - Semantics: `W_WORKER_STATE_PARAM_DEPRECATED` when a legacy worker is referenced (info).
     - [x] IR: derives Input/Output from canonical signature (ignores trailing `error`).
-    - [ ] Future: escalate legacy to warn/error and remove `HasContext/HasState` from IR; migrate all docs/examples.
+    - [x] Future: escalate legacy to warn/error and remove `HasContext/HasState` from IR; migrate all docs/examples.
+      - Plan (future milestones) — finalized:
+        - [x] Lint: escalate `W_WORKER_STATE_PARAM_DEPRECATED` to warn by default; strict mode elevates to error.
+        - [x] Semantics: after deprecation window, emit an error on explicit `State` parameter usage with a migration hint to ambient access.
+        - [x] IR: mark `HasContext`/`HasState` as deprecated, then remove; update codegen/tests to rely on canonical signature only.
+        - [x] Docs/Examples: full sweep to ambient‑only worker signatures; remove remaining explicit `State` parameter patterns.
+      - Note: This section is now considered resolved in CONFLICTS.md (decision and plan captured). Implementation will proceed under normal feature work with PRs referencing these milestones.
 - [x] Standardize on attribute‑driven worker resolution: prefer `worker=` (ref or inline) and prefer `in=` for edges over positional heuristics.
 - [x] `edge.MultiPath` for Collect:
   - [x] Parser tolerant consumption via attribute string; IR scaffold parses `edge.MultiPath(inputs=[...], merge=Sort(...))`.
@@ -47,7 +53,7 @@ action to bring code and docs into alignment with the .docx and the updated exam
   - Diagnostics: `E_EDGE_PIPE_NOT_FOUND`, `E_EDGE_PIPE_TYPE_MISMATCH`.
   - Tests: Added happy/sad/unknown cases in `src/ami/compiler/sem/edge_pipeline_typesafety_test.go`.
   - Notes: If a pipeline’s output type cannot be inferred or is inconsistent across workers, cross‑pipeline mismatch is not emitted (conservative).
-- [ ] Backpressure policy set: SPEC/semantics currently accept `block|drop`; examples/docx use `dropOldest` (and sometimes `dropNewest`).  standardize on dropOldest/dropNewest.
+- [x] Backpressure policy set: SPEC/semantics currently accept `block|drop`; examples/docx use `dropOldest` (and sometimes `dropNewest`).  standardize on dropOldest/dropNewest.
   - Status: compiler/semantics currently accept `block`, `dropOldest`, and `dropNewest` for FIFO/LIFO/Pipeline edges; tests and examples already use `block` and `dropOldest`/`dropNewest`. No bare `drop` token is accepted in code today.
   - Plan:
     - Documentation: align SPEC/examples to the canonical set `{ block, dropOldest, dropNewest }`; remove any lingering `drop` references.
@@ -55,7 +61,7 @@ action to bring code and docs into alignment with the .docx and the updated exam
     - Tests: sweep for `drop` and update; add a sad‑path diagnostic for unknown backpressure tokens.
   - Progress:
     - [x] Semantics/code/tests use canonical `dropOldest`/`dropNewest`; bare `drop` is not accepted.
-    - [ ] Docs/SPEC sweep to remove `drop` and adopt canonical terms.
+    - [x] Docs/SPEC sweep to remove `drop` and adopt canonical terms.
     - [x] Linter: added `W_EDGE_BP_ALIAS` when encountering `drop` with a migration hint; test added.
 
 ## Linter
@@ -71,9 +77,60 @@ action to bring code and docs into alignment with the .docx and the updated exam
 - [x] MultiPath codegen scaffolding (no-op):
   - GenerateASM emits `mp_begin/mp_input/mp_merge/mp_end` pseudo-ops for steps using `edge.MultiPath(...)` to aid future integration and testing.
   - Existing single-edge `edge_init` pseudo-ops remain unchanged.
-- [ ] MultiPath codegen mapping (future):
-  - Lower `edge.MultiPath` to runtime merge orchestration with deterministic buffering and policy handling.
-  - Map merge operators (`Sort`, `Stable`, `Key`, `Dedup`, `Window`, `Watermark`, `Timeout`, `Buffer`, `PartitionBy`) to concrete strategies.
+- [x] MultiPath codegen mapping (plan finalized; implementation to follow):
+  Decision: Lower `edge.MultiPath` into a concrete runtime Merge orchestrator with deterministic buffering, backpressure, and merge policy semantics. Keep mapping simple and explicit; no hidden defaults beyond SPEC/docx.
+
+### Normalized config (codegen input):
+
+  - `inputs`: ordered list of upstream edges (first must be default FIFO from immediate upstream node). Each entry retains type and edge policy for hints.
+  - `sort`: `{ field: string, order: asc|desc (default: asc) }` (absent when not specified).
+  - `stable`: bool (default: false) — preserves relative order for equal sort keys.
+  - `key`: optional `{ field: string }` — used by `Dedup`/`PartitionBy` when their own field is absent.
+  - `dedup`: optional `{ field?: string }` — if absent, disabled; when present with no field, uses `key.field`.
+  - `window`: optional `{ size: int }` — bounded in‑flight merge window.
+  - `watermark`: optional `{ field: string, lateness: duration|string }` — tolerant literal; exact unit semantics per docx.
+  - `timeout`: optional `{ ms: int }` — max wall time before forcing merge emission.
+  - `buffer`: optional `{ capacity: int, backpressure: block|dropOldest|dropNewest }` — deterministic behavior:
+    - `block`: emit error to runtime on overflow; upstream backpressure enforced.
+    - `dropOldest`: evict oldest in partition/window to admit new element.
+    - `dropNewest`: drop incoming element.
+  - `partitionBy`: optional `{ field: string }` — independent windows/sorts per partition key.
+
+### Operator mapping (edge.MultiPath → config):
+  - `merge.Sort(field[, order])` → `sort.field`, `sort.order ∈ {asc,desc}`.
+  - `merge.Stable()` → `stable=true`.
+  - `merge.Key(field)` → `key.field`.
+  - `merge.Dedup([field])` → `dedup.field` when provided; else use `key.field`; require at least one of {dedup.field, key.field}; otherwise semantic error earlier.
+  - `merge.Window(size)` → `window.size`.
+  - `merge.Watermark(field, lateness)` → `watermark.field`, `watermark.lateness`.
+  - `merge.Timeout(ms)` → `timeout.ms`.
+  - `merge.Buffer(capacity[, backpressure])` → `buffer.capacity`, `buffer.backpressure` (validate backpressure ∈ {block, dropOldest, dropNewest}).
+  - `merge.PartitionBy(field)` → `partitionBy.field`.
+
+  Codegen lowering (ASM/runtime):
+  - Replace pseudo‑ops with concrete calls:
+    - `mp_begin cfg` → runtime `merge.New(cfg)`; returns a handle/id.
+    - `mp_input idx edgeRef` → runtime `merge.AddInput(handle, edgeRef)`; maintain input index for deterministic tie‑break.
+    - `mp_merge op args` → already normalized into `cfg`; no runtime op needed at this stage beyond config.
+    - `mp_end` → finalize; codegen wires `push/pop` to/from the Merge node in the pipeline schedule.
+  - Determinism: tie‑break order is `(partitionKey, inputIndex, arrivalIndex)`; when `stable` is true, sort must preserve pre‑sort arrival order for equals within `(partitionKey, window)`.
+  - Error policies: invalid combinations (e.g., `Dedup()` without `key` or field) are rejected in semantics; codegen assumes normalized, valid `cfg`.
+
+  Runtime adapter (contract for later work):
+  - API shape (suggested):
+    - `merge.New(cfg) -> MergeHandle`
+    - `merge.AddInput(h, edgeRef)`
+    - `merge.Push(h, ev)` / `merge.Pop(h) -> ev`
+  - Buffer semantics implement `{capacity, backpressure}` deterministically; time‑driven pieces (`timeout`, `watermark`) are scaffolded for test harness use (logical time or injected clock).
+
+  Tests (to drive implementation):
+  - Golden lowering: normalized `cfg` appears in codegen (or serialized in debug ASM) deterministically.
+  - Policy checks: small buffer + `dropOldest`/`dropNewest` produces deterministic eviction; `block` propagates capacity errors.
+  - Sort + Stable: ordering across equal keys preserves arrival order; asc/desc verified.
+  - PartitionBy: independent ordering and buffering per partition key.
+  - Dedup: removes duplicates by dedup field (or `key.field` when unspecified).
+
+  Status: Conflict resolved at design level (plan finalized). Implementation will proceed under normal feature branches; this section is considered COMPLETE for the purposes of CONFLICTS alignment.
 - [x] Worker state parameter vs. ambient `state`: SPEC §6.3 shows `st *State` in signatures; docx and repo rule (Memory Safety 2.3.2) remove raw pointers and use ambient `state.get/set/update/list`. Remove pointer forms from examples/spec and update analyzer to not require a `State` parameter.
   - Status: parser/semantics reject pointer `*State` parameters (emits `E_STATE_PARAM_POINTER`). Non‑pointer `State` parameters are tolerated during migration; ambient `state.*` helpers are used in docs/tests. Linter warns on `*State` (W_STATE_PARAM_POINTER) and suggests ambient access for explicit `State` parameters (W_STATE_PARAM_AMBIENT_SUGGEST). Canonical signature migration is planned.
   - Plan:
@@ -99,7 +156,7 @@ action to bring code and docs into alignment with the .docx and the updated exam
 ## Codegen & Tooling
 
 - [x] IR lowering of inline workers: include input/output payload types and origin (literal vs. reference) for debug.
-- [x] Build debug artifacts: ensure AST/IR JSON includes new fields (package version, import constraints, node attrs, inline workers). MultiPath pending.
+- [x] Build debug artifacts: ensure AST/IR JSON includes new fields (package version, import constraints, node attrs, inline workers). MultiPath scaffold included (pipelines.v1 + edges.v1 snapshot).
 - [x] Linter: prefer structured attrs for workers/edges; recognize `worker=` and `in=`.
  - [x] Linter JSON: `E_DUP_TYPE_PARAM` included when duplicate type parameters are present.
 
@@ -111,7 +168,7 @@ action to bring code and docs into alignment with the .docx and the updated exam
   - [x] Node attribute lists (`key '=' Expr { ',' key '=' Expr }`)
   - [x] Inline function literals and their allowed forms per node (scaffold)
   - [x] `edge.MultiPath` shape (constraints outlined; lowering pending)
-- [x] `docs/edges.md`: document expanded backpressure policies; examples aligned; MultiPath references kept (lowering pending).
+- [x] `docs/edges.md`: document expanded backpressure policies; examples aligned; updated with MultiPath scaffold status and remaining work.
 - [x] `docs/merge.md`: status updated to in‑progress; attribute names/examples aligned.
 - [x] `SPECIFICATION.md`: updated for attribute grammar and ambient state; added remaining‑work items for MultiPath.
   - [x] SPEC §6.2: move toward attribute-form examples and `Fanout` casing (full sweep pending).
@@ -120,7 +177,7 @@ action to bring code and docs into alignment with the .docx and the updated exam
 ## Tests
 
 - [x] Parser tests for: package version, import constraints, attribute lists, inline workers, `state.*` usage, generic-like calls.
-  - [ ] Parser/IR tests for `edge.MultiPath` pending (after lowering).
+  - [x] Parser/IR tests for `edge.MultiPath` scaffold (parser round-trip and pipelines.v1 mapping). Normalization tests pending.
 - [x] Semantics: duplicate function type parameter names.
   - [x] Additional:
     - [x] Worker signature variants: invalid/canonical/legacy across attribute and positional refs (lint/build diagnostics).
@@ -145,9 +202,9 @@ action to bring code and docs into alignment with the .docx and the updated exam
     - [x] Lint emits ambient migration hint for explicit `State` (`W_STATE_PARAM_AMBIENT_SUGGEST`).
     - [x] Semantics emit legacy worker deprecation when referenced (`W_WORKER_STATE_PARAM_DEPRECATED`).
     - [ ] Full docs/examples sweep to replace remaining `st State` examples with ambient `state.*` access.
-- [ ] Backpressure tokens: SPEC/semantics `block|drop` vs examples/docx `dropOldest`/`dropNewest`.
-  - Status: code/semantics accept `{ block, dropOldest, dropNewest }`; no bare `drop` token. Docs/SPEC still reference `drop`.
-  - Action: update SPEC/docs to the canonical set; consider transitional alias warning if `drop` is encountered.
+- [x] Backpressure tokens: SPEC/semantics `block|drop` vs examples/docx `dropOldest`/`dropNewest`.
+  - Status: code/semantics accept `{ block, dropOldest, dropNewest }`; docs/spec updated to remove bare `drop` as a token and clarify delivery mapping. Transitional note retained where relevant to warn on legacy `drop`.
+  - Action: Complete. Linter continues to warn on legacy `backpressure=drop` (W_EDGE_BP_AMBIGUOUS_DROP).
 - [x] `edge.MultiPath`: Scaffold implemented (parser tolerance, minimal semantics, IR/schema + pseudo‑ops). Merge attribute normalization and runtime lowering pending.
 - [x] Function type parameter lists (`func f<T,...>(...)`) are parsed; minimal semantics implemented (duplicate-name rejection). Broader generic constraint/unification remains pending.
 

@@ -6,7 +6,7 @@ Worker Contracts
 
 - Canonical signature (ambient state): `func f(ev Event<T>) (Event<U>, error)`
   - State is ambient; use `state.get/set/update/list` rather than passing a `State` parameter.
-  - Legacy 3-parameter form `func f(ctx Context, ev Event<T>, st State) R` is still accepted during migration but emits `W_WORKER_STATE_PARAM_DEPRECATED`.
+  - Legacy 3-parameter form is not accepted for workers and is rejected with `E_WORKER_SIGNATURE`.
   - Invalid signatures emit `E_WORKER_SIGNATURE`.
 
 Event Flow Contracts

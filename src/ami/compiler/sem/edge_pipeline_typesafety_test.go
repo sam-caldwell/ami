@@ -7,7 +7,7 @@ import (
 
 func TestEdgePipelineTypeSafety_Match(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<int>, st State) Event<int> { }
+func f(ev Event<int>) (Event<int>, error) { }
 pipeline X { Ingress(cfg).Transform(f).Egress() }
 pipeline Y { Ingress(cfg).Egress(in=edge.Pipeline(name=X,type=int)) }`
     p := parser.New(src)
@@ -22,7 +22,7 @@ pipeline Y { Ingress(cfg).Egress(in=edge.Pipeline(name=X,type=int)) }`
 
 func TestEdgePipelineTypeSafety_Mismatch(t *testing.T) {
     src := `package p
-func f(ctx Context, ev Event<int>, st State) Event<int> { }
+func f(ev Event<int>) (Event<int>, error) { }
 pipeline X { Ingress(cfg).Transform(f).Egress() }
 pipeline Y { Ingress(cfg).Egress(in=edge.Pipeline(name=X,type=string)) }`
     p := parser.New(src)
@@ -57,4 +57,3 @@ pipeline Y { Ingress(cfg).Egress(in=edge.Pipeline(name=Z,type=int)) }`
         t.Fatalf("expected E_EDGE_PIPE_NOT_FOUND; diags=%v", res.Diagnostics)
     }
 }
-

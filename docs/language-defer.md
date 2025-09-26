@@ -12,16 +12,16 @@ Status: AMI language feature. Semantics match Go’s `defer` from the user’s p
 Examples:
 
 ```
-func f(ctx Context, ev Event<string>, st State) Event<string> {
+func f(ev Event<string>) (Event<string>, error) {
     res := openResource()
     defer res.Close()         // release at end of function
     // ... res is still usable here ...
-    return ev
+    return ev, nil
 }
 
-func g(ctx Context, ev Event<string>, st State) Event<string> {
+func g(ev Event<string>) (Event<string>, error) {
     h := acquireHandle()
     defer release(h)          // function-style release at exit
-    return ev
+    return ev, nil
 }
 ```

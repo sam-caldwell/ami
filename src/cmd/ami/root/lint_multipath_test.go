@@ -31,7 +31,7 @@ packages:
     if err := os.MkdirAll("src", 0o755); err != nil { t.Fatalf("mkdir src: %v", err) }
     src := `package main
 pipeline P { Ingress(cfg).Transform(worker=w, in=edge.MultiPath(inputs=[edge.FIFO(minCapacity=0,maxCapacity=0,backpressure=block,type=int)])).Egress() }
-func w(ctx Context, ev Event<int>, st State) Event<int> { }`
+func w(ev Event<int>) (Event<int>, error) { }`
     if err := os.WriteFile(filepath.Join("src", "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write src: %v", err) }
     // Run lint JSON
     old := os.Args

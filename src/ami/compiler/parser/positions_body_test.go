@@ -7,7 +7,7 @@ import (
 
 func TestParser_Body_Positions_DeferAndCall(t *testing.T) {
 	src := `package p
-func f(ctx Context, ev Event<string>, st State) Event<string> {
+func f(ev Event<string>) (Event<string>, error) {
     defer cleanup()
     x()
 }`

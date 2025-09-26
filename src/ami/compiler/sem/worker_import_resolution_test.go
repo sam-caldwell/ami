@@ -9,7 +9,7 @@ import (
 func TestAnalyze_WorkerImportResolution_DottedName(t *testing.T) {
 	src := `package p
 import "util"
-func f(ctx Context, ev Event<string>, st State) Event<string> { }
+func f(ev Event<string>) (Event<string>, error) { }
 pipeline P { Ingress(cfg).Transform(util.Work()).Egress(cfg) }`
 	p := parser.New(src)
 	f := p.ParseFile()

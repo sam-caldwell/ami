@@ -28,8 +28,10 @@ Stmt = /* imperative subset; assignments require '*' on LHS; mutate(expr) allowe
 
 PipelineDecl = "pipeline" identifier "{" NodeChain "}" ;
 NodeChain = NodeCall { ( "." | "->" ) NodeCall } ;
-NodeCall = identifier "(" [ ArgList ] ")" ;
+NodeCall = identifier "(" [ ArgList | AttrList ] ")" ;
 ArgList = /* comma-separated expressions, nesting allowed */ ;
+AttrList = Attr { "," Attr } ;
+Attr = identifier '=' Expr ;
 
 identifier = letter { letter | digit | '_' } ;
 StringLit = '"' { character | escape } '"' ;
@@ -42,9 +44,32 @@ Note on `edge.*` constructs:
 - These are compiler-generated artifacts, not runtime function calls. The compiler recognizes them and emits high-performance queue/bridge implementations during code generation.
 - See `docs/edges.md` for semantics and performance considerations.
 
+Inline function literals
+- Minimal literal accepted in attribute positions (e.g., `worker=func(...) { ... }`) and in expressions:
+
+  FuncLit = "func" ParamList [ ResultList | Type ] Block ;
+
+  The parser tolerates omitted explicit result types and focuses on capturing the body for later analysis.
+
+Generic-like calls (scaffold)
+- Tolerates type arguments on call sites for scaffolding the type system:
+
+  GenericCall = identifier '<' Type { ',' Type } '>' '(' ArgList? ')' ;
+
 Docx-aligned usage clarifications
 - Transform nodes are declared with attributes: `in=edge.FIFO|edge.LIFO(...)`, `worker=<func|factory>`, optional `minWorkers/maxWorkers`, `onError`, and output `type`.
 - Collect uses `in=edge.MultiPath(inputs=[ ... ])` where the first input is the default upstream edge, and subsequent items may include `edge.Pipeline(name=Upstream, ...)`. Merge behavior is expressed via `merge=Sort(...)`.
+
+`edge.MultiPath` (shape)
+- Syntax used in `Collect` attributes:
+
+  EdgeMultiPath = 'edge.MultiPath' '(' 'inputs' '=' '[' Input { ',' Input } ']' [ ',' 'merge' '=' MergeSpec ] ')' ;
+  Input = EdgeFIFO | EdgeLIFO | EdgePipeline ;
+  EdgeFIFO = 'edge.FIFO' '(' AttrList ')' ;
+  EdgeLIFO = 'edge.LIFO' '(' AttrList ')' ;
+  EdgePipeline = 'edge.Pipeline' '(' AttrList ')' ;
+
+  MergeSpec is a list of merge.* attribute calls (e.g., `merge.Sort(...)`, `merge.Stable()`). See `docs/merge.md`.
 
 Mutability rules (subset)
 - Default is immutable: assignments must be explicitly marked using `*` on the LHS, e.g., `*x = y`.

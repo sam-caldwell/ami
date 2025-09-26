@@ -2,13 +2,14 @@
 
 This document seeds the merge/collect design for AMI, summarizing semantics and examples that align with the Asynchronous Machine Interface guidance. It describes how to express multi‑upstream merge behavior on `Collect` nodes using `edge.MultiPath(...)` and `merge.*(...)` attributes.
 
-Status: design seeded for implementation. The `edge.MultiPath` facility and `merge` attributes are specified here and listed in SPECIFICATION.md; code integration proceeds in phases.
+Status: in‑progress. The `edge.MultiPath` facility and `merge` attributes are specified here and listed in SPECIFICATION.md; parser support for attribute lists exists, lowering and runtime semantics proceed in phases.
 
 ## Overview
 
-- `Collect` may merge multiple upstream paths into a single downstream stream.
+ - `Collect` may merge multiple upstream paths into a single downstream stream.
 - `edge.MultiPath(...)` is declared on the `Collect` step to configure merge behavior.
 - Attributes are expressed as `merge.*(...)` calls inside the `edge.MultiPath(...)` list. Mixed `k=v` pairs and `merge.*(...)` are permitted; attribute order is not significant; last‑write wins on duplicates.
+  Attribute names align with examples under `examples/**`.
 
 ## Supported Attributes (planned)
 

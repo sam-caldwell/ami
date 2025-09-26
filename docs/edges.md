@@ -13,7 +13,11 @@ These are not runtime calls. They are declarative specifications the compiler re
 Semantics (summary)
 - Identity: `edge.Pipeline` bridges two pipelines by upstream ingress `name`.
 - Capacity: `minCapacity`/`maxCapacity` bound internal buffers; `minCapacity >= 0` and `maxCapacity >= minCapacity`.
-- Backpressure: `block` or `drop` (initial set). Additional policies may be added in later revisions.
+- Backpressure: policies constrain enqueue behavior when buffers are full. Supported tokens:
+  - `block`: producer blocks until capacity is available (maps to at‑least‑once delivery).
+  - `drop`: producer drops enqueued items under pressure (maps to best‑effort delivery). When unspecified, drop policy is implementation‑defined but deterministic.
+  - `dropOldest`/`dropNewest`: expanded policies aligning with examples/docx where specified. If present, they deterministically drop the oldest/newest element to admit the new one.
+  The .docx is authoritative for behavior details. Where the compiler/runtime only supports a subset today, the parser still accepts the tokens to keep sources forward‑compatible.
 - Type: specifies the payload type carried (`type=T`), enabling static analysis and specialization.
  - Bounded/unbounded: when `maxCapacity > 0` the edge is bounded; when `maxCapacity == 0` it is treated as unbounded.
  - Delivery guarantees (derived): `block` → `atLeastOnce`; `drop` → `bestEffort`.
@@ -34,6 +38,10 @@ Compiler mapping
 Examples
 - `Ingress(...).Transform( in=edge.FIFO(minCapacity=10, maxCapacity=20, backpressure=block, type=some.T), worker=workerFn, minWorkers=2, maxWorkers=8, type=some.U ).Egress(in=edge.FIFO(minCapacity=10, maxCapacity=20, backpressure=block, type=some.U))`
 - `... Collect( in=edge.MultiPath(inputs=[ edge.FIFO(minCapacity=0, maxCapacity=8, backpressure=drop, type=[]byte), edge.Pipeline(name=OtherPipe, minCapacity=64, maxCapacity=256, backpressure=block, type=[]byte) ], merge=Sort() ), minWorkers=1, maxWorkers=1, type=[]byte ).Egress(...)`
+
+Expanded backpressure examples
+- `Transform( in=edge.FIFO(minCapacity=64, maxCapacity=256, backpressure=dropOldest, type=bytes), worker=decode )`
+- `Transform( in=edge.LIFO(minCapacity=0, maxCapacity=0, backpressure=dropNewest, type=Event), worker=dedupe )`
 - `... Egress(in=edge.Pipeline(name=csvReaderPipeline, minCapacity=64, maxCapacity=256, backpressure=block, type=csv.Record), ...)`
 
 Correctness notes (docx-aligned)

@@ -12,8 +12,14 @@ import (
 // backpressure policies. For edge.Pipeline, also requires a non-empty name.
 func analyzeEdges(pd astpkg.PipelineDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
-    checkArgs := func(args []string) {
-        if spec, ok := parseEdgeSpecFromArgs(args); ok {
+    parseFromNode := func(st astpkg.NodeCall) (interface{}, bool) {
+        if v := strings.TrimSpace(st.Attrs["in"]); v != "" {
+            if spec, ok := parseEdgeSpecFromValue(v); ok { return spec, true }
+        }
+        return parseEdgeSpecFromArgs(st.Args)
+    }
+    checkNode := func(st astpkg.NodeCall) {
+        if spec, ok := parseFromNode(st); ok {
             switch v := spec.(type) {
             case fifoSpec:
                 if v.Min < 0 {
@@ -51,12 +57,8 @@ func analyzeEdges(pd astpkg.PipelineDecl) []diag.Diagnostic {
             }
         }
     }
-    for _, st := range pd.Steps {
-        checkArgs(st.Args)
-    }
-    for _, st := range pd.ErrorSteps {
-        checkArgs(st.Args)
-    }
+    for _, st := range pd.Steps { checkNode(st) }
+    for _, st := range pd.ErrorSteps { checkNode(st) }
     return diags
 }
 
@@ -136,6 +138,52 @@ func parseEdgeSpecFromArgs(args []string) (interface{}, bool) {
             }
             return p, true
         }
+    }
+    return nil, false
+}
+
+// parseEdgeSpecFromValue parses an edge spec given the value part (e.g., "edge.FIFO(...)").
+func parseEdgeSpecFromValue(v string) (interface{}, bool) {
+    s := strings.TrimSpace(v)
+    if strings.HasPrefix(s, "edge.FIFO(") && strings.HasSuffix(s, ")") {
+        params := parseKVList(s[len("edge.FIFO(") : len(s)-1])
+        var f fifoSpec
+        for k, val := range params {
+            switch k {
+            case "minCapacity": f.Min = atoiSafe(val)
+            case "maxCapacity": f.Max = atoiSafe(val)
+            case "backpressure": f.BP = val
+            case "type": f.Type = val
+            }
+        }
+        return f, true
+    }
+    if strings.HasPrefix(s, "edge.LIFO(") && strings.HasSuffix(s, ")") {
+        params := parseKVList(s[len("edge.LIFO(") : len(s)-1])
+        var l lifoSpec
+        for k, val := range params {
+            switch k {
+            case "minCapacity": l.Min = atoiSafe(val)
+            case "maxCapacity": l.Max = atoiSafe(val)
+            case "backpressure": l.BP = val
+            case "type": l.Type = val
+            }
+        }
+        return l, true
+    }
+    if strings.HasPrefix(s, "edge.Pipeline(") && strings.HasSuffix(s, ")") {
+        params := parseKVList(s[len("edge.Pipeline(") : len(s)-1])
+        var p pipeSpec
+        for k, val := range params {
+            switch k {
+            case "name": p.Name = val
+            case "minCapacity": p.Min = atoiSafe(val)
+            case "maxCapacity": p.Max = atoiSafe(val)
+            case "backpressure": p.BP = val
+            case "type": p.Type = val
+            }
+        }
+        return p, true
     }
     return nil, false
 }

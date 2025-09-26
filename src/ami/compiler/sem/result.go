@@ -70,6 +70,8 @@ func AnalyzeFile(f *astpkg.File) Result {
             funcs[fd.Name] = fd
             // Mutability: enforce AMI semantics (no mut blocks; '*' LHS marker required)
             res.Diagnostics = append(res.Diagnostics, analyzeMutationMarkers(fd)...)
+            // Type parameters: reject duplicate type parameter names
+            res.Diagnostics = append(res.Diagnostics, analyzeFuncTypeParams(fd)...)
             // Pointer/address prohibitions (2.3.2): '&' not allowed
             res.Diagnostics = append(res.Diagnostics, analyzePointerProhibitions(fd)...)
             // Imperative type checks (2.3): simple assignment type rules (no raw pointers)

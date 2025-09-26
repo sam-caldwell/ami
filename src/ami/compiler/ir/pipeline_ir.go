@@ -157,20 +157,24 @@ func (m *Module) LowerPipelines(f *astpkg.File) {
 			}
 			return out
 		}
-		for _, st := range pd.Steps {
-			step := StepIR{Node: st.Name, Workers: mkWorkers(st), Attrs: st.Attrs}
-			if spec, ok := parseEdgeSpecFromArgs(st.Args); ok {
-				step.In = spec
-			}
-			pir.Steps = append(pir.Steps, step)
-		}
-		for _, st := range pd.ErrorSteps {
-			step := StepIR{Node: st.Name, Workers: mkWorkers(st), Attrs: st.Attrs}
-			if spec, ok := parseEdgeSpecFromArgs(st.Args); ok {
-				step.In = spec
-			}
-			pir.ErrorSteps = append(pir.ErrorSteps, step)
-		}
+        for _, st := range pd.Steps {
+            step := StepIR{Node: st.Name, Workers: mkWorkers(st), Attrs: st.Attrs}
+            if v := strings.TrimSpace(st.Attrs["in"]); v != "" {
+                if spec, ok := parseEdgeSpecFromValue(v); ok { step.In = spec }
+            } else if spec, ok := parseEdgeSpecFromArgs(st.Args); ok {
+                step.In = spec
+            }
+            pir.Steps = append(pir.Steps, step)
+        }
+        for _, st := range pd.ErrorSteps {
+            step := StepIR{Node: st.Name, Workers: mkWorkers(st), Attrs: st.Attrs}
+            if v := strings.TrimSpace(st.Attrs["in"]); v != "" {
+                if spec, ok := parseEdgeSpecFromValue(v); ok { step.In = spec }
+            } else if spec, ok := parseEdgeSpecFromArgs(st.Args); ok {
+                step.In = spec
+            }
+            pir.ErrorSteps = append(pir.ErrorSteps, step)
+        }
 		m.Pipelines = append(m.Pipelines, pir)
 	}
 }

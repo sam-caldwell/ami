@@ -629,15 +629,19 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
 			}
 		}
 		if pd, ok := d.(astpkg.PipelineDecl); ok {
-			markArgs := func(steps []astpkg.NodeCall) {
-				for _, st := range steps {
-					for _, a := range st.Args {
-						for _, tok := range splitIdents(a) {
-							used[tok] = true
-						}
-					}
-				}
-			}
+            markArgs := func(steps []astpkg.NodeCall) {
+                for _, st := range steps {
+                    for _, a := range st.Args {
+                        for _, tok := range splitIdents(a) {
+                            used[tok] = true
+                        }
+                    }
+                    // also scan structured attribute values for identifiers (e.g., worker=Name, in=edge.Pipeline(name=Upstream))
+                    for _, v := range st.Attrs {
+                        for _, tok := range splitIdents(v) { used[tok] = true }
+                    }
+                }
+            }
 			markArgs(pd.Steps)
 			markArgs(pd.ErrorSteps)
 		}
@@ -816,37 +820,37 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
 		}
 		if pd, ok := d.(astpkg.PipelineDecl); ok {
 			// Node with no workers on transform/fanout: warn
-			for _, st := range pd.Steps {
-				kind := strings.ToLower(st.Name)
-				if (kind == "transform" || kind == "fanout") && len(st.Workers) == 0 {
-					apply(diag.Warn, "W_NODE_NO_WORKERS", "node has no workers; verify configuration", pkgName, filePath, nil)
-				}
-				// Edge smell: unbounded capacity with block backpressure
-				if spec, ok := parseEdgeSpecFromArgsLint(st.Args); ok {
-					if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
-						apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity", pkgName, filePath, nil)
-					}
-					// Edge smell: tiny bounded capacity with drop backpressure (likely data loss amplification)
-					if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
-						apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1)", pkgName, filePath, nil)
-					}
-				}
-			}
-			for _, st := range pd.ErrorSteps {
-				kind := strings.ToLower(st.Name)
-				if (kind == "transform" || kind == "fanout") && len(st.Workers) == 0 {
-					apply(diag.Warn, "W_NODE_NO_WORKERS", "error-path node has no workers; verify configuration", pkgName, filePath, nil)
-				}
-				if spec, ok := parseEdgeSpecFromArgsLint(st.Args); ok {
-					if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
-						apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity (error path)", pkgName, filePath, nil)
-					}
-					if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
-						apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1) (error path)", pkgName, filePath, nil)
-					}
-				}
-			}
-		}
+            for _, st := range pd.Steps {
+                kind := strings.ToLower(st.Name)
+                if (kind == "transform" || kind == "fanout") && len(st.Workers) == 0 && st.InlineWorker == nil && strings.TrimSpace(st.Attrs["worker"]) == "" {
+                    apply(diag.Warn, "W_NODE_NO_WORKERS", "node has no workers; verify configuration", pkgName, filePath, nil)
+                }
+                // Edge smell: unbounded capacity with block backpressure
+                if spec, ok := parseEdgeSpecFromNodeLint(st); ok {
+                    if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
+                        apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity", pkgName, filePath, nil)
+                    }
+                    // Edge smell: tiny bounded capacity with drop backpressure (likely data loss amplification)
+                    if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
+                        apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1)", pkgName, filePath, nil)
+                    }
+                }
+            }
+            for _, st := range pd.ErrorSteps {
+                kind := strings.ToLower(st.Name)
+                if (kind == "transform" || kind == "fanout") && len(st.Workers) == 0 && st.InlineWorker == nil && strings.TrimSpace(st.Attrs["worker"]) == "" {
+                    apply(diag.Warn, "W_NODE_NO_WORKERS", "error-path node has no workers; verify configuration", pkgName, filePath, nil)
+                }
+                if spec, ok := parseEdgeSpecFromNodeLint(st); ok {
+                    if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
+                        apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity (error path)", pkgName, filePath, nil)
+                    }
+                    if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
+                        apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1) (error path)", pkgName, filePath, nil)
+                    }
+                }
+            }
+        }
 	}
 	return out
 }
@@ -859,6 +863,30 @@ type edgeSpecLint struct {
 	MaxCapacity  int
 	Backpressure string
 	Type         string
+}
+
+func parseEdgeSpecFromNodeLint(st astpkg.NodeCall) (edgeSpecLint, bool) {
+    // Prefer structured attribute if present
+    if v := strings.TrimSpace(st.Attrs["in"]); v != "" {
+        return parseEdgeSpecFromValueLint(v)
+    }
+    return parseEdgeSpecFromArgsLint(st.Args)
+}
+
+func parseEdgeSpecFromValueLint(v string) (edgeSpecLint, bool) {
+    s := strings.TrimSpace(v)
+    switch {
+    case strings.HasPrefix(s, "edge.FIFO(") && strings.HasSuffix(s, ")"):
+        m := parseKVListLint(s[len("edge.FIFO(") : len(s)-1])
+        return edgeSpecLint{Kind: "fifo", MinCapacity: atoi0(m["minCapacity"]), MaxCapacity: atoi0(m["maxCapacity"]), Backpressure: m["backpressure"], Type: m["type"]}, true
+    case strings.HasPrefix(s, "edge.LIFO(") && strings.HasSuffix(s, ")"):
+        m := parseKVListLint(s[len("edge.LIFO(") : len(s)-1])
+        return edgeSpecLint{Kind: "lifo", MinCapacity: atoi0(m["minCapacity"]), MaxCapacity: atoi0(m["maxCapacity"]), Backpressure: m["backpressure"], Type: m["type"]}, true
+    case strings.HasPrefix(s, "edge.Pipeline(") && strings.HasSuffix(s, ")"):
+        m := parseKVListLint(s[len("edge.Pipeline(") : len(s)-1])
+        return edgeSpecLint{Kind: "pipeline", Name: m["name"], MinCapacity: atoi0(m["minCapacity"]), MaxCapacity: atoi0(m["maxCapacity"]), Backpressure: m["backpressure"], Type: m["type"]}, true
+    }
+    return edgeSpecLint{}, false
 }
 
 func parseEdgeSpecFromArgsLint(args []string) (edgeSpecLint, bool) {

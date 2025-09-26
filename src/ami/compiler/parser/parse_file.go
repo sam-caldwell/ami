@@ -286,6 +286,11 @@ func (p *Parser) ParseFile() *astpkg.File {
             } else {
                 p.errorf("expected function name")
             }
+            // optional type parameters: func name<T, U any>(...)
+            var tparams []astpkg.TypeParam
+            if p.cur.Kind == tok.LT {
+                tparams = p.parseTypeParams()
+            }
             // params
             var params []astpkg.Param
             var results []astpkg.TypeRef
@@ -343,7 +348,7 @@ func (p *Parser) ParseFile() *astpkg.File {
             } else {
                 p.errorf("expected function body")
             }
-            fd := astpkg.FuncDecl{Name: name, Params: params, Result: results, Body: body, BodyStmts: bodyStmts, Pos: start, Comments: pending}
+            fd := astpkg.FuncDecl{Name: name, TypeParams: tparams, Params: params, Result: results, Body: body, BodyStmts: bodyStmts, Pos: start, Comments: pending}
             f.Decls = append(f.Decls, fd)
             f.Stmts = append(f.Stmts, fd)
             if p.cur.Kind != tok.SEMI && p.cur.Kind != tok.KW_FUNC {
@@ -358,4 +363,3 @@ func (p *Parser) ParseFile() *astpkg.File {
     }
     return f
 }
-

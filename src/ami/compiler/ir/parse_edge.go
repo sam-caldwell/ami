@@ -73,6 +73,52 @@ func parseEdgeSpecFromArgs(args []string) (edg.Spec, bool) {
     return nil, false
 }
 
+// parseEdgeSpecFromValue parses an edge spec given the value part (e.g., "edge.FIFO(...)").
+func parseEdgeSpecFromValue(v string) (edg.Spec, bool) {
+    s := strings.TrimSpace(v)
+    if strings.HasPrefix(s, "edge.FIFO(") {
+        params := parseKVList(s[len("edge.FIFO(") : len(s)-1])
+        var f edg.FIFO
+        for k, val := range params {
+            switch k {
+            case "minCapacity": f.MinCapacity = atoiSafe(val)
+            case "maxCapacity": f.MaxCapacity = atoiSafe(val)
+            case "backpressure": f.Backpressure = edg.BackpressurePolicy(val)
+            case "type": f.TypeName = val
+            }
+        }
+        return &f, true
+    }
+    if strings.HasPrefix(s, "edge.LIFO(") {
+        params := parseKVList(s[len("edge.LIFO(") : len(s)-1])
+        var l edg.LIFO
+        for k, val := range params {
+            switch k {
+            case "minCapacity": l.MinCapacity = atoiSafe(val)
+            case "maxCapacity": l.MaxCapacity = atoiSafe(val)
+            case "backpressure": l.Backpressure = edg.BackpressurePolicy(val)
+            case "type": l.TypeName = val
+            }
+        }
+        return &l, true
+    }
+    if strings.HasPrefix(s, "edge.Pipeline(") {
+        params := parseKVList(s[len("edge.Pipeline(") : len(s)-1])
+        var p edg.Pipeline
+        for k, val := range params {
+            switch k {
+            case "name": p.UpstreamName = val
+            case "minCapacity": p.MinCapacity = atoiSafe(val)
+            case "maxCapacity": p.MaxCapacity = atoiSafe(val)
+            case "backpressure": p.Backpressure = edg.BackpressurePolicy(val)
+            case "type": p.TypeName = val
+            }
+        }
+        return &p, true
+    }
+    return nil, false
+}
+
 // parseKVList parses a simple comma-separated list of `key=value` entries.
 func parseKVList(s string) map[string]string {
     out := map[string]string{}

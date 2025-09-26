@@ -230,6 +230,7 @@ func lintDuplicateFunctionsAcrossUnits(units []lintUnitRec) []diag.Diagnostic {
 
 // parseWorkspacePackages extracts a map of package name -> root directory
 // from the loosely-typed workspace.Packages field.
+/* moved to parse_workspace_packages.go
 func parseWorkspacePackages(ws *workspace.Workspace) map[string]string {
 	out := map[string]string{}
 	for _, p := range ws.Packages {
@@ -252,12 +253,14 @@ func parseWorkspacePackages(ws *workspace.Workspace) map[string]string {
 	}
 	return out
 }
+*/
 
 // lintOrder returns packages in the order they should be linted:
 // imported workspace-local packages first, then main. If a local
 // package itself imports other local packages, those are ordered
 // before it (DFS). Packages without resolvable imports are included
 // once. Unknown imports (external) are ignored for ordering.
+/* moved to parse_workspace_packages.go
 func lintOrder(pkgRoots map[string]string) []string {
 	// Helper to read a representative unit for a package to extract imports.
 	importsFor := func(pkg string) []string {
@@ -322,8 +325,10 @@ func lintOrder(pkgRoots map[string]string) []string {
 	}
 	return order
 }
+*/
 
 // lintWorkspacePackages enforces workspace-level package naming and version rules.
+/* moved to lint_workspace_packages.go
 func lintWorkspacePackages(ws *workspace.Workspace) []diag.Diagnostic {
 	var out []diag.Diagnostic
 	semverRe := regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
@@ -350,6 +355,7 @@ func lintWorkspacePackages(ws *workspace.Workspace) []diag.Diagnostic {
 	}
 	return out
 }
+*/
 
 // lintUnit returns diagnostics for a single unit.
 func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []diag.Diagnostic {
@@ -926,24 +932,7 @@ func pathBase(p string) string {
 }
 
 // splitIdents returns identifier-like tokens from a string (A-Za-z0-9_)
-func splitIdents(s string) []string {
-	var out []string
-	cur := strings.Builder{}
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
-			cur.WriteRune(r)
-		} else {
-			if cur.Len() > 0 {
-				out = append(out, cur.String())
-				cur.Reset()
-			}
-		}
-	}
-	if cur.Len() > 0 {
-		out = append(out, cur.String())
-	}
-	return out
-}
+// splitIdents moved to split_idents.go
 
 // uPackageFromPath maps a file path back to a package name using known roots.
 func uPackageFromPath(file string, roots map[string]string) string {
@@ -964,49 +953,7 @@ func uPackageFromPath(file string, roots map[string]string) string {
 }
 
 // ruleSelected applies the --rules filter (comma-separated substrings).
-func ruleSelected(code string) bool {
-	rs := strings.TrimSpace(lintRules)
-	if rs == "" {
-		return true
-	}
-	pats := strings.Split(rs, ",")
-	for _, raw := range pats {
-		p := strings.TrimSpace(raw)
-		if p == "" {
-			continue
-		}
-		// regex: re:<expr> or /<expr>/
-		if strings.HasPrefix(p, "re:") {
-			if rx, err := regexp.Compile(p[3:]); err == nil {
-				if rx.MatchString(code) {
-					return true
-				}
-			}
-			continue
-		}
-		if strings.HasPrefix(p, "/") && strings.HasSuffix(p, "/") && len(p) > 2 {
-			if rx, err := regexp.Compile(p[1 : len(p)-1]); err == nil {
-				if rx.MatchString(code) {
-					return true
-				}
-			}
-			continue
-		}
-		// glob: detect wildcard characters
-		if strings.ContainsAny(p, "*?[]") {
-			// case-insensitive by lowercasing both
-			if ok, _ := filepath.Match(strings.ToLower(p), strings.ToLower(code)); ok {
-				return true
-			}
-			continue
-		}
-		// fallback: case-insensitive substring
-		if strings.Contains(strings.ToLower(code), strings.ToLower(p)) {
-			return true
-		}
-	}
-	return false
-}
+// ruleSelected moved to rule_selected.go
 
 // findPackageIdentOffset returns the byte offset of the package identifier token in src.
 func findPackageIdentOffset(src string) int {
@@ -1028,87 +975,12 @@ func findPackageIdentOffset(src string) int {
 }
 
 // firstImportPathOffset returns the offset of the first occurrence of an import path.
-func firstImportPathOffset(src, path string) int {
-	s := scannerFor(src)
-	for {
-		t := s.Next()
-		if t.Kind == tok.EOF {
-			break
-		}
-		if t.Kind == tok.KW_IMPORT || (t.Kind == tok.IDENT && strings.ToLower(t.Lexeme) == "import") {
-			// single or alias form
-			t2 := s.Next()
-			if t2.Kind == tok.STRING {
-				if unquoteSimple(t2.Lexeme) == path {
-					return t2.Offset
-				}
-			} else if t2.Kind == tok.IDENT {
-				// alias then string
-				t3 := s.Next()
-				if t3.Kind == tok.STRING && unquoteSimple(t3.Lexeme) == path {
-					return t3.Offset
-				}
-			} else if t2.Kind == tok.LPAREN {
-				// block imports
-				for {
-					t3 := s.Next()
-					if t3.Kind == tok.EOF || t3.Kind == tok.RPAREN {
-						break
-					}
-					if t3.Kind == tok.STRING {
-						if unquoteSimple(t3.Lexeme) == path {
-							return t3.Offset
-						}
-					} else if t3.Kind == tok.IDENT {
-						t4 := s.Next()
-						if t4.Kind == tok.STRING && unquoteSimple(t4.Lexeme) == path {
-							return t4.Offset
-						}
-					}
-				}
-			}
-		}
-	}
-	return -1
-}
+// firstImportPathOffset moved to import_path_helpers.go
 
 // importAliasOffset returns the offset of an import alias on the line importing the given path.
-func importAliasOffset(src, alias, path string) int {
-	s := scannerFor(src)
-	for {
-		t := s.Next()
-		if t.Kind == tok.EOF {
-			break
-		}
-		if t.Kind == tok.KW_IMPORT || (t.Kind == tok.IDENT && strings.ToLower(t.Lexeme) == "import") {
-			t2 := s.Next()
-			if t2.Kind == tok.IDENT {
-				a := t2.Lexeme
-				t3 := s.Next()
-				if t3.Kind == tok.STRING && a == alias && unquoteSimple(t3.Lexeme) == path {
-					return t2.Offset
-				}
-			} else if t2.Kind == tok.LPAREN {
-				for {
-					t3 := s.Next()
-					if t3.Kind == tok.EOF || t3.Kind == tok.RPAREN {
-						break
-					}
-					if t3.Kind == tok.IDENT {
-						a := t3.Lexeme
-						t4 := s.Next()
-						if t4.Kind == tok.STRING && a == alias && unquoteSimple(t4.Lexeme) == path {
-							return t3.Offset
-						}
-					}
-				}
-			}
-		}
-	}
-	return -1
-}
+// importAliasOffset moved to import_path_helpers.go
 
-func scannerFor(src string) *scan.Scanner { return scan.New(src) }
+// scannerFor moved to scanner_for.go
 
 func unquoteSimple(s string) string {
 	if len(s) >= 2 && ((s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'')) {
@@ -1118,86 +990,7 @@ func unquoteSimple(s string) string {
 }
 
 // parseLinterConfig extracts rule severity overrides from workspace: toolchain.linter.rules
-func parseLinterConfig(ws *workspace.Workspace) lintConfig {
-	lc := lintConfig{severity: map[string]string{}, suppressPkg: map[string]map[string]bool{}}
-	if ws == nil {
-		return lc
-	}
-	if ws.Toolchain.Linter == nil {
-		return lc
-	}
-	// Expect map with optional key "rules" mapping to string map
-	if m, ok := ws.Toolchain.Linter.(map[string]any); ok {
-		// strict preset
-		if v, ok := m["strict"]; ok {
-			if b, ok := v.(bool); ok {
-				lc.strict = b
-			}
-		}
-		if rv, ok := m["rules"]; ok && rv != nil {
-			switch rm := rv.(type) {
-			case map[string]any:
-				for k, v := range rm {
-					if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-						lc.severity[k] = s
-					}
-				}
-			case map[string]string:
-				for k, s := range rm {
-					lc.severity[k] = s
-				}
-			}
-		}
-		// suppressions
-		if sv, ok := m["suppress"]; ok && sv != nil {
-			if sm, ok := sv.(map[string]any); ok {
-				// package-based: map[name][]rules
-				if pv, ok := sm["package"]; ok && pv != nil {
-					if pm, ok := pv.(map[string]any); ok {
-						for name, rulesVal := range pm {
-							lst := toStringSlice(rulesVal)
-							if len(lst) == 0 {
-								continue
-							}
-							if lc.suppressPkg[name] == nil {
-								lc.suppressPkg[name] = map[string]bool{}
-							}
-							for _, r := range lst {
-								lc.suppressPkg[name][r] = true
-							}
-						}
-					}
-				}
-				// path-based: map[glob][]rules
-				if pv, ok := sm["paths"]; ok && pv != nil {
-					if pm, ok := pv.(map[string]any); ok {
-						// deterministic order for tests
-						var globs []string
-						for g := range pm {
-							globs = append(globs, g)
-						}
-						sort.Strings(globs)
-						for _, g := range globs {
-							lst := toStringSlice(pm[g])
-							if len(lst) == 0 {
-								continue
-							}
-							ent := struct {
-								glob  string
-								rules map[string]bool
-							}{glob: g, rules: map[string]bool{}}
-							for _, r := range lst {
-								ent.rules[r] = true
-							}
-							lc.suppressPaths = append(lc.suppressPaths, ent)
-						}
-					}
-				}
-			}
-		}
-	}
-	return lc
-}
+// parseLinterConfig moved to parse_linter_config.go
 
 // lintCrossPackageConstraints checks that workspace-local imports satisfy the
 // version constraints declared in the importing package's workspace entry.

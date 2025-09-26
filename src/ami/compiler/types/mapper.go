@@ -2,7 +2,7 @@ package types
 
 import astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
 
-// FromAST maps an AST TypeRef into a types.Type.
+// FromAST maps an AST TypeRef into an AMI types.Type.
 func FromAST(tr astpkg.TypeRef) Type {
 	// Base type name (case-sensitive as in AST)
 	base := tr.Name

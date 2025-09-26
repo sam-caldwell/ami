@@ -1,5 +1,6 @@
 package token
 
+// Lexical rune and string constants recognized by the scanner.
 const (
 	LexTab        = '\t'
 	LexCr         = '\r'

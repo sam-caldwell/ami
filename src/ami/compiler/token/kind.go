@@ -1,5 +1,6 @@
 package token
 
+// Kind is the token kind enumeration used by the scanner and parser.
 type Kind int
 
 const (

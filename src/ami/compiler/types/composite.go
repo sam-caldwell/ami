@@ -20,7 +20,7 @@ type Set struct{ Elem Type }
 
 func (s Set) String() string { return "set<" + s.Elem.String() + ">" }
 
-// SliceTy models a slice<T> generic type different from []T (language supports both).
+// SliceTy models a generic slice<T> type (distinct from []T).
 type SliceTy struct{ Elem Type }
 
 func (s SliceTy) String() string { return "slice<" + s.Elem.String() + ">" }

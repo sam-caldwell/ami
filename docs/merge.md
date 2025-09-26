@@ -47,7 +47,7 @@ Status: in‑progress. The `edge.MultiPath` facility and `merge` attributes are 
 - Buffer/backpressure interaction
   - `merge.Buffer(capacity, backpressure)` constrains sorting memory.
   - `backpressure=block`: upstreams block; ordering remains per window.
-  - `backpressure=drop`: records may be dropped on overflow; output remains sorted among retained records.
+- `backpressure=dropOldest` or `dropNewest`: records may be dropped on overflow; output remains sorted among retained records. Prefer explicit policy; `drop` is deprecated.
 
 ## Examples
 

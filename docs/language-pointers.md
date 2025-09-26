@@ -11,8 +11,7 @@ Compiler behavior:
 
 - `&` anywhere in source is rejected (`E_PTR_UNSUPPORTED_SYNTAX`).
 - Unary `*` is not a dereference; using it outside the assignment left-hand side is not supported.
-- Pointer type markers in signatures are not part of AMI (e.g., `*State` is invalid). Use `State` as a capability argument.
-  Mutability remains explicit by language rules (see `docs/language-mutability.md`).
+- Pointer type markers in signatures are not part of AMI (e.g., `*State` is invalid). State is ambient; access it via `state.get/set/update/list` rather than passing it as a parameter. Mutability remains explicit by language rules (see `docs/language-mutability.md`).
 
 Notes:
 

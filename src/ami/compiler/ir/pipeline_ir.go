@@ -52,32 +52,46 @@ func (m *Module) LowerPipelines(f *astpkg.File) {
 			var out []WorkerIR
 			for _, w := range st.Workers {
 				wi := WorkerIR{Name: w.Name, Kind: w.Kind, Origin: "reference"}
-				if fd, ok := funs[w.Name]; ok {
-					if len(fd.Params) >= 3 {
-						p1 := fd.Params[0].Type
-						p3 := fd.Params[2].Type
-						wi.HasContext = (p1.Name == "Context")
-						wi.HasState = (p3.Name == "State")
-						p2 := fd.Params[1].Type
-						if p2.Name == "Event" && len(p2.Args) == 1 {
-							wi.Input = typeRefToString(p2.Args[0])
-						}
-						if len(fd.Result) == 1 {
-							r := fd.Result[0]
-							switch {
-							case r.Name == "Event" && len(r.Args) == 1 && !r.Slice:
-								wi.OutputKind = "Event"
-								wi.Output = typeRefToString(r.Args[0])
-							case r.Name == "Event" && len(r.Args) == 1 && r.Slice:
-								wi.OutputKind = "Events"
-								wi.Output = typeRefToString(r.Args[0])
-							case r.Name == "Error" && len(r.Args) == 1:
-								wi.OutputKind = "Error"
-								wi.Output = typeRefToString(r.Args[0])
-							}
-						}
-					}
-				}
+                if fd, ok := funs[w.Name]; ok {
+                    // Legacy 3-param form
+                    if len(fd.Params) >= 3 {
+                        p1 := fd.Params[0].Type
+                        p3 := fd.Params[2].Type
+                        wi.HasContext = (p1.Name == "Context")
+                        wi.HasState = (p3.Name == "State")
+                        p2 := fd.Params[1].Type
+                        if p2.Name == "Event" && len(p2.Args) == 1 {
+                            wi.Input = typeRefToString(p2.Args[0])
+                        }
+                        if len(fd.Result) == 1 {
+                            r := fd.Result[0]
+                            switch {
+                            case r.Name == "Event" && len(r.Args) == 1 && !r.Slice:
+                                wi.OutputKind = "Event"
+                                wi.Output = typeRefToString(r.Args[0])
+                            case r.Name == "Event" && len(r.Args) == 1 && r.Slice:
+                                wi.OutputKind = "Events"
+                                wi.Output = typeRefToString(r.Args[0])
+                            case r.Name == "Error" && len(r.Args) == 1:
+                                wi.OutputKind = "Error"
+                                wi.Output = typeRefToString(r.Args[0])
+                            }
+                        }
+                    } else if len(fd.Params) == 1 {
+                        // Canonical: func(ev Event<T>) (Event<U>, error)
+                        p := fd.Params[0].Type
+                        if p.Name == "Event" && len(p.Args) == 1 {
+                            wi.Input = typeRefToString(p.Args[0])
+                        }
+                        if len(fd.Result) >= 1 {
+                            r := fd.Result[0]
+                            if r.Name == "Event" && len(r.Args) == 1 && !r.Slice {
+                                wi.OutputKind = "Event"
+                                wi.Output = typeRefToString(r.Args[0])
+                            }
+                        }
+                    }
+                }
 				out = append(out, wi)
 			}
 			// Inline worker literal (function expression)

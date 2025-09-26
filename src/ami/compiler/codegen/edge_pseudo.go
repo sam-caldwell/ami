@@ -2,8 +2,10 @@ package codegen
 
 import (
     "fmt"
+    "strings"
 
     edg "github.com/sam-caldwell/ami/src/ami/compiler/edge"
+    "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
 
 // edgeInitPseudo renders a single edge initialization pseudo-instruction for
@@ -24,3 +26,24 @@ func edgeInitPseudo(pipe string, idx int, s edg.Spec) string {
     }
 }
 
+// writeMultiPath emits no-op pseudo-ops for MultiPath scaffolding to aid
+// future integration and debugging. It does not affect runtime semantics.
+func writeMultiPath(b *strings.Builder, pipe string, idx int, st ir.StepIR) {
+    b.WriteString("  mp_begin label=")
+    b.WriteString(fmt.Sprintf("%s.step%d.in", pipe, idx))
+    b.WriteString("\n")
+    for _, in := range st.InMulti.Inputs {
+        b.WriteString("  mp_input ")
+        b.WriteString(edgeInitPseudo(pipe, idx, in))
+        b.WriteString("\n")
+    }
+    for _, op := range st.InMulti.Merge {
+        b.WriteString("  mp_merge name=")
+        b.WriteString(op.Name)
+        if op.Raw != "" { b.WriteString(" args="); b.WriteString(op.Raw) }
+        b.WriteString("\n")
+    }
+    b.WriteString("  mp_end label=")
+    b.WriteString(fmt.Sprintf("%s.step%d.in", pipe, idx))
+    b.WriteString("\n")
+}

@@ -46,20 +46,26 @@ func GenerateASM(m ir.Module) string {
         b.WriteString(p.Name)
         b.WriteString("\n")
         for i, st := range p.Steps {
-            if st.In == nil {
+            if st.In != nil {
+                b.WriteString("  ")
+                b.WriteString(edgeInitPseudo(p.Name, i, st.In))
+                b.WriteString("\n")
                 continue
             }
-            b.WriteString("  ")
-            b.WriteString(edgeInitPseudo(p.Name, i, st.In))
-            b.WriteString("\n")
+            if st.InMulti != nil {
+                writeMultiPath(&b, p.Name, i, st)
+            }
         }
         for i, st := range p.ErrorSteps {
-            if st.In == nil {
+            if st.In != nil {
+                b.WriteString("  ")
+                b.WriteString(edgeInitPseudo(p.Name+".error", i, st.In))
+                b.WriteString("\n")
                 continue
             }
-            b.WriteString("  ")
-            b.WriteString(edgeInitPseudo(p.Name+".error", i, st.In))
-            b.WriteString("\n")
+            if st.InMulti != nil {
+                writeMultiPath(&b, p.Name+".error", i, st)
+            }
         }
     }
     return b.String()

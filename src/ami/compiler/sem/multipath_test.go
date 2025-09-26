@@ -40,7 +40,7 @@ pipeline P { Ingress(cfg).Collect(in=edge.MultiPath(inputs=[edge.FIFO(minCapacit
 
 func TestSem_MultiPath_Valid_Minimal(t *testing.T) {
     src := `package p
-pipeline P { Ingress(cfg).Collect(in=edge.MultiPath(inputs=[edge.FIFO(minCapacity=1,maxCapacity=1,backpressure=block,type=int), edge.Pipeline(name=X,minCapacity=0,maxCapacity=0,backpressure=dropNewest,type=int)])).Egress() }`
+pipeline P { Ingress(cfg).Collect(in=edge.MultiPath(inputs=[edge.FIFO(minCapacity=1,maxCapacity=1,backpressure=block,type=int), edge.Pipeline(name=X,minCapacity=0,maxCapacity=0,backpressure=dropNewest,type=int)], merge=Sort("event.ts","asc"))).Egress() }`
     p := parser.New(src)
     f := p.ParseFile()
     res := AnalyzeFile(f)
@@ -51,3 +51,13 @@ pipeline P { Ingress(cfg).Collect(in=edge.MultiPath(inputs=[edge.FIFO(minCapacit
     }
 }
 
+func TestSem_MultiPath_InvalidMergeName(t *testing.T) {
+    src := `package p
+pipeline P { Ingress(cfg).Collect(in=edge.MultiPath(inputs=[edge.FIFO(minCapacity=1,maxCapacity=1,backpressure=block,type=int)], merge=Nope())).Egress() }`
+    p := parser.New(src)
+    f := p.ParseFile()
+    res := AnalyzeFile(f)
+    var seen bool
+    for _, d := range res.Diagnostics { if d.Code == "E_MP_MERGE_INVALID" { seen = true; break } }
+    if !seen { t.Fatalf("expected E_MP_MERGE_INVALID; got %+v", res.Diagnostics) }
+}

@@ -8,11 +8,3 @@ type StructDecl struct {
     Comments []Comment
 }
 
-// Field is a named field with an associated type.
-type Field struct {
-    Name string
-    Type TypeRef
-}
-
-func (StructDecl) isNode() {}
-

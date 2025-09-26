@@ -17,5 +17,7 @@ type EdgeInitV1 struct {
     // Derived semantics
     Bounded  bool   `json:"bounded,omitempty"`  // true when maxCapacity > 0; false indicates unbounded
     Delivery string `json:"delivery,omitempty"` // atLeastOnce (block) | bestEffort (drop)
+    // When Kind == "edge.MultiPath", include normalized inputs and merge ops.
+    // Mirrors PipelineEdgeV1.MultiPath for debug parity with pipelines.v1.
+    MultiPath *MultiPathV1 `json:"multiPath,omitempty"`
 }
-

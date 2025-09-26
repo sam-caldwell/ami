@@ -148,7 +148,12 @@ func parseEdgeSpecFromArgs(args []string) (interface{}, bool) {
 
 type mpSpec struct {
     Inputs []interface{}
-    // Merge ops are opaque here; shape enforcement happens elsewhere
+    Merge  []mergeOpSpec
+}
+
+type mergeOpSpec struct {
+    Name string
+    Raw  string
 }
 
 func parseMultiPathFromValue(v string) (mpSpec, bool) {
@@ -181,7 +186,29 @@ func parseMultiPathFromValue(v string) (mpSpec, bool) {
             inputs = append(inputs, spec)
         }
     }
-    return mpSpec{Inputs: inputs}, true
+    // optional merge=Name(args)
+    rest := strings.TrimSpace(after[i:])
+    var merge []mergeOpSpec
+    if j := strings.Index(rest, "merge="); j >= 0 {
+        mv := strings.TrimSpace(rest[j+len("merge="):])
+        // Name(args)
+        if k := strings.IndexByte(mv, '('); k > 0 {
+            name := strings.TrimSpace(mv[:k])
+            m := k + 1
+            d := 1
+            for m < len(mv) && d > 0 {
+                if mv[m] == '(' { d++ }
+                if mv[m] == ')' { d-- }
+                m++
+            }
+            args := ""
+            if d == 0 { args = mv[k+1 : m-1] }
+            merge = append(merge, mergeOpSpec{Name: name, Raw: args})
+        } else {
+            merge = append(merge, mergeOpSpec{Name: "", Raw: ""})
+        }
+    }
+    return mpSpec{Inputs: inputs, Merge: merge}, true
 }
 
 // analyzeMultiPath enforces minimal multi-path rules:
@@ -233,6 +260,19 @@ func analyzeMultiPath(pd astpkg.PipelineDecl) []diag.Diagnostic {
             if base != t {
                 diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MP_INPUT_TYPE_MISMATCH", Message: "MultiPath inputs have mismatched payload types"})
                 break
+            }
+        }
+        // Merge op shape (minimal)
+        if len(mp.Merge) > 0 {
+            allowed := map[string]bool{
+                "sort": true, "stable": true, "key": true, "dedup": true, "window": true, "watermark": true, "timeout": true, "buffer": true, "partitionby": true,
+            }
+            for _, m := range mp.Merge {
+                name := strings.ToLower(strings.TrimPrefix(m.Name, "merge."))
+                if name == "" || !allowed[name] {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_MP_MERGE_INVALID", Message: "invalid merge operator in MultiPath"})
+                }
+                // parentheses balanced already by parser; no further checks here
             }
         }
     }

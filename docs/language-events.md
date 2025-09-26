@@ -4,9 +4,10 @@ This scaffold enforces core event/error typing rules and worker contracts:
 
 Worker Contracts
 
-- Signature: `func f(ctx Context, ev Event<T>, st State) R`
-  - `R ∈ { Event<U>, []Event<U>, Error<E> }`
-  - Enforced when used as workers in pipelines. Invalid signatures emit `E_WORKER_SIGNATURE`.
+- Canonical signature (ambient state): `func f(ev Event<T>) (Event<U>, error)`
+  - State is ambient; use `state.get/set/update/list` rather than passing a `State` parameter.
+  - Legacy 3-parameter form `func f(ctx Context, ev Event<T>, st State) R` is still accepted during migration but emits `W_WORKER_STATE_PARAM_DEPRECATED`.
+  - Invalid signatures emit `E_WORKER_SIGNATURE`.
 
 Event Flow Contracts
 

@@ -8,11 +8,4 @@ type EnumDecl struct {
     Comments []Comment
 }
 
-// EnumMember is a single member in an enum with an optional literal value.
-type EnumMember struct {
-    Name  string
-    Value string
-}
-
 func (EnumDecl) isNode() {}
-

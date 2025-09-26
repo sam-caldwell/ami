@@ -1,6 +1,7 @@
 package parser
 
 import (
+    "strings"
     "github.com/sam-caldwell/ami/src/ami/compiler/diag"
     astpkg "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     tok "github.com/sam-caldwell/ami/src/ami/compiler/token"
@@ -15,11 +16,18 @@ func (p *Parser) parseParamList() []astpkg.Param {
         if p.cur.Kind == tok.IDENT {
             ident := p.cur.Lexeme
             p.next()
+            sawPtr := false
             if p.cur.Kind == tok.STAR {
                 p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_PTR_UNSUPPORTED_SYNTAX", Message: "'*' pointer type/dereference is not allowed; AMI does not expose raw pointers (see 2.3.2)", File: p.file})
+                sawPtr = true
                 p.next()
+                // Specific guidance: pointer to State parameter is forbidden (ambient state)
+                if strings.EqualFold(p.cur.Lexeme, "state") {
+                    p.errors = append(p.errors, diag.Diagnostic{Level: diag.Error, Code: "E_STATE_PARAM_POINTER", Message: "state is ambient; do not take *State parameters. Use state.get/set/update/list", File: p.file})
+                }
             }
             if tr, ok := p.parseType(); ok {
+                if sawPtr { tr.Ptr = true }
                 name = ident
                 params = append(params, astpkg.Param{Name: name, Type: tr})
             } else {
@@ -72,4 +80,3 @@ func (p *Parser) parseType() (astpkg.TypeRef, bool) {
     }
     return tr, true
 }
-

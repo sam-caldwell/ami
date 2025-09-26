@@ -8,10 +8,21 @@ import (
 
 // analyzeStateContracts enforces basic node-state parameter rules:
 // - State parameter is immutable (cannot be reassigned): E_STATE_PARAM_ASSIGN
-// (No address-of in AMI 2.3.2)
+// - Ambient state: pointer parameters to State are forbidden: E_STATE_PARAM_POINTER
+//   (use ambient state.get/set/update/list per SPEC §6.3, AMI 2.3.2)
+// - No address-of in AMI 2.3.2
 func analyzeStateContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
     var diags []diag.Diagnostic
-    if len(fd.Params) < 3 || len(fd.Body) == 0 {
+    if len(fd.Params) < 1 {
+        return diags
+    }
+    // Explicitly reject pointer State parameters (even if parser already flagged generic pointer usage)
+    for _, p := range fd.Params {
+        if p.Type.Name == "State" && p.Type.Ptr {
+            diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_STATE_PARAM_POINTER", Message: "state is ambient; do not take *State parameters. Use state.get/set/update/list"})
+        }
+    }
+    if len(fd.Body) == 0 {
         return diags
     }
     // Build simple env of param name -> type
@@ -35,4 +46,3 @@ func analyzeStateContracts(fd astpkg.FuncDecl) []diag.Diagnostic {
     }
     return diags
 }
-

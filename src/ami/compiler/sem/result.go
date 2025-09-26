@@ -122,6 +122,8 @@ func AnalyzeFile(f *astpkg.File) Result {
     }
     // Cross-pipeline cycle detection (unless cycle pragma present)
     res.Diagnostics = append(res.Diagnostics, analyzeCycles(f)...)
+    // Cross-pipeline type safety for edge.Pipeline(name=..., type=...)
+    res.Diagnostics = append(res.Diagnostics, analyzeEdgePipelineTypeSafety(f, funcs)...)
     return res
 }
 

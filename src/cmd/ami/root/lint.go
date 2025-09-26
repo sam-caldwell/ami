@@ -419,7 +419,7 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
 		return false
 	}
 
-	apply := func(level diag.Level, code, message string, pkg, file string, pos *srcset.Position) {
+    apply := func(level diag.Level, code, message string, pkg, file string, pos *srcset.Position) {
 		// file-local suppression
 		if disabled[code] {
 			return
@@ -445,8 +445,17 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
 		if pos != nil {
 			d.Pos = pos
 		}
-		out = append(out, d)
-	}
+        out = append(out, d)
+    }
+    // Ambient state: flag pointer State parameters in function signatures
+    // We scan source since parser strips '*' before building TypeRef in params.
+    if strings.Contains(src, "*State") {
+        if idx := strings.Index(src, "*State"); idx >= 0 {
+            apply(diag.Warn, "W_STATE_PARAM_POINTER", "do not use *State parameters; state is ambient. Use state.get/set/update/list", pkgName, filePath, toPos(idx))
+        } else {
+            apply(diag.Warn, "W_STATE_PARAM_POINTER", "do not use *State parameters; state is ambient. Use state.get/set/update/list", pkgName, filePath, nil)
+        }
+    }
 	// Language reminders and compatibility hints
 	if off := findPackageIdentOffset(src); off >= 0 {
 		apply(diag.Warn, "W_LANG_NOT_GO", "AMI is not Go; semantics differ (no address-of '&', '*' is not dereference). Use '*' on assignment LHS and mutate(expr) for side effects.", pkgName, filePath, toPos(off))
@@ -803,16 +812,24 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
 			hintType(a)
 		}
 	}
-	// Pointer dereference is not part of AMI (2.3.2); no deref hints
-	for _, d := range f.Decls {
-		if fd, ok := d.(astpkg.FuncDecl); ok {
-			for _, p := range fd.Params {
-				hintType(p.Type)
-			}
-			for _, r := range fd.Result {
-				hintType(r)
-			}
-		}
+    // Pointer dereference is not part of AMI (2.3.2); no deref hints
+    for _, d := range f.Decls {
+        if fd, ok := d.(astpkg.FuncDecl); ok {
+            // Soft migration: suggest removing explicit State parameter (ambient state)
+            for _, prm := range fd.Params {
+                if strings.EqualFold(prm.Type.Name, "state") && !prm.Type.Ptr {
+                    var p *srcset.Position
+                    if prm.Type.Offset >= 0 { p = toPos(prm.Type.Offset) }
+                    apply(diag.Info, "W_STATE_PARAM_AMBIENT_SUGGEST", "State is ambient; prefer ambient access (state.get/set/update/list) over passing State parameter", pkgName, filePath, p)
+                }
+            }
+            for _, p := range fd.Params {
+                hintType(p.Type)
+            }
+            for _, r := range fd.Result {
+                hintType(r)
+            }
+        }
 		if sd, ok := d.(astpkg.StructDecl); ok {
 			for _, fld := range sd.Fields {
 				hintType(fld.Type)
@@ -825,6 +842,48 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
                 if (kind == "transform" || kind == "fanout") && len(st.Workers) == 0 && st.InlineWorker == nil && strings.TrimSpace(st.Attrs["worker"]) == "" {
                     apply(diag.Warn, "W_NODE_NO_WORKERS", "node has no workers; verify configuration", pkgName, filePath, nil)
                 }
+                // MultiPath hints (tolerant)
+                if v := strings.TrimSpace(st.Attrs["in"]); strings.HasPrefix(v, "edge.MultiPath(") {
+                    mp, ok := parseMultiPathFromValueLint(v)
+                    if !ok {
+                        apply(diag.Warn, "W_MP_INVALID", "invalid edge.MultiPath specification", pkgName, filePath, nil)
+                    } else {
+                        if kind != "collect" {
+                            apply(diag.Warn, "W_MP_ONLY_COLLECT", "edge.MultiPath should be used on Collect nodes", pkgName, filePath, nil)
+                        }
+                        if len(mp.Inputs) == 0 {
+                            apply(diag.Warn, "W_MP_INPUTS_EMPTY", "edge.MultiPath has no inputs", pkgName, filePath, nil)
+                        } else {
+                            if mp.Inputs[0].Kind != "fifo" {
+                                apply(diag.Warn, "W_MP_INPUT0_KIND", "first MultiPath input should be a FIFO default upstream edge", pkgName, filePath, nil)
+                            }
+                            // Smells on inputs
+                            for _, in := range mp.Inputs {
+                                if in.Backpressure == "block" && in.MaxCapacity == 0 {
+                                    apply(diag.Warn, "W_MP_EDGE_SMELL_UNBOUNDED_BLOCK", "MultiPath input uses block with unbounded capacity", pkgName, filePath, nil)
+                                }
+                                if in.Backpressure == "drop" && in.MaxCapacity > 0 && in.MaxCapacity <= 1 {
+                                    apply(diag.Warn, "W_MP_EDGE_SMELL_TINY_BOUNDED_DROP", "MultiPath input uses 'drop' with tiny bounded capacity (<=1)", pkgName, filePath, nil)
+                                }
+                            }
+                            // Type mismatch hint when provided
+                            base := ""
+                            for _, in := range mp.Inputs {
+                                if in.Type == "" { continue }
+                                if base == "" { base = in.Type; continue }
+                                if base != in.Type { apply(diag.Warn, "W_MP_INPUT_TYPE_MISMATCH", "MultiPath inputs have mismatched payload types", pkgName, filePath, nil); break }
+                            }
+                        }
+                        // Merge op hints
+                        if len(mp.Merge) == 0 {
+                            apply(diag.Info, "W_MP_MERGE_SUGGEST", "consider specifying merge behavior (e.g., merge.Sort, merge.Stable)", pkgName, filePath, nil)
+                        } else {
+                            for _, op := range mp.Merge {
+                                if !mpAllowedMerge(op.Name) { apply(diag.Warn, "W_MP_MERGE_INVALID", "invalid merge operator in MultiPath", pkgName, filePath, nil) }
+                            }
+                        }
+                    }
+                }
                 // Edge smell: unbounded capacity with block backpressure
                 if spec, ok := parseEdgeSpecFromNodeLint(st); ok {
                     if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
@@ -834,6 +893,10 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
                     if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
                         apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1)", pkgName, filePath, nil)
                     }
+                    // Backpressure tokens alignment: warn on legacy ambiguous 'drop'
+                    if strings.ToLower(spec.Backpressure) == "drop" {
+                        apply(diag.Warn, "W_EDGE_BP_AMBIGUOUS_DROP", "backpressure=drop is ambiguous; use dropOldest or dropNewest", pkgName, filePath, nil)
+                    }
                 }
             }
             for _, st := range pd.ErrorSteps {
@@ -841,12 +904,30 @@ func lintUnit(pkgName, filePath, src string, f *astpkg.File, cfg lintConfig) []d
                 if (kind == "transform" || kind == "fanout") && len(st.Workers) == 0 && st.InlineWorker == nil && strings.TrimSpace(st.Attrs["worker"]) == "" {
                     apply(diag.Warn, "W_NODE_NO_WORKERS", "error-path node has no workers; verify configuration", pkgName, filePath, nil)
                 }
+                if v := strings.TrimSpace(st.Attrs["in"]); strings.HasPrefix(v, "edge.MultiPath(") {
+                    mp, ok := parseMultiPathFromValueLint(v)
+                    if !ok {
+                        apply(diag.Warn, "W_MP_INVALID", "invalid edge.MultiPath specification", pkgName, filePath, nil)
+                    } else {
+                        if kind != "collect" {
+                            apply(diag.Warn, "W_MP_ONLY_COLLECT", "edge.MultiPath should be used on Collect nodes", pkgName, filePath, nil)
+                        }
+                        if len(mp.Inputs) == 0 { apply(diag.Warn, "W_MP_INPUTS_EMPTY", "edge.MultiPath has no inputs", pkgName, filePath, nil) }
+                        for _, in := range mp.Inputs {
+                            if in.Backpressure == "block" && in.MaxCapacity == 0 { apply(diag.Warn, "W_MP_EDGE_SMELL_UNBOUNDED_BLOCK", "MultiPath input uses block with unbounded capacity (error path)", pkgName, filePath, nil) }
+                            if in.Backpressure == "drop" && in.MaxCapacity > 0 && in.MaxCapacity <= 1 { apply(diag.Warn, "W_MP_EDGE_SMELL_TINY_BOUNDED_DROP", "MultiPath input uses 'drop' with tiny bounded capacity (<=1) (error path)", pkgName, filePath, nil) }
+                        }
+                    }
+                }
                 if spec, ok := parseEdgeSpecFromNodeLint(st); ok {
                     if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "block" && spec.MaxCapacity == 0 {
                         apply(diag.Warn, "W_EDGE_SMELL_UNBOUNDED_BLOCK", "edge configured with block backpressure and unbounded capacity (error path)", pkgName, filePath, nil)
                     }
                     if (spec.Kind == "fifo" || spec.Kind == "lifo" || spec.Kind == "pipeline") && strings.ToLower(spec.Backpressure) == "drop" && spec.MaxCapacity > 0 && spec.MaxCapacity <= 1 {
                         apply(diag.Warn, "W_EDGE_SMELL_TINY_BOUNDED_DROP", "edge uses 'drop' backpressure with tiny bounded capacity (<=1) (error path)", pkgName, filePath, nil)
+                    }
+                    if strings.ToLower(spec.Backpressure) == "drop" {
+                        apply(diag.Warn, "W_EDGE_BP_AMBIGUOUS_DROP", "backpressure=drop is ambiguous; use dropOldest or dropNewest", pkgName, filePath, nil)
                     }
                 }
             }
@@ -909,6 +990,64 @@ func parseEdgeSpecFromArgsLint(args []string) (edgeSpecLint, bool) {
 		}
 	}
 	return edgeSpecLint{}, false
+}
+
+// --- MultiPath tolerant parser for lint hints ---
+type mpInputLint struct{ edgeSpecLint }
+type mpSpecLint struct{
+    Inputs []edgeSpecLint
+    Merge  []mergeOpLint
+}
+type mergeOpLint struct{ Name string }
+
+func parseMultiPathFromValueLint(v string) (mpSpecLint, bool) {
+    s := strings.TrimSpace(v)
+    if !strings.HasPrefix(s, "edge.MultiPath(") || !strings.HasSuffix(s, ")") { return mpSpecLint{}, false }
+    inner := s[len("edge.MultiPath(") : len(s)-1]
+    idx := strings.Index(inner, "inputs=")
+    if idx < 0 { return mpSpecLint{}, false }
+    after := strings.TrimSpace(inner[idx+len("inputs="):])
+    if len(after) == 0 || after[0] != '[' { return mpSpecLint{}, false }
+    // capture bracket block
+    i := 1
+    depth := 1
+    for i < len(after) && depth > 0 {
+        switch after[i] {
+        case '[': depth++
+        case ']': depth--
+        }
+        i++
+    }
+    if depth != 0 { return mpSpecLint{}, false }
+    list := after[1 : i-1]
+    parts := splitTopLevelCommasLint(list)
+    var inputs []edgeSpecLint
+    for _, p := range parts {
+        p = strings.TrimSpace(p)
+        if p == "" { continue }
+        if es, ok := parseEdgeSpecFromValueLint(p); ok { inputs = append(inputs, es) }
+    }
+    // optional merge
+    rest := strings.TrimSpace(after[i:])
+    var merge []mergeOpLint
+    if j := strings.Index(rest, "merge="); j >= 0 {
+        mv := strings.TrimSpace(rest[j+len("merge="):])
+        if k := strings.IndexByte(mv, '('); k > 0 {
+            name := strings.TrimSpace(mv[:k])
+            merge = append(merge, mergeOpLint{Name: name})
+        }
+    }
+    return mpSpecLint{Inputs: inputs, Merge: merge}, true
+}
+
+func mpAllowedMerge(name string) bool {
+    n := strings.ToLower(strings.TrimPrefix(name, "merge."))
+    switch n {
+    case "", "sort", "stable", "key", "dedup", "window", "watermark", "timeout", "buffer", "partitionby":
+        return n != ""
+    default:
+        return false
+    }
 }
 
 func parseKVListLint(s string) map[string]string {

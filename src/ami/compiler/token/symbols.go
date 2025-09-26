@@ -41,6 +41,15 @@ const (
 	LexBoolGE     = ">="
 	LexBoolLT     = "<"
 	LexBoolLE     = "<="
-
+)
+const (
+	LexAstV1  = "ast.v1"
+	LexFile   = "File"
 	LexPragma = "#pragma"
+)
+const (
+	DeclPackage  = "PackageDecl"
+	DeclImport   = "ImportDecl"
+	DeclPipeline = "PipelineDecl"
+	DeclFunc     = "FuncDecl"
 )

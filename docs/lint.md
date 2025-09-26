@@ -40,7 +40,7 @@ Default severities unless overridden by config/strict:
   - `W_PIPELINE_EGRESS_POS` (info): egress position hint when present.
   - `W_UNREACHABLE_NODE` (off/future): unreachable node detection (disabled until branching/conditional flow is introduced in the pipeline grammar). When enabled, warns on nodes not reachable from `ingress`.
 
- - Language reminders:
+- Language reminders:
 
  - RAII usage hints:
   - `W_RAII_OWNED_HINT` (info): ownership (modeled internally as `Owned<T>`) should be released using an explicit close/release call (e.g., `release(x)`), optionally wrapped in `mutate(...)` when mutation semantics apply. `Owned<T>` is an analysis marker, not an AMI source type.
@@ -112,6 +112,40 @@ Examples
   - `ami --json --rules re:^W_FILE_ lint`
 - Strict mode with at most two warnings:
   - `ami --strict --max-warn 2 lint`
+
+### Examples (rules above)
+
+- Flag `*State` parameter usage (warn) and suggest ambient access (info):
+
+  package demo
+- State and ambient access:
+  - `W_STATE_PARAM_POINTER` (warn): do not use `*State` in function parameters. State is ambient; use `state.get/set/update/list`. The parser also emits `E_STATE_PARAM_POINTER` as an error; this linter rule provides early guidance during authoring.
+  - `W_STATE_PARAM_AMBIENT_SUGGEST` (info): prefer ambient state access; suggests removing explicit `State` parameter even when non-pointer.
+
+- Edge backpressure alignment:
+  - `W_EDGE_BP_AMBIGUOUS_DROP` (warn): `backpressure=drop` is ambiguous. Use `dropOldest` or `dropNewest` explicitly.
+
+  func worker(ctx Context, ev Event<int>, st *State) Event<int> { ev }
+
+  # Emits
+  - W_STATE_PARAM_POINTER (warn)
+
+- Suggest ambient access when `State` parameter is present:
+
+  package demo
+  func worker(ctx Context, ev Event<int>, st State) Event<int> { ev }
+
+  # Emits
+  - W_STATE_PARAM_AMBIENT_SUGGEST (info)
+
+- Warn on ambiguous `drop` backpressure in edge specs:
+
+  package demo
+  pipeline P { Ingress(cfg).Egress(in=edge.FIFO(minCapacity=1,maxCapacity=2,backpressure=drop,type=int)) }
+
+  # Emits
+  - W_EDGE_BP_AMBIGUOUS_DROP (warn)
+
 
 ## Notes
 

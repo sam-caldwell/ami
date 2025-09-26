@@ -281,9 +281,14 @@ func newBuildCmd() *cobra.Command {
 									continue
 								}
 								label := fmt.Sprintf("%s.step%d.in", pipe.Name, i)
-								ei := sch.EdgeInitV1{Unit: p.File, Pipeline: pipe.Name, Segment: "normal", Step: i, Node: st.Node, Label: label, Kind: st.InEdge.Kind, MinCapacity: st.InEdge.MinCapacity, MaxCapacity: st.InEdge.MaxCapacity, Backpressure: st.InEdge.Backpressure, Type: st.InEdge.Type, UpstreamName: st.InEdge.UpstreamName,
-									Bounded: st.InEdge.Bounded, Delivery: st.InEdge.Delivery}
-								edgesByPkg[p.Package] = append(edgesByPkg[p.Package], ei)
+                            ei := sch.EdgeInitV1{Unit: p.File, Pipeline: pipe.Name, Segment: "normal", Step: i, Node: st.Node, Label: label, Kind: st.InEdge.Kind, MinCapacity: st.InEdge.MinCapacity, MaxCapacity: st.InEdge.MaxCapacity, Backpressure: st.InEdge.Backpressure, Type: st.InEdge.Type, UpstreamName: st.InEdge.UpstreamName,
+                                Bounded: st.InEdge.Bounded, Delivery: st.InEdge.Delivery}
+                            // Propagate MultiPath details when present to edges.v1 for debug
+                            if st.InEdge.Kind == "edge.MultiPath" && st.InEdge.MultiPath != nil {
+                                // Shallow copy is sufficient for debug schema
+                                ei.MultiPath = st.InEdge.MultiPath
+                            }
+                            edgesByPkg[p.Package] = append(edgesByPkg[p.Package], ei)
 							}
 							// Error steps
 							for i, st := range pipe.ErrorSteps {
@@ -291,9 +296,12 @@ func newBuildCmd() *cobra.Command {
 									continue
 								}
 								label := fmt.Sprintf("%s.step%d.in", pipe.Name, i)
-								ei := sch.EdgeInitV1{Unit: p.File, Pipeline: pipe.Name, Segment: "error", Step: i, Node: st.Node, Label: label, Kind: st.InEdge.Kind, MinCapacity: st.InEdge.MinCapacity, MaxCapacity: st.InEdge.MaxCapacity, Backpressure: st.InEdge.Backpressure, Type: st.InEdge.Type, UpstreamName: st.InEdge.UpstreamName,
-									Bounded: st.InEdge.Bounded, Delivery: st.InEdge.Delivery}
-								edgesByPkg[p.Package] = append(edgesByPkg[p.Package], ei)
+                            ei := sch.EdgeInitV1{Unit: p.File, Pipeline: pipe.Name, Segment: "error", Step: i, Node: st.Node, Label: label, Kind: st.InEdge.Kind, MinCapacity: st.InEdge.MinCapacity, MaxCapacity: st.InEdge.MaxCapacity, Backpressure: st.InEdge.Backpressure, Type: st.InEdge.Type, UpstreamName: st.InEdge.UpstreamName,
+                                Bounded: st.InEdge.Bounded, Delivery: st.InEdge.Delivery}
+                            if st.InEdge.Kind == "edge.MultiPath" && st.InEdge.MultiPath != nil {
+                                ei.MultiPath = st.InEdge.MultiPath
+                            }
+                            edgesByPkg[p.Package] = append(edgesByPkg[p.Package], ei)
 							}
 						}
 					}

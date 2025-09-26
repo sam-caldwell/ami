@@ -6,6 +6,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/diag"
     "github.com/sam-caldwell/ami/src/ami/compiler/types"
     "strings"
+    srcset "github.com/sam-caldwell/ami/src/ami/compiler/source"
 )
 
 func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl, scope *types.Scope) []diag.Diagnostic {
@@ -13,6 +14,7 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl, sc
     // Check worker references for defined functions or imported package refs.
     // Prefer attribute-driven resolution (worker=...), otherwise fall back to positional Workers.
     check := func(st astpkg.NodeCall) {
+        pos := &srcset.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}
         // Inline worker literal needs no undefined check
         if st.InlineWorker != nil {
             return
@@ -41,10 +43,13 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl, sc
                 // Only flag undefined for explicit factory calls; plain identifiers may
                 // refer to imported workers resolved later in lowering.
                 // Here, treat unknown as undefined regardless of kind inference
-                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: fmt.Sprintf("unknown worker/factory %q", name)})
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: fmt.Sprintf("unknown worker/factory %q", name), Pos: pos})
             } else {
                 if !isWorkerSignature(fd) {
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: fmt.Sprintf("worker %q has invalid signature", name)})
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: fmt.Sprintf("worker %q has invalid signature", name), Pos: pos})
+                } else if isLegacyWorkerSignature(fd) {
+                    // Transitional notice: explicit State parameter is deprecated; ambient state is preferred
+                    diags = append(diags, diag.Diagnostic{Level: diag.Info, Code: "W_WORKER_STATE_PARAM_DEPRECATED", Message: "explicit State parameter is deprecated; state is ambient. Use state.get/set/update/list", Pos: pos})
                 }
             }
             return
@@ -62,10 +67,12 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl, sc
             }
             if fd, ok := funcs[name]; ok {
                 if !isWorkerSignature(fd) {
-                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: fmt.Sprintf("worker %q has invalid signature", name)})
+                    diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: fmt.Sprintf("worker %q has invalid signature", name), Pos: pos})
+                } else if isLegacyWorkerSignature(fd) {
+                    diags = append(diags, diag.Diagnostic{Level: diag.Info, Code: "W_WORKER_STATE_PARAM_DEPRECATED", Message: "explicit State parameter is deprecated; state is ambient. Use state.get/set/update/list", Pos: pos})
                 }
             } else if w.Kind == "factory" {
-                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: fmt.Sprintf("unknown worker/factory %q", name)})
+                diags = append(diags, diag.Diagnostic{Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: fmt.Sprintf("unknown worker/factory %q", name), Pos: pos})
             }
         }
     }
@@ -94,7 +101,7 @@ func analyzeWorkers(pd astpkg.PipelineDecl, funcs map[string]astpkg.FuncDecl, sc
     return diags
 }
 
-func isWorkerSignature(fd astpkg.FuncDecl) bool {
+func isLegacyWorkerSignature(fd astpkg.FuncDecl) bool {
     // params: (Context, Event<T>, State)
     if len(fd.Params) != 3 {
         return false
@@ -126,4 +133,39 @@ func isWorkerSignature(fd astpkg.FuncDecl) bool {
     default:
         return false
     }
+}
+
+func isCanonicalWorkerSignature(fd astpkg.FuncDecl) bool {
+    // params: (Event<T>)
+    if len(fd.Params) != 1 {
+        return false
+    }
+    p := fd.Params[0].Type
+    if !(p.Name == "Event" && len(p.Args) == 1 && !p.Ptr) {
+        return false
+    }
+    // results: (Event<U>, error)
+    if len(fd.Result) != 2 {
+        return false
+    }
+    r1 := fd.Result[0]
+    r2 := fd.Result[1]
+    if !(r1.Name == "Event" && len(r1.Args) == 1 && !r1.Slice) {
+        return false
+    }
+    if !(strings.ToLower(r2.Name) == "error" && !r2.Slice && !r2.Ptr && len(r2.Args) == 0) {
+        return false
+    }
+    return true
+}
+
+func isWorkerSignature(fd astpkg.FuncDecl) bool {
+    // Accept canonical or legacy during transition
+    if isCanonicalWorkerSignature(fd) {
+        return true
+    }
+    if isLegacyWorkerSignature(fd) {
+        return true
+    }
+    return false
 }

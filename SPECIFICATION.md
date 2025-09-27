@@ -62,7 +62,7 @@
 - For every .go file there will be a corresponding _test.go file containing at least one happy path and one sad path test.
 - Use docstrings to describe what each top-level declaration is and what it does in clear language.
 ## Deliverables Checklist
-- [ ] Binary: `ami` with subcommand scaffold and flag plumbing
+- [X] Binary: `ami` with subcommand scaffold and flag plumbing
   - [x] Global flag handling (`--help`, `--json`, `--verbose`, `--color`)
   - [x] Logger with human/JSON renderers and verbosity levels
   - [x] Workspace loader/parser for `ami.workspace`

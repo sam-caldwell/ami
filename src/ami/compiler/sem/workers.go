@@ -23,6 +23,8 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
             funcs[fn.Name] = fn
         }
     }
+    // collect import aliases for dotted worker suppression
+    imports := ImportAliases(f)
     // scan pipelines and their steps
     for _, d := range f.Decls {
         pd, ok := d.(*ast.PipelineDecl)
@@ -41,7 +43,14 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
             // trim quotes if present
             wname = strings.Trim(wname, "\"")
             if wname == "" { continue }
-            if i := strings.LastIndexByte(wname, '.'); i >= 0 { wname = wname[i+1:] }
+            if i := strings.LastIndexByte(wname, '.'); i >= 0 {
+                // if prefix is an import alias, treat as external and skip undefined/signature checks
+                prefix := wname[:i]
+                if _, ok := imports[prefix]; ok {
+                    continue
+                }
+                wname = wname[i+1:]
+            }
             fn, ok := funcs[wname]
             if !ok {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: "worker undefined: " + wname, Pos: &diag.Position{Line: a0.Pos.Line, Column: a0.Pos.Column, Offset: a0.Pos.Offset}})
@@ -62,4 +71,3 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
     }
     return out
 }
-

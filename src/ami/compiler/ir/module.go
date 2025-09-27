@@ -4,5 +4,5 @@ package ir
 type Module struct {
     Package   string
     Functions []Function
+    Directives []Directive
 }
-

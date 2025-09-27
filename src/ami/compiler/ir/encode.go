@@ -15,6 +15,19 @@ func EncodeModule(m Module) ([]byte, error) {
         "package":  m.Package,
         "functions": []any{},
     }
+    // directives (pragma-derived)
+    if len(m.Directives) > 0 {
+        ds := make([]any, 0, len(m.Directives))
+        for _, d := range m.Directives {
+            obj := map[string]any{"domain": d.Domain}
+            if d.Key != "" { obj["key"] = d.Key }
+            if d.Value != "" { obj["value"] = d.Value }
+            if len(d.Args) > 0 { obj["args"] = d.Args }
+            if len(d.Params) > 0 { obj["params"] = d.Params }
+            ds = append(ds, obj)
+        }
+        jm["directives"] = ds
+    }
     fns := make([]any, 0, len(m.Functions))
     for _, f := range m.Functions {
         jf := map[string]any{

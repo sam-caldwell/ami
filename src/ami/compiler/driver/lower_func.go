@@ -6,18 +6,18 @@ import (
 )
 
 // lowerFuncDecl lowers a single function declaration into IR with a single entry block.
-func lowerFuncDecl(fn *ast.FuncDecl, results map[string][]string) ir.Function {
+func lowerFuncDecl(fn *ast.FuncDecl, funcResMap map[string][]string) ir.Function {
     var params []ir.Value
-    var results []ir.Value
-    st := &lowerState{varTypes: map[string]string{}, funcResults: results}
+    var outResults []ir.Value
+    st := &lowerState{varTypes: map[string]string{}, funcResults: funcResMap}
     for _, p := range fn.Params {
         params = append(params, ir.Value{ID: p.Name, Type: p.Type})
         if p.Name != "" && p.Type != "" { st.varTypes[p.Name] = p.Type }
     }
     for _, r := range fn.Results {
-        results = append(results, ir.Value{Type: r.Type})
+        outResults = append(outResults, ir.Value{Type: r.Type})
     }
     instrs := lowerBlock(st, fn.Body)
     blk := ir.Block{Name: "entry", Instr: instrs}
-    return ir.Function{Name: fn.Name, Params: params, Results: results, Blocks: []ir.Block{blk}}
+    return ir.Function{Name: fn.Name, Params: params, Results: outResults, Blocks: []ir.Block{blk}}
 }

@@ -90,6 +90,10 @@ func newRootCmd() *cobra.Command {
     mod.AddCommand(newModListCmd())
     mod.AddCommand(newModUpdateCmd())
     cmd.AddCommand(mod)
+    // pipeline commands
+    pipe := newPipelineCmd()
+    pipe.AddCommand(newPipelineVisualizeCmd())
+    cmd.AddCommand(pipe)
     return cmd
 }
 

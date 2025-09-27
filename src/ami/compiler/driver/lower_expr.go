@@ -55,7 +55,11 @@ func lowerCallExpr(st *lowerState, c *ast.CallExpr) ir.Expr {
         }
     }
     id := st.newTemp()
-    res := &ir.Value{ID: id, Type: "any"}
+    rtype := "any"
+    if st != nil && st.funcResults != nil {
+        if rs, ok := st.funcResults[c.Name]; ok && len(rs) > 0 && rs[0] != "" { rtype = rs[0] }
+    }
+    res := &ir.Value{ID: id, Type: rtype}
     return ir.Expr{Op: "call", Callee: c.Name, Args: args, Result: res}
 }
 

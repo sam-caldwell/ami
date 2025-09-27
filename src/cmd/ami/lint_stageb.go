@@ -14,6 +14,8 @@ import (
     diag "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
+type sourceWithPos struct{ line, col int }
+
 // lintStageB invokes parser/semantics-backed rules when enabled by toggles t.
 // Currently implements MemorySafety diagnostics over all .ami files reachable
 // from the main package root and its recursive local imports.
@@ -72,8 +74,19 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
 
             // Unused imports: only for identifier-form imports (not strings)
             if t.StageB || t.Unused || t.ImportExist {
+                seenAlias := map[string]sourceWithPos{}
                 for _, dcl := range af.Decls {
                     im, ok := dcl.(*ast.ImportDecl); if !ok { continue }
+                    // Duplicate alias detection: explicit alias used more than once
+                    if im.Alias != "" {
+                        key := im.Alias
+                        if prior, dup := seenAlias[key]; dup {
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_DUP_IMPORT_ALIAS", Message: "duplicate import alias: " + key, File: path, Pos: &diag.Position{Line: im.AliasPos.Line, Column: im.AliasPos.Column, Offset: im.AliasPos.Offset}, Data: map[string]any{"prevLine": prior.line, "prevColumn": prior.col}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        } else {
+                            seenAlias[key] = sourceWithPos{line: im.AliasPos.Line, col: im.AliasPos.Column}
+                        }
+                    }
                     if im.Path != "" && !strings.ContainsAny(im.Path, "/\".") { // looks like bare ident
                         name := im.Path
                         if !used[name] {

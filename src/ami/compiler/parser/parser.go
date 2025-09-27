@@ -60,12 +60,34 @@ func (p *Parser) ParseFile() (*ast.File, error) {
                     p.next()
                     continue
                 }
-                path := p.cur.Lexeme
-                ppos := p.cur.Pos
-                if p.cur.Kind == token.String && len(path) >= 2 { path = path[1:len(path)-1] }
-                p.next()
+                alias := ""
+                aliasPos := p.cur.Pos
+                var path string
+                var ppos source.Position
+                if p.cur.Kind == token.String {
+                    path = p.cur.Lexeme
+                    ppos = p.cur.Pos
+                    if len(path) >= 2 { path = path[1:len(path)-1] }
+                    p.next()
+                } else if p.cur.Kind == token.Ident {
+                    // Possible alias form: alias "path"
+                    alias = p.cur.Lexeme
+                    aliasPos = p.cur.Pos
+                    p.next()
+                    if p.cur.Kind == token.String {
+                        path = p.cur.Lexeme
+                        ppos = p.cur.Pos
+                        if len(path) >= 2 { path = path[1:len(path)-1] }
+                        p.next()
+                    } else {
+                        // Treat previous ident as path (no alias)
+                        path = alias
+                        ppos = aliasPos
+                        alias = ""
+                    }
+                }
                 constraint := p.parseImportConstraint()
-                im := &ast.ImportDecl{Pos: startPos, Path: path, Leading: p.pending, PathPos: ppos, Constraint: constraint}
+                im := &ast.ImportDecl{Pos: startPos, Path: path, Leading: p.pending, PathPos: ppos, Alias: alias, AliasPos: aliasPos, Constraint: constraint}
                 p.pending = nil
                 f.Decls = append(f.Decls, im)
             }
@@ -78,12 +100,33 @@ func (p *Parser) ParseFile() (*ast.File, error) {
             p.syncTop()
             continue
         }
-        path := p.cur.Lexeme
-        ppos := p.cur.Pos
-        if p.cur.Kind == token.String && len(path) >= 2 { path = path[1:len(path)-1] }
-        p.next()
+        alias := ""
+        aliasPos := p.cur.Pos
+        var path string
+        var ppos source.Position
+        if p.cur.Kind == token.String {
+            path = p.cur.Lexeme
+            ppos = p.cur.Pos
+            if len(path) >= 2 { path = path[1:len(path)-1] }
+            p.next()
+        } else if p.cur.Kind == token.Ident {
+            // Possible alias form
+            alias = p.cur.Lexeme
+            aliasPos = p.cur.Pos
+            p.next()
+            if p.cur.Kind == token.String {
+                path = p.cur.Lexeme
+                ppos = p.cur.Pos
+                if len(path) >= 2 { path = path[1:len(path)-1] }
+                p.next()
+            } else {
+                path = alias
+                ppos = aliasPos
+                alias = ""
+            }
+        }
         constraint := p.parseImportConstraint()
-        im := &ast.ImportDecl{Pos: startPos, Path: path, Leading: p.pending, PathPos: ppos, Constraint: constraint}
+        im := &ast.ImportDecl{Pos: startPos, Path: path, Leading: p.pending, PathPos: ppos, Alias: alias, AliasPos: aliasPos, Constraint: constraint}
         p.pending = nil
         f.Decls = append(f.Decls, im)
     }
@@ -506,8 +549,8 @@ func exprText(e ast.Expr) string {
         if left == "" { left = "?" }
         return left + "." + v.Sel
     case *ast.CallExpr:
-        // return callee name only
-        return v.Name
+        // return callee name with parentheses
+        return v.Name + "()"
     case *ast.SliceLit:
         return "slice"
     case *ast.SetLit:

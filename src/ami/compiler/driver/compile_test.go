@@ -106,6 +106,38 @@ func TestCompile_IRTyping_ReduceAnyOnReturn(t *testing.T) {
     if v0["type"] != "int" { t.Fatalf("want return type int, got %v", v0["type"]) }
 }
 
+func TestCompile_IRTyping_CallResultType(t *testing.T) {
+    ws := workspace.Workspace{}
+    fs := &source.FileSet{}
+    code := "package app\nfunc G() (int) { return 1 }\nfunc F() (int) { return G() }\n"
+    fs.AddFile("call.ami", code)
+    pkgs := []Package{{Name: "app", Files: fs}}
+    arts, _ := Compile(ws, pkgs, Options{Debug: true})
+    // locate F unit IR and inspect return type
+    if len(arts.IR) == 0 { t.Fatalf("no IR emitted") }
+    // read any IR; in this scaffold it's per-unit; pick the first
+    b, err := os.ReadFile(arts.IR[0])
+    if err != nil { t.Fatalf("read: %v", err) }
+    var obj map[string]any
+    if err := json.Unmarshal(b, &obj); err != nil { t.Fatalf("json: %v", err) }
+    fns := obj["functions"].([]any)
+    // find F
+    var f map[string]any
+    for _, it := range fns {
+        m := it.(map[string]any)
+        if m["name"] == "F" { f = m; break }
+    }
+    if f == nil { t.Fatalf("function F not found") }
+    blks := f["blocks"].([]any)
+    blk := blks[0].(map[string]any)
+    instrs := blk["instrs"].([]any)
+    last := instrs[len(instrs)-1].(map[string]any)
+    if last["op"] != "RETURN" { t.Fatalf("last op: %v", last["op"]) }
+    vals := last["values"].([]any)
+    v0 := vals[0].(map[string]any)
+    if v0["type"] != "int" { t.Fatalf("return type: %v", v0["type"]) }
+}
+
 func TestCompile_EdgesIndexDebug(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
@@ -174,4 +206,13 @@ func TestCompile_ASTDebug_FileExistsAndSchema(t *testing.T) {
     if len(tps) != 1 { t.Fatalf("typeParams len: %d", len(tps)) }
     tp0, _ := tps[0].(map[string]any)
     if tp0["name"] != "T" || tp0["constraint"] != "any" { t.Fatalf("typeParam0: %+v", tp0) }
+    // pipelines content
+    pipes, ok := obj["pipelines"].([]any)
+    if !ok || len(pipes) != 1 { t.Fatalf("pipelines: %T len=%d", obj["pipelines"], len(pipes)) }
+    p0, _ := pipes[0].(map[string]any)
+    if p0["name"] != "P" { t.Fatalf("pipe name: %v", p0["name"]) }
+    steps, _ := p0["steps"].([]any)
+    if len(steps) != 1 { t.Fatalf("steps len: %d", len(steps)) }
+    s0, _ := steps[0].(map[string]any)
+    if s0["name"] != "Alpha" { t.Fatalf("step name: %v", s0["name"]) }
 }

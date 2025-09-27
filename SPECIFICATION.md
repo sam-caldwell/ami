@@ -347,6 +347,44 @@ packages:
 - [X] With `--verbose`, writes test results to `build/test/test.log`
 - [X] With `--verbose`, writes `build/test/test.manifest` listing each test in execution order
 ### 1.1.9.0. Project Builder (`ami build`)
+### 1.1.10.0. Pipeline Visualizer (`ami pipeline visualize`)
+> Goal: Provide quick, in‑terminal ASCII visualizations of AMI pipelines to aid understanding and debugging without external tooling.
+
+- Command hierarchy
+  - Parent: `ami pipeline`
+  - Subcommand: `visualize`
+- Behavior
+  - Reads `ami.workspace` to locate the main package (default `packages.main.root`) and source roots.
+  - Discovers pipelines in sources and renders each as an ASCII graph to stdout in human mode.
+  - When `--json` is present, emits a machine‑readable structure (e.g., `graph.v1`) describing nodes, edges, and attributes instead of ASCII.
+  - Supports `--package <key>` and `--file <path>` to narrow scope (optional for initial milestone; default is main package and all `.ami` units).
+  - Honors global flags; `--color` may colorize node kinds and edges in human mode (never with `--json`).
+- Rendering (human)
+  - ASCII only (no Unicode box‑drawing) for broad terminal compatibility.
+  - Deterministic layout: stable ordering of nodes and edges; fixed width spacing; wrap long labels with ellipses.
+  - One pipeline per block; separate blocks with a blank line; prefix with pipeline name and package.
+  - Example (illustrative):
+    ```
+    package: main  pipeline: IngestToStore
+    [ingress] --> (WorkerA) --> (WorkerB) --> [egress]
+                  |                         
+                  +--> (ErrorHandler) ------+
+    ```
+- JSON (`--json`)
+  - Schema `graph.v1` (stable ordering): `{ package, unit, name, nodes:[{id, kind, label}], edges:[{from, to, attrs}] }`.
+  - Final summary record `{ schema:"graph.v1", type:"summary", pipelines:<n> }` may be added (TBD).
+- Inputs
+  - Source discovery aligns with build/lint: start at `packages.main.root` and include direct imports (workspace‑local only for initial phase).
+  - Parser/AST extraction provided by compiler front‑end (Agent D). This command consumes the tolerant shape (no semantics beyond graph extraction).
+- Errors
+  - On missing workspace or packages, exit `USER_ERROR` and print a clear message; with `--json`, emit a `diag.v1` error record.
+  - On parse/graph extraction failures, emit `diag.v1` stream and exit 1.
+- Tests
+  - Unit tests for renderer: given a minimal graph structure, assert ASCII layout (goldens) and JSON structure.
+  - CLI tests: run command with/without `--json`, validate exit code and outputs.
+  - E2E test: small sample pipeline sources under `build/test/e2e/pipeline_visualize/...` and assert the ASCII output contains expected lines.
+- Future
+  - Add `--focus <node>` to center graph; `--width` to control wrapping; `--legend` toggle; `--save <file>` to write ASCII/JSON to a file.
 #### 1.1.9.1. Configuration
 - [ ] The build / parse / compiler tool is configured by `ami.workspace`
 - [ ] If `toolchain.compiler.env` is empty, default to a single target `darwin/arm64` for this project phase.
@@ -805,14 +843,14 @@ Tests & Docs
   - [ ] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args). Full normalization deferred.
   - [ ] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
 - [ ] Lint & Smells
-  - [ ] `W_MERGE_SORT_NO_FIELD`: `merge.Sort` specified without a field.
+  - [X] `W_MERGE_SORT_NO_FIELD`: `merge.Sort` specified without a field.
 - [ ] `W_MERGE_TINY_BUFFER`: `merge.Buffer` set to very small capacity (<=1) with `dropOldest`/`dropNewest` policy.
   - [ ] `W_MERGE_WATERMARK_MISSING_FIELD`: `merge.Watermark` without a field.
   - [ ] `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`: invalid window size.
   - [ ] Ensure rules are suppressible and configurable.
 - [ ] Tests (scaffold)
-  - [ ] Parser round‑trips `edge.MultiPath(...)` as raw attr on `Collect`.
-  - [ ] Semantics: context enforcement (Collect‑only), first‑input kind check, type‑compatibility across inputs, and basic merge‑op name validation.
+  - [X] Parser round‑trips `edge.MultiPath(...)` as raw attr on `Collect`.
+  - [X] Semantics: context enforcement (Collect‑only) and basic merge‑op name/arity validation.
   - [X] IR/codegen: pipelines schema encodes MultiPath; ASM listings emit `mp_*` pseudo‑ops; edges.v1 includes MultiPath snapshot (build test added).
   - [ ] Merge attribute normalization and per‑attribute validation (deferred).
 - [ ] Documentation

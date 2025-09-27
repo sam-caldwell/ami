@@ -12,6 +12,7 @@ type FuncDecl struct {
     Results []Result // tuple of result types (scaffold)
     Body    *BlockStmt
     Leading []Comment
+    Decorators []Decorator
     ParamsLParen  source.Position
     ParamsRParen  source.Position
     ResultsLParen source.Position

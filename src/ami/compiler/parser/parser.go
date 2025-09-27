@@ -17,6 +17,8 @@ type Parser struct {
     // collected leading comments to attach to the next node
     pending []ast.Comment
     errors  []error
+    // decorators collected immediately before a function declaration
+    pendingDecos []ast.Decorator
 }
 
 // SyntaxError represents a parser error with position information.
@@ -143,8 +145,18 @@ func (p *Parser) ParseFile() (*ast.File, error) {
         f.Decls = append(f.Decls, im)
     }
 
-    // zero or more function declarations: `func Name(params) [results] {}` scaffold
-    for p.cur.Kind == token.KwFunc {
+    // zero or more decorators + function declarations: decorators must precede func
+    for p.cur.Kind == token.AtSym || p.cur.Kind == token.KwFunc {
+        // collect any decorators in source order
+        for p.cur.Kind == token.AtSym {
+            if d, ok := p.parseDecorator(); ok {
+                p.pendingDecos = append(p.pendingDecos, d)
+            } else {
+                // skip invalid decorator token
+                p.next()
+            }
+        }
+        if p.cur.Kind != token.KwFunc { break }
         fn, err := p.parseFuncDecl()
         if err != nil {
             p.errf("%v", err)
@@ -237,9 +249,39 @@ func (p *Parser) parseFuncDecl() (*ast.FuncDecl, error) {
     body, err := p.parseFuncBlock()
     if err != nil { return nil, err }
     fn := &ast.FuncDecl{Pos: pos, NamePos: namePos, Name: name, TypeParams: typeParams, Params: params, Results: results, Body: body, Leading: p.pending,
-        ParamsLParen: lp, ParamsRParen: rp, ResultsLParen: rlp, ResultsRParen: rrp}
+        Decorators: p.pendingDecos, ParamsLParen: lp, ParamsRParen: rp, ResultsLParen: rlp, ResultsRParen: rrp}
     p.pending = nil
+    p.pendingDecos = nil
     return fn, nil
+}
+
+// parseDecorator parses a decorator starting at '@'.
+func (p *Parser) parseDecorator() (ast.Decorator, bool) {
+    if p.cur.Kind != token.AtSym { return ast.Decorator{}, false }
+    atPos := p.cur.Pos
+    p.next()
+    if p.cur.Kind != token.Ident {
+        p.errf("expected decorator name after '@', got %q", p.cur.Lexeme)
+        return ast.Decorator{Pos: atPos}, false
+    }
+    name := p.cur.Lexeme
+    namePos := p.cur.Pos
+    p.next()
+    // Optional arg list
+    var lparen, rparen source.Position
+    var args []ast.Expr
+    if p.cur.Kind == token.LParenSym {
+        lparen = p.cur.Pos
+        p.next()
+        for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
+            e, ok := p.parseExprPrec(1)
+            if ok { args = append(args, e) } else { p.errf("unexpected token in decorator args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
+            if p.cur.Kind == token.CommaSym { p.next(); continue }
+        }
+        rparen = p.cur.Pos
+        if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' to close decorator args") }
+    }
+    return ast.Decorator{Pos: atPos, NamePos: namePos, Name: name, LParen: lparen, Args: args, RParen: rparen}, true
 }
 
 func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position, error) {

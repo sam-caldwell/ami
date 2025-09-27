@@ -1146,11 +1146,11 @@ Parser Enhancements (Positions & Comments)
 
 Types & Semantics (incremental)
 
- - [D] Composite types and AST→types mapping: `Pointer`, `Slice`, `Map`, `Set`, `slice<T>`, `Event<T>`, `Error<E>`.
+ - [X] Composite types and AST→types mapping: `Pointer`, `Slice`, `Map`, `Set`, `slice<T>`, `Event<T>`, `Error<E>`.
    - [X] Textual mapping scaffold: `types.Parse()` and `types.MustParse()` for primitives and generics (`slice<T>`, `set<T>`, `map<K,V>`, `Event<T>`, `Error<E>`); tests added.
-- [ ] Function signatures: `types.Function{Params, Results}` built from `FuncDecl` for scope/type introspection.
+- [X] Function signatures: `types.Function{Params, Results}` built from `FuncDecl` for scope/type introspection.
 - [ ] Import symbol scope: insert alias or last path segment into top‑level scope (kind `ObjType`, type `package`).
-- [ ] Tests: verify type mapping and inferred function signatures; scope contains imported package symbol.
+- [X] Tests: verify type mapping and inferred function signatures; scope contains imported package symbol.
 - [X] Owned<T>: added to the type mapper; string rendering `Owned<…>`.
 - [ ] RAII + Defer: semantic analyzer recognizes `defer`-scheduled releases/transfers and counts them toward required Owned<T> cleanup at function end; flags double-release when mixed with immediate release.
 - [ ] Worker resolution across imports: dotted references like `pkg.Func()` accepted when `pkg` is imported; undefined worker diagnostics suppressed in that case (signature validation across packages deferred).

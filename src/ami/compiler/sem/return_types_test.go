@@ -89,3 +89,23 @@ func TestReturnTypesWithSigs_LocalEnv_InferredIdent_Mismatch(t *testing.T) {
     ds := AnalyzeReturnTypesWithSigs(af, map[string][]string{})
     if len(ds) == 0 { t.Fatalf("expected mismatch diag") }
 }
+
+func TestReturnTypesWithSigs_Mixed_CallAndLiteral_OK(t *testing.T) {
+    code := "package app\nfunc Pair() (int,string) { return 1,\"x\" }\nfunc F() (int,string,int) { return Pair(), 3 }\n"
+    f := (&source.FileSet{}).AddFile("t4.ami", code)
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    res := map[string][]string{"Pair": {"int", "string"}}
+    ds := AnalyzeReturnTypesWithSigs(af, res)
+    if len(ds) != 0 { t.Fatalf("unexpected diags: %+v", ds) }
+}
+
+func TestReturnTypesWithSigs_Mixed_CallAndLiteral_Mismatch(t *testing.T) {
+    code := "package app\nfunc Pair() (int,string) { return 1,\"x\" }\nfunc F() (int,string,int) { return Pair(), \"z\" }\n"
+    f := (&source.FileSet{}).AddFile("t5.ami", code)
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    res := map[string][]string{"Pair": {"int", "string"}}
+    ds := AnalyzeReturnTypesWithSigs(af, res)
+    if len(ds) == 0 { t.Fatalf("expected mismatch diags") }
+}

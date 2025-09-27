@@ -432,6 +432,27 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             ds := &ast.DeferStmt{Pos: dpos, Call: ce, Leading: leading}
             stmts = append(stmts, ds)
             if p.cur.Kind == token.SemiSym { p.next() }
+        case token.Star:
+            // Mutating assignment: *name = expr
+            leading := p.pending; p.pending = nil
+            starPos := p.cur.Pos
+            p.next()
+            if p.cur.Kind != token.Ident {
+                p.errf("expected identifier after '*' in assignment, got %q", p.cur.Lexeme)
+                p.syncUntil(token.SemiSym, token.RBraceSym)
+                if p.cur.Kind == token.SemiSym { p.next() }
+                continue
+            }
+            name := p.cur.Lexeme
+            npos := p.cur.Pos
+            p.next()
+            if p.cur.Kind != token.Assign { p.errf("expected '=' after '*%s'", name); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
+            p.next()
+            rhs, ok := p.parseExprPrec(1)
+            if !ok { p.errf("expected expression on right-hand side of assignment"); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
+            as := &ast.AssignStmt{Pos: npos, Name: name, NamePos: npos, Value: rhs, Leading: leading, Mutating: true, StarPos: starPos}
+            stmts = append(stmts, as)
+            if p.cur.Kind == token.SemiSym { p.next() }
         case token.Ident:
             leading := p.pending; p.pending = nil
             // Possible assignment or general expression starting with an identifier.

@@ -600,7 +600,7 @@ func isStringLit(e ast.Expr) bool {
 // - an expression (ident/selector/call/number/string/literal), or
 // - a key=value pair where key is an identifier and value is an expression.
 func (p *Parser) parseAttrArg() (ast.Arg, bool) {
-    if p.cur.Kind == token.Ident {
+    if p.cur.Kind == token.Ident || p.cur.Kind == token.KwType {
         key := p.cur.Lexeme
         pos := p.cur.Pos
         p.next()
@@ -769,7 +769,15 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
                     aname := p.cur.Lexeme
                     apos := p.cur.Pos
                     p.next()
-                    for p.cur.Kind == token.DotSym { p.next(); if p.cur.Kind != token.Ident { p.errf("expected ident after '.' in attribute name, got %q", p.cur.Lexeme); break }; aname += "." + p.cur.Lexeme; p.next() }
+                    for p.cur.Kind == token.DotSym {
+                        p.next()
+                        if !(p.cur.Kind == token.Ident || p.cur.Kind == token.KwType || p.cur.Kind == token.KwPipeline) {
+                            p.errf("expected ident after '.' in attribute name, got %q", p.cur.Lexeme)
+                            break
+                        }
+                        aname += "." + p.cur.Lexeme
+                        p.next()
+                    }
                     var aargs []ast.Arg
                     if p.cur.Kind == token.LParenSym {
                         p.next()
@@ -870,7 +878,15 @@ func (p *Parser) parseStepBlock() (*ast.BlockStmt, error) {
                     aname := p.cur.Lexeme
                     apos := p.cur.Pos
                     p.next()
-                    for p.cur.Kind == token.DotSym { p.next(); if p.cur.Kind != token.Ident { p.errf("expected ident after '.' in attribute name, got %q", p.cur.Lexeme); break }; aname += "." + p.cur.Lexeme; p.next() }
+                    for p.cur.Kind == token.DotSym {
+                        p.next()
+                        if !(p.cur.Kind == token.Ident || p.cur.Kind == token.KwType || p.cur.Kind == token.KwPipeline) {
+                            p.errf("expected ident after '.' in attribute name, got %q", p.cur.Lexeme)
+                            break
+                        }
+                        aname += "." + p.cur.Lexeme
+                        p.next()
+                    }
                     var aargs []ast.Arg
                     if p.cur.Kind == token.LParenSym {
                         p.next()

@@ -863,9 +863,9 @@ Tests & Docs
   - [X] IR/codegen: pipelines schema encodes MultiPath; ASM listings emit `mp_*` pseudo‑ops; edges.v1 includes MultiPath snapshot (build test added).
   - [ ] Merge attribute normalization and per‑attribute validation (deferred).
 - [ ] Documentation
-  - [ ] Add `docs/merge.md` describing attribute semantics, precedence, examples.
+  - [X] Add `docs/merge.md` describing attribute semantics, precedence, examples.
   - [ ] Update `docs/edges.md` to include `edge.MultiPath` and cross-reference `merge`.
-  - [ ] Add examples under `examples/` demonstrating `Collect` with `edge.MultiPath` and various `merge.*` settings.
+  - [X] Add examples under `examples/` demonstrating `Collect` with `edge.MultiPath` and various `merge.*` settings.
 - [ ] Runtime/Planner (deferred)
   - [ ] Plan how `merge` attributes map to runtime merge operator configuration; leave unimplemented until runtime integration phase.
 
@@ -909,9 +909,9 @@ See also: `docs/merge.md` for a design summary and examples.
 - [ ] Lint: smells/hints coverage for tiny buffer with `dropOldest`/`dropNewest`, invalid windows, missing fields.
   - [ ] Determinism: verify `merge.Sort` + `merge.Stable` yields stable order across runs with identical inputs (scaffold level).
 - [ ] Documentation
-  - [ ] `docs/merge.md`: detailed attribute semantics, precedence/resolution rules, examples.
+  - [X] `docs/merge.md`: detailed attribute semantics, precedence/resolution rules, examples.
   - [ ] `docs/edges.md`: add `edge.MultiPath`, link to `merge`, and demonstrate Collect with multiple upstreams.
-  - [ ] Examples under `examples/` illustrating common merge recipes from the docx (sorting, deduplication, watermarking, buffering).
+  - [X] Examples under `examples/` illustrating common merge recipes from the docx (sorting, deduplication, watermarking, buffering).
 - [ ] Runtime/Planner (Deferred)
   - [ ] Map normalized IR configuration to a merge operator plan; define contracts for buffering, ordering, and watermark handling per docx guidance.
 

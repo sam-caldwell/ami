@@ -416,7 +416,7 @@ func (p *Parser) parseExpr() (ast.Expr, bool) {
 
 func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
     switch p.cur.Kind {
-    case token.Ident:
+    case token.Ident, token.KwSlice, token.KwSet, token.KwMap:
         name := p.cur.Lexeme
         npos := p.cur.Pos
         p.next()
@@ -711,7 +711,7 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
             }
             // optional attributes list: Attr or dotted Attr.name(args), separated by commas
             var attrs []ast.Attr
-            for p.cur.Kind == token.Ident {
+            for p.cur.Kind == token.Ident || p.cur.Kind == token.KwType {
                 aname := p.cur.Lexeme
                 apos := p.cur.Pos
                 p.next()

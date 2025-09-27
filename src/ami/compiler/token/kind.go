@@ -68,6 +68,50 @@ const (
     KwStringTy // 'string' (distinct from String literal token)
     KwRune
 
+    // Additional reserved words (not all used by parser yet)
+    KwAppend
+    KwBreak
+    KwCase
+    KwConst
+    KwClose
+    KwComplex
+    KwComplex64
+    KwComplex128
+    KwContinue
+    KwCopy
+    KwDefault
+    KwDelete
+    KwElse
+    KwEnum
+    KwErrorEvent
+    KwErrorPipeline
+    KwEvent
+    KwFallthrough
+    KwFalse
+    KwFloat
+    KwFor
+    KwGoto
+    KwIf
+    KwInterface
+    KwLabel
+    KwLatest
+    KwLen
+    KwMake
+    KwMap
+    KwSet
+    KwSlice
+    KwNew
+    KwNil
+    KwPanic
+    KwRange
+    KwReal
+    KwRecover
+    KwSelect
+    KwState
+    KwStruct
+    KwSwitch
+    KwTrue
+    KwType
     // Node keywords
     KwNodeTransform
     KwNodeFanout

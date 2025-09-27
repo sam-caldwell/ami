@@ -80,7 +80,12 @@
     - [x] `ami mod sum` enhanced: validates presence, JSON/scheme; verifies directory hashes against `${AMI_PACKAGE_CACHE}`; reports missing/mismatched; returns exit.Integrity on failure. Tests passing.
     - [x] `ami lint` Stage A implemented with >=80% coverage and tests passing (workspace presence, name style, import shape/order, local path checks, UNKNOWN_IDENT scan, strict mode, verbose debug file). Stage B (parser-backed rules) pending.
     - [X] `ami pipeline visualize` implemented: renders ASCII pipeline graphs to the terminal; JSON/human output; unit + e2e tests.
-    - [A] `ami test` implemented: Go test wrapper + native AMI directive‑based assertions (parser/sem). Includes flags, package‑level concurrency, per‑package summaries; runtime execution deferred. Coverage ≥80% and tests passing.
+    - [A] `ami test` implemented:
+      - [X] Go test wrapper that collects `_test.go`, streams `go test -json` events, prints human "test: OK" on success, and emits a final JSON summary in `--json` mode.
+      - [X] `--verbose` writes `build/test/test.log` and `build/test/test.manifest` with `<package> <test>` entries in run order.
+      - [ ] Native AMI directive‑based assertions (parser/sem) integrated into harness.
+      - [ ] Package‑level concurrency flag and explicit per‑package summaries in human mode.
+      - Notes: runtime execution of AMI code deferred; current scope wraps Go tests per roadmap M12.
     - [ ] `ami build` is completely implemented with >=80% test coverage and all tests passing.
   - [ ] Deterministic behaviors (no prompts, stable outputs)
   - [ ] CLI/toolchain tests run from `./build/test/` (per-test subdirs)
@@ -449,7 +454,7 @@ packages:
 #### 1.1.9.4. Debug Artifacts when `--verbose` is set
 - [ ] When `--verbose` is provided to `ami build`
   - generate debugging information in `./build/debug` for compiler debugging (not produced otherwise)
-    - [ ] A Resolved source stream (`build/debug/source/resolved.json`).
+    - [X] A Resolved source stream (`build/debug/source/resolved.json`).
       - [ ] An Abstract Syntax Trees (per package/unit)
           - [ ] stored in .json format
           - [ ] stored as `build/debug/ast/<package>/<unit>.ast.json`

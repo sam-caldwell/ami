@@ -1,0 +1,4 @@
+#pragma test:case missing_pkg
+#pragma test:assert parse_fail msg="expected 'package'" code=E_PARSE
+func F(){}
+

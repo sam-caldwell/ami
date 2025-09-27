@@ -580,15 +580,15 @@ packages:
 
 CLI & Output
 
-- [ ] Flags: `--strict`, `--rules=<pattern>`, `--max-warn=<n>` (regex `/.../` and `re:<expr>`, glob `*?[]`, and substring supported). `--json` and `--color` are global flags.
+- [X] Flags: `--strict`, `--rules=<pattern>`, `--max-warn=<n>` (regex `/.../` and `re:<expr>`, glob `*?[]`, and substring supported). `--json` and `--color` are global flags.
 - [ ] JSON: `diag.v1` codes use `LINT_*` namespace; include `file`, `pos`, and `data` fields where relevant
-- [ ] Human: severity prefixes; counts summary; non‑zero exit on errors (and on warnings when `--strict`)
+- [X] Human: severity prefixes; counts summary; non‑zero exit on errors (and on warnings when `--strict`)
 
 Tests & Docs
 
 - [ ] Unit tests for suppression and severity configuration; tests for import alias duplication and order; position assertions
 - [ ] Integration tests for cross‑package constraint checks using temporary multi‑package workspaces
-- [ ] Docs: `docs/lint.md` updated with rules list, severities/suppression, and CLI flags (`--strict`, `--rules`, `--max-warn`) with examples
+- [X] Docs: `docs/lint.md` updated with rules list, severities/suppression, and CLI flags (`--strict`, `--rules`, `--max-warn`) with examples
 ## 1.2.0.0. Supporting Requirements
 ### 1.2.1.0. AMI Language (POP)
 - [X] Parser and AST scaffold for AMI language (Chapter 2)

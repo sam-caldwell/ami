@@ -120,7 +120,7 @@
 ## Remaining Work
 
 - CLI: scaffold and register additional subcommands as stubs in root (`mod list/sum/get`, `test`, `build`); add minimal help/tests; keep root stable.
-- Linter: expand Stage A to handle imports/naming/unknown identifiers; add JSON Lines streaming and final summary per SPEC.
+- [X] Linter: expand Stage A to handle imports/naming/unknown identifiers; add JSON Lines streaming and final summary per SPEC.
 - Tests: stabilize Cobra working-directory integration tests for root→subcommand invocations and unskip the pending tests once behavior is deterministic.
 - Coverage: raise `src/cmd/ami` package test coverage to ≥80% (currently ~78–79%).
 - [X] Scaffold src/ami/compiler/{token,scanner,parser,ast,source} with minimal types and tests (Phase 2 starter).

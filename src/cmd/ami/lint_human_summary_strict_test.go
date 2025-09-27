@@ -17,6 +17,7 @@ func TestLint_Human_Summary_And_StrictPromotion(t *testing.T) {
     if err := os.WriteFile(filepath.Join(srcDir, "main.ami"), []byte(content), 0o644); err != nil { t.Fatalf("write: %v", err) }
     ws := workspace.DefaultWorkspace()
     ws.Packages[0].Package.Root = "./src"
+    ws.Toolchain.Linter.Options = []string{}
     if err := ws.Save(filepath.Join(dir, "ami.workspace")); err != nil { t.Fatalf("save: %v", err) }
 
     // Human, non-strict: expect warnings summary line and exit nil
@@ -40,6 +41,7 @@ func TestLint_Human_MaxWarn_Boundary(t *testing.T) {
     if err := os.WriteFile(filepath.Join(srcDir, "main.ami"), []byte(content), 0o644); err != nil { t.Fatalf("write: %v", err) }
     ws := workspace.DefaultWorkspace()
     ws.Packages[0].Package.Root = "./src"
+    ws.Toolchain.Linter.Options = []string{}
     if err := ws.Save(filepath.Join(dir, "ami.workspace")); err != nil { t.Fatalf("save: %v", err) }
 
     // Set maxWarn=1; with two TODOs expect failure in JSON mode

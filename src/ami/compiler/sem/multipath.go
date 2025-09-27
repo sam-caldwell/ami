@@ -47,6 +47,8 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             if st.Name != "Collect" { continue }
             // validate merge.* attributes and basic normalization
             seen := map[string]string{}
+            keyField := ""
+            partitionField := ""
             for _, at := range st.Attrs {
                 if strings.HasPrefix(at.Name, "merge.") {
                     if rng, ok := merges[at.Name]; ok {
@@ -90,10 +92,12 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                 }
                             }
                         }
-                        // conflict detection on repeated attributes with differing primary arg
+                        // track fields for combo checks
+                        if at.Name == "merge.Key" && argc >= 1 { keyField = at.Args[0].Text }
+                        if at.Name == "merge.PartitionBy" && argc >= 1 { partitionField = at.Args[0].Text }
+                        // conflict detection on repeated attributes with differing normalized value
                         key := at.Name
-                        val := ""
-                        if len(at.Args) > 0 { val = at.Args[0].Text }
+                        val := canonicalAttrValue(at.Name, at.Args)
                         if prev, ok := seen[key]; ok {
                             if prev != val {
                                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: at.Name + ": conflicting values", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
@@ -106,7 +110,37 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                     }
                 }
             }
+            // cross-attribute conflict: PartitionBy vs Key with different fields (scaffold)
+            if keyField != "" && partitionField != "" && keyField != partitionField {
+                p := stepPos(st)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.PartitionBy vs merge.Key conflict", Pos: &p})
+            }
         }
     }
     return out
+}
+
+func canonicalAttrValue(name string, args []ast.Arg) string {
+    // normalize value strings per attribute for conflict checks
+    if name == "merge.Sort" {
+        // field[/order]
+        f := ""
+        ord := ""
+        if len(args) > 0 { f = args[0].Text }
+        if len(args) > 1 { ord = args[1].Text }
+        return f + "/" + ord
+    }
+    if name == "merge.Buffer" {
+        cap := ""
+        pol := ""
+        if len(args) > 0 { cap = args[0].Text }
+        if len(args) > 1 { pol = args[1].Text }
+        return cap + "/" + pol
+    }
+    if len(args) > 0 { return args[0].Text }
+    return ""
+}
+
+func stepPos(st *ast.StepStmt) diag.Position {
+    return diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}
 }

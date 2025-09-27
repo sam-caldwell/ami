@@ -45,3 +45,9 @@ func TestLIFOStack_OrderAndBackpressure(t *testing.T) {
     if err := s3.Push(10); err == nil { t.Fatalf("expected ErrFull") }
 }
 
+func TestPipelineBuffer_Basics(t *testing.T) {
+    p := NewPipelineBuffer()
+    _ = p.Push("a"); _ = p.Push("b")
+    x, _ := p.Pop(); if x.(string) != "a" { t.Fatalf("x: %v", x) }
+    y, _ := p.Pop(); if y.(string) != "b" { t.Fatalf("y: %v", y) }
+}

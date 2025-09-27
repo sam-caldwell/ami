@@ -377,7 +377,7 @@ packages:
     - [X] Attach comments to function-body statements (top-level already covered).
 - [X] Import lines with version constraints: accept `import <module> >= vX.Y.Z` (single and block forms), represent in AST (`ImportDecl.Constraint`) and surface in `sources.v1` (`importsDetailed`).
 - [X] Function type parameters (scaffold): `FuncDecl.TypeParams []TypeParam{Name, Constraint}` and tolerant parser for `func F<T>(...)`/`func F<T any>(...)` (no semantics yet).
-- [ ] Types & Semantics
+- [X] Types & Semantics
     - [X] Type inference M1 completion: inference for locals (idents), unary/binary expression inference for common cases; position-rich diagnostics on mismatches.
     - [X] Diagnostics: implement `E_TYPE_AMBIGUOUS` with source positions for ambiguous container literals (no type args and no elements, or any/any for maps without elements).
     - [X] Expand `E_TYPE_AMBIGUOUS` to returns/assignments/expr statements; ensure diagnostics include precise positions consistently.

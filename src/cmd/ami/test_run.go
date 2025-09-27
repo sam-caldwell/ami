@@ -98,6 +98,10 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
         return c
     }
     c := computeCounts(stdout.Bytes())
+    if err != nil && c.packages == 0 && strings.Contains(stdout.String(), "no packages to test") {
+        // Tolerate empty Go package trees; AMI directive tests may still run.
+        err = nil
+    }
 
     // Run AMI directive tests by scanning *.ami files.
     type amiResult struct{ name, file string; ok bool }

@@ -13,7 +13,7 @@ import (
 func TestRunBuild_Verbose_JSON_WritesBuildPlan(t *testing.T) {
     dir := filepath.Join("build", "test", "ami_build", "plan_json_verbose")
     _ = os.RemoveAll(dir)
-    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
 
     ws := workspace.DefaultWorkspace()
     if err := ws.Save(filepath.Join(dir, "ami.workspace")); err != nil { t.Fatalf("save: %v", err) }
@@ -28,4 +28,3 @@ func TestRunBuild_Verbose_JSON_WritesBuildPlan(t *testing.T) {
     if e := json.Unmarshal(b, &m); e != nil { t.Fatalf("json: %v; %s", e, string(b)) }
     if m["schema"] != "build.plan/v1" { t.Fatalf("schema: %v", m["schema"]) }
 }
-

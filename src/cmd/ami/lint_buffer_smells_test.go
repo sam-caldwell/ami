@@ -14,8 +14,8 @@ func TestLint_Pipeline_BufferSmells(t *testing.T) {
     dir := filepath.Join("build", "test", "ami_lint", "buffer_smell")
     srcDir := filepath.Join(dir, "src")
     if err := os.MkdirAll(srcDir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
-    // Use attribute forms Buffer(...) and merge.Buffer(...)
-    content := "package x\npipeline P(){ merge(); merge.Buffer(1, dropNewest); A(); A Buffer(1, drop); }\n"
+    // Attribute forms Buffer(...)
+    content := "package x\npipeline P(){ A(); A Buffer(1, dropNewest); B(); B Buffer(1, drop); }\n"
     if err := os.WriteFile(filepath.Join(srcDir, "main.ami"), []byte(content), 0o644); err != nil { t.Fatalf("write: %v", err) }
     ws := workspace.DefaultWorkspace()
     ws.Packages[0].Package.Root = "./src"
@@ -39,4 +39,3 @@ func TestLint_Pipeline_BufferSmells(t *testing.T) {
     }
     if !sawPolicy || !sawAlias { t.Fatalf("expected buffer smell diags; out=%s", buf.String()) }
 }
-

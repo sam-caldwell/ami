@@ -26,11 +26,17 @@ func NormalizeImports(p *Package) {
 func ParseImportEntry(entry string) (path string, constraint string) {
     s := strings.TrimSpace(entry)
     if s == "" { return "", "" }
-    // Split on first whitespace to allow operators like ">= 1.2.3"
-    i := strings.IndexFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
-    if i < 0 { return s, "" }
-    path = strings.TrimSpace(s[:i])
-    constraint = strings.TrimSpace(s[i:])
-    return path, constraint
+    // Prefer whitespace split to allow forms like ">= 1.2.3"
+    if i := strings.IndexFunc(s, func(r rune) bool { return r == ' ' || r == '\t' }); i >= 0 {
+        path = strings.TrimSpace(s[:i])
+        constraint = strings.TrimSpace(s[i:])
+        return path, constraint
+    }
+    // Support "path@constraint" form when no whitespace is present.
+    if j := strings.IndexByte(s, '@'); j > 0 {
+        path = strings.TrimSpace(s[:j])
+        constraint = strings.TrimSpace(s[j+1:])
+        return path, constraint
+    }
+    return s, ""
 }
-

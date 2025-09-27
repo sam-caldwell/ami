@@ -19,3 +19,7 @@ func TestParseImportEntry_SplitsConstraint(t *testing.T) {
     if path != ">=" || c != "1.2.3" { t.Fatalf("got %q %q", path, c) }
 }
 
+func TestParseImportEntry_AtSyntax(t *testing.T) {
+    p, c := ParseImportEntry("example.org/lib@^1.0.0")
+    if p != "example.org/lib" || c != "^1.0.0" { t.Fatalf("at syntax parse: %q %q", p, c) }
+}

@@ -193,6 +193,9 @@ func opName(k token.Kind) string {
     case token.Minus: return "sub"
     case token.Star: return "mul"
     case token.Slash: return "div"
+    case token.Percent: return "mod"
+    case token.And: return "and"
+    case token.Or:  return "or"
     default:
         return k.String()
     }

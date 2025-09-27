@@ -93,3 +93,25 @@ func TestEmitLLVM_ComparisonsAndIntLiteral(t *testing.T) {
     if !strings.Contains(out, "%t1 = add i64 0, 42") { t.Fatalf("literal not lowered: %s", out) }
     if !strings.Contains(out, "%t2 = icmp eq i64 %x, %y") { t.Fatalf("icmp not lowered: %s", out) }
 }
+
+func TestEmitLLVM_ModAndLogicalAnd(t *testing.T) {
+    // t1 = mod(x, y) ; t2 = and(b1,b2)
+    f := ir.Function{
+        Name:    "Ops",
+        Params:  []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}, {ID: "b1", Type: "bool"}, {ID: "b2", Type: "bool"}},
+        Results: []ir.Value{},
+        Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{
+            ir.Expr{Op: "mod", Args: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}}, Result: &ir.Value{ID: "t1", Type: "int"}},
+            ir.Expr{Op: "and", Args: []ir.Value{{ID: "b1", Type: "bool"}, {ID: "b2", Type: "bool"}}, Result: &ir.Value{ID: "t2", Type: "bool"}},
+            ir.Return{},
+        }}},
+    }
+    out, err := EmitModuleLLVM(ir.Module{Package: "app", Functions: []ir.Function{f}})
+    if err != nil { t.Fatalf("emit: %v", err) }
+    if !strings.Contains(out, "%t1 = srem i64 %x, %y") {
+        t.Fatalf("mod not lowered as srem: %s", out)
+    }
+    if !strings.Contains(out, "%t2 = and i1 %b1, %b2") {
+        t.Fatalf("and not lowered for bools: %s", out)
+    }
+}

@@ -34,7 +34,7 @@ func lowerExpr(e ir.Expr) string {
     // Basic arithmetic scaffold
     op := strings.ToLower(e.Op)
     switch op {
-    case "add", "sub", "mul", "div":
+    case "add", "sub", "mul", "div", "mod":
         // choose operation mnemonic by type (double → f*, else integer)
         ty := "i64"
         if e.Result != nil {
@@ -51,6 +51,9 @@ func lowerExpr(e ir.Expr) string {
         case "mul": mnem = map[string]string{"i64":"mul","double":"fmul"}[ty]
         case "div":
             if ty == "double" { mnem = "fdiv" } else { mnem = "sdiv" }
+        case "mod":
+            if ty == "double" { return "  ; expr mod-unsupported-double\n" }
+            mnem = "srem"
         }
         if e.Result != nil && e.Result.ID != "" && len(e.Args) >= 2 {
             return fmt.Sprintf("  %%%s = %s %s %%%s, %%%s\n", e.Result.ID, mnem, ty, e.Args[0].ID, e.Args[1].ID)
@@ -74,6 +77,20 @@ func lowerExpr(e ir.Expr) string {
                 pred := map[string]string{"eq": "eq", "ne": "ne", "lt": "slt", "le": "sle", "gt": "sgt", "ge": "sge"}[op]
                 return fmt.Sprintf("  %%%s = icmp %s %s %%%s, %%%s\n", e.Result.ID, pred, ty, e.Args[0].ID, e.Args[1].ID)
             }
+        }
+    case "and", "or":
+        if len(e.Args) >= 2 {
+            // only defined for boolean (i1) in this scaffold
+            ty := "i1"
+            if e.Result != nil {
+                mt := mapType(e.Result.Type)
+                if mt != "i1" { return "  ; expr logic-nonbool\n" }
+            }
+            mnem := op // "and" or "or"
+            if e.Result != nil && e.Result.ID != "" {
+                return fmt.Sprintf("  %%%s = %s %s %%%s, %%%s\n", e.Result.ID, mnem, ty, e.Args[0].ID, e.Args[1].ID)
+            }
+            return fmt.Sprintf("  %s %s %%%s, %%%s\n", mnem, ty, e.Args[0].ID, e.Args[1].ID)
         }
     }
     return fmt.Sprintf("  ; expr %s\n", e.Op)

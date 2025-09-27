@@ -43,15 +43,18 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         }
         // collect signatures across package
         paramSigs := map[string][]string{}
+        paramNames := map[string][]string{}
         resultSigs := map[string][]string{}
         for _, u := range units {
             for _, d := range u.ast.Decls {
                 if fn, ok := d.(*ast.FuncDecl); ok && fn.Name != "" {
                     var ps []string
+                    var pnames []string
                     var rs []string
-                    for _, p := range fn.Params { ps = append(ps, p.Type) }
+                    for _, p := range fn.Params { ps = append(ps, p.Type); pnames = append(pnames, p.Name) }
                     for _, r := range fn.Results { rs = append(rs, r.Type) }
                     paramSigs[fn.Name] = ps
+                    paramNames[fn.Name] = pnames
                     resultSigs[fn.Name] = rs
                 }
             }
@@ -112,7 +115,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzePackageAndImports(af))
             attachFile(sem.AnalyzeContainerTypes(af))
             // lower
-            m := lowerFile(p.Name, af, paramSigs, resultSigs)
+            m := lowerFile(p.Name, af, paramSigs, resultSigs, paramNames)
             if opts.Debug {
                 if s, err := writeSourcesDebug(p.Name, unit, af); err == nil { bmu.Sources = s }
                 if a, err := writeASTDebug(p.Name, unit, af); err == nil { bmu.AST = a }

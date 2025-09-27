@@ -299,7 +299,7 @@ packages:
     - [X] verify package versioning rules are satisfied.
     - [x] unused,
     - [x] unknown identifiers (scaffold: sentinel UNKNOWN_IDENT in .ami)
-    - formatting markers
+    - [x] formatting markers
 - [x] Enforce package versioning and import rules consistent with Chapter 3.0 (e.g., valid SemVer in package 
       declarations/imports, allowed characters in package names)
     - [X] Validate package declarations use valid SemVer (W_PKG_VERSION_INVALID)
@@ -308,24 +308,24 @@ packages:
 - [X] Output formats for lint:
     - [x] human summary to stdout
     - [x] `diag.v1` JSON lines with a final summary record; when `--verbose`, also stream per‑record NDJSON to `build/debug/lint.ndjson`
-- [ ] Expand lint rules to cover more of the language spec as it stabilizes
-    - [ ] Naming/style: package/id naming conventions, ban `_` identifier outside allowed sinks
+- [x] Expand lint rules to cover more of the language spec as it stabilizes
+    - [x] Naming/style: package/id naming conventions, ban `_` identifier outside allowed sinks
         - [X] Warn on underscores in identifiers (W_IDENT_UNDERSCORE); pragma/config suppressible
     - [x] Imports: duplicate imports (W_IMPORT_DUPLICATE); stable ordering (W_IMPORT_ORDER);
           disallowed relative paths to parents (W_IMPORT_RELATIVE); invalid version constraints (W_IMPORT_CONSTRAINT_INVALID)
     - [X] Imports: duplicate alias (W_DUP_IMPORT_ALIAS), unused (W_UNUSED_IMPORT)
         - [X] Parser-backed unused imports for ident-form imports (W_UNUSED_IMPORT)
-    - [ ] Code hygiene: unreachable nodes/edges, duplicate function declarations across files (lint layer), 
+    - [x] Code hygiene: unreachable nodes/edges, duplicate function declarations across files (lint layer), 
           [X] TODO/FIXME policy
-    - [ ] Language‑specific:
+    - [x] Language‑specific:
         - [X] Reminders and detection: `W_LANG_NOT_GO` (info/warn), `W_GO_SYNTAX_DETECTED` (warn)
             - [X] Detect Go-like files starting with `package` (W_GO_SYNTAX_DETECTED)
 - [x] Enforce/propagate AMI semantics via analyzer diagnostics surfaced in lint: 
       `E_MUT_BLOCK_UNSUPPORTED`, `E_MUT_ASSIGN_UNMARKED`, `E_PTR_UNSUPPORTED_SYNTAX`
   - [X] Integrate memory-safety analyzer for `E_PTR_UNSUPPORTED_SYNTAX` and `E_MUT_BLOCK_UNSUPPORTED` (Stage B)
   - [X] RAII hint: `W_RAII_OWNED_HINT` when `release(x)` not wrapped in `mutate(...)` (parser-backed)
-  - [ ] Collections: `W_MAP_*`, `W_SET_*`, `W_SLICE_ARITY_HINT` mirrored as warnings
-  - [ ] Pipelines: ingress/egress position hints (W_PIPELINE_INGRESS_POS, W_PIPELINE_EGRESS_POS)
+  - [X] Collections: `W_MAP_*`, `W_SET_*`, `W_SLICE_ARITY_HINT` mirrored as warnings
+  - [X] Pipelines: ingress/egress position hints (W_PIPELINE_INGRESS_POS, W_PIPELINE_EGRESS_POS)
 - [X] Lint: severity configuration and rule suppression (pragma/config)
     - [x] Severities: error | warn | info (defaults per rule documented); `off` disables a rule
     - [x] Configuration: `ami.workspace` → `toolchain.linter.rules["RULE"] = "error|warn|info|off"`
@@ -336,7 +336,7 @@ packages:
         - [X] Attach source file + `{line,column,offset}` to lint `diag.v1` records (when resolvable)
         - [X] Fall back to file‑only when exact positions are unavailable
         - [X] Tests validate position presence and formatting
-- [ ] Lint: cross‑package import/constraint consistency checks (strict mode)
+- [X] Lint: cross‑package import/constraint consistency checks (strict mode)
     - [X] Validate conflicting exact versions across packages (E_IMPORT_CONSTRAINT_MULTI); promoted by strict
     - [X] Detect forbidden prerelease imports when constraints omit prereleases (E_IMPORT_PRERELEASE_FORBIDDEN)
     - [X] Ensure consistent import of the same package/version across the workspace (single version rule in strict mode)
@@ -369,7 +369,7 @@ packages:
     - `slice<T>{e1, e2, ...}`
     - `set<T>{e1, e2, ...}`
     - `map<K,V>{k1: v1, k2: v2, ...}`
-- [ ] Attach comments to function-body statements (top-level already covered).
+    - [X] Attach comments to function-body statements (top-level already covered).
 - [X] Import lines with version constraints: accept `import <module> >= vX.Y.Z` (single and block forms), represent in AST (`ImportDecl.Constraint`) and surface in `sources.v1` (`importsDetailed`).
 - [X] Function type parameters (scaffold): `FuncDecl.TypeParams []TypeParam{Name, Constraint}` and tolerant parser for `func F<T>(...)`/`func F<T any>(...)` (no semantics yet).
 - [ ] Types & Semantics

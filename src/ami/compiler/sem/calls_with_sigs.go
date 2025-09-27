@@ -48,7 +48,8 @@ func checkCallWithSigs(c *ast.CallExpr, params map[string][]string, now time.Tim
         pt := sigp[i]
         if pt == "" || pt == "any" || at == "any" { continue }
         if pt != at {
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: "call argument type mismatch", Pos: &diag.Position{Line: c.Pos.Line, Column: c.Pos.Column, Offset: c.Pos.Offset}})
+            p := epos(a)
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: "call argument type mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
             break
         }
     }

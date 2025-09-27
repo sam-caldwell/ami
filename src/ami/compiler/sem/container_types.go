@@ -4,6 +4,7 @@ import (
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+    "github.com/sam-caldwell/ami/src/ami/compiler/token"
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
@@ -110,6 +111,15 @@ func deduceType(e ast.Expr) string {
         return "int"
     case *ast.StringLit:
         return "string"
+    case *ast.BinaryExpr:
+        // simple arithmetic infer: if both sides are int and op is arithmetic, infer int
+        x := deduceType(v.X)
+        y := deduceType(v.Y)
+        switch v.Op {
+        case token.Plus, token.Minus, token.Star, token.Slash:
+            if x == "int" && y == "int" { return "int" }
+        }
+        return "any"
     case *ast.SliceLit:
         if v.TypeName != "" { return "slice<" + v.TypeName + ">" }
         return "slice<any>"

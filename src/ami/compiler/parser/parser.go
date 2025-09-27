@@ -327,6 +327,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             stmts = append(stmts, rs)
             if p.cur.Kind == token.SemiSym { p.next() }
         case token.KwVar:
+            leading := p.pending; p.pending = nil
             pos := p.cur.Pos
             p.next()
             if p.cur.Kind != token.Ident { p.errf("expected var name, got %q", p.cur.Lexeme); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
@@ -342,11 +343,11 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             }
             var init ast.Expr
             if p.cur.Kind == token.Assign { p.next(); e, ok := p.parseExpr(); if ok { init = e } }
-            vd := &ast.VarDecl{Pos: pos, Name: name, NamePos: namePos, Type: tname, TypePos: tpos, Init: init, Leading: p.pending}
-            p.pending = nil
+            vd := &ast.VarDecl{Pos: pos, Name: name, NamePos: namePos, Type: tname, TypePos: tpos, Init: init, Leading: leading}
             stmts = append(stmts, vd)
             if p.cur.Kind == token.SemiSym { p.next() }
         case token.KwDefer:
+            leading := p.pending; p.pending = nil
             dpos := p.cur.Pos
             p.next()
             callExpr, ok := p.parseExpr()
@@ -358,11 +359,11 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             }
             ce, _ := callExpr.(*ast.CallExpr)
             if ce == nil { p.errf("defer requires a call expression"); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
-            ds := &ast.DeferStmt{Pos: dpos, Call: ce, Leading: p.pending}
-            p.pending = nil
+            ds := &ast.DeferStmt{Pos: dpos, Call: ce, Leading: leading}
             stmts = append(stmts, ds)
             if p.cur.Kind == token.SemiSym { p.next() }
         case token.Ident:
+            leading := p.pending; p.pending = nil
             // Possible assignment or general expression starting with an identifier.
             name := p.cur.Lexeme
             npos := p.cur.Pos
@@ -371,23 +372,21 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                 p.next()
                 rhs, ok := p.parseExprPrec(1)
                 if !ok { p.errf("expected expression on right-hand side of assignment") }
-                as := &ast.AssignStmt{Pos: npos, Name: name, NamePos: npos, Value: rhs, Leading: p.pending}
-                p.pending = nil
+                as := &ast.AssignStmt{Pos: npos, Name: name, NamePos: npos, Value: rhs, Leading: leading}
                 stmts = append(stmts, as)
                 if p.cur.Kind == token.SemiSym { p.next() }
                 continue
             }
             left := p.parseIdentExpr(name, npos)
             expr := p.parseBinaryRHS(left, 1)
-            es := &ast.ExprStmt{Pos: ePos(expr), X: expr, Leading: p.pending}
-            p.pending = nil
+            es := &ast.ExprStmt{Pos: ePos(expr), X: expr, Leading: leading}
             stmts = append(stmts, es)
             if p.cur.Kind == token.SemiSym { p.next() }
         case token.String, token.Number:
+            leading := p.pending; p.pending = nil
             e, ok := p.parseExprPrec(1)
             if !ok { p.errf("unexpected token in statement: %q", p.cur.Lexeme); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
-            es := &ast.ExprStmt{Pos: ePos(e), X: e, Leading: p.pending}
-            p.pending = nil
+            es := &ast.ExprStmt{Pos: ePos(e), X: e, Leading: leading}
             stmts = append(stmts, es)
             if p.cur.Kind == token.SemiSym { p.next() }
         default:

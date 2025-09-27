@@ -98,24 +98,30 @@ func exprToJSON(e Expr) any {
         } else {
             obj["retTypes"] = []any{}
         }
-        if len(e.ParamTypes) > 0 || len(e.ResultTypes) > 0 || len(e.ParamNames) > 0 {
-            sig := map[string]any{"params": []any{}, "results": []any{}}
-            ps := make([]any, 0, len(e.ParamTypes))
-            // If names available, emit objects with name+type; otherwise emit type strings
-            if len(e.ParamNames) > 0 && len(e.ParamNames) == len(e.ParamTypes) {
-                ps = make([]any, 0, len(e.ParamTypes))
-                for i := range e.ParamTypes {
-                    ps = append(ps, map[string]any{"name": e.ParamNames[i], "type": e.ParamTypes[i]})
-                }
-            } else {
-                for _, p := range e.ParamTypes { ps = append(ps, p) }
+        // Always include a signature block for calls in debug JSON
+        sig := map[string]any{"params": []any{}, "results": []any{}}
+        ps := make([]any, 0, len(e.ParamTypes))
+        if len(e.ParamNames) > 0 && len(e.ParamNames) == len(e.ParamTypes) {
+            for i := range e.ParamTypes {
+                ps = append(ps, map[string]any{"name": e.ParamNames[i], "type": e.ParamTypes[i]})
             }
-            rs := make([]any, 0, len(e.ResultTypes))
-            for _, r := range e.ResultTypes { rs = append(rs, r) }
-            sig["params"] = ps
-            sig["results"] = rs
-            obj["sig"] = sig
+        } else {
+            if len(e.ParamTypes) > 0 {
+                for _, p := range e.ParamTypes { ps = append(ps, p) }
+            } else {
+                // Fallback to argument types when signature unknown
+                for _, a := range e.Args { ps = append(ps, a.Type) }
+            }
         }
+        rs := make([]any, 0, len(e.ResultTypes))
+        if len(e.ResultTypes) > 0 {
+            for _, r := range e.ResultTypes { rs = append(rs, r) }
+        } else if e.Result != nil {
+            rs = append(rs, e.Result.Type)
+        }
+        sig["params"] = ps
+        sig["results"] = rs
+        obj["sig"] = sig
     }
     return obj
 }

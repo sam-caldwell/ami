@@ -453,6 +453,11 @@ packages:
     - [X] Without `--verbose`, no `build/debug/` directory is created.
     - [X] Contents are deterministic (AST/IR/ASM debug artifacts stable across runs).
 - [X] Build plan emitted and validates in verbose and JSON modes.
+  - Build Plan schema fields (stable):
+    - `packages[].hasObjects` (bool): true if any `.o` exists under `build/obj/<pkg>/`. Stable and backward‑compatible.
+    - `objects[]` (optional, array<string>): workspace‑relative paths to discovered `.o` files. Optional and additive.
+  - Manifest additions (stable):
+    - `objects[]` (optional, array<string>): workspace‑relative `.o` paths present under `build/obj/**`. Optional and additive.
 #### 1.1.9.4. Debug Artifacts when `--verbose` is set
 - [ ] When `--verbose` is provided to `ami build`
   - generate debugging information in `./build/debug` for compiler debugging (not produced otherwise)
@@ -1210,6 +1215,12 @@ Types & Semantics (incremental)
 ### Remaining work
 
 - [X] Surface import version constraints into `sources.v1` (`importsDetailed`) during build planning/output.
+
+- [ ] Grammar extensions: unary/binary operators (tracking for backend ops already supported)
+  - [ ] Add tokens and precedence for bitwise (`&`, `|`, `^`), shifts (`<<`, `>>`), and unary logical `!`.
+  - [ ] Introduce `ast.UnaryExpr` and extend binary expression parsing for precedence/associativity.
+  - [ ] Lowering: map tokens to IR ops (`not`, `xor`, `shl`, `shr`, `band`, `bor`) and extend tests.
+  - [ ] LLVM emission already supports: `not`, `xor`, `shl`, `shr`, `and`, `or`, `mod`, `neg`; wire once grammar lands.
 
  
 

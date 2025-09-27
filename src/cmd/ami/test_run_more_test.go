@@ -97,6 +97,39 @@ func TestRunTest_AMI_Directives_Mismatch_ReturnsError(t *testing.T) {
     }
 }
 
+// AMI directives: expecting wrong code should produce failure.
+func TestRunTest_AMI_Directives_CodeMismatch_ReturnsError(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "ami_code_mismatch")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    // Intentionally no package line to trigger parser error; expect code mismatch to fail
+    src := "#pragma test:case c1\n#pragma test:assert parse_fail code=E_NOT_PARSE\nfunc F(){}\n"
+    if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    var out bytes.Buffer
+    if err := runTest(&out, dir, false, false, 0); err == nil {
+        t.Fatalf("expected error from code mismatch; out=%s", out.String())
+    }
+}
+
+// AMI directives: multiple cases in one file should increment ami_tests accordingly.
+func TestRunTest_AMI_Directives_MultipleCases_SummaryCounts(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "ami_multi_cases")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    src := "package app\n#pragma test:case a\n#pragma test:case b\n#pragma test:assert parse_ok\nfunc F(){}\n"
+    if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    var buf bytes.Buffer
+    if err := runTest(&buf, dir, true, false, 0); err != nil { t.Fatalf("runTest: %v", err) }
+    lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+    var last map[string]any
+    if e := json.Unmarshal(lines[len(lines)-1], &last); e != nil { t.Fatalf("summary json: %v", e) }
+    if int(last["ami_tests"].(float64)) != 2 || int(last["ami_failures"].(float64)) != 0 {
+        t.Fatalf("unexpected ami test counts: %v", last)
+    }
+}
+
 // CLI wiring: `ami test` respects --json and --verbose flags and writes artifacts.
 func TestNewTestCmd_CLI_JSON_Verbose(t *testing.T) {
     dir := filepath.Join("build", "test", "cli_test_cmd")

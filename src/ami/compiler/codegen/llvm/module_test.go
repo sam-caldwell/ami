@@ -137,3 +137,17 @@ func TestEmitLLVM_Shifts_Neg_Xor_Bnot(t *testing.T) {
     if !strings.Contains(out, "%t4 = sub i64 0, %x") { t.Fatalf("neg not lowered: %s", out) }
     if !strings.Contains(out, "%t5 = xor i64 %x, -1") { t.Fatalf("bnot not lowered: %s", out) }
 }
+
+func TestEmitLLVM_NotBool(t *testing.T) {
+    f := ir.Function{
+        Name:   "N",
+        Params: []ir.Value{{ID: "b", Type: "bool"}},
+        Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{
+            ir.Expr{Op: "not", Args: []ir.Value{{ID: "b", Type: "bool"}}, Result: &ir.Value{ID: "t", Type: "bool"}},
+            ir.Return{},
+        }}},
+    }
+    out, err := EmitModuleLLVM(ir.Module{Package: "app", Functions: []ir.Function{f}})
+    if err != nil { t.Fatalf("emit: %v", err) }
+    if !strings.Contains(out, "%t = xor i1 %b, true") { t.Fatalf("not not lowered: %s", out) }
+}

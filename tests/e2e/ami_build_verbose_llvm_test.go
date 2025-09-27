@@ -47,4 +47,16 @@ func TestE2E_AmiBuild_Verbose_EmitsLLVM(t *testing.T) {
         }
     }
     if !found { t.Fatalf("manifest missing llvm path: %s", ll) }
+
+    // And build.plan.json includes hasObjects=false for app
+    bp := filepath.Join(ws, "build", "debug", "build.plan.json")
+    bb, err := os.ReadFile(bp)
+    if err != nil { t.Fatalf("read build.plan: %v", err) }
+    var plan struct{ Packages []struct{ Name string; HasObjects bool } }
+    if err := json.Unmarshal(bb, &plan); err != nil { t.Fatalf("json: %v", err) }
+    seen := false
+    for _, p := range plan.Packages {
+        if p.Name == "app" { if p.HasObjects { t.Fatalf("expected hasObjects=false in verbose mode") }; seen = true }
+    }
+    if !seen { t.Fatalf("package app not in plan") }
 }

@@ -258,7 +258,10 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         }
         // Build plan after emitting artifacts; include object index paths when present
         planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
-        type planPkg struct{ Key, Name, Version, Root string }
+        type planPkg struct{
+            Key, Name, Version, Root string
+            HasObjects bool `json:"hasObjects"`
+        }
         plan := struct {
             Schema    string    `json:"schema"`
             TargetDir string    `json:"targetDir"`
@@ -268,7 +271,10 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             Objects   []string  `json:"objects,omitempty"`
         }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
         for _, e := range ws.Packages {
-            plan.Packages = append(plan.Packages, planPkg{Key: e.Key, Name: e.Package.Name, Version: e.Package.Version, Root: e.Package.Root})
+            // detect any object files for this package
+            hasObjects := false
+            if matches, _ := filepath.Glob(filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")); len(matches) > 0 { hasObjects = true }
+            plan.Packages = append(plan.Packages, planPkg{Key: e.Key, Name: e.Package.Name, Version: e.Package.Version, Root: e.Package.Root, HasObjects: hasObjects})
             // if object index exists for this package, include path
             idx := filepath.Join(dir, "build", "obj", e.Package.Name, "index.json")
             if st, err := os.Stat(idx); err == nil && !st.IsDir() {

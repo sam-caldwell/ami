@@ -147,3 +147,9 @@ func TestScanner_StringEscapes_And_Unterminated(t *testing.T) {
 		t.Fatalf("unterminated should be Unknown: %+v", tok)
 	}
 }
+
+func TestScanner_FileContent(t *testing.T) {
+    src := "package app\n"
+    s := New(&source.File{Name: "t", Content: src})
+    if s.FileContent() != src { t.Fatalf("FileContent mismatch") }
+}

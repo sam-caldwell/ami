@@ -350,6 +350,12 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             "toolchain": map[string]any{"targetDir": absTarget, "targets": envs},
             "objIndex":  objIdx,
         }
+        // integrity evidence from ami.sum vs cache
+        if len(sum.Packages) > 0 {
+            if v, m, mm, err := sum.Validate(); err == nil {
+                outObj["integrity"] = map[string]any{"verified": v, "missing": m, "mismatched": mm}
+            }
+        }
         // discover binaries under build/ (exclude debug/ and obj/); treat executable regular files as binaries
         var bins []string
         _ = filepath.WalkDir(buildDir, func(path string, d os.DirEntry, err error) error {

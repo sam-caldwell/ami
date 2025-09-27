@@ -596,9 +596,11 @@ Tests & Docs
 - [X] Pipeline grammar: nodes, edges, chaining, config
 - [X] Multiple entrypoints (multiple pipeline declarations)
 - [X] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
-- [ ] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
-- [ ] Compiler directives (backpressure/capabilities/trust): collected via `#pragma` and mapped into IR (used by codegen header)
-- [ ] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
+ - [X] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
+ - [D] Compiler directives: 
+   - [X] Backpressure collected via `#pragma backpressure` and mapped into IR (config) and pipelines.v1 default delivery
+   - [ ] Capabilities/trust (deferred)
+ - [X] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
 - [X] Parser/semantics diagnostics for package identifiers and import paths (happy/sad tests)
 - [ ] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
 - [ ] Event typing, error typing, and contracts (1.7, 2.2)

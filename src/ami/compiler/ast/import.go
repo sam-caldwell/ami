@@ -7,7 +7,7 @@ import "github.com/sam-caldwell/ami/src/ami/compiler/source"
 type ImportDecl struct {
     Pos  source.Position
     Path string
+    Leading []Comment
 }
 
 func (*ImportDecl) isNode() {}
-

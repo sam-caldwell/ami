@@ -13,12 +13,14 @@ import (
 
     "github.com/sam-caldwell/ami/src/ami/exit"
     "github.com/sam-caldwell/ami/src/ami/workspace"
+    "os/exec"
 )
 
 type modSumPkg struct {
     Name    string `json:"name"`
     Version string `json:"version"`
     Sha256  string `json:"sha256"`
+    Source  string `json:"source,omitempty"`
 }
 
 type modSumResult struct {
@@ -62,6 +64,7 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
                         Name:    strOrEmpty(mm["name"]),
                         Version: strOrEmpty(mm["version"]),
                         Sha256:  strOrEmpty(mm["sha256"]),
+                        Source:  strOrEmpty(mm["source"]),
                     })
                 }
             }
@@ -72,6 +75,7 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
                         Name:    name,
                         Version: strOrEmpty(mm["version"]),
                         Sha256:  strOrEmpty(mm["sha256"]),
+                        Source:  strOrEmpty(mm["source"]),
                     })
                 }
             }
@@ -87,9 +91,33 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
     }
     var verified, missing, mismatched []string
     present := make(map[string]struct{})
+    updatedSum := false
     for _, p := range pkgs {
         cp := filepath.Join(cache, p.Name, p.Version)
         if st, err := os.Stat(cp); err != nil || !st.IsDir() {
+            // Attempt git fetch if source provided
+            if isGitSource(p.Source) && p.Version != "" {
+                if err := fetchGitToCache(p.Source, p.Version, cp); err != nil {
+                    missing = append(missing, key(p.Name, p.Version))
+                    continue
+                }
+                // After fetching, compute hash and update ami.sum entry if needed
+                got, herr := hashDir(cp)
+                if herr != nil {
+                    mismatched = append(mismatched, key(p.Name, p.Version))
+                    continue
+                }
+                if !equalSHA(got, p.Sha256) {
+                    // Update m in-place
+                    if updateSumEntry(m, p.Name, p.Version, got, p.Source) {
+                        updatedSum = true
+                    }
+                }
+                verified = append(verified, key(p.Name, p.Version))
+                present[key(p.Name, p.Version)] = struct{}{}
+                continue
+            }
+            // no source; cannot auto-fetch
             missing = append(missing, key(p.Name, p.Version))
             continue
         }
@@ -129,6 +157,12 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
     res.Missing = missing
     res.Mismatched = mismatched
     res.Ok = len(missing) == 0 && len(mismatched) == 0
+    // If sum updated, write back
+    if updatedSum {
+        if b, err := json.MarshalIndent(m, "", "  "); err == nil {
+            _ = os.WriteFile(path, b, 0o644)
+        }
+    }
     if jsonOut {
         if !res.Ok {
             res.Message = "integrity failure"
@@ -176,4 +210,63 @@ func equalSHA(a, b string) bool {
     var diff byte
     for i := 0; i < len(a); i++ { diff |= a[i] ^ b[i] }
     return diff == 0
+}
+
+func isGitSource(s string) bool {
+    return len(s) > 0 && (hasPrefix(s, "git+ssh://") || hasPrefix(s, "file+git://"))
+}
+
+func hasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
+
+// fetchGitToCache clones repo at tag into dest directory.
+func fetchGitToCache(source, tag, dest string) error {
+    // Parse source and convert file+git to absolute path
+    repoURL := source
+    cloneArg := repoURL
+    if hasPrefix(repoURL, "file+git://") {
+        cloneArg = repoURL[len("file+git://"):]
+        if cloneArg == "" || !filepath.IsAbs(cloneArg) {
+            return fmt.Errorf("file+git requires absolute path")
+        }
+    }
+    tmp, err := os.MkdirTemp("", "ami-modsum-")
+    if err != nil { return err }
+    defer os.RemoveAll(tmp)
+    env := os.Environ()
+    env = append(env, "GIT_TERMINAL_PROMPT=0")
+    env = append(env, "GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=no")
+    cmd := exec.Command("git", "clone", "--depth", "1", "--branch", tag, cloneArg, tmp)
+    cmd.Env = env
+    if err := cmd.Run(); err != nil { return err }
+    // Copy into dest
+    if err := os.RemoveAll(dest); err != nil { return err }
+    return copyDir(tmp, dest)
+}
+
+// updateSumEntry updates the ami.sum map with the provided hash (and source retained if present).
+func updateSumEntry(m map[string]any, name, version, sha, source string) bool {
+    p, ok := m["packages"]
+    if !ok { return false }
+    switch t := p.(type) {
+    case []any:
+        for _, el := range t {
+            if mm, ok := el.(map[string]any); ok {
+                if strOrEmpty(mm["name"]) == name && strOrEmpty(mm["version"]) == version {
+                    mm["sha256"] = sha
+                    if source != "" { mm["source"] = source }
+                    return true
+                }
+            }
+        }
+    case map[string]any:
+        if mm, ok := t[name].(map[string]any); ok {
+            mm["version"] = version
+            mm["sha256"] = sha
+            if source != "" { mm["source"] = source }
+            t[name] = mm
+            m["packages"] = t
+            return true
+        }
+    }
+    return false
 }

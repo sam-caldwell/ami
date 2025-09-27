@@ -83,6 +83,10 @@ func (k Kind) String() string {
         return "Dot"
     case ColonSym:
         return "Colon"
+    case LineComment:
+        return "LineComment"
+    case BlockComment:
+        return "BlockComment"
     default:
         return "Unknown"
     }

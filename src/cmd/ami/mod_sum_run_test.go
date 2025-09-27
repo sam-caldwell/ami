@@ -7,6 +7,7 @@ import (
     "os"
     "path/filepath"
     "testing"
+    "os/exec"
 )
 
 func TestModSum_MissingFile_JSON(t *testing.T) {
@@ -127,4 +128,52 @@ func TestModSum_WorkspaceCrossCheck_MissingInSum(t *testing.T) {
     found := false
     for _, m := range res.Missing { if m == wantMiss { found = true; break } }
     if !found { t.Fatalf("expected missing to include %s; got %+v", wantMiss, res) }
+}
+
+func TestModSum_GitFetchMissingInCache_UpdatesSum(t *testing.T) {
+    // Set up a local git repo
+    repo := filepath.Join("build", "test", "mod_sum_git", "repo")
+    _ = os.RemoveAll(repo)
+    if err := os.MkdirAll(repo, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    run := func(name string, args ...string) {
+        cmd := exec.Command(name, args...)
+        cmd.Dir = repo
+        cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+        if out, err := cmd.CombinedOutput(); err != nil { t.Fatalf("%s %v: %v\n%s", name, args, err, out) }
+    }
+    run("git", "init")
+    if err := os.WriteFile(filepath.Join(repo, "x.txt"), []byte("hello"), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    run("git", "add", ".")
+    run("git", "-c", "user.email=test@example.com", "-c", "user.name=test", "commit", "-m", "init")
+    run("git", "tag", "v1.2.3")
+
+    // Prepare workspace and sum referencing git source
+    dir := filepath.Join("build", "test", "mod_sum_git", "ws")
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir ws: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "ami.workspace"), []byte("version: 1.0.0\npackages: []\n"), 0o644); err != nil { t.Fatalf("write ws: %v", err) }
+
+    // sum: object form with source and empty sha
+    absRepo, _ := filepath.Abs(repo)
+    sum := []byte(fmt.Sprintf(`{"schema":"ami.sum/v1","packages":{"repo":{"version":"v1.2.3","sha256":"","source":"file+git://%s"}}}`, absRepo))
+    if err := os.WriteFile(filepath.Join(dir, "ami.sum"), sum, 0o644); err != nil { t.Fatalf("write sum: %v", err) }
+
+    cache := filepath.Join("build", "test", "mod_sum_git", "cache")
+    old := os.Getenv("AMI_PACKAGE_CACHE")
+    defer os.Setenv("AMI_PACKAGE_CACHE", old)
+    _ = os.Setenv("AMI_PACKAGE_CACHE", cache)
+
+    var buf bytes.Buffer
+    if err := runModSum(&buf, dir, true); err != nil { t.Fatalf("runModSum: %v", err) }
+    var res modSumResult
+    if e := json.Unmarshal(buf.Bytes(), &res); e != nil { t.Fatalf("json: %v; out=%s", e, buf.String()) }
+    if !res.Ok { t.Fatalf("expected ok after fetch; res=%+v", res) }
+    if _, err := os.Stat(filepath.Join(cache, "repo", "v1.2.3", "x.txt")); err != nil { t.Fatalf("cached file missing: %v", err) }
+    // Verify ami.sum updated with sha256
+    b, err := os.ReadFile(filepath.Join(dir, "ami.sum"))
+    if err != nil { t.Fatalf("read sum: %v", err) }
+    var m map[string]any
+    if err := json.Unmarshal(b, &m); err != nil { t.Fatalf("json sum: %v", err) }
+    pkgs := m["packages"].(map[string]any)
+    repoObj := pkgs["repo"].(map[string]any)
+    if strOrEmpty(repoObj["sha256"]) == "" { t.Fatalf("expected sha256 to be populated after fetch") }
 }

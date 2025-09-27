@@ -26,36 +26,14 @@ func (s *Scanner) Next() token.Token {
     }
     src := s.file.Content
     n := len(src)
-    // skip whitespace and comments (UTF‑8 aware)
-    for {
-        for s.offset < n {
-            r, size := utf8.DecodeRuneInString(src[s.offset:])
-            if r == utf8.RuneError && size == 1 { // invalid byte
-                break
-            }
-            if !unicode.IsSpace(r) { break }
-            s.offset += size
+    // skip whitespace (UTF‑8 aware)
+    for s.offset < n {
+        r, size := utf8.DecodeRuneInString(src[s.offset:])
+        if r == utf8.RuneError && size == 1 { // invalid byte
+            break
         }
-        if s.offset+1 < n && src[s.offset] == '/' && src[s.offset+1] == '/' {
-            // line comment
-            s.offset += 2
-            for s.offset < n {
-                r, size := utf8.DecodeRuneInString(src[s.offset:])
-                if r == '\n' || size == 0 { break }
-                s.offset += size
-            }
-            continue
-        }
-        if s.offset+1 < n && src[s.offset] == '/' && src[s.offset+1] == '*' {
-            // block comment
-            s.offset += 2
-            for s.offset+1 < n && !(src[s.offset] == '*' && src[s.offset+1] == '/') { s.offset++ }
-            if s.offset+1 < n {
-                s.offset += 2
-            }
-            continue
-        }
-        break
+        if !unicode.IsSpace(r) { break }
+        s.offset += size
     }
     if s.offset >= n {
         return token.Token{Kind: token.EOF, Pos: s.file.Pos(s.offset)}
@@ -216,3 +194,27 @@ func (s *Scanner) Next() token.Token {
     s.offset++
     return token.Token{Kind: token.Symbol, Lexeme: src[start:s.offset], Pos: s.file.Pos(start)}
 }
+    // comments as tokens
+    if s.offset+1 < n && src[s.offset] == '/' {
+        if src[s.offset+1] == '/' {
+            start := s.offset
+            s.offset += 2
+            cstart := s.offset
+            for s.offset < n {
+                r, size := utf8.DecodeRuneInString(src[s.offset:])
+                if r == '\n' || size == 0 { break }
+                s.offset += size
+            }
+            text := src[cstart:s.offset]
+            return token.Token{Kind: token.LineComment, Lexeme: text, Pos: s.file.Pos(start)}
+        }
+        if src[s.offset+1] == '*' {
+            start := s.offset
+            s.offset += 2
+            cstart := s.offset
+            for s.offset+1 < n && !(src[s.offset] == '*' && src[s.offset+1] == '/') { s.offset++ }
+            text := src[cstart:s.offset]
+            if s.offset+1 < n { s.offset += 2 }
+            return token.Token{Kind: token.BlockComment, Lexeme: text, Pos: s.file.Pos(start)}
+        }
+    }

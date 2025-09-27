@@ -58,4 +58,8 @@ const (
     SemiSym     // ;
     DotSym      // .
     ColonSym    // :
+
+    // Comments
+    LineComment  // //...
+    BlockComment // /*...*/
 )

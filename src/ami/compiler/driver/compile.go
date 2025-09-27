@@ -73,6 +73,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             // pipeline and function semantics
             outDiags = append(outDiags, sem.AnalyzePipelineSemantics(af)...)
             outDiags = append(outDiags, sem.AnalyzeFunctions(af)...)
+            outDiags = append(outDiags, sem.AnalyzeMultiPath(af)...)
             outDiags = append(outDiags, sem.AnalyzeReturnTypes(af)...)
             // lower functions in this unit into a module
             m := lowerFile(p.Name, af)

@@ -74,8 +74,10 @@
     - [X] `ami mod update` is completely implemented with >=80% test coverage and all tests passing.
     - [X] `ami mod get` is completely implemented with >=80% test coverage and all tests passing.
     - [x] `ami mod list` implemented: lists cached packages with name, version, size, updated; JSON/human output; tests passing.
+    - [x] `ami mod audit` implemented: audits workspace imports vs `ami.sum` and cache; JSON/human outputs; unit + e2e tests passing.
     - [x] `ami mod sum` enhanced: validates presence, JSON/scheme; verifies directory hashes against `${AMI_PACKAGE_CACHE}`; reports missing/mismatched; returns exit.Integrity on failure. Tests passing.
     - [x] `ami lint` Stage A implemented with >=80% coverage and tests passing (workspace presence, name style, import shape/order, local path checks, UNKNOWN_IDENT scan, strict mode, verbose debug file). Stage B (parser-backed rules) pending.
+    - [ ] `ami pipeline visualize` implemented: renders ASCII pipeline graphs to the terminal; JSON/human output; unit + e2e tests.
     - [ ] `ami test` implemented: Go test wrapper + native AMI directive‑based assertions (parser/sem). Includes flags, package‑level concurrency, per‑package summaries; runtime execution deferred. Coverage ≥80% and tests passing.
     - [ ] `ami build` is completely implemented with >=80% test coverage and all tests passing.
   - [ ] Deterministic behaviors (no prompts, stable outputs)
@@ -267,9 +269,19 @@ packages:
     - [x] Local path: `./subproject` (must be within workspace and declared in `ami.workspace`).
 - [x] Sources are modular to allow later HTTPS implementation (internal runner separated by source type).
 - [x] Command updates `ami.sum` as packages are downloaded (schema `ami.sum/v1`, object form with name → {version, sha256}).
+  - [x] Audit pre‑checks integrated into `ami mod update`: non‑fatal audit summary in human mode and `audit` object in JSON output.
 ### 1.1.6.0. Package List (`ami mod list`)
 - [x] Command lists all packages and versions in the package cache `${AMI_PACKAGE_CACHE}`
 - [x] `ami mod list`: list cached packages (name, version, size, updated)
+### 1.1.6.1. Package Audit (`ami mod audit`)
+- [x] Command audits workspace dependency requirements against `ami.sum` and the package cache.
+- [x] Outputs:
+  - [x] JSON: single object with fields `requirements`, `missingInSum`, `unsatisfied`, `missingInCache`, `mismatched`, `parseErrors`, `sumFound`, `timestamp`.
+  - [x] Human: concise summary lines and an `ok:` line when no issues.
+- [x] Tests:
+  - [x] Unit tests for command and workspace audit orchestration.
+  - [x] End‑to‑end test under `tests/e2e/ami_mod_audit_test.go` launching the built CLI and validating stdout/stderr.
+  - [x] E2E pattern documented in `docs/test-patterns/README.md`.
 ### 1.1.7.0. Project Linter (`ami lint`)
 > Goal: Help users maintain code quality by providing a built-in linter as a first-class toolchain utility
 - [ ] Command uses the core compiler (citation needed) to lint the AMI source grammar
@@ -301,6 +313,7 @@ packages:
     - [x] Imports: duplicate imports (W_IMPORT_DUPLICATE); stable ordering (W_IMPORT_ORDER);
           disallowed relative paths to parents (W_IMPORT_RELATIVE); invalid version constraints (W_IMPORT_CONSTRAINT_INVALID)
     - [ ] Imports: duplicate alias (W_DUP_IMPORT_ALIAS), unused (W_UNUSED_IMPORT)
+        - [X] Parser-backed unused imports for ident-form imports (W_UNUSED_IMPORT)
     - [ ] Code hygiene: unreachable nodes/edges, duplicate function declarations across files (lint layer), 
           TODO/FIXME policy
     - [ ] Language‑specific:
@@ -309,7 +322,7 @@ packages:
 - [ ] Enforce/propagate AMI semantics via analyzer diagnostics surfaced in lint: 
       `E_MUT_BLOCK_UNSUPPORTED`, `E_MUT_ASSIGN_UNMARKED`, `E_PTR_UNSUPPORTED_SYNTAX`
   - [X] Integrate memory-safety analyzer for `E_PTR_UNSUPPORTED_SYNTAX` and `E_MUT_BLOCK_UNSUPPORTED` (Stage B)
-  - [ ] RAII hint: `W_RAII_OWNED_HINT` updated to recommend `mutate(release(x))` or equivalent explicit release
+  - [X] RAII hint: `W_RAII_OWNED_HINT` when `release(x)` not wrapped in `mutate(...)` (parser-backed)
   - [ ] Collections: `W_MAP_*`, `W_SET_*`, `W_SLICE_ARITY_HINT` mirrored as warnings
   - [ ] Pipelines: ingress/egress position hints (W_PIPELINE_INGRESS_POS, W_PIPELINE_EGRESS_POS)
 - [ ] Lint: severity configuration and rule suppression (pragma/config)
@@ -323,7 +336,7 @@ packages:
         - [X] Fall back to file‑only when exact positions are unavailable
         - [X] Tests validate position presence and formatting
 - [ ] Lint: cross‑package import/constraint consistency checks (strict mode)
-    - [ ] Validate imports across packages match `ami.workspace` version constraints (E_IMPORT_CONSTRAINT)
+    - [X] Validate conflicting exact versions across packages (E_IMPORT_CONSTRAINT_MULTI); promoted by strict
     - [ ] Detect forbidden prerelease imports when constraints omit prereleases
     - [ ] Ensure consistent import of the same package/version across the workspace (single version rule in strict mode)
     - [ ] Report mismatches as lint diagnostics with clear guidance

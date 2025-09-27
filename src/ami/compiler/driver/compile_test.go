@@ -160,4 +160,18 @@ func TestCompile_ASTDebug_FileExistsAndSchema(t *testing.T) {
     if err := json.Unmarshal(b, &obj); err != nil { t.Fatalf("json: %v", err) }
     if obj["schema"] != "ast.v1" { t.Fatalf("schema: %v", obj["schema"]) }
     if obj["package"] != "app" { t.Fatalf("package: %v", obj["package"]) }
+    // imports content
+    imps, ok := obj["imports"].([]any)
+    if !ok || len(imps) != 1 { t.Fatalf("imports: %T len=%d", obj["imports"], len(imps)) }
+    imp0, _ := imps[0].(map[string]any)
+    if imp0["path"] != "alpha" || imp0["constraint"] != ">= v1.0.0" { t.Fatalf("import0: %+v", imp0) }
+    // funcs content
+    fns, ok := obj["funcs"].([]any)
+    if !ok || len(fns) != 1 { t.Fatalf("funcs: %T len=%d", obj["funcs"], len(fns)) }
+    fn0, _ := fns[0].(map[string]any)
+    if fn0["name"] != "F" { t.Fatalf("func name: %v", fn0["name"]) }
+    tps, _ := fn0["typeParams"].([]any)
+    if len(tps) != 1 { t.Fatalf("typeParams len: %d", len(tps)) }
+    tp0, _ := tps[0].(map[string]any)
+    if tp0["name"] != "T" || tp0["constraint"] != "any" { t.Fatalf("typeParam0: %+v", tp0) }
 }

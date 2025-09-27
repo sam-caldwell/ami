@@ -4,4 +4,5 @@ package driver
 type lowerState struct {
     temp int
     varTypes map[string]string
+    funcResults map[string][]string
 }

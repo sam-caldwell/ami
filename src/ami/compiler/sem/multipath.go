@@ -50,12 +50,13 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                 if strings.HasPrefix(at.Name, "merge.") {
                     if rng, ok := merges[at.Name]; ok {
                         argc := len(at.Args)
+                        if at.Name == "merge.Sort" && argc == 0 {
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                            continue
+                        }
                         if argc < rng.min || (rng.max >= 0 && argc > rng.max) {
                             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: at.Name + ": invalid number of arguments", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                             continue
-                        }
-                        if at.Name == "merge.Sort" && argc == 0 { // defensive; also warn when empty field
-                            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                         }
                     } else {
                         out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_UNKNOWN", Message: "unknown merge attribute: " + at.Name, Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
@@ -66,4 +67,3 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
     }
     return out
 }
-

@@ -569,7 +569,7 @@ packages:
         }
       }
     }
-- [X] Resolution rules:
+- [ ] Resolution rules:
   - `ami mod get <url>@<semver>` resolves the tag (e.g., `v1.2.3`) to a commit.
   - If the remote repository supports Git SHA‑256 object format, record that commit OID directly.
   - If the remote repository uses SHA‑1, derive a SHA‑256 identifier deterministically from the raw commit object content (Git‑canonical header `"commit <len>\0"` + body) and record the resulting SHA‑256 digest as `<sha256-commit-oid>`.

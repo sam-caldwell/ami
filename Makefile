@@ -1,4 +1,4 @@
-.PHONY: all clean lint test build examples
+.PHONY: all clean lint test build examples e2e-build e2e-test
 
 all: build
 
@@ -14,6 +14,14 @@ test:
 
 build: clean
 	go build -o build/ami ./src/cmd/ami
+
+e2e-build:
+	@echo "Building ami CLI for E2E..."
+	go build -o build/ami ./src/cmd/ami
+
+e2e-test: e2e-build
+	@echo "Running E2E CLI tests (tests/e2e)..."
+	go test -v ./tests/e2e
 
 examples:
 	@if [ ! -x build/ami ]; then \

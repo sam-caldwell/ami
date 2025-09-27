@@ -41,7 +41,8 @@ func checkContainerExpr(now time.Time, e ast.Expr) []diag.Record {
             t := deduceType(el)
             if base == "" && t != "any" { base = t }
             if t != "any" && base != "" && t != base {
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "container element type mismatch: expected " + base + ", got " + t, Pos: &diag.Position{Line: ePos(el).Line, Column: ePos(el).Column, Offset: ePos(el).Offset}})
+                p := epos(el)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "container element type mismatch: expected " + base + ", got " + t, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
             }
         }
         // If declared primitive type is present, ensure it matches the base when known.
@@ -54,7 +55,8 @@ func checkContainerExpr(now time.Time, e ast.Expr) []diag.Record {
             t := deduceType(el)
             if base == "" && t != "any" { base = t }
             if t != "any" && base != "" && t != base {
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "set element type mismatch: expected " + base + ", got " + t, Pos: &diag.Position{Line: ePos(el).Line, Column: ePos(el).Column, Offset: ePos(el).Offset}})
+                p := epos(el)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "set element type mismatch: expected " + base + ", got " + t, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
             }
         }
         if prim(v.TypeName) && base != "" && base != v.TypeName {
@@ -69,11 +71,11 @@ func checkContainerExpr(now time.Time, e ast.Expr) []diag.Record {
             if kbase == "" && kt != "any" { kbase = kt }
             if vbase == "" && vt != "any" { vbase = vt }
             if kt != "any" && kbase != "" && kt != kbase {
-                pos := ePos(kv.Key)
+                pos := epos(kv.Key)
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "map key type mismatch: expected " + kbase + ", got " + kt, Pos: &diag.Position{Line: pos.Line, Column: pos.Column, Offset: pos.Offset}})
             }
             if vt != "any" && vbase != "" && vt != vbase {
-                pos := ePos(kv.Val)
+                pos := epos(kv.Val)
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "map value type mismatch: expected " + vbase + ", got " + vt, Pos: &diag.Position{Line: pos.Line, Column: pos.Column, Offset: pos.Offset}})
             }
         }
@@ -123,4 +125,3 @@ func deduceType(e ast.Expr) string {
         return "any"
     }
 }
-

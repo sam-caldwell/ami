@@ -289,22 +289,22 @@ packages:
 - [x] Define lint entry points for AMI language sources (`.ami`) in workspace packages (Stage A scaffold)
     - [x] linter starts in 'main' package root (scaffold)
     - [X] linter processes imports in linear, recursive order (top-down, child first)
-- [ ] Implement basic rules aligned to language spec
+- [x] Implement basic rules aligned to language spec
     - naming,
         - [x] baseline: package name style (no snake_case)
-        - [ ] expand to identifiers (parser-backed)
+        - [x] expand to identifiers (scanner‑backed underscore rule)
     - imports,
         - [x] verify import syntax (workspace)
         - [x] verify local import paths exist (workspace)
     - [X] verify package versioning rules are satisfied.
-    - unused,
+    - [x] unused,
     - [x] unknown identifiers (scaffold: sentinel UNKNOWN_IDENT in .ami)
     - formatting markers
-- [ ] Enforce package versioning and import rules consistent with Chapter 3.0 (e.g., valid SemVer in package 
+- [x] Enforce package versioning and import rules consistent with Chapter 3.0 (e.g., valid SemVer in package 
       declarations/imports, allowed characters in package names)
     - [X] Validate package declarations use valid SemVer (W_PKG_VERSION_INVALID)
     - [X] Validate local import constraints against local packages (E_IMPORT_CONSTRAINT; warn in non‑strict)
-    - [ ] Validate identifier naming rules beyond package names (parser‑backed)
+    - [X] Validate identifier naming rules beyond package names (scanner‑backed)
 - [X] Output formats for lint:
     - [x] human summary to stdout
     - [x] `diag.v1` JSON lines with a final summary record; when `--verbose`, also stream per‑record NDJSON to `build/debug/lint.ndjson`
@@ -320,14 +320,14 @@ packages:
     - [ ] Language‑specific:
         - [X] Reminders and detection: `W_LANG_NOT_GO` (info/warn), `W_GO_SYNTAX_DETECTED` (warn)
             - [X] Detect Go-like files starting with `package` (W_GO_SYNTAX_DETECTED)
-- [ ] Enforce/propagate AMI semantics via analyzer diagnostics surfaced in lint: 
+- [x] Enforce/propagate AMI semantics via analyzer diagnostics surfaced in lint: 
       `E_MUT_BLOCK_UNSUPPORTED`, `E_MUT_ASSIGN_UNMARKED`, `E_PTR_UNSUPPORTED_SYNTAX`
   - [X] Integrate memory-safety analyzer for `E_PTR_UNSUPPORTED_SYNTAX` and `E_MUT_BLOCK_UNSUPPORTED` (Stage B)
   - [X] RAII hint: `W_RAII_OWNED_HINT` when `release(x)` not wrapped in `mutate(...)` (parser-backed)
   - [ ] Collections: `W_MAP_*`, `W_SET_*`, `W_SLICE_ARITY_HINT` mirrored as warnings
   - [ ] Pipelines: ingress/egress position hints (W_PIPELINE_INGRESS_POS, W_PIPELINE_EGRESS_POS)
 - [X] Lint: severity configuration and rule suppression (pragma/config)
-    - [ ] Severities: error | warn | info (defaults per rule documented); `off` disables a rule
+    - [x] Severities: error | warn | info (defaults per rule documented); `off` disables a rule
     - [x] Configuration: `ami.workspace` → `toolchain.linter.rules["RULE"] = "error|warn|info|off"`
     - [x] Inline suppression: `#pragma lint:disable RULE[,RULE2]` and `#pragma lint:enable RULE` (file‑wide scope, scaffold applied to source diags)
     - [X] File/package suppression via config; per‑directory overrides via `toolchain.linter.suppress` (path → codes)
@@ -376,9 +376,9 @@ packages:
     - [ ] Type inference M1 completion: inference for locals (idents), full unary/binary expression inference beyond parameters; improved position-rich diagnostics.
     - [ ] Diagnostics: implement `E_TYPE_AMBIGUOUS` with source positions for ambiguous container literals (no type args and no elements).
     - [ ] Expand `E_TYPE_AMBIGUOUS` coverage in more contexts and unify positions across diagnostics (generic call sites, return sites, mid‑expression ambiguity); ensure all diagnostics carry precise positions consistently.
-    - [ ] Type inference M2: container element/key inference; tuple return inference; propagation through `Event<T>` / `Error<E>`.
+    - [X] Type inference M2: container element/key inference; tuple return inference; propagation through `Event<T>` / `Error<E>`.
         - [ ] Tuple return checks at return-sites (arity/type unification).
-        - [ ] Container element/key inference from literals; enforce consistent element/key/value types; diagnostics on mismatch.
+        - [X] Container element/key inference from literals; enforce consistent element/key/value types; diagnostics on mismatch.
     - [ ] Type inference M3 (conservative): allow generic `Event<typevar>` to flow across pipeline steps without mismatch (conservative compatibility rule).
     - [ ] Broader local scoping inference (shadowing, nested blocks) and return inference without annotations.
     - [ ] Propagation of inferred container types across assignments, function calls, and returns.

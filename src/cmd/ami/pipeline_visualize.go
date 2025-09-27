@@ -122,9 +122,10 @@ func newPipelineVisualizeCmd() *cobra.Command {
             }
             // Human: header + ASCII block per pipeline
             width, _ := cmd.Flags().GetInt("width")
+            legend, _ := cmd.Flags().GetBool("legend")
             for i, g := range graphs {
                 header := fmt.Sprintf("package: %s  pipeline: %s\n", g.Package, g.Name)
-                line := ascii.RenderBlock(g, ascii.Options{Width: width})
+                line := ascii.RenderBlock(g, ascii.Options{Width: width, Focus: focus, Legend: legend})
                 if i > 0 { _, _ = cmd.OutOrStdout().Write([]byte("\n")) }
                 _, _ = cmd.OutOrStdout().Write([]byte(header))
                 _, _ = cmd.OutOrStdout().Write([]byte(line))
@@ -138,6 +139,7 @@ func newPipelineVisualizeCmd() *cobra.Command {
     cmd.Flags().String("focus", "", "only show pipelines that include this node substring")
     cmd.Flags().Int("width", 0, "wrap ASCII lines to this width (0=disable)")
     cmd.Flags().Bool("no-summary", false, "omit JSON summary record")
+    cmd.Flags().Bool("legend", false, "show a simple legend in ASCII output")
     return cmd
 }
 
@@ -226,7 +228,7 @@ func deriveEdgeAttrs(pd *ast.PipelineDecl, fromID string, nameToID map[string]st
     }
     // count StepStmt to match idx
     si := -1
-    for i, s := range pd.Stmts {
+    for _, s := range pd.Stmts {
         if _, ok := s.(*ast.StepStmt); ok { si++; if si == idx { return attrsFromStep(s.(*ast.StepStmt)) } }
     }
     return nil
@@ -237,6 +239,7 @@ func attrsFromStep(st *ast.StepStmt) map[string]any {
     var bounded bool
     delivery := ""
     typ := ""
+    multipath := ""
     for _, at := range st.Attrs {
         if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 {
             typ = at.Args[0].Text
@@ -256,6 +259,25 @@ func attrsFromStep(st *ast.StepStmt) map[string]any {
                         delivery = "atLeastOnce"
                     }
                 }
+            } else if at.Name == "merge.Shunt" {
+                if len(at.Args) > 0 {
+                    pol := at.Args[0].Text
+                    switch pol {
+                    case "newest":
+                        delivery = "shuntNewest"
+                    case "oldest":
+                        delivery = "shuntOldest"
+                    }
+                }
+            }
+        }
+        if at.Name == "edge.MultiPath" || at.Name == "MultiPath" {
+            if len(at.Args) > 0 {
+                var parts []string
+                for _, a := range at.Args { if a.Text != "" { parts = append(parts, a.Text) } }
+                if len(parts) > 0 {
+                    multipath = strings.Join(parts, "|")
+                }
             }
         }
     }
@@ -263,6 +285,7 @@ func attrsFromStep(st *ast.StepStmt) map[string]any {
     if bounded { m["bounded"] = true }
     if delivery != "" { m["delivery"] = delivery }
     if typ != "" { m["type"] = typ }
+    if multipath != "" { m["multipath"] = multipath }
     if len(m) == 0 { return nil }
     return m
 }

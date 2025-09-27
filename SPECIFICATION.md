@@ -1102,7 +1102,7 @@ Deliverables
 #### 2.1.3) Tests & Docs
   - [ ] CLI tests for flags, JSON stream, exit codes, per‑package summaries, default pattern, package‑level concurrency.
   - [ ] CLI tests for native AMI cases (pass/fail/skip) and rich assertions (count and substring filters).
-  - [A] Coverage for `ami test` ≥80%.
+  - [X] Coverage for `ami test` ≥80%.
   - [ ] Docs: `docs/test.md` updated (flags, JSON fields, pragmas); `docs/runtime-tests.md` updated to describe Phase 2 harness behavior.
 
 Phase 2: Executable AMI tests (scaffolded)

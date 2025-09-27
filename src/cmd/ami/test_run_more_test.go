@@ -103,8 +103,8 @@ func TestRunTest_AMI_Directives_CodeMismatch_ReturnsError(t *testing.T) {
     _ = os.RemoveAll(dir)
     if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
     if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
-    // Intentionally no package line to trigger parser error; expect code mismatch to fail
-    src := "#pragma test:case c1\n#pragma test:assert parse_fail code=E_NOT_PARSE\nfunc F(){}\n"
+    // Parse error with wrong expected code → mismatch should fail
+    src := "package app\n#pragma test:case c1\n#pragma test:assert parse_fail code=E_NOT_PARSE\nfunc F(\n"
     if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
     var out bytes.Buffer
     if err := runTest(&out, dir, false, false, 0); err == nil {

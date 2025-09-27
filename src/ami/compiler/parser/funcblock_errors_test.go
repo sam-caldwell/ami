@@ -42,3 +42,10 @@ func TestParse_FuncBlock_UnknownToken(t *testing.T) {
     p := New(f)
     _, _ = p.ParseFileCollect()
 }
+
+func TestParse_Func_WithParamsAndResults(t *testing.T) {
+    src := "package app\nfunc G(x int, y stringTy) (bool, rune) { return }\n"
+    f := (&source.FileSet{}).AddFile("sig.ami", src)
+    p := New(f)
+    if _, err := p.ParseFile(); err != nil { t.Fatalf("ParseFile: %v", err) }
+}

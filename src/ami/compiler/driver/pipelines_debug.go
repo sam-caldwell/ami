@@ -51,6 +51,22 @@ type pipeAttr struct {
 // writePipelinesDebug writes pipelines debug JSON for a parsed file.
 func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
     var entries []pipelineEntry
+    // derive defaults from pragmas
+    defaultDelivery := "atLeastOnce"
+    if f != nil {
+        for _, pr := range f.Pragmas {
+            if pr.Domain == "backpressure" {
+                if pol, ok := pr.Params["policy"]; ok {
+                    switch pol {
+                    case "dropOldest", "dropNewest":
+                        defaultDelivery = "bestEffort"
+                    case "block":
+                        defaultDelivery = "atLeastOnce"
+                    }
+                }
+            }
+        }
+    }
     for _, d := range f.Decls {
         pd, ok := d.(*ast.PipelineDecl)
         if !ok { continue }
@@ -61,7 +77,7 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                 for _, a := range st.Args { args = append(args, a.Text) }
                 op := pipelineOp{Name: st.Name, Args: args}
                 // default edge attributes (scaffold for #pragma backpressure)
-                op.Edge = &edgeAttrs{Bounded: false, Delivery: "atLeastOnce"}
+                op.Edge = &edgeAttrs{Bounded: false, Delivery: defaultDelivery}
                 // attributes
                 var rawAttrs []pipeAttr
                 for _, at := range st.Attrs {

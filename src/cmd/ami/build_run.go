@@ -12,6 +12,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/exit"
     "github.com/sam-caldwell/ami/src/ami/compiler/driver"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
+    man "github.com/sam-caldwell/ami/src/ami/manifest"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
@@ -110,6 +111,63 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             _ = json.NewEncoder(out).Encode(rec)
         }
         return exit.New(exit.IO, "dependency audit failed: %v", aerr)
+    }
+
+    // If ami.manifest exists alongside ami.sum, verify consistency with sum.
+    // Compare presence of name@version pairs irrespective of sha.
+    maniPath := filepath.Join(dir, "ami.manifest")
+    if st, err := os.Stat(maniPath); err == nil && !st.IsDir() {
+        sumPath := filepath.Join(dir, "ami.sum")
+        if st2, err2 := os.Stat(sumPath); err2 == nil && !st2.IsDir() {
+            // load sum
+            var sum workspace.Manifest
+            if err := sum.Load(sumPath); err == nil {
+                // load ami.manifest
+                var mf man.Manifest
+                if err := mf.Load(maniPath); err == nil {
+                    // extract name@version set from mf.Data["packages"] when possible
+                    inMani := make(map[string]struct{})
+                    if pk, ok := mf.Data["packages"]; ok {
+                        switch t := pk.(type) {
+                        case map[string]any:
+                            for name, v := range t {
+                                if mm, ok := v.(map[string]any); ok {
+                                    for ver := range mm { inMani[name+"@"+ver] = struct{}{} }
+                                }
+                            }
+                        case []any:
+                            for _, el := range t {
+                                if mm, ok := el.(map[string]any); ok {
+                                    name, _ := mm["name"].(string)
+                                    ver, _ := mm["version"].(string)
+                                    if name != "" && ver != "" { inMani[name+"@"+ver] = struct{}{} }
+                                }
+                            }
+                        }
+                    }
+                    // extract from sum
+                    inSum := make(map[string]struct{})
+                    for name, vv := range sum.Packages { for ver := range vv { inSum[name+"@"+ver] = struct{}{} } }
+                    // compute deltas
+                    var missingInMani, extraInMani []string
+                    for k := range inSum { if _, ok := inMani[k]; !ok { missingInMani = append(missingInMani, k) } }
+                    for k := range inMani { if _, ok := inSum[k]; !ok { extraInMani = append(extraInMani, k) } }
+                    if len(missingInMani) > 0 || len(extraInMani) > 0 {
+                        if jsonOut {
+                            _ = json.NewEncoder(out).Encode(diag.Record{
+                                Timestamp: time.Now().UTC(),
+                                Level:     diag.Error,
+                                Code:      "E_INTEGRITY_MANIFEST",
+                                Message:   "ami.manifest mismatch vs ami.sum",
+                                File:      "ami.manifest",
+                                Data:      map[string]any{"missing": missingInMani, "extra": extraInMani},
+                            })
+                        }
+                        return exit.New(exit.Integrity, "manifest mismatch with ami.sum")
+                    }
+                }
+            }
+        }
     }
     // Consider issues when ami.sum missing or any lists are non-empty as violations for this phase.
     if len(rep.Requirements) > 0 && (!rep.SumFound || len(rep.MissingInSum) > 0 || len(rep.Unsatisfied) > 0 || len(rep.MissingInCache) > 0 || len(rep.Mismatched) > 0 || len(rep.ParseErrors) > 0) {

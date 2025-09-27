@@ -1,0 +1,101 @@
+?   	github.com/sam-caldwell/ami/src	[no test files]
+=== RUN   TestFile_Basics
+--- PASS: TestFile_Basics (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/compiler/ast	(cached)
+?   	github.com/sam-caldwell/ami/src/ami/compiler/codegen	[no test files]
+?   	github.com/sam-caldwell/ami/src/ami/compiler/ir	[no test files]
+=== RUN   TestParser_ParseFile_PackageDecl
+--- PASS: TestParser_ParseFile_PackageDecl (0.00s)
+=== RUN   TestParser_ParseFile_ErrorsOnMissingKeyword
+--- PASS: TestParser_ParseFile_ErrorsOnMissingKeyword (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/compiler/parser	(cached)
+=== RUN   TestScanner_IdentAndEOF
+--- PASS: TestScanner_IdentAndEOF (0.00s)
+=== RUN   TestScanner_NilOrEmpty
+--- PASS: TestScanner_NilOrEmpty (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/compiler/scanner	(cached)
+?   	github.com/sam-caldwell/ami/src/ami/compiler/sem	[no test files]
+=== RUN   TestFile_Pos_Happy
+--- PASS: TestFile_Pos_Happy (0.00s)
+=== RUN   TestFile_Pos_Bounds
+--- PASS: TestFile_Pos_Bounds (0.00s)
+=== RUN   TestFileSet_AddAndFind
+--- PASS: TestFileSet_AddAndFind (0.00s)
+=== RUN   TestPosition_ZeroAndFields
+--- PASS: TestPosition_ZeroAndFields (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/compiler/source	(cached)
+=== RUN   TestLookupKeyword_Hit
+--- PASS: TestLookupKeyword_Hit (0.00s)
+=== RUN   TestLookupKeyword_Miss
+--- PASS: TestLookupKeyword_Miss (0.00s)
+=== RUN   TestKindString
+--- PASS: TestKindString (0.00s)
+=== RUN   TestKind_String
+--- PASS: TestKind_String (0.00s)
+=== RUN   TestOperators_Lookup
+--- PASS: TestOperators_Lookup (0.00s)
+=== RUN   TestPrecedence_Order
+--- PASS: TestPrecedence_Order (0.00s)
+=== RUN   TestSymbols_Basics
+--- PASS: TestSymbols_Basics (0.00s)
+=== RUN   TestToken_Basics
+--- PASS: TestToken_Basics (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/compiler/token	(cached)
+?   	github.com/sam-caldwell/ami/src/ami/compiler/types	[no test files]
+=== RUN   TestUnwrapCode
+--- PASS: TestUnwrapCode (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/exit	(cached)
+=== RUN   TestHumanFormatter_VerbosePrefixesEachLine
+--- PASS: TestHumanFormatter_VerbosePrefixesEachLine (0.00s)
+=== RUN   TestHumanFormatter_NoPrefixWhenNotVerbose
+--- PASS: TestHumanFormatter_NoPrefixWhenNotVerbose (0.00s)
+=== RUN   TestHumanFormatter_ColorOnlyWhenEnabled
+--- PASS: TestHumanFormatter_ColorOnlyWhenEnabled (0.00s)
+=== RUN   TestHumanFormatter_CRLFtoLF
+--- PASS: TestHumanFormatter_CRLFtoLF (0.00s)
+=== RUN   TestLogger_JSONIncludesTimestampAndNoANSI
+--- PASS: TestLogger_JSONIncludesTimestampAndNoANSI (0.00s)
+=== RUN   TestLogger_VerboseAlsoWritesDebugFile
+--- PASS: TestLogger_VerboseAlsoWritesDebugFile (0.00s)
+=== RUN   TestRecordMarshalJSON_DeterministicOrdering
+--- PASS: TestRecordMarshalJSON_DeterministicOrdering (0.00s)
+=== RUN   TestJSONFormatter_NoColorSequences
+--- PASS: TestJSONFormatter_NoColorSequences (0.00s)
+=== RUN   TestLogger_FilterAllowAndDenyAndPrefix
+--- PASS: TestLogger_FilterAllowAndDenyAndPrefix (0.00s)
+=== RUN   TestLogger_RedactsConfiguredKeys
+--- PASS: TestLogger_RedactsConfiguredKeys (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/logging	0.006s
+=== RUN   TestParseConstraint_Valid
+--- PASS: TestParseConstraint_Valid (0.00s)
+=== RUN   TestParseConstraint_Invalid
+--- PASS: TestParseConstraint_Invalid (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/semver	(cached)
+=== RUN   TestFileSink_AppendsLines
+--- PASS: TestFileSink_AppendsLines (0.00s)
+=== RUN   TestPipeline_RedactLogV1Line
+--- PASS: TestPipeline_RedactLogV1Line (0.00s)
+=== RUN   TestPipeline_BatchFlushOnSizeAndClose
+--- PASS: TestPipeline_BatchFlushOnSizeAndClose (0.00s)
+=== RUN   TestPipeline_DropNewestWhenQueueFull
+--- PASS: TestPipeline_DropNewestWhenQueueFull (0.00s)
+=== RUN   TestStderrSink_WritesToWriter
+--- PASS: TestStderrSink_WritesToWriter (0.00s)
+=== RUN   TestStdoutSink_WritesToWriter
+--- PASS: TestStdoutSink_WritesToWriter (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/stdlib/logger	0.007s
+=== RUN   TestDefaultWorkspace_SaveLoad_RoundTrip
+--- PASS: TestDefaultWorkspace_SaveLoad_RoundTrip (0.00s)
+=== RUN   TestPackageList_YAMLShape
+--- PASS: TestPackageList_YAMLShape (0.00s)
+PASS
+ok  	github.com/sam-caldwell/ami/src/ami/workspace	0.006s

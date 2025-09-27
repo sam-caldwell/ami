@@ -1,0 +1,69 @@
+package token
+
+// String returns a stable debug name for the token kind.
+func (k Kind) String() string {
+    switch k {
+    case Unknown:
+        return "Unknown"
+    case EOF:
+        return "EOF"
+    case Ident:
+        return "Ident"
+    case Number:
+        return "Number"
+    case String:
+        return "String"
+    case Symbol:
+        return "Symbol"
+    case Assign:
+        return "Assign"
+    case Plus:
+        return "Plus"
+    case Minus:
+        return "Minus"
+    case Star:
+        return "Star"
+    case Slash:
+        return "Slash"
+    case Percent:
+        return "Percent"
+    case Bang:
+        return "Bang"
+    case Eq:
+        return "Eq"
+    case Ne:
+        return "Ne"
+    case Lt:
+        return "Lt"
+    case Gt:
+        return "Gt"
+    case Le:
+        return "Le"
+    case Ge:
+        return "Ge"
+    case And:
+        return "And"
+    case Or:
+        return "Or"
+    case Arrow:
+        return "Arrow"
+    case KwPackage:
+        return "KwPackage"
+    case KwImport:
+        return "KwImport"
+    case KwFunc:
+        return "KwFunc"
+    case KwReturn:
+        return "KwReturn"
+    case KwPipeline:
+        return "KwPipeline"
+    case KwIngress:
+        return "KwIngress"
+    case KwEgress:
+        return "KwEgress"
+    case KwError:
+        return "KwError"
+    default:
+        return "Unknown"
+    }
+}

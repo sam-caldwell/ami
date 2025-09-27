@@ -13,7 +13,7 @@ import (
 func TestASTDebug_IncludesPragmas(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
-    code := "#pragma concurrency level=4\npackage app\nfunc F(){}\n"
+    code := "package app\n#pragma concurrency level=4\nfunc F(){}\n"
     fs.AddFile("u.ami", code)
     pkgs := []Package{{Name: "app", Files: fs}}
     _, _ = Compile(ws, pkgs, Options{Debug: true})
@@ -30,4 +30,3 @@ func TestASTDebug_IncludesPragmas(t *testing.T) {
         t.Fatalf("params: %#v", p0["params"])
     }
 }
-

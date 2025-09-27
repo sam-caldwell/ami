@@ -20,3 +20,9 @@ func TestParse_ImportConstraint_QuotedAndMissing(t *testing.T) {
     _, _ = p2.ParseFile() // tolerate error; path exercised
 }
 
+func TestParse_ImportConstraint_UnquotedComposite(t *testing.T) {
+    src := "package app\nimport foo >= v1.2.3-rc.1\n"
+    f := (&source.FileSet{}).AddFile("icu.ami", src)
+    p := New(f)
+    if _, err := p.ParseFile(); err != nil { t.Fatalf("ParseFile: %v", err) }
+}

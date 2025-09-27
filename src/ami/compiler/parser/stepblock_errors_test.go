@@ -30,3 +30,10 @@ func TestParse_Pipeline_StepArgs_AttrArgs_Errors(t *testing.T) {
     p := New(f)
     _, _ = p.ParseFileCollect()
 }
+
+func TestParse_ErrorBlock_Chained_MissingName(t *testing.T) {
+    src := "package app\nerror { Alpha(). Beta() }\n"
+    f := (&source.FileSet{}).AddFile("errchain.ami", src)
+    p := New(f)
+    _, _ = p.ParseFileCollect()
+}

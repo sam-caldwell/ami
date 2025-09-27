@@ -148,6 +148,39 @@ func TestCompile_IRTyping_ReduceAnyOnReturn(t *testing.T) {
     if v0["type"] != "int" { t.Fatalf("want return type int, got %v", v0["type"]) }
 }
 
+func TestCompile_IRTyping_VarInit_InferredType(t *testing.T) {
+    ws := workspace.Workspace{}
+    fs := &source.FileSet{}
+    fs.AddFile("varinit.ami", "package app\nfunc F() (int) { var x = 1; return x }\n")
+    pkgs := []Package{{Name: "app", Files: fs}}
+    arts, _ := Compile(ws, pkgs, Options{Debug: true})
+    if len(arts.IR) == 0 { t.Fatalf("no IR emitted") }
+    b, err := os.ReadFile(arts.IR[0])
+    if err != nil { t.Fatalf("read: %v", err) }
+    var obj map[string]any
+    if err := json.Unmarshal(b, &obj); err != nil { t.Fatalf("json: %v", err) }
+    fns := obj["functions"].([]any)
+    fn := fns[0].(map[string]any)
+    blks := fn["blocks"].([]any)
+    blk := blks[0].(map[string]any)
+    instrs := blk["instrs"].([]any)
+    // find VAR instruction for x and ensure type is int
+    foundVar := false
+    for _, in := range instrs {
+        m := in.(map[string]any)
+        if m["op"] == "VAR" {
+            if m["type"] == "int" { foundVar = true; break }
+        }
+    }
+    if !foundVar { t.Fatalf("expected VAR with type=int") }
+    // verify return value type is int
+    last := instrs[len(instrs)-1].(map[string]any)
+    if last["op"] != "RETURN" { t.Fatalf("last op not RETURN: %v", last["op"]) }
+    vals := last["values"].([]any)
+    v0 := vals[0].(map[string]any)
+    if v0["type"] != "int" { t.Fatalf("want return type int, got %v", v0["type"]) }
+}
+
 func TestCompile_IRTyping_CallResultType(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}

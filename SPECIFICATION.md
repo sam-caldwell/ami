@@ -363,7 +363,7 @@ packages:
     - [X] Lex/Tokenize/Parse: Source → tokens → AST (per .ami file)
     - [X] Type-Checking: resolve names, perform inference/checks and const folding.
     - [X] If verbose is used, write AST and other required information to build/debug/ files.
-    - [ ] Variable declarations and local bindings (to enable broader local type inference in bodies).
+    - [X] Variable declarations and local bindings (to enable broader local type inference in bodies).
 - [X] Tuple/multi-value returns syntax and parsing.
 - [X] Container literal syntax for `slice<T>`, `set<T>`, and `map<K,V>` (for container inference rules):
     - `slice<T>{e1, e2, ...}`

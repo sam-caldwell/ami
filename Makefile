@@ -1,5 +1,6 @@
 .PHONY: all clean lint test build examples e2e-build e2e-test \
-        e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update
+        e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update \
+        test-hotspots
 
 all: build
 
@@ -52,6 +53,28 @@ e2e-mod-sum: e2e-build
 
 e2e-mod-update: e2e-build
 	go test -v ./tests/e2e -run AmiModUpdate
+
+# List packages and files under src/ missing test coverage patterns.
+# - Reports packages with zero *_test.go files.
+# - Reports .go files without a matching *_test.go sibling (same basename).
+test-hotspots:
+	@echo "Scanning src/ for test coverage hotspots..." >&2
+	@# Packages with no tests
+	@find src -type d | while read d; do \
+	  c_go=$$(ls "$$d"/*.go 2>/dev/null | wc -l | tr -d ' '); \
+	  c_test=$$(ls "$$d"/*_test.go 2>/dev/null | wc -l | tr -d ' '); \
+	  if [ "$$c_go" != "0" ] && [ "$$c_test" = "0" ]; then \
+	    echo "NO_TESTS  $$d"; \
+	  fi; \
+	 done
+	@# Files with no paired *_test.go
+	@find src -type f -name "*.go" ! -name "*_test.go" | while read f; do \
+	  base=$$(basename "$$f" .go); \
+	  dir=$$(dirname "$$f"); \
+	  if [ ! -f "$$dir/$${base}_test.go" ]; then \
+	    echo "MISSING_PAIR  $$f  (expect: $${dir}/$${base}_test.go)"; \
+	  fi; \
+	 done | sed 's#//.*$$##'
 
 examples:
 	@if [ ! -x build/ami ]; then \

@@ -354,7 +354,7 @@ packages:
 - [X] The build / parse / compiler tool is configured by `ami.workspace`
 - [X] If `toolchain.compiler.env` is empty, default to a single target `darwin/arm64` for this project phase.
 #### 1.1.9.2. Build process:
-  - [ ] Compiler can produce consistent error messages when defects are identified in the sources
+  - [X] Compiler can produce consistent error messages when defects are identified in the sources
   - [X] Compiler can generate a json build plan if `--verbose` is used.
   - [X] Compiler can track token position to localize detected errors by line and position
   - [X] Using `ami.workspace` ensure that all local and remote packages are available on the local machine

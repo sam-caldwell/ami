@@ -100,17 +100,25 @@ func exprToJSON(e Expr) any {
         }
         // Always include a signature block for calls in debug JSON
         sig := map[string]any{"params": []any{}, "results": []any{}}
-        ps := make([]any, 0, len(e.ParamTypes))
+        var ps []any
+        // Case 1: have names matching types → emit name/type objects
         if len(e.ParamNames) > 0 && len(e.ParamNames) == len(e.ParamTypes) {
+            ps = make([]any, 0, len(e.ParamTypes))
             for i := range e.ParamTypes {
                 ps = append(ps, map[string]any{"name": e.ParamNames[i], "type": e.ParamTypes[i]})
             }
         } else {
-            if len(e.ParamTypes) > 0 {
-                for _, p := range e.ParamTypes { ps = append(ps, p) }
-            } else {
-                // Fallback to argument types when signature unknown
-                for _, a := range e.Args { ps = append(ps, a.Type) }
+            // Case 2: synthesize placeholders to always provide name/type objects
+            // Prefer function param types; otherwise fall back to arg types
+            n := len(e.ParamTypes)
+            if n == 0 { n = len(e.Args) }
+            ps = make([]any, 0, n)
+            for i := 0; i < n; i++ {
+                name := fmt.Sprintf("p%d", i)
+                typ := "any"
+                if i < len(e.ParamTypes) && e.ParamTypes[i] != "" { typ = e.ParamTypes[i] }
+                if typ == "any" && i < len(e.Args) && e.Args[i].Type != "" { typ = e.Args[i].Type }
+                ps = append(ps, map[string]any{"name": name, "type": typ})
             }
         }
         rs := make([]any, 0, len(e.ResultTypes))

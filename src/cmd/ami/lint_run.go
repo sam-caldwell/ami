@@ -50,6 +50,8 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
     diags = append(diags, lintWorkspace(dir, &ws)...)
     // Cross-package constraints (strict mode elevates to error)
     diags = append(diags, lintCrossPackageConstraints(&ws)...)
+    // Circular local import detection
+    diags = append(diags, lintImportCycles(&ws)...)
     // Source scaffold: scan for UNKNOWN_IDENT under main package root and recursively in local imports
     if p := ws.FindPackage("main"); p != nil && p.Root != "" {
         roots := append([]string{}, p.Root)

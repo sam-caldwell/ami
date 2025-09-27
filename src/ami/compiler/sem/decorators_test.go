@@ -23,9 +23,19 @@ func TestAnalyzeDecorators_Unresolved_And_Conflict(t *testing.T) {
     ds := AnalyzeDecorators(af)
     var unresolved, conflict bool
     for _, d := range ds {
-        if d.Code == "E_DECORATOR_UNRESOLVED" { unresolved = true }
+        if d.Code == "E_DECORATOR_UNDEFINED" { unresolved = true }
         if d.Code == "E_DECORATOR_CONFLICT" { conflict = true }
     }
     if !unresolved || !conflict { t.Fatalf("expected unresolved+conflict: %+v", ds) }
 }
 
+func TestAnalyzeDecorators_Deprecated_Warning(t *testing.T) {
+    src := "package app\n@deprecated(\"use G\")\nfunc F(){}\n"
+    f := &source.File{Name: "d3.ami", Content: src}
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    ds := AnalyzeDecorators(af)
+    found := false
+    for _, d := range ds { if d.Code == "W_DEPRECATED" { found = true } }
+    if !found { t.Fatalf("expected W_DEPRECATED: %+v", ds) }
+}

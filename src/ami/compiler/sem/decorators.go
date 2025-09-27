@@ -47,9 +47,14 @@ func AnalyzeDecorators(f *ast.File) []diag.Record {
             if _, ok := builtins[name]; !ok { // exact built-in match
                 if _, ok := builtins[base]; !ok { // allow short built-in names too
                     if _, ok := funcs[base]; !ok {
-                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_UNRESOLVED", Message: "decorator unresolved: " + name, Pos: &diag.Position{Line: dec.Pos.Line, Column: dec.Pos.Column, Offset: dec.Pos.Offset}, Data: map[string]any{"function": fn.Name}})
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_UNDEFINED", Message: "decorator undefined: " + name, Pos: &diag.Position{Line: dec.Pos.Line, Column: dec.Pos.Column, Offset: dec.Pos.Offset}, Data: map[string]any{"function": fn.Name}})
                     }
                 }
+            }
+            // Built-in behaviors (scaffold)
+            if name == "deprecated" || base == "deprecated" {
+                msg := canonicalDecoArgs(dec.Args)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_DEPRECATED", Message: "function is deprecated", Pos: &diag.Position{Line: dec.Pos.Line, Column: dec.Pos.Column, Offset: dec.Pos.Offset}, Data: map[string]any{"function": fn.Name, "message": msg}})
             }
             // detect conflicting duplicates
             val := canonicalDecoArgs(dec.Args)

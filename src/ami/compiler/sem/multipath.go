@@ -77,10 +77,23 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
                                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Watermark: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                             }
+                            if argc >= 2 {
+                                lat := strings.TrimSpace(at.Args[1].Text)
+                                if lat == "0" || strings.HasPrefix(lat, "-") {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                }
+                            }
                         case "merge.Window":
                             if argc >= 1 {
                                 if at.Args[0].Text == "0" || strings.HasPrefix(at.Args[0].Text, "-") {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WINDOW_ZERO_OR_NEGATIVE", Message: "merge.Window: size should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                }
+                            }
+                        case "merge.Timeout":
+                            if argc >= 1 {
+                                ms := strings.TrimSpace(at.Args[0].Text)
+                                if ms == "0" || strings.HasPrefix(ms, "-") {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Timeout: must be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                                 }
                             }
                         case "merge.Key", "merge.PartitionBy":
@@ -123,10 +136,20 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                     }
                 }
             }
-            // cross-attribute conflict: PartitionBy vs Key with different fields (scaffold)
+            // cross-attribute conflicts
             if keyField != "" && partitionField != "" && keyField != partitionField {
                 p := stepPos(st)
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.PartitionBy vs merge.Key conflict", Pos: &p})
+            }
+            // Dedup(field) conflicts with Key when both provided and different
+            for _, at := range st.Attrs {
+                if at.Name == "merge.Dedup" && len(at.Args) >= 1 {
+                    df := strings.TrimSpace(at.Args[0].Text)
+                    if df != "" && keyField != "" && df != keyField {
+                        p := stepPos(st)
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.Dedup field differs from merge.Key", Pos: &p})
+                    }
+                }
             }
         }
     }

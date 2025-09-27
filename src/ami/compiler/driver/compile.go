@@ -131,6 +131,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeTypeInference(af))
             attachFile(sem.AnalyzeAmbiguity(af))
             attachFile(sem.AnalyzeNameResolution(af))
+            attachFile(sem.AnalyzeWorkers(af))
             attachFile(sem.AnalyzeReturnTypes(af))
             attachFile(sem.AnalyzeReturnTypesWithSigs(af, resultSigs))
             attachFile(sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs))

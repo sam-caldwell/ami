@@ -824,7 +824,7 @@ Tests & Docs
   `func(ev Event<T>) (Event<U>, error)`
   - Ambient state access via `state.get/set/...` per docx and Memory Safety (no `*State` parameter). Legacy explicit `State` parameter is not allowed for workers.
 - [ ] Purity and sandboxing: enforced at pipeline level for IO nodes (ingress first, egress last); deeper IO checks deferred with runtime integration.
-- [ ] Factories: `New*` worker factories recognized; pipeline semantics resolve factory calls to top‑level functions; unknown references emit `E_WORKER_UNDEFINED`; invalid signatures emit `E_WORKER_SIGNATURE`.
+- [X] Factories: `New*` worker factories recognized (existence check only for now); pipeline semantics resolve factory calls to top‑level functions; unknown references emit `E_WORKER_UNDEFINED`; invalid signatures emit `E_WORKER_SIGNATURE`.
 - [ ] Execution context/state (scaffold): placeholders defined in compiler types for later runtime/execution integration.
 ### 1.2.4.0. Merge Package (Collect + edge.MultiPath Attributes)
 > Goal: Provide a stdlib `merge` package and `edge.MultiPath(...)` edge spec to configure merging behavior on `Collect` nodes when joining multiple upstreams. Attributes are declared as `merge.*(...)` inside the `edge.MultiPath(...)` argument list.

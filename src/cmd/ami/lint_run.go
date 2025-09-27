@@ -63,7 +63,8 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
         }
         for _, root := range uniq {
             disables := scanPragmas(dir, root)
-            srcDiags := scanSourceUnknown(dir, root)
+            srcDiags := append([]diag.Record{}, scanSourceUnknown(dir, root)...)
+            srcDiags = append(srcDiags, scanSourceIdentStyle(dir, root)...)
             filtered := srcDiags[:0]
             for _, d := range srcDiags {
                 if d.File != "" {
@@ -107,6 +108,9 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
         }
         diags = mapped
     }
+
+    // Apply path-based suppression from workspace config
+    diags = applyConfigSuppress(dir, &ws, diags)
 
     // Summarize
     var errorsN, warnsN int

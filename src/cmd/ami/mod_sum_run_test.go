@@ -89,6 +89,52 @@ func TestModSum_IntegrityMatch(t *testing.T) {
     if !res.Ok || res.PackagesSeen != 1 { t.Fatalf("unexpected result: %+v", res) }
 }
 
+func TestModSum_FetchesMissing_FromFileGit_AndUpdatesSum(t *testing.T) {
+    base := filepath.Join("build", "test", "mod_sum", "fetch_git")
+    repo := filepath.Join(base, "repo")
+    wsdir := filepath.Join(base, "ws")
+    cache := filepath.Join(base, "cache")
+    // set up repo
+    _ = os.RemoveAll(base)
+    if err := os.MkdirAll(repo, 0o755); err != nil { t.Fatalf("mkdir repo: %v", err) }
+    run := func(dir string, name string, args ...string) {
+        cmd := exec.Command(name, args...)
+        cmd.Dir = dir
+        cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+        if out, err := cmd.CombinedOutput(); err != nil { t.Fatalf("%s %v: %v\n%s", name, args, err, out) }
+    }
+    run(repo, "git", "init")
+    if err := os.WriteFile(filepath.Join(repo, "a.txt"), []byte("content"), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    run(repo, "git", "add", ".")
+    run(repo, "git", "-c", "user.email=test@example.com", "-c", "user.name=test", "commit", "-m", "init")
+    run(repo, "git", "tag", "v1.0.0")
+
+    // workspace and sum
+    if err := os.MkdirAll(wsdir, 0o755); err != nil { t.Fatalf("mkdir ws: %v", err) }
+    if err := os.WriteFile(filepath.Join(wsdir, "ami.workspace"), []byte("version: 1.0.0\npackages: []\n"), 0o644); err != nil { t.Fatalf("write ws: %v", err) }
+    absRepo, _ := filepath.Abs(repo)
+    // ami.sum with wrong sha256 and file+git source; package name derived as "repo"
+    sum := []byte(fmt.Sprintf(`{"schema":"ami.sum/v1","packages":{"repo":{"version":"v1.0.0","sha256":"0000","source":"file+git://%s"}}}`, absRepo))
+    if err := os.WriteFile(filepath.Join(wsdir, "ami.sum"), sum, 0o644); err != nil { t.Fatalf("write sum: %v", err) }
+
+    old := os.Getenv("AMI_PACKAGE_CACHE")
+    defer os.Setenv("AMI_PACKAGE_CACHE", old)
+    _ = os.Setenv("AMI_PACKAGE_CACHE", cache)
+
+    var buf bytes.Buffer
+    if err := runModSum(&buf, wsdir, true); err != nil { t.Fatalf("runModSum: %v\n%s", err, buf.String()) }
+    // after run, cache should contain repo/v1.0.0 and sum should be updated with correct sha
+    if _, err := os.Stat(filepath.Join(cache, "repo", "v1.0.0", "a.txt")); err != nil { t.Fatalf("cache missing: %v", err) }
+    // read sum and verify sha updated
+    b, err := os.ReadFile(filepath.Join(wsdir, "ami.sum"))
+    if err != nil { t.Fatalf("read sum: %v", err) }
+    var m map[string]any
+    if json.Unmarshal(b, &m) != nil { t.Fatalf("sum not json: %s", string(b)) }
+    pkgs := m["packages"].(map[string]any)
+    repoObj := pkgs["repo"].(map[string]any)
+    if repoObj["sha256"] == "0000" { t.Fatalf("sha256 not updated") }
+}
+
 func TestModSum_WorkspaceCrossCheck_MissingInSum(t *testing.T) {
     dir := filepath.Join("build", "test", "mod_sum", "ws_miss")
     cache := filepath.Join(dir, "cache")

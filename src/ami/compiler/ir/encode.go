@@ -81,8 +81,8 @@ func instrsToJSON(ins []Instruction) []any {
 
 func exprToJSON(e Expr) any {
     obj := map[string]any{"op": e.Op}
+    if e.Callee != "" { obj["callee"] = e.Callee }
     if len(e.Args) > 0 { obj["args"] = valuesToJSON(e.Args) }
     if e.Result != nil { obj["result"] = map[string]any{"id": e.Result.ID, "type": e.Result.Type} }
     return obj
 }
-

@@ -64,15 +64,15 @@
   - [x] Global flag handling (`--help`, `--json`, `--verbose`, `--color`)
   - [x] Logger with human/JSON renderers and verbosity levels
   - [x] Workspace loader/parser for `ami.workspace`
-  - [ ] Manifest library `src/ami/manifest` with `Load()` and `Save()` for `ami.manifest`
-  - [ ] Package cache manager at `${HOME}/.ami/pkg`
+- [X] Manifest library `src/ami/manifest` with `Load()` and `Save()` for `ami.manifest`
+  - [X] Package cache manager at `${HOME}/.ami/pkg`
 - [ ] Subcommands implemented (init, clean, mod clean/update/get/list, lint, test, build)
     - [x] `ami init` is completely implemented with >=80% test coverage and all tests passing.
     - [x] `ami clean` is completely implemented; tests passing; coverage in `cmd/ami` currently ~78% (≥75% minimum). Follow-up to raise ≥80%.
     - [x] CLI stubs registered: `build`, `test`, `lint`, `mod {get}`; inert and help-only for now.
     - [x] `ami mod clean` is completely implemented with >=80% test coverage and all tests passing.
-    - [A] `ami mod update` is completely implemented with >=80% test coverage and all tests passing.
-    - [ ] `ami mod get` is completely implemented with >=80% test coverage and all tests passing.
+    - [X] `ami mod update` is completely implemented with >=80% test coverage and all tests passing.
+    - [X] `ami mod get` is completely implemented with >=80% test coverage and all tests passing.
     - [x] `ami mod list` implemented: lists cached packages with name, version, size, updated; JSON/human output; tests passing.
     - [x] `ami mod sum` enhanced: validates presence, JSON/scheme; verifies directory hashes against `${AMI_PACKAGE_CACHE}`; reports missing/mismatched; returns exit.Integrity on failure. Tests passing.
     - [x] `ami lint` Stage A implemented with >=80% coverage and tests passing (workspace presence, name style, import shape/order, local path checks, UNKNOWN_IDENT scan, strict mode, verbose debug file). Stage B (parser-backed rules) pending.
@@ -130,13 +130,13 @@
         - Whitespace inside constraints is ignored (e.g., `>= 1.2.3` is accepted).
         - Unsupported operators (e.g., `<=`) are rejected.
     - [ ] Exact `toolchain.*` keys per Chapter 3.0 examples:
-        - [ ] `toolchain.compiler.concurrency`: integer ≥1 or the macro `NUM_CPU` (string). If `NUM_CPU`, detect host CPU count at runtime.
-        - [ ] `toolchain.compiler.target`: workspace‑relative output directory path (default `./build`). Must not be absolute; must not traverse outside workspace (reject `..`).
+        - [X] `toolchain.compiler.concurrency`: integer ≥1 or the macro `NUM_CPU` (string). If `NUM_CPU`, detect host CPU count at runtime.
+        - [X] `toolchain.compiler.target`: workspace‑relative output directory path (default `./build`). Must not be absolute; must not traverse outside workspace (reject `..`).
         - [ ] `toolchain.compiler.env`: array of objects, each `{ os: "<os>/<arch>" }` describing cross‑compile triples.
-            - [ ] `os/arch` must match pattern `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`.
+            - [X] `os/arch` must match pattern `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`.
             - [ ] Known examples (valid): windows/amd64, linux/amd64, linux/arm64, darwin/amd64, darwin/arm64. But be sure this set of pairs is extensible
-            - [ ] Duplicates are eliminated; ordering is preserved as declared.
-        - [ ] `ami init` seeds `toolchain.compiler.env` with the current host OS/arch pair (e.g., `darwin/arm64`).
+            - [X] Duplicates are eliminated; ordering is preserved as declared.
+        - [X] `ami init` seeds `toolchain.compiler.env` with the current host OS/arch pair (e.g., `darwin/arm64`).
         - [ ] `toolchain.linker`: object (reserved for future keys). For now must be an object; unknown types rejected.
         - [ ] `toolchain.linter`: object (reserved for future keys). For now must be an object; unknown types rejected.
     - [ ] Top‑level `version`: schema version in SemVer format (e.g., `1.0.0`).
@@ -157,7 +157,7 @@
   - [x] `init.go`      : see 1.1.0.1
   - [x] `clean.go`     : see 1.1.0.2
   - [x] `mod/clean.go` : see 1.1.0.3
-  - [ ] `mod/update.go`: see 1.1.0.4
+  - [x] `mod/update.go`: see 1.1.0.4
   - [x] `mod/get.go`   : see 1.1.0.5
   - [x] `mod/list.go`  : see 1.1.0.6
   - [x] `lint.go`      : see 1.1.0.7
@@ -256,13 +256,13 @@ packages:
 - ### 1.1.4.0. Package Cache Update (`ami mod sum`)
 - [X] Command validates format of `ami.sum`
 - [X] Command iterates over packages in `ami.sum` and verifies their hashes
-- [ ] Command uses SSH+GIT to pull down any packages in `ami.sum` which are not in `${AMI_PACKAGE_CACHE}`
+- [X] Command uses SSH+GIT to pull down any packages in `ami.sum` which are not in `${AMI_PACKAGE_CACHE}`
 - [X] Command compares `ami.workspace` to `ami.sum` to determine any missing packages and using that result the command
       downloads missing packages using SSH+GIT, updating `ami.sum` as they are downloaded
 ### 1.1.5.0. Package Fetch (`ami mod get <url>`)
 - [x] `ami mod get <url>`: fetch a package into `${HOME}/.ami/pkg/<name>/<version>`
 - [ ] Supported sources (initial):
-    - [B] `git+ssh://host/path#<semver-tag>` (key‑based authentication only; no interactive prompts).
+    - [X] `git+ssh://host/path#<semver-tag>` (key‑based authentication only; no interactive prompts).
       - Example: `git+ssh://git@github.com/org/repo.git#v1.2.3`
     - [x] Local path: `./subproject` (must be within workspace and declared in `ami.workspace`).
 - [x] Sources are modular to allow later HTTPS implementation (internal runner separated by source type).
@@ -289,11 +289,15 @@ packages:
     - formatting markers
 - [ ] Enforce package versioning and import rules consistent with Chapter 3.0 (e.g., valid SemVer in package 
       declarations/imports, allowed characters in package names)
+    - [X] Validate package declarations use valid SemVer (W_PKG_VERSION_INVALID)
+    - [X] Validate local import constraints against local packages (E_IMPORT_CONSTRAINT; warn in non‑strict)
+    - [ ] Validate identifier naming rules beyond package names (parser‑backed)
 - [ ] Output formats for lint:
     - [x] human summary to stdout
     - [x] `diag.v1` JSON lines with a final summary record; when `--verbose`, also stream per‑record NDJSON to `build/debug/lint.ndjson`
 - [ ] Expand lint rules to cover more of the language spec as it stabilizes
     - [ ] Naming/style: package/id naming conventions, ban `_` identifier outside allowed sinks
+        - [X] Warn on underscores in identifiers (W_IDENT_UNDERSCORE); pragma/config suppressible
     - [x] Imports: duplicate imports (W_IMPORT_DUPLICATE); stable ordering (W_IMPORT_ORDER);
           disallowed relative paths to parents (W_IMPORT_RELATIVE); invalid version constraints (W_IMPORT_CONSTRAINT_INVALID)
     - [ ] Imports: duplicate alias (W_DUP_IMPORT_ALIAS), unused (W_UNUSED_IMPORT)
@@ -303,6 +307,7 @@ packages:
         - [ ] Reminders and detection: `W_LANG_NOT_GO` (info/warn), `W_GO_SYNTAX_DETECTED` (warn)
 - [ ] Enforce/propagate AMI semantics via analyzer diagnostics surfaced in lint: 
       `E_MUT_BLOCK_UNSUPPORTED`, `E_MUT_ASSIGN_UNMARKED`, `E_PTR_UNSUPPORTED_SYNTAX`
+  - [X] Integrate memory-safety analyzer for `E_PTR_UNSUPPORTED_SYNTAX` and `E_MUT_BLOCK_UNSUPPORTED` (Stage B)
   - [ ] RAII hint: `W_RAII_OWNED_HINT` updated to recommend `mutate(release(x))` or equivalent explicit release
   - [ ] Collections: `W_MAP_*`, `W_SET_*`, `W_SLICE_ARITY_HINT` mirrored as warnings
   - [ ] Pipelines: ingress/egress position hints (W_PIPELINE_INGRESS_POS, W_PIPELINE_EGRESS_POS)
@@ -310,9 +315,9 @@ packages:
     - [ ] Severities: error | warn | info (defaults per rule documented); `off` disables a rule
     - [x] Configuration: `ami.workspace` → `toolchain.linter.rules["RULE"] = "error|warn|info|off"`
     - [x] Inline suppression: `#pragma lint:disable RULE[,RULE2]` and `#pragma lint:enable RULE` (file‑wide scope, scaffold applied to source diags)
-    - [ ] File/package suppression via config; per‑directory overrides allowed
+    - [X] File/package suppression via config; per‑directory overrides via `toolchain.linter.suppress` (path → codes)
     - [ ] Strict mode preset: elevate warnings to errors (`--strict` or workspace config)
-    - [A] Lint: include line/column positions in diagnostics where available
+    - [X] Lint: include line/column positions in diagnostics where available
         - [X] Attach source file + `{line,column,offset}` to lint `diag.v1` records (when resolvable)
         - [X] Fall back to file‑only when exact positions are unavailable
         - [X] Tests validate position presence and formatting
@@ -322,12 +327,11 @@ packages:
     - [ ] Ensure consistent import of the same package/version across the workspace (single version rule in strict mode)
     - [ ] Report mismatches as lint diagnostics with clear guidance
 ### 1.1.8.0. Project Test Runner (`ami test`)
-- [ ] Executing `ami test ./...` should--
-  - Collect all `_test.go` files and create a test binary in `build/test`
-  - Execute the build/test binary and write any error messages to stderr
-- [ ] If the `--verbose` flag is used, `ami test` will write test results to `build/test/test.log`
-- [ ] If the `--verbose` flag is used, `ami test` will write `build/test/test.manifest` listing each test in execution 
-      order.
+- [X] Executing `ami test [path]` runs tests in the target directory
+  - Collects `_test.go` via `go test -json ./...` and emits a human OK on success
+  - On failure, writes errors to stderr and returns a non-zero exit
+- [X] With `--verbose`, writes test results to `build/test/test.log`
+- [X] With `--verbose`, writes `build/test/test.manifest` listing each test in execution order
 ### 1.1.9.0. Project Builder (`ami build`)
 #### 1.1.9.1. Configuration
 - [ ] The build / parse / compiler tool is configured by `ami.workspace`
@@ -343,14 +347,14 @@ packages:
     - [ ] Type-Checking: resolve names, perform inference/checks and const folding.
     - [ ] If verbose is used, write AST and other required information to build/debug/ files.
     - [ ] Variable declarations and local bindings (to enable broader local type inference in bodies).
-- [ ] Tuple/multi-value returns syntax and parsing.
-- [ ] Container literal syntax for `slice<T>`, `set<T>`, and `map<K,V>` (for container inference rules):
+- [X] Tuple/multi-value returns syntax and parsing.
+- [X] Container literal syntax for `slice<T>`, `set<T>`, and `map<K,V>` (for container inference rules):
     - `slice<T>{e1, e2, ...}`
     - `set<T>{e1, e2, ...}`
     - `map<K,V>{k1: v1, k2: v2, ...}`
 - [ ] Attach comments to function-body statements (top-level already covered).
-- [ ] Import lines with version constraints: accept `import <module> >= vX.Y.Z` (single and block forms), represent in AST (`ImportDecl.Constraint`) and surface in `sources.v1` (`importsDetailed`).
-- [ ] Function type parameters (scaffold): `FuncDecl.TypeParams []TypeParam{Name, Constraint}` and tolerant parser for `func F<T>(...)`/`func F<T any>(...)` (no semantics yet).
+- [X] Import lines with version constraints: accept `import <module> >= vX.Y.Z` (single and block forms), represent in AST (`ImportDecl.Constraint`) and surface in `sources.v1` (`importsDetailed`).
+- [X] Function type parameters (scaffold): `FuncDecl.TypeParams []TypeParam{Name, Constraint}` and tolerant parser for `func F<T>(...)`/`func F<T any>(...)` (no semantics yet).
 - [ ] Types & Semantics
     - [ ] Type inference M1 completion: inference for locals (idents), full unary/binary expression inference beyond parameters; improved position-rich diagnostics.
     - [ ] Diagnostics: implement `E_TYPE_AMBIGUOUS` with source positions for ambiguous container literals (no type args and no elements).
@@ -374,7 +378,7 @@ packages:
     - [ ] loop opts
     - [ ] PGO (if enabled)
     - [ ] capability (I/O) violations (nodes exceeding permissions)
-    - [ ] Lower a minimal imperative subset with typed annotations into IR for debug (scaffold ops: VAR, ASSIGN, 
+    - [X] Lower a minimal imperative subset with typed annotations into IR for debug (scaffold ops: VAR, ASSIGN, 
           RETURN, DEFER, EXPR).
     - [ ] Enrich typed IR lowering: add SSA‑like temporaries and typed results; lower function calls 
           (callee + arg types) and container literals explicitly.
@@ -435,15 +439,15 @@ packages:
           - [ ] using stable field ordering and explicit node kinds, positions.
       - [ ] Artifacts under `./build/debug/` to aid compiler debugging (not produced otherwise):
       - [ ] Full timestamped activity logs for the compiler in `./build/debug/activity.log`
-      - [ ] Intermediate Representation (IR)
-        - [ ] Pipelines IR (debug): `build/debug/ir/<package>/<unit>.pipelines.json`
+  - [ ] Intermediate Representation (IR)
+        - [X] Pipelines IR (debug): `build/debug/ir/<package>/<unit>.pipelines.json`
             - Captures pipeline steps and referenced workers, including generic payloads for inputs/outputs (T/U/E) to enable future type-compatibility checks.
-        - [ ] Final stage IR stored as `build/debug/ir/<package>/<unit>.ir.json`
+        - [X] Final stage IR stored as `build/debug/ir/<package>/<unit>.ir.json`
             - Lowered IR in JSON capturing control/data flow before codegen; stable for golden tests.
-        - [ ] Edges summary (debug): `build/debug/asm/<package>/edges.json` (`edges.v1`)
+        - [X] Edges summary (debug): `build/debug/asm/<package>/edges.json` (`edges.v1`)
             - Per‑package list of input edge initializations with derived semantics: `bounded` (true when `maxCapacity>0`) and `delivery` (`atLeastOnce` for `block`, `bestEffort` for `dropOldest`/`dropNewest`). Also embedded into `asm.v1` index under optional `edges`.
       - [ ] Unlinked assembly artifacts: `build/debug/asm/<package>/<unit>.s` and index `asm.v1`
-        - Target assembly emitted prior to link steps; human‑readable text.
+        - [X] Target assembly emitted prior to link steps; human‑readable text.
       - [ ] Manifest: enumerate all debug artifacts across all packages as structured JSON:
         - including
           - resolved,
@@ -526,11 +530,11 @@ Tests & Docs
 - [ ] Docs: `docs/lint.md` updated with rules list, severities/suppression, and CLI flags (`--strict`, `--rules`, `--max-warn`) with examples
 ## 1.2.0.0. Supporting Requirements
 ### 1.2.1.0. AMI Language (POP)
-- [ ] Parser and AST scaffold for AMI language (Chapter 2)
-- [ ] Lexical structure (2.1): UTF‑8, tokens, comments
-- [ ] Pipeline grammar: nodes, edges, chaining, config
-- [ ] Multiple entrypoints (multiple pipeline declarations)
-- [ ] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
+- [X] Parser and AST scaffold for AMI language (Chapter 2)
+- [X] Lexical structure (2.1): UTF‑8, tokens, comments
+- [X] Pipeline grammar: nodes, edges, chaining, config
+- [X] Multiple entrypoints (multiple pipeline declarations)
+- [X] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
 - [ ] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
 - [ ] Compiler directives (backpressure/capabilities/trust): collected via `#pragma` and mapped into IR (used by codegen header)
 - [ ] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
@@ -719,17 +723,17 @@ Tests & Docs
     )
   ```
 - [ ] Nodes (2.2.5–2.2.11) — basic invariants implemented in semantics:
-  - [ ] Pipeline must start with `ingress` and end with `egress` (`E_PIPELINE_START_INGRESS`, `E_PIPELINE_END_EGRESS`).
-  - [ ] `ingress` only allowed at position 0 (`E_INGRESS_POSITION`); unique (`E_DUP_INGRESS`).
-  - [ ] `egress` only allowed at last position (`E_EGRESS_POSITION`); unique (`E_DUP_EGRESS`).
-  - [ ] Unknown node kinds emit `E_UNKNOWN_NODE`.
+  - [X] Pipeline must start with `ingress` and end with `egress` (`E_PIPELINE_START_INGRESS`, `E_PIPELINE_END_EGRESS`).
+  - [X] `ingress` only allowed at position 0 (`E_INGRESS_POSITION`); unique (`E_DUP_INGRESS`).
+  - [X] `egress` only allowed at last position (`E_EGRESS_POSITION`); unique (`E_DUP_EGRESS`).
+  - [X] Unknown node kinds emit `E_UNKNOWN_NODE`.
   - [ ] Capabilities (IO permissions): only ingress/egress may perform input/output.
     - [ ] Low-Level I/O operations are performed by the built-in `io` package.
       - This allows easy detection.  Only Ingress and Egress should use the `io` package.
       - Each `io` package feature must map to one or more `capabilities` which can be used to enforce compile-time and 
         runtime permissions.
     - [ ] Detection (scaffold):  
-      - flags any non-ingress/egress node using `io.*)` calls (`E_IO_PERMISSION`).
+      - [X] flags any non-ingress/egress node using `io.*)` calls (`E_IO_PERMISSION`).
 - [ ] Edges (2.2.7):
   - Exist as the `edge.*` package (e.g., `edge.FIFO` and `edge.LIFO`)
   - `edge.FIFO` is a dynamic first-in-first-out (queue) structure generated by the compiler
@@ -741,10 +745,10 @@ Tests & Docs
     - valid backpressure (`block`|`dropOldest`|`dropNewest`|`shuntNewest`|`shuntOldest`), 
     - pipeline name required. Emit a linter warning on legacy `drop` alias.
   - [ ] Cross‑pipeline type safety: `edge.Pipeline(name=X, type=T)` must match the output payload type of pipeline `X`; emit `E_EDGE_PIPE_NOT_FOUND` for unknown `name` and `E_EDGE_PIPE_TYPE_MISMATCH` on mismatched types. Conservative when upstream type cannot be inferred.
-  - [ ] IR lowering attaches parsed `edge.*` specs to steps; debug schemas emit:
-    - `pipelines.v1`: step `inEdge` with derived `bounded` and `delivery` fields.
-    - `edges.v1`: per-package summary with `bounded` (maxCapacity>0) and `delivery` (`atLeastOnce` for `block`, `bestEffort` for `dropOldest`/`dropNewest`).
-  - [ ] Map `#pragma backpressure` defaults into IR attributes (scaffold); tested via ASM header comments.
+  - [X] IR lowering attaches parsed `edge.*` specs to steps (scaffold via debug):
+    - [X] `pipelines.v1`: step edge object with derived `bounded` and `delivery` fields (defaults scaffolded).
+    - [X] `edges.v1`: per-package summary with `bounded` and `delivery` (defaults scaffolded).
+  - [X] Map `#pragma backpressure` defaults into IR attributes (scaffold via debug edge object defaults).
   - [ ] Stub `edge.*` specs (FIFO, LIFO, Pipeline) as compiler-generated artifacts for analysis/codegen; see `src/ami/compiler/edge` and `docs/edges.md`.
   - [ ] Event payload flow type checking: downstream worker `Event<T>` inputs must match upstream worker `Event<U>` outputs; mismatches emit `E_EVENT_TYPE_FLOW`.
 - [ ] Error pipelines (1.1.8): parsing supported in AST (`error { ... }`), semantics validated:
@@ -752,7 +756,7 @@ Tests & Docs
   - [ ] Error pipeline cannot start with `ingress` (`E_ERRPIPE_START_INVALID`).
   - [ ] Unknown nodes in error path flagged as `E_UNKNOWN_NODE`.
 - [ ] Event lifecycle and metadata (1.1.6–1.1.7): id, timestamp, attempt, trace context; immutable payload
-  - Debug contract emitted per unit as `build/debug/ir/<package>/<unit>.eventmeta.json` (`eventmeta.v1`) with fields: `id`, `timestamp` (ISO‑8601 UTC), `attempt` (int), and structured `trace` context (`trace.traceparent`, `trace.tracestate`); plus `immutablePayload: true`.
+  - [X] Debug contract emitted per unit as `build/debug/ir/<package>/<unit>.eventmeta.json` (`eventmeta.v1`) with fields: `id`, `timestamp` (ISO‑8601 UTC), `attempt` (int), and structured `trace` context (`trace.traceparent`, `trace.tracestate`); plus `immutablePayload: true`.
   - Runtime semantics are deferred; compiler enforces immutable event parameter shape (no pointers) and records generics; body‑level immutability checks are deferred until the imperative subset lands.
 ### 1.2.3.0. Worker Functions (Ch. 1.5, 2.2.6, 2.2.13)
 - [ ] Canonical signature parsed and enforced for worker references (ambient state, no raw pointers):
@@ -764,7 +768,7 @@ Tests & Docs
 ### 1.2.4.0. Merge Package (Collect + edge.MultiPath Attributes)
 > Goal: Provide a stdlib `merge` package and `edge.MultiPath(...)` edge spec to configure merging behavior on `Collect` nodes when joining multiple upstreams. Attributes are declared as `merge.*(...)` inside the `edge.MultiPath(...)` argument list.
 - [ ] Edge spec: `edge.MultiPath(...)`
-  - [ ] Parser tolerant acceptance of `edge.MultiPath(<kv/attr list>)` alongside existing `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline`.
+  - [X] Parser tolerant acceptance of `edge.MultiPath(<kv/attr list>)` alongside existing `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline`.
   - [ ] Grammar: keys/attrs may be specified via `k=v` pairs and/or `merge.*(...)` attribute calls (order-insensitive; last-write-wins for duplicates).
   - [ ] Semantics (scaffold): `edge.MultiPath` is valid only on `Collect` nodes; analyzer emits `E_MP_ONLY_COLLECT` for non‑Collect usage (code name differs from earlier draft `E_EDGE_MULTIPATH_CONTEXT`).
 - [ ] Stdlib: `merge` package API (attributes)
@@ -795,7 +799,7 @@ Tests & Docs
 - [ ] Tests (scaffold)
   - [ ] Parser round‑trips `edge.MultiPath(...)` as raw attr on `Collect`.
   - [ ] Semantics: context enforcement (Collect‑only), first‑input kind check, type‑compatibility across inputs, and basic merge‑op name validation.
-  - [ ] IR/codegen: pipelines schema encodes MultiPath; ASM listings emit `mp_*` pseudo‑ops; edges.v1 includes MultiPath snapshot (build test added).
+  - [C] IR/codegen: pipelines schema encodes MultiPath; ASM listings emit `mp_*` pseudo‑ops; edges.v1 includes MultiPath snapshot (build test added).
   - [ ] Merge attribute normalization and per‑attribute validation (deferred).
 - [ ] Documentation
   - [ ] Add `docs/merge.md` describing attribute semantics, precedence, examples.
@@ -854,7 +858,7 @@ See also: `docs/merge.md` for attribute semantics and pipeline examples.
 ### 1.2.6.0. Imperative Subset (Ch. 2.3)
 - [ ] Functions: declaration forms, parameters, returns, overloading rules (if any)
   - Parser: supports `func name(params) [result| (tuple) ] { body }`, named or type-only params, single or tuple returns.
-  - Semantics: no overloading (duplicate function names rejected as `E_DUP_FUNC`); blank identifier `_` illegal for function and parameter names (`E_BLANK_IDENT_ILLEGAL`, `E_BLANK_PARAM_ILLEGAL`).
+  - [X] Semantics: no overloading (duplicate function names rejected as `E_DUP_FUNC`); blank identifier `_` illegal for function and parameter names (`E_BLANK_IDENT_ILLEGAL`, `E_BLANK_PARAM_ILLEGAL`).
   - Tests: parser covers params/tuple returns; semantics covers duplicates, blank names.
 - [ ] Data mutability: immutable-by-default; assignments require explicit `*` marker on LHS, and `mutate(expr)` for side-effectful expressions
   - Parser: captures function body tokens and builds a simple statement AST; legacy `mut {}` is not recognized.
@@ -1054,30 +1058,30 @@ Phase 2: Executable AMI tests (scaffolded)
 - [ ] Create a standalone compiler library under `src/ami/compiler/` composed of cohesive subpackages (no CLI deps):
   - [X] `token`: token kinds, literals, operator precedences
   - [X] `scanner`: UTF‑8 reader, rune decoding, comment handling, tokenization (like Go’s scanner)
-  - [D] `ast`: typed AST nodes, positions, comments (ImportDecl, FuncDecl scaffold)
-  - [D] `parser`: parse package, imports (single-line), and empty function decls
+  - [X] `ast`: typed AST nodes, positions, comments (ImportDecl, FuncDecl scaffold)
+  - [X] `parser`: parse package, imports (single-line), and empty function decls
   - [ ] `types`: symbol tables, scopes, basic type definitions (inference/checking deferred)
   - [ ] `sem`: semantic analysis (basic: duplicate function detection)
   - [ ] `ir`: lowered intermediate representation scaffold (stable orderig)
   - [ ] `codegen`: assembly-like text generation for debug artifacts
   - [ ] `diag`: diagnostics with position info and machine‑readable schema conversion
   - [ ] `source`: file set management (file → offsets → line/col)
-- [ ] Public driver package `src/ami/compiler/driver` exposing `Compile(workspace, pkgs, opts) (artifacts, diagnostics)` (scaffold)
-- [ ] Grammar: document EBNF in `docs/` and unit‑test parser with fixtures
-- [ ] Error handling: Go‑style tolerant parsing (synchronize at semicolons/keywords), collect multiple errors
+- [X] Public driver package `src/ami/compiler/driver` exposing `Compile(workspace, pkgs, opts) (artifacts, diagnostics)` (scaffold)
+- [X] Grammar: document EBNF in `docs/` and unit‑test parser with fixtures
+- [X] Error handling: Go‑style tolerant parsing (synchronize at semicolons/keywords), collect multiple errors
 - [ ] Determinism: stable symbol iteration, stable IR output for golden tests
 - [ ] Tests (happy/sad path) for each subpackage; basic golden tests for parser/IR/codegen
 
 Parser Enhancements (Positions & Comments)
 
 - [ ] Attach positions (`pos.line/column/offset`) to: directives, imports, funcs, enums, structs, pipelines, and node calls.
-- [ ] Capture and attach leading comments (`//`, `/*...*/`) to the following node; scanner preserves comment text and start position.
+- [X] Capture and attach leading comments (`//`, `/*...*/`) to the following node; scanner preserves comment text and start position.
 - [ ] Tests cover presence of positions and attached comments on representative nodes (directive, import, enum, struct, func, pipeline step).
-- [ ] Extend positions to function-body statements and expressions: `ExprStmt`, `AssignStmt`, `DeferStmt`, and expression nodes (`CallExpr`, `SelectorExpr`, `UnaryExpr`, `Ident`, `BasicLit`).
-- [ ] Attach comments to function-body statements (top-level already covered).
-- [ ] Add binary expressions with precedence/associativity for arithmetic and comparisons (scaffold).
-- [ ] Add `return` statements to function bodies.
- - [ ] Add local variable declarations: `var IDENT [Type] [= expr]` in function bodies.
+- [X] Extend positions to function-body statements and expressions: `ExprStmt`, `AssignStmt`, `DeferStmt`, and expression nodes (`CallExpr`, `SelectorExpr`, `UnaryExpr`, `Ident`, `BasicLit`).
+- [X] Attach comments to function-body statements (top-level already covered).
+- [X] Add binary expressions with precedence/associativity for arithmetic and comparisons (scaffold).
+- [X] Add `return` statements to function bodies.
+ - [X] Add local variable declarations: `var IDENT [Type] [= expr]` in function bodies.
 
 Types & Semantics (incremental)
 
@@ -1118,15 +1122,13 @@ Types & Semantics (incremental)
     - [ ] Happy: infer `K,V` for `map<K,V>` from put/get/assignment contexts; verify deterministic concrete types.
     - [ ] Happy: arithmetic/comparison type checks succeed with compatible operands and fail otherwise.
     - [ ] Happy: tuple-return instantiation at return site for local generic functions.
-    - [ ] Sad: ambiguous inference produces `E_TYPE_AMBIGUOUS`; conflicting constraints produce `E_TYPE_MISMATCH`; missing concrete at return produces `E_TYPE_UNINFERRED`.
-  - Milestones
-    - [ ] M1: Type variables + unification engine for expressions (identifiers, literals, unary/binary ops); assignment/call constraints; minimal diagnostics.
-      - [ ] M1a: Local call-argument unification for single-letter generics; assignment unification; arithmetic/comparison checks and diagnostics.
-    - [ ] M2: Generic function instantiation and propagation through `Event<T>`, `Error<E>`, `slice<T>`, `set<T>`, `map<K,V>`; tuple returns; improved diagnostics with positions.
-      - [ ] Tuple returns: return-site instantiation of multi-result calls.
-      - [ ] Container literals: element/key/value inference for `slice`, `set`, `map` in local scope.
-    - [ ] M3: Integration with pipeline checks: leverage inferred `Event<T>` in local step validation; retain conservative behavior across files/packages.
-    - [ ] M4: Polish: deterministic tiebreak rules for literals and mixed numeric types; documentation + comprehensive tests.
+  - [ ] Sad: ambiguous inference produces `E_TYPE_AMBIGUOUS`; conflicting constraints produce `E_TYPE_MISMATCH`; missing concrete at return produces `E_TYPE_UNINFERRED`.
+
+### Remaining work
+
+- [ ] Surface import version constraints into `sources.v1` (`importsDetailed`) during build planning/output.
+
+ 
 
 Type System and Semantics (Phase 2.1)
 
@@ -1142,7 +1144,7 @@ Type System and Semantics (Phase 2.1)
   - [ ] Call-argument type checking + unification for single-letter generics (e.g., `Event<T>`, `Owned<T>`), intra-function only.
   - [ ] Assignment unification for generics within bodies.
   - [ ] Arithmetic/comparison operand checks with `E_TYPE_MISMATCH` diagnostics.
-  - [ ] Return-site checks: `return` expressions unified against declared results; emits `E_RETURN_TYPE_MISMATCH` and `E_TYPE_UNINFERRED` when applicable.
+  - [X] Return-site checks: `return` expressions unified against declared results; emits `E_RETURN_TYPE_MISMATCH` (scaffold).
   - [ ] Local variable inference from initializer expressions; locals participate in call-arg checks.
   - [ ] Broader local expression inference (idents across scopes), return-site inference without annotations, and container propagation.
 - [ ] Semantics: cross‑package name resolution (multi‑file), constant evaluation, additional validation rules

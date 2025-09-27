@@ -46,22 +46,46 @@ func (p *Parser) ParseFile() (*ast.File, error) {
 
     // zero or more imports: `import ident`
     for p.cur.Kind == token.KwImport {
-        pos := p.cur.Pos
+        startPos := p.cur.Pos
         p.next()
+        if p.cur.Kind == token.LParenSym {
+            // block form: import ( line... )
+            p.next()
+            for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
+                if p.cur.Kind == token.SemiSym || p.cur.Kind == token.CommaSym {
+                    p.next(); continue
+                }
+                if p.cur.Kind != token.Ident && p.cur.Kind != token.String {
+                    p.errf("expected import path in block, got %q", p.cur.Lexeme)
+                    p.next()
+                    continue
+                }
+                path := p.cur.Lexeme
+                ppos := p.cur.Pos
+                if p.cur.Kind == token.String && len(path) >= 2 { path = path[1:len(path)-1] }
+                p.next()
+                constraint := p.parseImportConstraint()
+                im := &ast.ImportDecl{Pos: startPos, Path: path, Leading: p.pending, PathPos: ppos, Constraint: constraint}
+                p.pending = nil
+                f.Decls = append(f.Decls, im)
+            }
+            if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' to close import block") }
+            continue
+        }
+        // single-line form
         if p.cur.Kind != token.Ident && p.cur.Kind != token.String {
             p.errf("expected import path, got %q", p.cur.Lexeme)
             p.syncTop()
             continue
         }
         path := p.cur.Lexeme
-        // strip quotes if string literal
-        if p.cur.Kind == token.String && len(path) >= 2 {
-            path = path[1:len(path)-1]
-        }
-        im := &ast.ImportDecl{Pos: pos, Path: path, Leading: p.pending}
+        ppos := p.cur.Pos
+        if p.cur.Kind == token.String && len(path) >= 2 { path = path[1:len(path)-1] }
+        p.next()
+        constraint := p.parseImportConstraint()
+        im := &ast.ImportDecl{Pos: startPos, Path: path, Leading: p.pending, PathPos: ppos, Constraint: constraint}
         p.pending = nil
         f.Decls = append(f.Decls, im)
-        p.next()
     }
 
     // zero or more function declarations: `func Name(params) [results] {}` scaffold
@@ -124,13 +148,38 @@ func (p *Parser) parseFuncDecl() (*ast.FuncDecl, error) {
     name := p.cur.Lexeme
     namePos := p.cur.Pos
     p.next()
+    // Optional type parameters: <T[, U [constraint]]>
+    var typeParams []ast.TypeParam
+    if p.cur.Kind == token.Lt {
+        p.next()
+        for p.cur.Kind != token.Gt && p.cur.Kind != token.EOF {
+            if p.cur.Kind == token.CommaSym { p.next(); continue }
+            if p.cur.Kind != token.Ident {
+                p.errf("expected type parameter name, got %q", p.cur.Lexeme)
+                p.next()
+                continue
+            }
+            tpName := p.cur.Lexeme
+            tpNamePos := p.cur.Pos
+            p.next()
+            // optional constraint ident (e.g., any)
+            var c string
+            if p.cur.Kind == token.Ident {
+                c = p.cur.Lexeme
+                p.next()
+            }
+            typeParams = append(typeParams, ast.TypeParam{Pos: tpNamePos, Name: tpName, NamePos: tpNamePos, Constraint: c})
+            if p.cur.Kind == token.CommaSym { p.next(); continue }
+        }
+        if p.cur.Kind == token.Gt { p.next() } else { p.errf("missing '>' to close type parameter list") }
+    }
     params, lp, rp, err := p.parseParamList()
     if err != nil { return nil, err }
     results, rlp, rrp, err := p.parseResultList()
     if err != nil { return nil, err }
     body, err := p.parseFuncBlock()
     if err != nil { return nil, err }
-    fn := &ast.FuncDecl{Pos: pos, NamePos: namePos, Name: name, Params: params, Results: results, Body: body, Leading: p.pending,
+    fn := &ast.FuncDecl{Pos: pos, NamePos: namePos, Name: name, TypeParams: typeParams, Params: params, Results: results, Body: body, Leading: p.pending,
         ParamsLParen: lp, ParamsRParen: rp, ResultsLParen: rlp, ResultsRParen: rrp}
     p.pending = nil
     return fn, nil
@@ -267,7 +316,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             stmts = append(stmts, ds)
             if p.cur.Kind == token.SemiSym { p.next() }
         case token.Ident:
-            // assignment or expression starting with ident
+            // Possible assignment or general expression starting with an identifier.
             name := p.cur.Lexeme
             npos := p.cur.Pos
             p.next()
@@ -281,23 +330,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                 if p.cur.Kind == token.SemiSym { p.next() }
                 continue
             }
-            // build expression starting with prior ident
-            var left ast.Expr = &ast.IdentExpr{Pos: npos, Name: name}
-            // call suffix
-            if p.cur.Kind == token.LParenSym {
-                lp := p.cur.Pos
-                p.next()
-                var args []ast.Expr
-                for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
-                    e, ok := p.parseExprPrec(1)
-                    if ok { args = append(args, e) } else { p.errf("unexpected token in call args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
-                    if p.cur.Kind == token.CommaSym { p.next(); continue }
-                }
-                rp := p.cur.Pos
-                if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in call expr") }
-                left = &ast.CallExpr{Pos: npos, Name: name, NamePos: npos, LParen: lp, Args: args, RParen: rp}
-            }
-            // binary tail
+            left := p.parseIdentExpr(name, npos)
             expr := p.parseBinaryRHS(left, 1)
             es := &ast.ExprStmt{Pos: ePos(expr), X: expr, Leading: p.pending}
             p.pending = nil
@@ -341,22 +374,7 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         name := p.cur.Lexeme
         npos := p.cur.Pos
         p.next()
-        // call?
-        if p.cur.Kind == token.LParenSym {
-            lp := p.cur.Pos
-            p.next()
-            var args []ast.Expr
-            for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
-                e, ok := p.parseExprPrec(1)
-                if ok { args = append(args, e) } else { p.errf("unexpected token in call args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
-                if p.cur.Kind == token.CommaSym { p.next(); continue }
-            }
-            rp := p.cur.Pos
-            if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in call expr") }
-            left := ast.Expr(&ast.CallExpr{Pos: npos, Name: name, NamePos: npos, LParen: lp, Args: args, RParen: rp})
-            return p.parseBinaryRHS(left, minPrec), true
-        }
-        left := ast.Expr(&ast.IdentExpr{Pos: npos, Name: name})
+        left := p.parseIdentExpr(name, npos)
         return p.parseBinaryRHS(left, minPrec), true
     case token.String:
         v := p.cur.Lexeme
@@ -405,9 +423,130 @@ func ePos(e ast.Expr) source.Position {
         return v.Pos
     case *ast.CallExpr:
         return v.Pos
+    case *ast.BinaryExpr:
+        return v.Pos
+    case *ast.SliceLit:
+        return v.Pos
+    case *ast.SetLit:
+        return v.Pos
+    case *ast.MapLit:
+        return v.Pos
+    case *ast.SelectorExpr:
+        return v.Pos
     default:
         return source.Position{}
     }
+}
+
+// parseIdentExpr parses an identifier-led expression where the initial ident
+// has already been consumed. It supports dotted selector chains, container
+// literals, and calls.
+func (p *Parser) parseIdentExpr(first string, firstPos source.Position) ast.Expr {
+    // gather dotted name parts
+    parts := []string{first}
+    poses := []source.Position{firstPos}
+    for p.cur.Kind == token.DotSym {
+        p.next()
+        if p.cur.Kind != token.Ident { p.errf("expected ident after '.', got %q", p.cur.Lexeme); break }
+        parts = append(parts, p.cur.Lexeme)
+        poses = append(poses, p.cur.Pos)
+        p.next()
+    }
+    base := parts[0]
+    // container literals after a bare keyword-like name
+    if p.cur.Kind == token.Lt {
+        switch base {
+        case "slice":
+            if lit, ok := p.parseSliceOrSetLiteral(true, firstPos); ok { return lit }
+        case "set":
+            if lit, ok := p.parseSliceOrSetLiteral(false, firstPos); ok { return lit }
+        case "map":
+            if lit, ok := p.parseMapLiteral(firstPos); ok { return lit }
+        }
+    }
+    if p.cur.Kind == token.LParenSym {
+        // join dotted parts for call names
+        full := parts[0]
+        for i := 1; i < len(parts); i++ { full += "." + parts[i] }
+        lp := p.cur.Pos
+        p.next()
+        var args []ast.Expr
+        for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
+            e, ok := p.parseExprPrec(1)
+            if ok { args = append(args, e) } else { p.errf("unexpected token in call args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
+            if p.cur.Kind == token.CommaSym { p.next(); continue }
+        }
+        rp := p.cur.Pos
+        if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in call expr") }
+        return &ast.CallExpr{Pos: firstPos, Name: full, NamePos: firstPos, LParen: lp, Args: args, RParen: rp}
+    }
+    if len(parts) == 1 {
+        return &ast.IdentExpr{Pos: firstPos, Name: first}
+    }
+    // selector chain
+    x := ast.Expr(&ast.IdentExpr{Pos: poses[0], Name: parts[0]})
+    for i := 1; i < len(parts); i++ {
+        x = &ast.SelectorExpr{Pos: poses[0], X: x, Sel: parts[i], SelPos: poses[i]}
+    }
+    return x
+}
+
+// parseSliceOrSetLiteral parses either a slice or set literal after seeing the name and a '<'.
+func (p *Parser) parseSliceOrSetLiteral(isSlice bool, namePos source.Position) (ast.Expr, bool) {
+    // consume '<'
+    p.next()
+    if p.cur.Kind != token.Ident { p.errf("expected type name after '<', got %q", p.cur.Lexeme); return nil, false }
+    tname := p.cur.Lexeme
+    p.next()
+    if p.cur.Kind != token.Gt { p.errf("expected '>' after type name, got %q", p.cur.Lexeme); return nil, false }
+    p.next()
+    if p.cur.Kind != token.LBraceSym { p.errf("expected '{' to start literal, got %q", p.cur.Lexeme); return nil, false }
+    lb := p.cur.Pos
+    p.next()
+    var elems []ast.Expr
+    for p.cur.Kind != token.RBraceSym && p.cur.Kind != token.EOF {
+        e, ok := p.parseExprPrec(1)
+        if ok { elems = append(elems, e) } else { p.errf("unexpected token in literal: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RBraceSym) }
+        if p.cur.Kind == token.CommaSym { p.next(); continue }
+    }
+    rb := p.cur.Pos
+    if p.cur.Kind == token.RBraceSym { p.next() } else { p.errf("missing '}' in literal") }
+    if isSlice {
+        return &ast.SliceLit{Pos: namePos, TypeName: tname, LBrace: lb, Elems: elems, RBrace: rb}, true
+    }
+    return &ast.SetLit{Pos: namePos, TypeName: tname, LBrace: lb, Elems: elems, RBrace: rb}, true
+}
+
+func (p *Parser) parseMapLiteral(namePos source.Position) (ast.Expr, bool) {
+    // consume '<'
+    p.next()
+    if p.cur.Kind != token.Ident { p.errf("expected key type after '<', got %q", p.cur.Lexeme); return nil, false }
+    k := p.cur.Lexeme
+    p.next()
+    if p.cur.Kind != token.CommaSym { p.errf("expected ',' between key and value type, got %q", p.cur.Lexeme); return nil, false }
+    p.next()
+    if p.cur.Kind != token.Ident { p.errf("expected value type name, got %q", p.cur.Lexeme); return nil, false }
+    v := p.cur.Lexeme
+    p.next()
+    if p.cur.Kind != token.Gt { p.errf("expected '>' after map type params, got %q", p.cur.Lexeme); return nil, false }
+    p.next()
+    if p.cur.Kind != token.LBraceSym { p.errf("expected '{' to start map literal, got %q", p.cur.Lexeme); return nil, false }
+    lb := p.cur.Pos
+    p.next()
+    var elems []ast.MapElem
+    for p.cur.Kind != token.RBraceSym && p.cur.Kind != token.EOF {
+        key, ok := p.parseExprPrec(1)
+        if !ok { p.errf("expected key expression, got %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RBraceSym); if p.cur.Kind == token.CommaSym { p.next() }; continue }
+        if p.cur.Kind != token.ColonSym { p.errf("expected ':', got %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RBraceSym); if p.cur.Kind == token.CommaSym { p.next() }; continue }
+        p.next()
+        val, ok := p.parseExprPrec(1)
+        if !ok { p.errf("expected value expression, got %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RBraceSym); if p.cur.Kind == token.CommaSym { p.next() }; continue }
+        elems = append(elems, ast.MapElem{Key: key, Val: val})
+        if p.cur.Kind == token.CommaSym { p.next(); continue }
+    }
+    rb := p.cur.Pos
+    if p.cur.Kind == token.RBraceSym { p.next() } else { p.errf("missing '}' in map literal") }
+    return &ast.MapLit{Pos: namePos, KeyType: k, ValType: v, LBrace: lb, Elems: elems, RBrace: rb}, true
 }
 
 func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
@@ -442,11 +581,18 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
             p.next()
             continue
         }
-        if p.cur.Kind == token.Ident {
+        if p.cur.Kind == token.Ident || p.cur.Kind == token.KwIngress || p.cur.Kind == token.KwEgress {
             // Determine if this is an edge or a step call
             name := p.cur.Lexeme
             namePos := p.cur.Pos
             p.next()
+            // support dotted step names like io.Read
+            for p.cur.Kind == token.DotSym {
+                p.next()
+                if p.cur.Kind != token.Ident { p.errf("expected identifier after '.', got %q", p.cur.Lexeme); break }
+                name = name + "." + p.cur.Lexeme
+                p.next()
+            }
             if p.cur.Kind == token.Arrow {
                 // Edge: name -> ident
                 p.next()
@@ -483,26 +629,29 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
                 if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in call") }
                 st.Args = args
             }
-            // optional attributes list: Attr or Attr(args), separated by commas
+            // optional attributes list: Attr or dotted Attr.name(args), separated by commas
             var attrs []ast.Attr
             for p.cur.Kind == token.Ident {
                 aname := p.cur.Lexeme
                 apos := p.cur.Pos
                 p.next()
+                for p.cur.Kind == token.DotSym {
+                    p.next()
+                    if p.cur.Kind != token.Ident { p.errf("expected ident after '.' in attribute name, got %q", p.cur.Lexeme); break }
+                    aname = aname + "." + p.cur.Lexeme
+                    p.next()
+                }
                 var aargs []ast.Arg
                 if p.cur.Kind == token.LParenSym {
                     p.next()
                     for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
-                        switch p.cur.Kind {
-                        case token.Ident:
-                            aargs = append(aargs, ast.Arg{Pos: p.cur.Pos, Text: p.cur.Lexeme})
-                        case token.String:
-                            aargs = append(aargs, ast.Arg{Pos: p.cur.Pos, Text: p.cur.Lexeme[1:len(p.cur.Lexeme)-1], IsString: true})
-                        default:
+                        e, ok := p.parseExprPrec(1)
+                        if ok {
+                            aargs = append(aargs, ast.Arg{Pos: ePos(e)})
+                        } else {
                             p.errf("unexpected token in attr args: %q", p.cur.Lexeme)
                             p.syncUntil(token.CommaSym, token.RParenSym)
                         }
-                        p.next()
                         if p.cur.Kind == token.CommaSym { p.next(); continue }
                     }
                     if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in attr call") }
@@ -567,4 +716,46 @@ func (p *Parser) syncUntil(kinds ...token.Kind) {
 func (p *Parser) ParseFileCollect() (*ast.File, []error) {
     f, _ := p.ParseFile()
     return f, p.errors
+}
+
+// parseImportConstraint parses an optional version constraint that follows an import path.
+// Supported form (scaffold): ">= vMAJOR.MINOR.PATCH[-PRERELEASE[.N]]" with or without spaces.
+// Returns the canonical string (e.g., ">= v1.2.3-rc.1") or empty string when none.
+func (p *Parser) parseImportConstraint() string {
+    if p.cur.Kind != token.Ge {
+        return ""
+    }
+    // capture operator
+    op := p.cur.Lexeme
+    if op == "" { op = ">=" }
+    p.next()
+    // allow quoted version in a single string token
+    if p.cur.Kind == token.String {
+        lex := p.cur.Lexeme
+        if len(lex) >= 2 { lex = lex[1:len(lex)-1] }
+        // basic validation: expect leading 'v'
+        if len(lex) == 0 || lex[0] != 'v' {
+            p.errf("version constraint must start with 'v', got %q", lex)
+        }
+        p.next()
+        return op + " " + lex
+    }
+    // Otherwise, accumulate a tolerant SemVer string out of tokens: [Ident|Number|'.'|'-']+
+    var out string
+    for {
+        switch p.cur.Kind {
+        case token.Ident, token.Number:
+            out += p.cur.Lexeme
+            p.next()
+        case token.DotSym:
+            out += "."
+            p.next()
+        case token.Minus:
+            out += "-"
+            p.next()
+        default:
+            if out == "" { p.errf("expected version after operator, got %q", p.cur.Lexeme) }
+            return op + " " + out
+        }
+    }
 }

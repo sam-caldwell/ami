@@ -42,17 +42,14 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
     }
     _ = os.MkdirAll(cache, 0o755)
 
-    // Load existing ami.sum (object form)
+    // Load existing ami.sum with workspace.Manifest (canonical nested format)
     sumPath := filepath.Join(dir, "ami.sum")
-    sum := map[string]any{"schema": "ami.sum/v1"}
-    if b, err := os.ReadFile(sumPath); err == nil {
-        var m map[string]any
-        if json.Unmarshal(b, &m) == nil && m["schema"] == "ami.sum/v1" {
-            sum = m
-        }
+    var manifest workspace.Manifest
+    if _, err := os.Stat(sumPath); err == nil {
+        _ = manifest.Load(sumPath) // ignore error; fall back to empty
     }
-    pkgs, _ := sum["packages"].(map[string]any)
-    if pkgs == nil { pkgs = map[string]any{} }
+    if manifest.Schema == "" { manifest.Schema = "ami.sum/v1" }
+    if manifest.Packages == nil { manifest.Packages = map[string]map[string]string{} }
 
     var updated []modUpdateItem
     // Copy each workspace package with a root, name, version
@@ -77,20 +74,15 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
             if jsonOut { _ = json.NewEncoder(out).Encode(modUpdateResult{Message: "hash failed"}) }
             return exit.New(exit.IO, "hash failed: %v", err)
         }
-        pkgs[p.Name] = map[string]any{"version": p.Version, "sha256": h}
+        if manifest.Packages[p.Name] == nil { manifest.Packages[p.Name] = map[string]string{} }
+        manifest.Packages[p.Name][p.Version] = h
         updated = append(updated, modUpdateItem{Name: p.Name, Version: p.Version, Path: dst})
     }
 
-    // Persist ami.sum with stable ordering via MarshalIndent
-    sum["packages"] = pkgs
-    if b, err := json.MarshalIndent(sum, "", "  "); err == nil {
-        if err := os.WriteFile(sumPath, b, 0o644); err != nil {
-            if jsonOut { _ = json.NewEncoder(out).Encode(modUpdateResult{Message: "write ami.sum failed"}) }
-            return exit.New(exit.IO, "write ami.sum: %v", err)
-        }
-    } else {
-        if jsonOut { _ = json.NewEncoder(out).Encode(modUpdateResult{Message: "encode ami.sum failed"}) }
-        return exit.New(exit.Internal, "encode ami.sum: %v", err)
+    // Persist ami.sum using canonical Manifest writer
+    if err := manifest.Save(sumPath); err != nil {
+        if jsonOut { _ = json.NewEncoder(out).Encode(modUpdateResult{Message: "write ami.sum failed"}) }
+        return exit.New(exit.IO, "write ami.sum: %v", err)
     }
 
     // Sort updated for deterministic output
@@ -109,4 +101,3 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
     }
     return nil
 }
-

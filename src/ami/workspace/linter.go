@@ -5,4 +5,9 @@ package workspace
 type Linter struct {
     Options []string          `yaml:"options"`
     Rules   map[string]string `yaml:"rules,omitempty"`
+    // Suppress maps a path prefix (workspace-relative) to a list of rule codes to suppress.
+    // Example:
+    //   suppress:
+    //     "./legacy": ["W_IDENT_UNDERSCORE", "W_IMPORT_ORDER"]
+    Suppress map[string][]string `yaml:"suppress,omitempty"`
 }

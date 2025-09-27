@@ -1,0 +1,16 @@
+package app
+
+import alpha >= v1.2.3
+import (
+  "beta"
+  gamma >= v2.0.0-rc.1
+)
+
+func F<T any>(a T) (R1,R2) { var x T; Alpha(); return a, a }
+
+pipeline P(){
+  Alpha() edge.MultiPath(merge.Sort("ts"), merge.Stable());
+  A -> B;
+}
+
+error {}

@@ -65,6 +65,15 @@ func lintWorkspace(dir string, ws *workspace.Workspace) []diag.Record {
                 // Path exists; ensure it is declared as a package in workspace
                 if findPackageByRoot(ws, path) == nil {
                     diags = append(diags, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_IMPORT_LOCAL_UNDECLARED", Message: "local import not declared as package: " + entry, File: "ami.workspace"})
+                } else if constraint != "" {
+                    // Local import with version constraint: ensure the local package version satisfies the constraint
+                    if c, err := semver.ParseConstraint(constraint); err == nil {
+                        if p := findPackageByRoot(ws, path); p != nil {
+                            if !semver.Satisfies(p.Version, c) {
+                                diags = append(diags, diag.Record{Timestamp: now, Level: diag.Warn, Code: "E_IMPORT_CONSTRAINT", Message: "local package version does not satisfy import constraint: " + entry, File: "ami.workspace"})
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -72,6 +81,14 @@ func lintWorkspace(dir string, ws *workspace.Workspace) []diag.Record {
     // Order check: lexical order by normalized path
     if !isSorted(normalizeForOrder(norm)) {
         diags = append(diags, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_IMPORT_ORDER", Message: "imports not sorted", File: "ami.workspace"})
+    }
+
+    // Validate package versions are valid SemVer (workspace declarations)
+    for _, pe := range ws.Packages {
+        v := strings.TrimSpace(pe.Package.Version)
+        if v == "" || !semver.ValidateVersion(v) {
+            diags = append(diags, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PKG_VERSION_INVALID", Message: "package version is not valid semver: " + v, File: "ami.workspace"})
+        }
     }
     return diags
 }

@@ -66,3 +66,12 @@ func TestManifest_Validate_UsesCacheAndHashes(t *testing.T) {
     if len(mm) != 0 { t.Fatalf("mismatched unexpected: %+v", mm) }
 }
 
+func TestManifest_Helpers_SetHasVersions(t *testing.T) {
+    var m Manifest
+    if m.Has("x", "1.0.0") { t.Fatalf("unexpected Has on empty") }
+    m.Set("x", "1.0.0", "deadbeef")
+    if !m.Has("x", "1.0.0") { t.Fatalf("expected Has true") }
+    m.Set("x", "1.1.0", "cafebabe")
+    vers := m.Versions("x")
+    if len(vers) != 2 || vers[0] != "1.0.0" || vers[1] != "1.1.0" { t.Fatalf("versions: %v", vers) }
+}

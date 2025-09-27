@@ -7,6 +7,7 @@ type FuncDecl struct {
     Pos     source.Position // position of 'func'
     NamePos source.Position
     Name    string
+    TypeParams []TypeParam
     Params  []Param
     Results []Result // tuple of result types (scaffold)
     Body    *BlockStmt

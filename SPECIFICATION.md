@@ -896,14 +896,14 @@ See also: `docs/merge.md` for a design summary and examples.
       `E_MERGE_ATTR_REQUIRED` (missing required field), `E_MERGE_ATTR_CONFLICT` (conflicting directives), and any docx‑specific constraints.
   - [ ] Edge policy interaction: when `merge.Buffer(..., backpressure in {dropOldest, dropNewest})` and `capacity<=1`, emit lint smell (not a hard error). Also warn when using ambiguous `drop`.
  - [ ] IR & Schemas
-   - [ ] pipelines.v1 carries MultiPath scaffold (inputs + raw merge ops).
+  - [X] pipelines.v1 carries MultiPath scaffold (inputs + raw merge ops).
    - [X] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
   - [X] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
 - [ ] Lint (Smells & Hints)
 - [ ] `W_MERGE_SORT_NO_FIELD` (Sort without a field), `W_MERGE_TINY_BUFFER` (Buffer capacity<=1 with `dropOldest`/`dropNewest`), `W_MERGE_WATERMARK_MISSING_FIELD`, `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`.
   - [X] Ensure rules are suppressible via pragmas and configurable via workspace severities.
 - [ ] Tests
-  - [ ] Parser: accept and round‑trip `edge.MultiPath(...)` with `merge.*` attributes.
+  - [X] Parser: accept and round‑trip `edge.MultiPath(...)` with `merge.*` attributes.
   - [ ] Semantics: context enforcement (Collect‑only), per‑attribute arity/type validation, conflicts, and required fields.
   - [ ] IR: golden JSON snapshots verifying normalized merge config.
 - [ ] Lint: smells/hints coverage for tiny buffer with `dropOldest`/`dropNewest`, invalid windows, missing fields.

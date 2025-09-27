@@ -41,3 +41,82 @@ func TestRunTest_EmptyPackageTree_OK(t *testing.T) {
     }
 }
 
+// RunTest JSON summary counts across multiple subpackages.
+func TestRunTest_JSON_MultiPackageCounts(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "json_multi")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(filepath.Join(dir, "a"), 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.MkdirAll(filepath.Join(dir, "b"), 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    aSrc := `package a
+import "testing"
+func TestA(t *testing.T){ }
+`
+    bSrc := `package b
+import "testing"
+func TestB(t *testing.T){ }
+`
+    if err := os.WriteFile(filepath.Join(dir, "a", "a_test.go"), []byte(aSrc), 0o644); err != nil { t.Fatalf("write a: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "b", "b_test.go"), []byte(bSrc), 0o644); err != nil { t.Fatalf("write b: %v", err) }
+    var buf bytes.Buffer
+    if err := runTest(&buf, dir, true, false, 2); err != nil { t.Fatalf("runTest: %v", err) }
+    lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+    last := lines[len(lines)-1]
+    if !strings.Contains(string(last), `"packages":2`) || !strings.Contains(string(last), `"tests":2`) || !strings.Contains(string(last), `"failures":0`) {
+        t.Fatalf("unexpected summary counts: %s", string(last))
+    }
+}
+
+// AMI directives: assert parse_fail with position and count.
+func TestRunTest_AMI_Directives_ParseFail_PositionAndCount(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "ami_parsefail_pos")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    // Missing 'package' should produce a parse error near start of file
+    src := "#pragma test:case pos\n#pragma test:assert parse_fail msg=\"expected 'package'\" count=1 line=1 column=1 offset=0\nfunc F(){}\n"
+    if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    var buf bytes.Buffer
+    if err := runTest(&buf, dir, true, false, 0); err != nil { t.Fatalf("runTest: %v\n%s", err, buf.String()) }
+}
+
+// AMI directives: mismatch should return an error from runTest.
+func TestRunTest_AMI_Directives_Mismatch_ReturnsError(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "ami_mismatch")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    // Expect parse_fail but file is valid → mismatch should produce amiFailures > 0 and error
+    src := "package app\n#pragma test:case bad\n#pragma test:assert parse_fail\nfunc F(){}\n"
+    if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    var out bytes.Buffer
+    if err := runTest(&out, dir, false, false, 0); err == nil {
+        t.Fatalf("expected error from mismatched AMI directive; out=%s", out.String())
+    }
+}
+
+// CLI wiring: `ami test` respects --json and --verbose flags and writes artifacts.
+func TestNewTestCmd_CLI_JSON_Verbose(t *testing.T) {
+    dir := filepath.Join("build", "test", "cli_test_cmd")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    testSrc := `package tmp
+import "testing"
+func TestA(t *testing.T){ }
+`
+    if err := os.WriteFile(filepath.Join(dir, "tmp_test.go"), []byte(testSrc), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    cwd, _ := os.Getwd()
+    defer os.Chdir(cwd)
+    _ = os.Chdir(dir)
+    c := newTestCmd()
+    var out bytes.Buffer
+    c.SetOut(&out)
+    c.SetArgs([]string{"--json", "--verbose"})
+    if err := c.Execute(); err != nil { t.Fatalf("execute: %v", err) }
+    // JSON summary present
+    if !strings.Contains(out.String(), `"ok":`) { t.Fatalf("missing JSON summary: %s", out.String()) }
+    // Artifacts present
+    if _, err := os.Stat(filepath.Join(dir, "build", "test", "test.log")); err != nil { t.Fatalf("test.log missing: %v", err) }
+    if _, err := os.Stat(filepath.Join(dir, "build", "test", "test.manifest")); err != nil { t.Fatalf("test.manifest missing: %v", err) }
+}

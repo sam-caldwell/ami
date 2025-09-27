@@ -115,3 +115,25 @@ func TestEmitLLVM_ModAndLogicalAnd(t *testing.T) {
         t.Fatalf("and not lowered for bools: %s", out)
     }
 }
+
+func TestEmitLLVM_Shifts_Neg_Xor_Bnot(t *testing.T) {
+    f := ir.Function{
+        Name:   "S",
+        Params: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}},
+        Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{
+            ir.Expr{Op: "shl", Args: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}}, Result: &ir.Value{ID: "t1", Type: "int"}},
+            ir.Expr{Op: "shr", Args: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}}, Result: &ir.Value{ID: "t2", Type: "int"}},
+            ir.Expr{Op: "xor", Args: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}}, Result: &ir.Value{ID: "t3", Type: "int"}},
+            ir.Expr{Op: "neg", Args: []ir.Value{{ID: "x", Type: "int"}}, Result: &ir.Value{ID: "t4", Type: "int"}},
+            ir.Expr{Op: "bnot", Args: []ir.Value{{ID: "x", Type: "int"}}, Result: &ir.Value{ID: "t5", Type: "int"}},
+            ir.Return{},
+        }}},
+    }
+    out, err := EmitModuleLLVM(ir.Module{Package: "app", Functions: []ir.Function{f}})
+    if err != nil { t.Fatalf("emit: %v", err) }
+    if !strings.Contains(out, "%t1 = shl i64 %x, %y") { t.Fatalf("shl not lowered: %s", out) }
+    if !strings.Contains(out, "%t2 = ashr i64 %x, %y") { t.Fatalf("shr not lowered: %s", out) }
+    if !strings.Contains(out, "%t3 = xor i64 %x, %y") { t.Fatalf("xor not lowered: %s", out) }
+    if !strings.Contains(out, "%t4 = sub i64 0, %x") { t.Fatalf("neg not lowered: %s", out) }
+    if !strings.Contains(out, "%t5 = xor i64 %x, -1") { t.Fatalf("bnot not lowered: %s", out) }
+}

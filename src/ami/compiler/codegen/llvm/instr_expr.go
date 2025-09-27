@@ -92,6 +92,69 @@ func lowerExpr(e ir.Expr) string {
             }
             return fmt.Sprintf("  %s %s %%%s, %%%s\n", mnem, ty, e.Args[0].ID, e.Args[1].ID)
         }
+    case "xor":
+        if len(e.Args) >= 2 {
+            // integer xor (or boolean xor as i1)
+            ty := "i64"
+            if e.Result != nil {
+                mt := mapType(e.Result.Type)
+                if mt == "i1" { ty = "i1" } else if mt != "ptr" { ty = mt }
+            }
+            if e.Result != nil && e.Result.ID != "" {
+                return fmt.Sprintf("  %%%s = xor %s %%%s, %%%s\n", e.Result.ID, ty, e.Args[0].ID, e.Args[1].ID)
+            }
+            return fmt.Sprintf("  xor %s %%%s, %%%s\n", ty, e.Args[0].ID, e.Args[1].ID)
+        }
+    case "shl":
+        if len(e.Args) >= 2 {
+            ty := "i64"
+            if e.Result != nil {
+                mt := mapType(e.Result.Type)
+                if mt != "ptr" && mt != "double" { ty = mt }
+            }
+            if e.Result != nil && e.Result.ID != "" {
+                return fmt.Sprintf("  %%%s = shl %s %%%s, %%%s\n", e.Result.ID, ty, e.Args[0].ID, e.Args[1].ID)
+            }
+            return fmt.Sprintf("  shl %s %%%s, %%%s\n", ty, e.Args[0].ID, e.Args[1].ID)
+        }
+    case "shr":
+        if len(e.Args) >= 2 {
+            ty := "i64"
+            if e.Result != nil {
+                mt := mapType(e.Result.Type)
+                if mt != "ptr" && mt != "double" { ty = mt }
+            }
+            if e.Result != nil && e.Result.ID != "" {
+                return fmt.Sprintf("  %%%s = ashr %s %%%s, %%%s\n", e.Result.ID, ty, e.Args[0].ID, e.Args[1].ID)
+            }
+            return fmt.Sprintf("  ashr %s %%%s, %%%s\n", ty, e.Args[0].ID, e.Args[1].ID)
+        }
+    case "neg":
+        if len(e.Args) >= 1 {
+            // unary negation of a value
+            if e.Result != nil {
+                mt := mapType(e.Result.Type)
+                if mt == "double" {
+                    return fmt.Sprintf("  %%%s = fsub double 0.0, %%%s\n", e.Result.ID, e.Args[0].ID)
+                }
+                // integer
+                ty := mt
+                if ty == "ptr" || ty == "" { ty = "i64" }
+                return fmt.Sprintf("  %%%s = sub %s 0, %%%s\n", e.Result.ID, ty, e.Args[0].ID)
+            }
+        }
+    case "bnot":
+        if len(e.Args) >= 1 {
+            // bitwise not via xor with -1
+            ty := "i64"
+            if e.Result != nil {
+                mt := mapType(e.Result.Type)
+                if mt != "ptr" && mt != "double" { ty = mt }
+            }
+            if e.Result != nil && e.Result.ID != "" {
+                return fmt.Sprintf("  %%%s = xor %s %%%s, -1\n", e.Result.ID, ty, e.Args[0].ID)
+            }
+        }
     }
     return fmt.Sprintf("  ; expr %s\n", e.Op)
 }

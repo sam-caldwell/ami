@@ -24,8 +24,11 @@ func FromAST(t string) Type {
     // map generic
     if strings.HasPrefix(s, "map<") && strings.HasSuffix(s, ">") {
         inner := s[len("map<") : len(s)-1]
-        k, v := splitTop(inner)
-        return Map{Key: FromAST(k), Val: FromAST(v)}
+        parts := splitTop(inner)
+        if len(parts) == 2 {
+            return Map{Key: FromAST(parts[0]), Val: FromAST(parts[1])}
+        }
+        // fall through to generic parse
     }
     // set generic
     if strings.HasPrefix(s, "set<") && strings.HasSuffix(s, ">") {
@@ -41,7 +44,7 @@ func FromAST(t string) Type {
     if i := strings.IndexByte(s, '<'); i >= 0 && strings.HasSuffix(s, ">") {
         name := s[:i]
         inner := s[i+1 : len(s)-1]
-        parts := splitAllTop(inner)
+        parts := splitTop(inner)
         args := make([]Type, 0, len(parts))
         for _, p := range parts { args = append(args, FromAST(p)) }
         return Generic{Name: name, Args: args}
@@ -70,40 +73,6 @@ func BuildFunction(fn *ast.FuncDecl) Function {
 }
 
 // splitTop splits "A,B" at top-level, respecting nested generics.
-func splitTop(s string) (string, string) {
-    depth := 0
-    for i := 0; i < len(s); i++ {
-        switch s[i] {
-        case '<': depth++
-        case '>': if depth > 0 { depth-- }
-        case ',':
-            if depth == 0 {
-                return strings.TrimSpace(s[:i]), strings.TrimSpace(s[i+1:])
-            }
-        }
-    }
-    return strings.TrimSpace(s), ""
-}
-
-func splitAllTop(s string) []string {
-    var out []string
-    depth := 0
-    start := 0
-    for i := 0; i < len(s); i++ {
-        switch s[i] {
-        case '<': depth++
-        case '>': if depth > 0 { depth-- }
-        case ',':
-            if depth == 0 {
-                out = append(out, strings.TrimSpace(s[start:i]))
-                start = i+1
-            }
-        }
-    }
-    out = append(out, strings.TrimSpace(s[start:]))
-    return out
-}
-
 func isTypeVarName(s string) bool {
     if len(s) == 1 {
         r := rune(s[0])
@@ -111,4 +80,3 @@ func isTypeVarName(s string) bool {
     }
     return false
 }
-

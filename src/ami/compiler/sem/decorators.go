@@ -62,11 +62,23 @@ func AnalyzeDecorators(f *ast.File) []diag.Record {
     return out
 }
 
-func canonicalDecoArgs(args []ast.Arg) string {
+func canonicalDecoArgs(args []ast.Expr) string {
     if len(args) == 0 { return "" }
     // Preserve order; join with '|'
     out := make([]string, 0, len(args))
-    for _, a := range args { out = append(out, a.Text) }
+    for _, a := range args { out = append(out, decoArgText(a)) }
     return strings.Join(out, "|")
 }
 
+func decoArgText(e ast.Expr) string {
+    switch v := e.(type) {
+    case *ast.IdentExpr:
+        return v.Name
+    case *ast.StringLit:
+        return v.Value
+    case *ast.NumberLit:
+        return v.Text
+    default:
+        return ""
+    }
+}

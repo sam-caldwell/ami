@@ -80,7 +80,7 @@
     - [x] `ami mod sum` enhanced: validates presence, JSON/scheme; verifies directory hashes against `${AMI_PACKAGE_CACHE}`; reports missing/mismatched; returns exit.Integrity on failure. Tests passing.
     - [x] `ami lint` Stage A implemented with >=80% coverage and tests passing (workspace presence, name style, import shape/order, local path checks, UNKNOWN_IDENT scan, strict mode, verbose debug file). Stage B (parser-backed rules) pending.
     - [X] `ami pipeline visualize` implemented: renders ASCII pipeline graphs to the terminal; JSON/human output; unit + e2e tests.
-    - [A] `ami test` implemented:
+    - [X] `ami test` implemented:
       - [X] Go test wrapper that collects `_test.go`, streams `go test -json` events, prints human "test: OK" on success, and emits a final JSON summary in `--json` mode.
       - [X] `--verbose` writes `build/test/test.log` and `build/test/test.manifest` with `<package> <test>` entries in run order.
       - [ ] Native AMI directive‑based assertions (parser/sem) integrated into harness.

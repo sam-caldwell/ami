@@ -19,6 +19,16 @@ type Parser struct {
     errors  []error
 }
 
+// SyntaxError represents a parser error with position information.
+// It implements error and carries the current token position.
+type SyntaxError struct {
+    Msg string
+    Pos source.Position
+}
+
+func (e SyntaxError) Error() string { return e.Msg }
+func (e SyntaxError) Position() source.Position { return e.Pos }
+
 // New creates a new Parser bound to the provided file.
 func New(f *source.File) *Parser {
     p := &Parser{s: scanner.New(f)}
@@ -881,7 +891,9 @@ func (p *Parser) parseStepBlock() (*ast.BlockStmt, error) {
 func pendingOrNew(_ []ast.Comment, p *Parser) []ast.Comment { return p.pending }
 
 func (p *Parser) errf(format string, args ...any) {
-    p.errors = append(p.errors, fmt.Errorf(format, args...))
+    // capture current token position for diagnostics
+    se := SyntaxError{Msg: fmt.Sprintf(format, args...), Pos: p.cur.Pos}
+    p.errors = append(p.errors, se)
 }
 
 func (p *Parser) firstErr() error {

@@ -26,13 +26,14 @@ type ObjUnit struct {
 }
 
 // BuildObjIndex scans the directory and produces a deterministic index.
-// It only indexes files with extension .s for now.
+// It indexes files with extension .s (asm) and .o (object stubs).
 func BuildObjIndex(pkg string, dir string) (ObjIndex, error) {
     var files []string
     err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
         if err != nil { return err }
         if d.IsDir() { return nil }
-        if filepath.Ext(p) != ".s" { return nil }
+        ext := filepath.Ext(p)
+        if ext != ".s" && ext != ".o" { return nil }
         rel, err := filepath.Rel(dir, p)
         if err != nil { return err }
         files = append(files, rel)
@@ -71,4 +72,3 @@ func trimExt(path string) string {
     ext := filepath.Ext(path)
     return path[:len(path)-len(ext)]
 }
-

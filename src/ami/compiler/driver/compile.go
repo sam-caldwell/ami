@@ -4,6 +4,7 @@ import (
     "os"
     "path/filepath"
     "sort"
+    "time"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
@@ -39,7 +40,21 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         for _, f := range files {
             if f == nil { continue }
             pr := parser.New(f)
-            af, _ := pr.ParseFile()
+            af, perrs := pr.ParseFileCollect()
+            // convert syntax errors to diagnostics
+            for _, e := range perrs {
+                // default position
+                pos := source.Position{}
+                if se, ok := e.(parser.SyntaxError); ok { pos = se.Position() }
+                outDiags = append(outDiags, diag.Record{
+                    Timestamp: time.Now().UTC(),
+                    Level:     diag.Error,
+                    Code:      "E_PARSE_SYNTAX",
+                    Message:   e.Error(),
+                    File:      f.Name,
+                    Pos:       &diag.Position{Line: pos.Line, Column: pos.Column, Offset: pos.Offset},
+                })
+            }
             if af == nil { continue }
             units = append(units, unit{file: f, ast: af, unit: unitName(f.Name)})
         }

@@ -3,7 +3,11 @@ package main
 import (
     "os"
     "path/filepath"
+    "strings"
+    "time"
 
+    "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+    "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     "github.com/sam-caldwell/ami/src/ami/compiler/sem"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
@@ -31,9 +35,6 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
         for file, rules := range m { disables[file] = rules }
     }
 
-    // Only run memory safety rules if enabled.
-    if !(t.StageB || t.MemorySafety) { return out }
-
     // Walk each root, analyze every .ami file.
     for _, r := range roots {
         root := filepath.Clean(filepath.Join(dir, r))
@@ -43,16 +44,180 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
             b, err := os.ReadFile(path)
             if err != nil { return nil }
             f := &source.File{Name: path, Content: string(b)}
-            // Analyze memory safety and append diagnostics (filter by pragmas)
-            ms := sem.AnalyzeMemorySafety(f)
-            if len(ms) > 0 {
-                for _, d := range ms {
-                    if m := disables[path]; m != nil && m[d.Code] { continue }
-                    out = append(out, d)
+            now := time.Now().UTC()
+
+            // Memory safety
+            if t.StageB || t.MemorySafety {
+                ms := sem.AnalyzeMemorySafety(f)
+                if len(ms) > 0 {
+                    for _, d := range ms {
+                        if m := disables[path]; m != nil && m[d.Code] { continue }
+                        out = append(out, d)
+                    }
                 }
+            }
+
+            // Parser-backed rules
+            pf := parser.New(f)
+            af, err := pf.ParseFile()
+            if err != nil {
+                // tolerate parse errors in Stage B: emit a diag and continue
+                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PARSE_TOLERANT", Message: "parse error in Stage B lint: " + err.Error(), File: path}
+                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                return nil
+            }
+
+            // Collect used identifiers (first segment of selector/call names) for unused import checks.
+            used := collectUsedIdents(af)
+
+            // Unused imports: only for identifier-form imports (not strings)
+            if t.StageB || t.Unused || t.ImportExist {
+                for _, dcl := range af.Decls {
+                    im, ok := dcl.(*ast.ImportDecl); if !ok { continue }
+                    if im.Path != "" && !strings.ContainsAny(im.Path, "/\".") { // looks like bare ident
+                        name := im.Path
+                        if !used[name] {
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_UNUSED_IMPORT", Message: "import not used: " + name, File: path, Pos: &diag.Position{Line: im.PathPos.Line, Column: im.PathPos.Column, Offset: im.PathPos.Offset}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                    }
+                }
+            }
+
+            // Unmarked mutating assignment: any assignment statement (since '* name = ...' is not parsed as AssignStmt)
+            if t.StageB || t.MemorySafety {
+                walkStmts(af, func(s ast.Stmt) {
+                    if as, ok := s.(*ast.AssignStmt); ok {
+                        d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MUT_ASSIGN_UNMARKED", Message: "assignment should use mutating marker: '* name = expr'", File: path, Pos: &diag.Position{Line: as.NamePos.Line, Column: as.NamePos.Column, Offset: as.NamePos.Offset}}
+                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                    }
+                })
+            }
+
+            // RAII hint: release(x) should be wrapped: mutate(release(x))
+            if t.StageB || t.RAIIHint {
+                wrapped := collectMutateWrappedReleases(af)
+                walkExprs(af, func(e ast.Expr) {
+                    if ce, ok := e.(*ast.CallExpr); ok {
+                        lname := strings.ToLower(ce.Name)
+                        if strings.HasSuffix(lname, ".release") || lname == "release" {
+                            key := callKey("", ce)
+                            if !wrapped[key] {
+                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_RAII_OWNED_HINT", Message: "wrap release in mutate(release(x)) for explicit handoff", File: path, Pos: &diag.Position{Line: ce.NamePos.Line, Column: ce.NamePos.Column, Offset: ce.NamePos.Offset}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
+                        }
+                    }
+                })
             }
             return nil
         })
     }
     return out
+}
+
+// collectUsedIdents returns a set of identifier names used as top-level prefixes in expressions.
+func collectUsedIdents(f *ast.File) map[string]bool {
+    used := map[string]bool{}
+    walkExprs(f, func(e ast.Expr) {
+        switch n := e.(type) {
+        case *ast.IdentExpr:
+            used[n.Name] = true
+        case *ast.CallExpr:
+            // Split qualified name on '.' and take first segment
+            name := n.Name
+            if i := strings.IndexByte(name, '.'); i >= 0 { name = name[:i] }
+            used[name] = true
+        }
+    })
+    return used
+}
+
+// walkStmts invokes fn for every statement in function and pipeline bodies.
+func walkStmts(f *ast.File, fn func(ast.Stmt)) {
+    for _, d := range f.Decls {
+        switch n := d.(type) {
+        case *ast.FuncDecl:
+            if n != nil && n.Body != nil {
+                for _, s := range n.Body.Stmts { fn(s) }
+            }
+        case *ast.PipelineDecl:
+            if n != nil && n.Body != nil {
+                for _, s := range n.Body.Stmts { fn(s) }
+            }
+        }
+    }
+}
+
+// walkExprs invokes fn for every expression node reachable from functions/pipelines.
+func walkExprs(f *ast.File, fn func(ast.Expr)) {
+    walkStmts(f, func(s ast.Stmt) {
+        switch n := s.(type) {
+        case *ast.ExprStmt:
+            if n.X != nil { walkExpr(n.X, fn) }
+        case *ast.AssignStmt:
+            if n.Value != nil { walkExpr(n.Value, fn) }
+        case *ast.VarDecl:
+            if n.Init != nil { walkExpr(n.Init, fn) }
+        case *ast.DeferStmt:
+            if n.Call != nil { walkExpr(n.Call, fn) }
+        case *ast.ReturnStmt:
+            for _, e := range n.Results { walkExpr(e, fn) }
+        }
+    })
+}
+
+func walkExpr(e ast.Expr, fn func(ast.Expr)) {
+    if e == nil { return }
+    fn(e)
+    switch n := e.(type) {
+    case *ast.CallExpr:
+        for _, a := range n.Args { walkExpr(a, fn) }
+    case *ast.BinaryExpr:
+        if n.X != nil { walkExpr(n.X, fn) }
+        if n.Y != nil { walkExpr(n.Y, fn) }
+    case *ast.SelectorExpr:
+        if n.X != nil { walkExpr(n.X, fn) }
+    }
+}
+
+// collectMutateWrappedReleases returns keys of release calls that are wrapped in mutate().
+func collectMutateWrappedReleases(f *ast.File) map[string]bool {
+    wrapped := map[string]bool{}
+    walkExprs(f, func(e ast.Expr) {
+        ce, ok := e.(*ast.CallExpr)
+        if !ok { return }
+        if strings.EqualFold(ce.Name, "mutate") && len(ce.Args) > 0 {
+            if inner, ok := ce.Args[0].(*ast.CallExpr); ok {
+                lname := strings.ToLower(inner.Name)
+                if lname == "release" || strings.HasSuffix(lname, ".release") {
+                    wrapped[callKey("", inner)] = true
+                }
+            }
+        }
+    })
+    return wrapped
+}
+
+func callKey(prefix string, ce *ast.CallExpr) string {
+    if ce == nil { return "" }
+    return prefix + "@" + ce.Name + ":" + itoa(ce.NamePos.Line) + ":" + itoa(ce.NamePos.Column)
+}
+
+func itoa(i int) string { return intToString(i) }
+
+func intToString(i int) string {
+    // fast small-int conversion without fmt
+    if i == 0 { return "0" }
+    neg := i < 0
+    if neg { i = -i }
+    var b [20]byte
+    p := len(b)
+    for i > 0 {
+        p--
+        b[p] = byte('0' + (i % 10))
+        i /= 10
+    }
+    if neg { p--; b[p] = '-' }
+    return string(b[p:])
 }

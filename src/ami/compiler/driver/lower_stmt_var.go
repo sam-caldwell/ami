@@ -17,6 +17,8 @@ func lowerStmtVar(st *lowerState, vd *ast.VarDecl) ir.Instruction {
     }
     // create a symbolic variable value id equal to the variable name
     res := ir.Value{ID: vd.Name, Type: vd.Type}
+    if st != nil && st.varTypes != nil && vd.Name != "" && vd.Type != "" {
+        st.varTypes[vd.Name] = vd.Type
+    }
     return ir.Var{Name: vd.Name, Type: vd.Type, Init: init, Result: res}
 }
-

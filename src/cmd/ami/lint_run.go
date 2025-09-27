@@ -48,6 +48,8 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
     // Collect workspace diagnostics.
     var diags []diag.Record
     diags = append(diags, lintWorkspace(dir, &ws)...)
+    // Cross-package constraints (strict mode elevates to error)
+    diags = append(diags, lintCrossPackageConstraints(&ws)...)
     // Source scaffold: scan for UNKNOWN_IDENT under main package root and recursively in local imports
     if p := ws.FindPackage("main"); p != nil && p.Root != "" {
         roots := append([]string{}, p.Root)
@@ -65,6 +67,7 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
             disables := scanPragmas(dir, root)
             srcDiags := append([]diag.Record{}, scanSourceUnknown(dir, root)...)
             srcDiags = append(srcDiags, scanSourceIdentStyle(dir, root)...)
+            srcDiags = append(srcDiags, scanSourceGoSyntax(dir, root)...)
             filtered := srcDiags[:0]
             for _, d := range srcDiags {
                 if d.File != "" {

@@ -5,6 +5,7 @@ import (
     "path/filepath"
     "sort"
 
+    "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     "github.com/sam-caldwell/ami/src/ami/compiler/sem"
@@ -76,6 +77,10 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             // lower functions in this unit into a module
             m := lowerFile(p.Name, af)
             if opts.Debug {
+                // sources debug with import constraints
+                _, _ = writeSourcesDebug(p.Name, unit, af)
+                // AST debug summary
+                _, _ = writeASTDebug(p.Name, unit, af)
                 // write per-unit IR JSON: build/debug/ir/<package>/<unit>.ir.json
                 dir := filepath.Join("build", "debug", "ir", p.Name)
                 _ = os.MkdirAll(dir, 0o755)
@@ -93,7 +98,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 if _, err := writeEventMetaDebug(p.Name, unit); err == nil {
                 }
                 // assembly debug listing
-                if _, err := writeAsmDebug(p.Name, unit, m); err == nil {
+                if _, err := writeAsmDebug(p.Name, unit, af, m); err == nil {
                 }
             }
         }

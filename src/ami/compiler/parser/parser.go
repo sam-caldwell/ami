@@ -491,6 +491,34 @@ func (p *Parser) parseIdentExpr(first string, firstPos source.Position) ast.Expr
     return x
 }
 
+// exprText produces a simple string representation of an expression suitable
+// for debug displays (attribute args, etc.). It is not a full pretty-printer.
+func exprText(e ast.Expr) string {
+    switch v := e.(type) {
+    case *ast.IdentExpr:
+        return v.Name
+    case *ast.StringLit:
+        return v.Value
+    case *ast.NumberLit:
+        return v.Text
+    case *ast.SelectorExpr:
+        left := exprText(v.X)
+        if left == "" { left = "?" }
+        return left + "." + v.Sel
+    case *ast.CallExpr:
+        // return callee name only
+        return v.Name
+    case *ast.SliceLit:
+        return "slice"
+    case *ast.SetLit:
+        return "set"
+    case *ast.MapLit:
+        return "map"
+    default:
+        return ""
+    }
+}
+
 // parseSliceOrSetLiteral parses either a slice or set literal after seeing the name and a '<'.
 func (p *Parser) parseSliceOrSetLiteral(isSlice bool, namePos source.Position) (ast.Expr, bool) {
     // consume '<'
@@ -647,7 +675,7 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
                     for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
                         e, ok := p.parseExprPrec(1)
                         if ok {
-                            aargs = append(aargs, ast.Arg{Pos: ePos(e)})
+                            aargs = append(aargs, ast.Arg{Pos: ePos(e), Text: exprText(e)})
                         } else {
                             p.errf("unexpected token in attr args: %q", p.cur.Lexeme)
                             p.syncUntil(token.CommaSym, token.RParenSym)

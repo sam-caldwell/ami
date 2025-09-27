@@ -23,8 +23,8 @@ type pipelineOp struct {
     Name string   `json:"name"`
     Args []string `json:"args,omitempty"`
     Edge *edgeAttrs `json:"edge,omitempty"`
-    Merge []mergeAttr `json:"merge,omitempty"`
-    MultiPath *multiPath `json:"multipath,omitempty"`
+    Merge []pipeMergeAttr `json:"merge,omitempty"`
+    MultiPath *pipeMultiPath `json:"multipath,omitempty"`
 }
 
 type edgeAttrs struct {
@@ -32,12 +32,12 @@ type edgeAttrs struct {
     Delivery string `json:"delivery"`
 }
 
-type mergeAttr struct {
+type pipeMergeAttr struct {
     Name string   `json:"name"`
     Args []string `json:"args"`
 }
 
-type multiPath struct {
+type pipeMultiPath struct {
     Args []string `json:"args"`
 }
 
@@ -60,12 +60,21 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                     if len(at.Name) >= 6 && at.Name[:6] == "merge." {
                         var margs []string
                         for _, aa := range at.Args { margs = append(margs, aa.Text) }
-                        op.Merge = append(op.Merge, mergeAttr{Name: at.Name, Args: margs})
+                        op.Merge = append(op.Merge, pipeMergeAttr{Name: at.Name, Args: margs})
+                        if at.Name == "merge.Buffer" {
+                            // derive edge attrs from buffer policy
+                            if len(margs) > 0 && margs[0] != "0" && margs[0] != "" { op.Edge.Bounded = true }
+                            if len(margs) > 1 {
+                                pol := margs[1]
+                                if pol == "dropOldest" || pol == "dropNewest" { op.Edge.Delivery = "bestEffort" }
+                                if pol == "block" { op.Edge.Delivery = "atLeastOnce" }
+                            }
+                        }
                     }
                     if (at.Name == "edge.MultiPath" || at.Name == "MultiPath") && st.Name == "Collect" {
                         var margs []string
                         for _, aa := range at.Args { margs = append(margs, aa.Text) }
-                        op.MultiPath = &multiPath{Args: margs}
+                        op.MultiPath = &pipeMultiPath{Args: margs}
                     }
                 }
                 steps = append(steps, op)

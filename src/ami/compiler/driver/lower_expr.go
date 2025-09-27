@@ -13,8 +13,12 @@ import (
 func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
     switch v := e.(type) {
     case *ast.IdentExpr:
-        // ident references a previously defined value; use type 'any'
-        res := &ir.Value{ID: v.Name, Type: "any"}
+        // ident references a previously defined value; use tracked type when known
+        typ := "any"
+        if st != nil && st.varTypes != nil {
+            if t, ok := st.varTypes[v.Name]; ok && t != "" { typ = t }
+        }
+        res := &ir.Value{ID: v.Name, Type: typ}
         return ir.Expr{Op: "ident", Args: nil, Result: res}, true
     case *ast.StringLit:
         // strings produce a temp value of type string

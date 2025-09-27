@@ -14,5 +14,6 @@ func newModCmd() *cobra.Command {
     cmd.AddCommand(newModUpdateCmd())
     cmd.AddCommand(newModSumCmd())
     cmd.AddCommand(newModGetCmd())
+    cmd.AddCommand(newModAuditCmd())
     return cmd
 }

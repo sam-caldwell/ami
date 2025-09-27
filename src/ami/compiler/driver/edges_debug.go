@@ -62,6 +62,18 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                 for _, at := range stepAttrs[e.To] {
                     // simple delivery inference
                     if at.Name == "dropOldest" || at.Name == "dropNewest" { delivery = "bestEffort" }
+                    if at.Name == "merge.Buffer" {
+                        // if capacity>0 => bounded
+                        if len(at.Args) > 0 {
+                            if at.Args[0].Text != "0" && at.Args[0].Text != "" { bounded = true }
+                        }
+                        // second arg policy
+                        if len(at.Args) > 1 {
+                            pol := at.Args[1].Text
+                            if pol == "dropOldest" || pol == "dropNewest" { delivery = "bestEffort" }
+                            if pol == "block" { delivery = "atLeastOnce" }
+                        }
+                    }
                 }
                 out = append(out, edgeEntry{Unit: unit, From: e.From, To: e.To, Bounded: bounded, Delivery: delivery})
             }

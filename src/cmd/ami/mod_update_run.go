@@ -21,11 +21,15 @@ type modUpdateItem struct {
 type modUpdateResult struct {
     Updated []modUpdateItem `json:"updated"`
     Message string          `json:"message,omitempty"`
+    Audit   *modAuditEmbed  `json:"audit,omitempty"`
 }
 
 // runModUpdate copies local workspace packages to the cache and refreshes ami.sum.
 // Remote resolution (git+ssh) and constraint solving are deferred to later phases.
 func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
+    // Pre-check: audit current workspace/sum/cache to surface issues before update.
+    auditRep, _ := workspace.AuditDependencies(dir) // best-effort; non-fatal
+
     var ws workspace.Workspace
     if err := ws.Load(filepath.Join(dir, "ami.workspace")); err != nil {
         if jsonOut { _ = json.NewEncoder(out).Encode(modUpdateResult{Message: "workspace not found or invalid"}) }
@@ -94,10 +98,46 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
     })
 
     if jsonOut {
-        return json.NewEncoder(out).Encode(modUpdateResult{Updated: updated, Message: "ok"})
+        return json.NewEncoder(out).Encode(modUpdateResult{Updated: updated, Message: "ok", Audit: embedAudit(auditRep)})
     }
+    // Human-readable audit summary (non-fatal)
+    if len(auditRep.ParseErrors) > 0 { _, _ = fmt.Fprintf(out, "audit: parse errors: %d\n", len(auditRep.ParseErrors)) }
+    if !auditRep.SumFound { _, _ = fmt.Fprintln(out, "audit: ami.sum: not found") }
+    if len(auditRep.MissingInSum) > 0 { _, _ = fmt.Fprintf(out, "audit: missing in sum: %s\n", joinCSV(auditRep.MissingInSum)) }
+    if len(auditRep.Unsatisfied) > 0 { _, _ = fmt.Fprintf(out, "audit: unsatisfied: %s\n", joinCSV(auditRep.Unsatisfied)) }
+    if len(auditRep.MissingInCache) > 0 { _, _ = fmt.Fprintf(out, "audit: missing in cache: %s\n", joinCSV(auditRep.MissingInCache)) }
+    if len(auditRep.Mismatched) > 0 { _, _ = fmt.Fprintf(out, "audit: mismatched: %s\n", joinCSV(auditRep.Mismatched)) }
     for _, u := range updated {
         _, _ = fmt.Fprintf(out, "updated %s@%s -> %s\n", u.Name, u.Version, u.Path)
     }
     return nil
+}
+
+// joinCSV joins a string slice with commas (no spaces) for compact summaries.
+func joinCSV(xs []string) string {
+    if len(xs) == 0 { return "" }
+    s := xs[0]
+    for i := 1; i < len(xs); i++ { s += "," + xs[i] }
+    return s
+}
+
+// modAuditEmbed mirrors key fields from AuditReport for JSON embedding in update result.
+type modAuditEmbed struct {
+    MissingInSum   []string `json:"missingInSum,omitempty"`
+    Unsatisfied    []string `json:"unsatisfied,omitempty"`
+    MissingInCache []string `json:"missingInCache,omitempty"`
+    Mismatched     []string `json:"mismatched,omitempty"`
+    ParseErrors    []string `json:"parseErrors,omitempty"`
+    SumFound       bool     `json:"sumFound"`
+}
+
+func embedAudit(r workspace.AuditReport) *modAuditEmbed {
+    return &modAuditEmbed{
+        MissingInSum:   r.MissingInSum,
+        Unsatisfied:    r.Unsatisfied,
+        MissingInCache: r.MissingInCache,
+        Mismatched:     r.Mismatched,
+        ParseErrors:    r.ParseErrors,
+        SumFound:       r.SumFound,
+    }
 }

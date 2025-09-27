@@ -305,6 +305,7 @@ packages:
           TODO/FIXME policy
     - [ ] Language‑specific:
         - [ ] Reminders and detection: `W_LANG_NOT_GO` (info/warn), `W_GO_SYNTAX_DETECTED` (warn)
+            - [X] Detect Go-like files starting with `package` (W_GO_SYNTAX_DETECTED)
 - [ ] Enforce/propagate AMI semantics via analyzer diagnostics surfaced in lint: 
       `E_MUT_BLOCK_UNSUPPORTED`, `E_MUT_ASSIGN_UNMARKED`, `E_PTR_UNSUPPORTED_SYNTAX`
   - [X] Integrate memory-safety analyzer for `E_PTR_UNSUPPORTED_SYNTAX` and `E_MUT_BLOCK_UNSUPPORTED` (Stage B)
@@ -799,7 +800,7 @@ Tests & Docs
 - [ ] Tests (scaffold)
   - [ ] Parser round‑trips `edge.MultiPath(...)` as raw attr on `Collect`.
   - [ ] Semantics: context enforcement (Collect‑only), first‑input kind check, type‑compatibility across inputs, and basic merge‑op name validation.
-  - [C] IR/codegen: pipelines schema encodes MultiPath; ASM listings emit `mp_*` pseudo‑ops; edges.v1 includes MultiPath snapshot (build test added).
+  - [X] IR/codegen: pipelines schema encodes MultiPath; ASM listings emit `mp_*` pseudo‑ops; edges.v1 includes MultiPath snapshot (build test added).
   - [ ] Merge attribute normalization and per‑attribute validation (deferred).
 - [ ] Documentation
   - [ ] Add `docs/merge.md` describing attribute semantics, precedence, examples.
@@ -1074,9 +1075,9 @@ Phase 2: Executable AMI tests (scaffolded)
 
 Parser Enhancements (Positions & Comments)
 
-- [ ] Attach positions (`pos.line/column/offset`) to: directives, imports, funcs, enums, structs, pipelines, and node calls.
+- [X] Attach positions (`pos.line/column/offset`) to: directives, imports, funcs, enums, structs, pipelines, and node calls.
 - [X] Capture and attach leading comments (`//`, `/*...*/`) to the following node; scanner preserves comment text and start position.
-- [ ] Tests cover presence of positions and attached comments on representative nodes (directive, import, enum, struct, func, pipeline step).
+- [X] Tests cover presence of positions and attached comments on representative nodes (directive, import, enum, struct, func, pipeline step).
 - [X] Extend positions to function-body statements and expressions: `ExprStmt`, `AssignStmt`, `DeferStmt`, and expression nodes (`CallExpr`, `SelectorExpr`, `UnaryExpr`, `Ident`, `BasicLit`).
 - [X] Attach comments to function-body statements (top-level already covered).
 - [X] Add binary expressions with precedence/associativity for arithmetic and comparisons (scaffold).
@@ -1126,7 +1127,7 @@ Types & Semantics (incremental)
 
 ### Remaining work
 
-- [ ] Surface import version constraints into `sources.v1` (`importsDetailed`) during build planning/output.
+- [X] Surface import version constraints into `sources.v1` (`importsDetailed`) during build planning/output.
 
  
 

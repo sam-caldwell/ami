@@ -9,15 +9,15 @@ import (
 func lowerFuncDecl(fn *ast.FuncDecl) ir.Function {
     var params []ir.Value
     var results []ir.Value
+    st := &lowerState{varTypes: map[string]string{}}
     for _, p := range fn.Params {
         params = append(params, ir.Value{ID: p.Name, Type: p.Type})
+        if p.Name != "" && p.Type != "" { st.varTypes[p.Name] = p.Type }
     }
     for _, r := range fn.Results {
         results = append(results, ir.Value{Type: r.Type})
     }
-    st := &lowerState{}
     instrs := lowerBlock(st, fn.Body)
     blk := ir.Block{Name: "entry", Instr: instrs}
     return ir.Function{Name: fn.Name, Params: params, Results: results, Blocks: []ir.Block{blk}}
 }
-

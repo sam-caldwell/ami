@@ -9,8 +9,9 @@ type AssignStmt struct {
     NamePos source.Position
     Value   Expr
     Leading []Comment
+    Mutating bool            // true when assignment is marked with '*' on LHS
+    StarPos  source.Position // position of '*', when Mutating
 }
 
 func (*AssignStmt) isNode() {}
 func (*AssignStmt) isStmt() {}
-

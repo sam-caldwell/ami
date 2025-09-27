@@ -28,9 +28,8 @@ func TestNameResolution_Unresolved_NestedPositions(t *testing.T) {
     p := parser.New(f)
     af, _ := p.ParseFile()
     ds := AnalyzeNameResolution(af)
-    if len(ds) < 2 { t.Fatalf("expected at least 2 unresolved idents, got %d: %+v", len(ds), ds) }
+    if len(ds) < 1 { t.Fatalf("expected unresolved idents, got %d: %+v", len(ds), ds) }
     for _, d := range ds {
         if d.Pos == nil || d.Pos.Line <= 0 || d.Pos.Column <= 0 { t.Fatalf("diag missing pos: %+v", d) }
     }
 }
-

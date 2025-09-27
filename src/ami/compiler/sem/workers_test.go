@@ -42,3 +42,17 @@ func TestWorkers_GoodSignature(t *testing.T) {
     for _, d := range ds { if d.Code == "E_WORKER_SIGNATURE" || d.Code == "E_WORKER_UNDEFINED" { t.Fatalf("unexpected: %+v", ds) } }
 }
 
+func TestWorkers_DottedImport_SuppressesUndefined(t *testing.T) {
+    code := "package app\n" +
+        "import alpha\n" +
+        "pipeline P(){ ingress; Transform(alpha.F); egress }\n"
+    f := (&source.FileSet{}).AddFile("w4.ami", code)
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    ds := AnalyzeWorkers(af)
+    for _, d := range ds {
+        if d.Code == "E_WORKER_UNDEFINED" || d.Code == "E_WORKER_SIGNATURE" {
+            t.Fatalf("unexpected worker diag for dotted import: %+v", ds)
+        }
+    }
+}

@@ -14,5 +14,12 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
             fns = append(fns, lowerFuncDecl(fn, results, params, paramNames))
         }
     }
-    return ir.Module{Package: pkg, Functions: fns}
+    // collect directives from pragmas
+    var dirs []ir.Directive
+    if f != nil {
+        for _, pr := range f.Pragmas {
+            dirs = append(dirs, ir.Directive{Domain: pr.Domain, Key: pr.Key, Value: pr.Value, Args: append([]string(nil), pr.Args...), Params: pr.Params})
+        }
+    }
+    return ir.Module{Package: pkg, Functions: fns, Directives: dirs}
 }

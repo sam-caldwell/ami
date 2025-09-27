@@ -81,7 +81,7 @@ func AnalyzeEventTypeFlow(f *ast.File) []diag.Record {
         for _, e := range edges {
             tFrom := stepType[e.from]
             tTo := stepType[e.to]
-            if tFrom != "" && tTo != "" && tFrom != tTo {
+            if tFrom != "" && tTo != "" && !typesCompatible(tTo, tFrom) {
                 pos := stepPos[e.to]
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_TYPE_FLOW", Message: "event type mismatch across edge", Pos: &pos, Data: map[string]any{"from": e.from, "to": e.to, "fromType": tFrom, "toType": tTo}})
             }

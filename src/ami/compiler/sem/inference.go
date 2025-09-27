@@ -23,11 +23,13 @@ func AnalyzeTypeInference(f *ast.File) []diag.Record {
         for _, p := range fn.Params {
             if p.Name != "" && p.Type != "" { env[p.Name] = p.Type }
         }
+        // collect local function result signatures for call propagation
+        sigs := collectFunctionResults(f)
         // one pass to seed types from var decls with explicit types
         for _, st := range fn.Body.Stmts {
             if vd, ok := st.(*ast.VarDecl); ok {
                 if vd.Name != "" {
-                    if vd.Type != "" { env[vd.Name] = vd.Type } else if vd.Init != nil { env[vd.Name] = inferLocalExprType(env, vd.Init) }
+                    if vd.Type != "" { env[vd.Name] = vd.Type } else if vd.Init != nil { env[vd.Name] = inferLocalExprTypeWithSigs(env, sigs, vd.Init) }
                 }
             }
         }
@@ -35,11 +37,16 @@ func AnalyzeTypeInference(f *ast.File) []diag.Record {
         for _, st := range fn.Body.Stmts {
             switch v := st.(type) {
             case *ast.AssignStmt:
-                vt := inferLocalExprType(env, v.Value)
-                if old, ok := env[v.Name]; ok && old != "" && vt != "any" && old != vt {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "assignment type mismatch: expected " + old + ", got " + vt, Pos: &diag.Position{Line: v.NamePos.Line, Column: v.NamePos.Column, Offset: v.NamePos.Offset}})
+                vt := inferLocalExprTypeWithSigs(env, sigs, v.Value)
+                if old, ok := env[v.Name]; ok && old != "" {
+                    if !typesCompatible(old, vt) {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "assignment type mismatch: expected " + old + ", got " + vt, Pos: &diag.Position{Line: v.NamePos.Line, Column: v.NamePos.Column, Offset: v.NamePos.Offset}})
+                    }
                 }
-                if vt != "" && vt != "any" { env[v.Name] = vt }
+                // propagate concrete type when known
+                if vt != "" && vt != "any" {
+                    if old, ok := env[v.Name]; ok && old != "" && old != "any" { env[v.Name] = old } else { env[v.Name] = vt }
+                }
             case *ast.ReturnStmt:
                 // ensure returns match declared results when both sides are known (delegated to other analyzer);
                 // here, we only try to detect ambiguous return literals.
@@ -100,3 +107,30 @@ func inferLocalExprType(env map[string]string, e ast.Expr) string {
 
 // inferExprType is an adapter used by other analyzers that need env-aware inference.
 func inferExprType(env map[string]string, e ast.Expr) string { return inferLocalExprType(env, e) }
+
+// inferLocalExprTypeWithSigs extends local inference to consult known function
+// signatures for call expressions, returning the first result type when known.
+func inferLocalExprTypeWithSigs(env map[string]string, sigs map[string][]string, e ast.Expr) string {
+    switch v := e.(type) {
+    case *ast.CallExpr:
+        if rs, ok := sigs[v.Name]; ok && len(rs) > 0 && rs[0] != "" { return rs[0] }
+        return "any"
+    default:
+        return inferLocalExprType(env, e)
+    }
+}
+
+// collectFunctionResults builds a map of function name to declared result types.
+func collectFunctionResults(f *ast.File) map[string][]string {
+    out := map[string][]string{}
+    if f == nil { return out }
+    for _, d := range f.Decls {
+        if fn, ok := d.(*ast.FuncDecl); ok {
+            if len(fn.Results) == 0 { continue }
+            rs := make([]string, len(fn.Results))
+            for i, r := range fn.Results { rs[i] = r.Type }
+            out[fn.Name] = rs
+        }
+    }
+    return out
+}

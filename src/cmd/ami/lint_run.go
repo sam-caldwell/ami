@@ -117,6 +117,17 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
         diags = mapped
     }
 
+    // Apply --rules filtering (if provided)
+    if len(currentLintOptions.Rules) > 0 {
+        filtered := diags[:0]
+        for _, d := range diags {
+            if matchAnyRule(d.Code, currentLintOptions.Rules) {
+                filtered = append(filtered, d)
+            }
+        }
+        diags = filtered
+    }
+
     // Apply path-based suppression from workspace config
     diags = applyConfigSuppress(dir, &ws, diags)
 
@@ -134,6 +145,13 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
         errorsN += warnsN
         warnsN = 0
     }
+
+    // --max-warn enforcement (non-strict)
+    if !strict && currentLintOptions.MaxWarn >= 0 && warnsN > currentLintOptions.MaxWarn {
+        // Convert a synthetic error to signal failure
+        diags = append(diags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_MAX_WARN_EXCEEDED", Message: "warning budget exceeded", File: "ami.workspace", Data: map[string]any{"maxWarn": currentLintOptions.MaxWarn, "warnings": warnsN}})
+        errorsN++
+    }
     // Optional debug stream to file when verbose
     var debugFile io.WriteCloser
     if verbose {
@@ -148,13 +166,20 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
     }
     if jsonOut {
         enc := json.NewEncoder(out)
-        for _, d := range diags { _ = enc.Encode(d); writeDebug(d) }
+        for _, d := range diags {
+            if currentLintOptions.CompatCodes {
+                if d.Data == nil { d.Data = map[string]any{} }
+                d.Data["compatCode"] = "LINT_" + d.Code
+            }
+            _ = enc.Encode(d); writeDebug(d)
+        }
         // final summary record
         sum := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Info, Code: "SUMMARY", Message: "lint summary", Data: map[string]any{"errors": errorsN, "warnings": warnsN}}
         writeDebug(sum)
         _ = enc.Encode(sum)
         if debugFile != nil { _ = debugFile.Close() }
         if errorsN > 0 { return exit.New(exit.User, "%s", "lint errors found") }
+        if currentLintOptions.FailFast && warnsN > 0 { return exit.New(exit.User, "%s", "lint warnings found (failfast)") }
         return nil
     }
     if len(diags) == 0 {
@@ -175,5 +200,34 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
     if debugFile != nil { _ = debugFile.Close() }
     fmt.Fprintf(out, "lint: %d error(s), %d warning(s)\n", errorsN, warnsN)
     if errorsN > 0 { return exit.New(exit.User, "%s", "lint errors found") }
+    if currentLintOptions.FailFast && warnsN > 0 { return exit.New(exit.User, "%s", "lint warnings found (failfast)") }
     return nil
+}
+
+// matchAnyRule returns true if code matches any of patterns.
+// Supports:
+// - substring (default)
+// - glob: pattern contains any of *?[ ]
+// - regex: re:<expr> or /expr/
+func matchAnyRule(code string, patterns []string) bool {
+    for _, p := range patterns {
+        if p == "" { continue }
+        // regex forms
+        if len(p) >= 3 && p[0] == '/' && p[len(p)-1] == '/' {
+            re, err := regexp.Compile(p[1:len(p)-1]); if err == nil && re.MatchString(code) { return true }
+            continue
+        }
+        if strings.HasPrefix(p, "re:") {
+            re, err := regexp.Compile(p[3:]); if err == nil && re.MatchString(code) { return true }
+            continue
+        }
+        // glob
+        if strings.ContainsAny(p, "*?[") {
+            if ok, _ := path.Match(p, code); ok { return true }
+            continue
+        }
+        // substring
+        if strings.Contains(code, p) { return true }
+    }
+    return false
 }

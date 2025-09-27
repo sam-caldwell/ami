@@ -52,10 +52,10 @@ func TestLint_Human_JSON_SummaryParity(t *testing.T) {
 }
 
 func hmSummary(errors, warnings int) string {
-    return "lint: " + itoa(errors) + " error(s), " + itoa(warnings) + " warning(s)\n"
+    return "lint: " + itos(errors) + " error(s), " + itos(warnings) + " warning(s)\n"
 }
 
-func itoa(x int) string {
+func itos(x int) string {
     if x == 0 { return "0" }
     b := []byte{}
     n := x
@@ -85,4 +85,3 @@ func TestLint_Human_MaxWarn_Error(t *testing.T) {
         t.Fatalf("expected error when warnings exceed maxWarn in human mode; out=%s", out.String())
     }
 }
-

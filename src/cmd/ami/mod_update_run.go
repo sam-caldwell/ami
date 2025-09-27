@@ -7,6 +7,7 @@ import (
     "os"
     "path/filepath"
     "sort"
+    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/exit"
     "github.com/sam-caldwell/ami/src/ami/workspace"

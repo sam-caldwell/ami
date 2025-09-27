@@ -176,7 +176,7 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                 })
             }
 
-            // Pipeline buffer/backpressure smells and reachability
+            // Pipeline buffer/backpressure smells, capability (I/O) checks, and reachability
             if t.StageB {
                 for _, dcl := range af.Decls {
                     pd, ok := dcl.(*ast.PipelineDecl); if !ok || pd == nil { continue }
@@ -185,6 +185,12 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     // Backpressure hints: scan step attributes
                     for _, s := range stmts {
                         st, ok := s.(*ast.StepStmt); if !ok { continue }
+                        // Capability (I/O) check: forbid io.* nodes outside ingress/egress
+                        lname := strings.ToLower(st.Name)
+                        if strings.HasPrefix(lname, "io.") && lname != "ingress" && lname != "egress" {
+                            d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
                         for _, a := range st.Attrs {
                             name := strings.ToLower(a.Name)
                             if name == "buffer" || strings.HasSuffix(name, ".buffer") {

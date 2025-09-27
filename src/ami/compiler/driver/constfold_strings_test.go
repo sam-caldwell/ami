@@ -12,7 +12,7 @@ import (
 func TestLowerExpr_ConstFolding_Strings_Chained(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
-    code := "package app\nfunc F(){ (\"a\"+\"b\") + \"c\" }\n"
+    code := "package app\nfunc F() (string){ return (\"a\"+\"b\") + \"c\" }\n"
     fs.AddFile("folds.ami", code)
     pkgs := []Package{{Name: "app", Files: fs}}
     arts, _ := Compile(ws, pkgs, Options{Debug: true})
@@ -37,4 +37,3 @@ func TestLowerExpr_ConstFolding_Strings_Chained(t *testing.T) {
     }
     if !found { t.Fatalf("expected folded string literal lit:\"abc\"") }
 }
-

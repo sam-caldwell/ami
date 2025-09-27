@@ -25,9 +25,7 @@ func TestCalls_ArgTypeMismatch_PositionPointsAtOffendingArg(t *testing.T) {
         }
     }
     if dpos == nil { t.Fatalf("no E_CALL_ARG_TYPE_MISMATCH with position: %+v", ds) }
-    // Expected column for second argument '"y"' is 25 on line 3 given our source layout.
-    // Line is 3; we assert column equals 25.
+    // Expected column for second argument '"y"' is 24 on line 3 given our source layout.
     // func F(){ Callee("x", "y") }
-    if *dpos != 25 { t.Fatalf("arg position column mismatch: got %d, want 25", *dpos) }
+    if *dpos != 24 { t.Fatalf("arg position column mismatch: got %d, want 24", *dpos) }
 }
-

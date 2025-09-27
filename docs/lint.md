@@ -25,6 +25,7 @@ Stage B toggles (advanced rules):
   - `W_IMPORT_SYNTAX`, `W_IMPORT_ORDER`, `W_IMPORT_DUPLICATE` import shape/order.
   - `W_IMPORT_LOCAL_MISSING`, `W_IMPORT_LOCAL_UNDECLARED`, `E_IMPORT_CONSTRAINT` local path and version checks.
   - `W_PKG_VERSION_INVALID` invalid SemVer in package declarations.
+  - `E_IMPORT_CYCLE` circular local-import references among workspace packages (./path).
 
 - Source
   - `W_UNKNOWN_IDENT` sentinel detection for scaffolding.
@@ -57,3 +58,25 @@ Inline per‑file suppression is supported via pragmas:
 #pragma lint:disable W_IDENT_UNDERSCORE,E_PTR_UNSUPPORTED_SYNTAX
 ```
 
+## Examples
+
+Circular local import cycle (error)
+
+- Human output (non‑JSON):
+
+```
+lint: error E_IMPORT_CYCLE: circular local import detected (ami.workspace)
+lint: 1 error(s), 0 warning(s)
+```
+
+- JSON (NDJSON) output:
+
+```
+{"schema":"diag.v1","timestamp":"2025-01-01T00:00:00Z","level":"error","code":"E_IMPORT_CYCLE","message":"circular local import detected","file":"ami.workspace","data":{"cycle":["./a","./b","./c"]}}
+{"schema":"diag.v1","timestamp":"2025-01-01T00:00:00Z","level":"info","code":"SUMMARY","message":"lint summary","data":{"errors":1,"warnings":0}}
+```
+
+Notes:
+- Cycles are detected only for local imports that refer to declared workspace packages (e.g., `./a`).
+- The cycle list is canonicalized (rotated) to start at the lexicographically smallest node and is de‑duplicated.
+- Any error (including `E_IMPORT_CYCLE`) causes a non‑zero exit from `ami lint`.

@@ -64,6 +64,9 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         // additional validations
                         switch at.Name {
                         case "merge.Sort":
+                            if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Sort: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                            }
                             if argc >= 2 {
                                 ord := at.Args[1].Text
                                 if ord != "asc" && ord != "desc" {
@@ -72,13 +75,17 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             }
                         case "merge.Watermark":
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
-                                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_MISSING_FIELD", Message: "merge.Watermark: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Watermark: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                             }
                         case "merge.Window":
                             if argc >= 1 {
                                 if at.Args[0].Text == "0" || strings.HasPrefix(at.Args[0].Text, "-") {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WINDOW_ZERO_OR_NEGATIVE", Message: "merge.Window: size should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                                 }
+                            }
+                        case "merge.Key", "merge.PartitionBy":
+                            if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: at.Name + ": field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                             }
                         case "merge.Buffer":
                             if argc >= 1 {

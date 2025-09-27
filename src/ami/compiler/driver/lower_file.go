@@ -12,6 +12,8 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
     var concurrency int
     var backpressure string
     var telemetry bool
+    var capabilities []string
+    var trustLevel string
     for _, d := range f.Decls {
         if fn, ok := d.(*ast.FuncDecl); ok {
             fns = append(fns, lowerFuncDecl(fn, results, params, paramNames))
@@ -33,9 +35,25 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
                 if pol, ok := pr.Params["policy"]; ok { backpressure = pol }
             case "telemetry":
                 if en, ok := pr.Params["enabled"]; ok && (en == "true" || en == "1") { telemetry = true }
+            case "capabilities":
+                // support list param as comma separated; also consider args list
+                if lst, ok := pr.Params["list"]; ok && lst != "" {
+                    // split by comma
+                    tmp := []string{""}
+                    tmp = nil
+                    part := ""
+                    for i := 0; i < len(lst); i++ {
+                        if lst[i] == ',' { if part != "" { capabilities = append(capabilities, part) }; part = ""; continue }
+                        part += string(lst[i])
+                    }
+                    if part != "" { capabilities = append(capabilities, part) }
+                }
+                if len(pr.Args) > 0 { capabilities = append(capabilities, pr.Args...) }
+            case "trust":
+                if lv, ok := pr.Params["level"]; ok { trustLevel = lv }
             }
             dirs = append(dirs, ir.Directive{Domain: pr.Domain, Key: pr.Key, Value: pr.Value, Args: append([]string(nil), pr.Args...), Params: pr.Params})
         }
     }
-    return ir.Module{Package: pkg, Functions: fns, Directives: dirs, Concurrency: concurrency, Backpressure: backpressure, TelemetryEnabled: telemetry}
+    return ir.Module{Package: pkg, Functions: fns, Directives: dirs, Concurrency: concurrency, Backpressure: backpressure, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel}
 }

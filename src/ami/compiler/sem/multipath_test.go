@@ -33,3 +33,13 @@ func TestMergeAttr_UnknownAndArgsAndSortWarn(t *testing.T) {
     if !unknown || !args || !warn { t.Fatalf("missing expected diags: %v", ds) }
 }
 
+func TestMergeAttr_RequiredFields(t *testing.T) {
+    code := "package app\npipeline P() { Collect merge.Key(\"\"), merge.PartitionBy(\"\"), merge.Sort(\"\"), merge.Watermark(\"\", 100); egress }\n"
+    f := (&source.FileSet{}).AddFile("m3.ami", code)
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    ds := AnalyzeMultiPath(af)
+    errs := 0
+    for _, d := range ds { if d.Code == "E_MERGE_ATTR_REQUIRED" { errs++ } }
+    if errs < 3 { t.Fatalf("expected required-field errors, got %d: %v", errs, ds) }
+}

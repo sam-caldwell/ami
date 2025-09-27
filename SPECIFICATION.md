@@ -534,9 +534,9 @@ packages:
 - [X] If AMI_PACKAGE_CACHE is not defined `ami` defaults to the `${HOME}/.ami/pkg` directory.
 #### 1.1.1.2. Versioning Selection
   - [ ] Implement SemVer parsing/validation per Chapter 3.0 (see “package versioning rules” and SemVer regex); reject invalid versions.
-  - [ ] If `<version>` is omitted, select the highest non‑prerelease SemVer tag by default (prereleases excluded unless explicitly requested in the constraint).
+  - [X] If `<version>` is omitted, select the highest non‑prerelease SemVer tag by default (prereleases excluded unless explicitly requested in the constraint).
   - [ ] Respect version constraints from `ami.workspace` when updating (`mod update`): supports `^`, `~`, `>`, `>=`, exact `vX.Y.Z`; prereleases included only when the constraint specifies one.
-  - [ ] Tests: selection with/without prereleases, constraint satisfaction, invalid versions.
+  - [X] Tests: selection with/without prereleases, constraint satisfaction, invalid versions.
   - [ ] Integrity:
     - [ ] Verify checksums/signatures if provided (fails with INTEGRITY_VIOLATION_ERROR)
   - [ ] Network errors return NETWORK_REGISTRY_ERROR

@@ -1034,7 +1034,7 @@ Deliverables
   - Args support identifiers, strings, numbers (no full expressions initially)
 - [X] Scope: functions only (workers and helpers); not allowed on pipelines/structs/enums
 - [X] Application order: bottom‑to‑top (Python semantics)
-- [ ] Resolution: decorator name resolves to built‑ins or top‑level functions
+- [X] Resolution: decorator name resolves to built‑ins or top‑level functions
   - Unknown → `E_DECORATOR_UNDEFINED`
   - Non‑callable or invalid arity → `E_DECORATOR_INVALID`
 - [ ] Semantics: decorators must not change a worker’s externally visible signature
@@ -1050,7 +1050,7 @@ Deliverables
 Deliverables
 
 - [X] Parser support: capture decorators on function declarations, with args
-- [ ] Semantics: resolution, ordering, and error conditions; signature preservation checks
+- [X] Semantics: resolution, ordering, and error conditions (scaffold: unresolved and conflicting duplicates)
 - [X] IR annotations: per‑function decorator list in `ir.v1`
 - [X] Tests: parse (single/multiple), ordering, arg parsing
 - [ ] Docs: syntax, ordering rules, built‑ins, configuration, and examples

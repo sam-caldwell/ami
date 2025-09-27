@@ -361,7 +361,7 @@ packages:
   - [ ] For every included source file (starting with `main.ami`)...
     - [X] Detect circular references and return an error/terminate
     - [X] Lex/Tokenize/Parse: Source → tokens → AST (per .ami file)
-    - [ ] Type-Checking: resolve names, perform inference/checks and const folding.
+    - [X] Type-Checking: resolve names, perform inference/checks and const folding.
     - [X] If verbose is used, write AST and other required information to build/debug/ files.
     - [ ] Variable declarations and local bindings (to enable broader local type inference in bodies).
 - [X] Tuple/multi-value returns syntax and parsing.

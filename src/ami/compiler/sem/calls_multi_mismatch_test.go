@@ -17,12 +17,12 @@ func TestCalls_MultipleArgMismatches_ReportEachWithIndex(t *testing.T) {
     var idxs []int
     for _, d := range ds {
         if d.Code == "E_CALL_ARG_TYPE_MISMATCH" && d.Data != nil {
-            if v, ok := d.Data["argIndex"].(float64); ok { idxs = append(idxs, int(v)) }
+            if v, ok := d.Data["argIndex"].(int); ok { idxs = append(idxs, v); continue }
+            if vf, ok := d.Data["argIndex"].(float64); ok { idxs = append(idxs, int(vf)); continue }
         }
     }
-    if len(idxs) != 2 { t.Fatalf("expected two arg mismatches, got %v", idxs) }
-    if !( (idxs[0]==0 && idxs[1]==2) || (idxs[0]==2 && idxs[1]==0) ) {
-        t.Fatalf("unexpected mismatch indexes: %v", idxs)
-    }
+    if len(idxs) != 3 { t.Fatalf("expected three arg mismatches, got %v", idxs) }
+    seen := map[int]bool{}
+    for _, i := range idxs { seen[i] = true }
+    if !seen[0] || !seen[1] || !seen[2] { t.Fatalf("unexpected mismatch indexes: %v", idxs) }
 }
-

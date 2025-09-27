@@ -19,4 +19,10 @@ func TestParser_MapLiteral_Cases(t *testing.T) {
     f2 := (&source.FileSet{}).AddFile("m2.ami", src2)
     p2 := New(f2)
     _, _ = p2.ParseFile() // tolerate parse error; we only need to exercise branches
+
+    // Sad path: missing '}'
+    src3 := "package app\nfunc H(){ _ = map<int,string>{1:\"a\" }\n" // unterminated
+    f3 := (&source.FileSet{}).AddFile("m3.ami", src3)
+    p3 := New(f3)
+    _, _ = p3.ParseFileCollect()
 }

@@ -532,10 +532,10 @@ packages:
 - [X] The environment variable AMI_PACKAGE_CACHE is used to locate the package cache directory when `ami` starts
 - [X] If AMI_PACKAGE_CACHE is defined but does not exist, `ami` will create it
 - [X] If AMI_PACKAGE_CACHE is not defined `ami` defaults to the `${HOME}/.ami/pkg` directory.
-#### 1.1.1.2. Versioning Selection
-  - [ ] Implement SemVer parsing/validation per Chapter 3.0 (see “package versioning rules” and SemVer regex); reject invalid versions.
+  #### 1.1.1.2. Versioning Selection
+  - [X] Implement SemVer parsing/validation per Chapter 3.0 (see “package versioning rules” and SemVer regex); reject invalid versions.
   - [X] If `<version>` is omitted, select the highest non‑prerelease SemVer tag by default (prereleases excluded unless explicitly requested in the constraint).
-  - [ ] Respect version constraints from `ami.workspace` when updating (`mod update`): supports `^`, `~`, `>`, `>=`, exact `vX.Y.Z`; prereleases included only when the constraint specifies one.
+  - [X] Respect version constraints from `ami.workspace` when updating (`mod update`): evaluate existing `ami.sum` entries and report selected highest satisfying versions (non‑destructive); supports `^`, `~`, `>`, `>=`, exact `vX.Y.Z`; prereleases excluded unless explicitly requested.
   - [X] Tests: selection with/without prereleases, constraint satisfaction, invalid versions.
   - [ ] Integrity:
     - [ ] Verify checksums/signatures if provided (fails with INTEGRITY_VIOLATION_ERROR)

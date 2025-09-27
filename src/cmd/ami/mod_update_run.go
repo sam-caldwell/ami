@@ -22,6 +22,7 @@ type modUpdateResult struct {
     Updated []modUpdateItem `json:"updated"`
     Message string          `json:"message,omitempty"`
     Audit   *modAuditEmbed  `json:"audit,omitempty"`
+    Selected []modUpdateItem `json:"selected,omitempty"`
 }
 
 // runModUpdate copies local workspace packages to the cache and refreshes ami.sum.
@@ -83,6 +84,18 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
         updated = append(updated, modUpdateItem{Name: p.Name, Version: p.Version, Path: dst})
     }
 
+    // For remote requirements, compute best satisfying versions among existing manifest entries
+    // (non-destructive; selection is reported, not enforced here).
+    reqs, _ := workspace.CollectRemoteRequirements(&ws)
+    var selected []modUpdateItem
+    for _, r := range reqs {
+        vers := manifest.Versions(r.Name)
+        if len(vers) == 0 { continue }
+        if best, ok := workspace.HighestSatisfying(vers, r.Constraint, false); ok {
+            selected = append(selected, modUpdateItem{Name: r.Name, Version: best})
+        }
+    }
+
     // Persist ami.sum using canonical Manifest writer
     if err := manifest.Save(sumPath); err != nil {
         if jsonOut { _ = json.NewEncoder(out).Encode(modUpdateResult{Message: "write ami.sum failed"}) }
@@ -98,7 +111,7 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
     })
 
     if jsonOut {
-        return json.NewEncoder(out).Encode(modUpdateResult{Updated: updated, Message: "ok", Audit: embedAudit(auditRep)})
+        return json.NewEncoder(out).Encode(modUpdateResult{Updated: updated, Selected: selected, Message: "ok", Audit: embedAudit(auditRep)})
     }
     // Human-readable audit summary (non-fatal)
     if len(auditRep.ParseErrors) > 0 { _, _ = fmt.Fprintf(out, "audit: parse errors: %d\n", len(auditRep.ParseErrors)) }
@@ -109,6 +122,11 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
     if len(auditRep.Mismatched) > 0 { _, _ = fmt.Fprintf(out, "audit: mismatched: %s\n", joinCSV(auditRep.Mismatched)) }
     for _, u := range updated {
         _, _ = fmt.Fprintf(out, "updated %s@%s -> %s\n", u.Name, u.Version, u.Path)
+    }
+    if len(selected) > 0 {
+        for _, s := range selected {
+            _, _ = fmt.Fprintf(out, "select %s@%s\n", s.Name, s.Version)
+        }
     }
     return nil
 }

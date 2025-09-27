@@ -1,6 +1,7 @@
 package driver
 
 import (
+    "strings"
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
@@ -38,15 +39,10 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
             case "capabilities":
                 // support list param as comma separated; also consider args list
                 if lst, ok := pr.Params["list"]; ok && lst != "" {
-                    // split by comma
-                    tmp := []string{""}
-                    tmp = nil
-                    part := ""
-                    for i := 0; i < len(lst); i++ {
-                        if lst[i] == ',' { if part != "" { capabilities = append(capabilities, part) }; part = ""; continue }
-                        part += string(lst[i])
+                    for _, p := range strings.Split(lst, ",") {
+                        p = strings.TrimSpace(p)
+                        if p != "" { capabilities = append(capabilities, p) }
                     }
-                    if part != "" { capabilities = append(capabilities, part) }
                 }
                 if len(pr.Args) > 0 { capabilities = append(capabilities, pr.Args...) }
             case "trust":

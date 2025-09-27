@@ -12,6 +12,7 @@ import (
     "sort"
 
     "github.com/sam-caldwell/ami/src/ami/exit"
+    "github.com/sam-caldwell/ami/src/ami/workspace"
 )
 
 type modSumPkg struct {
@@ -85,6 +86,7 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
         cache = filepath.Join(home, ".ami", "pkg")
     }
     var verified, missing, mismatched []string
+    present := make(map[string]struct{})
     for _, p := range pkgs {
         cp := filepath.Join(cache, p.Name, p.Version)
         if st, err := os.Stat(cp); err != nil || !st.IsDir() {
@@ -98,8 +100,26 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
         }
         if equalSHA(got, p.Sha256) {
             verified = append(verified, key(p.Name, p.Version))
+            present[key(p.Name, p.Version)] = struct{}{}
         } else {
             mismatched = append(mismatched, key(p.Name, p.Version))
+        }
+    }
+    // Cross-check workspace declared packages against ami.sum entries.
+    // If a workspace package with name+version exists but is not present in ami.sum,
+    // flag it as missing to prompt users to run `ami mod get` or update sum.
+    var ws workspace.Workspace
+    if err := ws.Load(filepath.Join(dir, "ami.workspace")); err == nil {
+        for _, e := range ws.Packages {
+            name := e.Package.Name
+            ver := e.Package.Version
+            if name == "" || ver == "" { continue }
+            k := key(name, ver)
+            if _, ok := present[k]; !ok {
+                // Only add if cache holds the package or sum truly lacks it?
+                // We treat absence from sum as missing regardless of cache state.
+                missing = append(missing, k)
+            }
         }
     }
     sort.Strings(verified)

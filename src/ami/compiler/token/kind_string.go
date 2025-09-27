@@ -63,6 +63,26 @@ func (k Kind) String() string {
         return "KwEgress"
     case KwError:
         return "KwError"
+    case LParenSym:
+        return "LParen"
+    case RParenSym:
+        return "RParen"
+    case LBraceSym:
+        return "LBrace"
+    case RBraceSym:
+        return "RBrace"
+    case LBracketSym:
+        return "LBracket"
+    case RBracketSym:
+        return "RBracket"
+    case CommaSym:
+        return "Comma"
+    case SemiSym:
+        return "Semi"
+    case DotSym:
+        return "Dot"
+    case ColonSym:
+        return "Colon"
     default:
         return "Unknown"
     }

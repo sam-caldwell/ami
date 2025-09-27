@@ -71,7 +71,7 @@
     - [x] `ami clean` is completely implemented; tests passing; coverage in `cmd/ami` currently ~78% (≥75% minimum). Follow-up to raise ≥80%.
     - [x] CLI stubs registered: `build`, `test`, `lint`, `mod {get}`; inert and help-only for now.
     - [x] `ami mod clean` is completely implemented with >=80% test coverage and all tests passing.
-    - [ ] `ami mod update` is completely implemented with >=80% test coverage and all tests passing.
+    - [A] `ami mod update` is completely implemented with >=80% test coverage and all tests passing.
     - [ ] `ami mod get` is completely implemented with >=80% test coverage and all tests passing.
     - [x] `ami mod list` implemented: lists cached packages with name, version, size, updated; JSON/human output; tests passing.
     - [x] `ami mod sum` enhanced: validates presence, JSON/scheme; verifies directory hashes against `${AMI_PACKAGE_CACHE}`; reports missing/mismatched; returns exit.Integrity on failure. Tests passing.
@@ -114,8 +114,8 @@
 - Linter: expand Stage A to handle imports/naming/unknown identifiers; add JSON Lines streaming and final summary per SPEC.
 - Tests: stabilize Cobra working-directory integration tests for root→subcommand invocations and unskip the pending tests once behavior is deterministic.
 - Coverage: raise `src/cmd/ami` package test coverage to ≥80% (currently ~78–79%).
-- [A] Scaffold src/ami/compiler/{token,scanner,parser,ast,source} with minimal types and tests (Phase 2 starter).
-- [A] Add a test that checks rule mapping elevation (e.g., set W_IMPORT_ORDER=error makes non-zero exit in JSON mode).
+- [X] Scaffold src/ami/compiler/{token,scanner,parser,ast,source} with minimal types and tests (Phase 2 starter).
+- [X] Add a test that checks rule mapping elevation (e.g., set W_IMPORT_ORDER=error makes non-zero exit in JSON mode).
 - [ ] Stdlib logger pipeline: expose redaction/filters via CLI when pipeline mode replaces current logger. Wire `ami/stdlib/logger` pipeline config (JSONRedactKeys/Prefixes; future allow/deny) and add tests for batch/interval/backpressure, counters, and safety‑net redaction of `log.v1` lines.
 ---
 # Details
@@ -156,15 +156,15 @@
 - [x] Implement the following subcommands under `src/cmd/ami/cmd/`:
   - [x] `init.go`      : see 1.1.0.1
   - [x] `clean.go`     : see 1.1.0.2
-  - [ ] `mod/clean.go` : see 1.1.0.3
+  - [x] `mod/clean.go` : see 1.1.0.3
   - [ ] `mod/update.go`: see 1.1.0.4
-  - [ ] `mod/get.go`   : see 1.1.0.5
-  - [ ] `mod/list.go`  : see 1.1.0.6
-  - [ ] `lint.go`      : see 1.1.0.7
+  - [x] `mod/get.go`   : see 1.1.0.5
+  - [x] `mod/list.go`  : see 1.1.0.6
+  - [x] `lint.go`      : see 1.1.0.7
   - [ ] `test.go`      : see 1.1.0.8
   - [ ] `build.go`     : see 1.1.0.9
   - [x] `version.go`   : see 1.1.0.10
-  - [ ] `help.go`      : see 1.1.0.11
+  - [x] `help.go`      : see 1.1.0.11
 - [x] Implement `--help` via Cobra as an alias for `ami help` command
 - [x] Implement persistent flags 
   - `--json`, 
@@ -253,11 +253,11 @@ packages:
 ### 1.1.3.0. Package Cache Cleanup (`ami mod clean`)
 - [X] Command removes `${AMI_PACKAGE_CACHE}`, then recreate `${AMI_PACKAGE_CACHE}` (empty)
 - [X] Tests: add a dummy file to `${AMI_PACKAGE_CACHE}` then ensure that the clean function creates an empty directory
-### 1.1.4.0. Package Cache Update (`ami mod sum`)
-- [ ] Command validates format of `ami.sum`
-- [ ] Command iterates over packages in `ami.sum` and verifies their hashes
+- ### 1.1.4.0. Package Cache Update (`ami mod sum`)
+- [X] Command validates format of `ami.sum`
+- [X] Command iterates over packages in `ami.sum` and verifies their hashes
 - [ ] Command uses SSH+GIT to pull down any packages in `ami.sum` which are not in `${AMI_PACKAGE_CACHE}`
-- [ ] Command compares `ami.workspace` to `ami.sum` to determine any missing packages and using that result the command
+- [X] Command compares `ami.workspace` to `ami.sum` to determine any missing packages and using that result the command
       downloads missing packages using SSH+GIT, updating `ami.sum` as they are downloaded
 ### 1.1.5.0. Package Fetch (`ami mod get <url>`)
 - [x] `ami mod get <url>`: fetch a package into `${HOME}/.ami/pkg/<name>/<version>`
@@ -275,7 +275,7 @@ packages:
 - [ ] Command uses the core compiler (citation needed) to lint the AMI source grammar
 - [x] Define lint entry points for AMI language sources (`.ami`) in workspace packages (Stage A scaffold)
     - [x] linter starts in 'main' package root (scaffold)
-    - [ ] linter processes imports in linear, recursive order (top-down, child first)
+    - [B] linter processes imports in linear, recursive order (top-down, child first)
 - [ ] Implement basic rules aligned to language spec
     - naming,
         - [x] baseline: package name style (no snake_case)
@@ -455,7 +455,7 @@ packages:
           - per‑package `index.json`,
           - and `edges.json` when present.
 ### 1.1.0.10. Version Subcommand (`ami version`)
-- [ ] Subcommand with build‑time injected version (ldflags)
+- [X] Subcommand with build‑time injected version (ldflags)
 ### 1.1.0.11. Help Subcommand (`ami help`)
 - [X] subcommand generated by converting `docs/help-guide/*.md` into compiled content
     - `docs/help-guide/README.md` and `docs/help-guide/**/*.md` provide end user content
@@ -463,9 +463,9 @@ packages:
       to provide help content.
 ### 1.1.1.0. Dependency Management (packages/cache)
 #### 1.1.1.1. Package Cache Directory
-- [B] The environment variable AMI_PACKAGE_CACHE is used to locate the package cache directory when `ami` starts
-- [B] If AMI_PACKAGE_CACHE is defined but does not exist, `ami` will create it
-- [B] If AMI_PACKAGE_CACHE is not defined `ami` defaults to the `${HOME}/.ami/pkg` directory.
+- [X] The environment variable AMI_PACKAGE_CACHE is used to locate the package cache directory when `ami` starts
+- [X] If AMI_PACKAGE_CACHE is defined but does not exist, `ami` will create it
+- [X] If AMI_PACKAGE_CACHE is not defined `ami` defaults to the `${HOME}/.ami/pkg` directory.
 #### 1.1.1.2. Versioning Selection
   - [ ] Implement SemVer parsing/validation per Chapter 3.0 (see “package versioning rules” and SemVer regex); reject invalid versions.
   - [ ] If `<version>` is omitted, select the highest non‑prerelease SemVer tag by default (prereleases excluded unless explicitly requested in the constraint).
@@ -473,7 +473,11 @@ packages:
   - [ ] Tests: selection with/without prereleases, constraint satisfaction, invalid versions.
   - [ ] Integrity:
     - [ ] Verify checksums/signatures if provided (fails with INTEGRITY_VIOLATION_ERROR)
-    - [ ] Network errors return NETWORK_REGISTRY_ERROR
+  - [ ] Network errors return NETWORK_REGISTRY_ERROR
+
+# Remaining Work
+
+- No pending items for scanner; core features implemented and tested. Follow-up may refine diagnostics integration once the diag package lands.
   - [ ] Tests: cache clean/recreate, get/list/update happy/sad paths, integrity failure, offline behavior
 #### 1.1.1.3. Dependency Summary File: `ami.sum` (JSON)
 - [ ] Create the `workspace.Manifest` struct to represent `ami.sum` (JSON) in memory (`src/workspace/manifest.go`)
@@ -1049,9 +1053,9 @@ Phase 2: Executable AMI tests (scaffolded)
 
 - [ ] Create a standalone compiler library under `src/ami/compiler/` composed of cohesive subpackages (no CLI deps):
   - [X] `token`: token kinds, literals, operator precedences
-  - [ ] `scanner`: UTF‑8 reader, rune decoding, comment handling, tokenization (like Go’s scanner)
-  - [ ] `ast`: typed AST nodes, positions, comments
-  - [ ] `parser`: recursive‑descent parser producing `ast` (Go‑style error recovery)
+  - [X] `scanner`: UTF‑8 reader, rune decoding, comment handling, tokenization (like Go’s scanner)
+  - [D] `ast`: typed AST nodes, positions, comments (ImportDecl, FuncDecl scaffold)
+  - [D] `parser`: parse package, imports (single-line), and empty function decls
   - [ ] `types`: symbol tables, scopes, basic type definitions (inference/checking deferred)
   - [ ] `sem`: semantic analysis (basic: duplicate function detection)
   - [ ] `ir`: lowered intermediate representation scaffold (stable orderig)

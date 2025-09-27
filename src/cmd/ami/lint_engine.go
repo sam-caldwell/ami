@@ -71,6 +71,45 @@ func lintWorkspace(dir string, ws *workspace.Workspace) []diag.Record {
     return diags
 }
 
+// findPackageByRoot returns the workspace package whose Root matches the given path.
+// The comparison is done on the raw Root string as declared in the workspace (paths
+// are expected to be workspace-relative like ./lib). Returns nil when not found.
+func findPackageByRoot(ws *workspace.Workspace, root string) *workspace.Package {
+    for i := range ws.Packages {
+        if ws.Packages[i].Package.Root == root {
+            return &ws.Packages[i].Package
+        }
+    }
+    return nil
+}
+
+// collectLocalImportRoots walks local (./...) imports recursively starting from pkg,
+// returning a DFS order with children before parents (child-first) and duplicates eliminated.
+func collectLocalImportRoots(ws *workspace.Workspace, pkg *workspace.Package) []string {
+    visited := make(map[string]bool)
+    var order []string
+    var dfs func(p *workspace.Package)
+    dfs = func(p *workspace.Package) {
+        // Traverse each local import
+        for _, entry := range p.Import {
+            path, _ := splitImportConstraint(entry)
+            if !stringsHasPrefixAny(path, []string{"./"}) || stringsHasPrefixAny(path, []string{"../"}) {
+                continue
+            }
+            if visited[path] {
+                continue
+            }
+            visited[path] = true
+            if child := findPackageByRoot(ws, path); child != nil {
+                dfs(child)
+            }
+            order = append(order, path)
+        }
+    }
+    dfs(pkg)
+    return order
+}
+
 // stringsHasPrefixAny reports whether s has any of the given prefixes.
 func stringsHasPrefixAny(s string, prefixes []string) bool {
     for _, p := range prefixes {

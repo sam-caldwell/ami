@@ -48,20 +48,31 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
     // Collect workspace diagnostics.
     var diags []diag.Record
     diags = append(diags, lintWorkspace(dir, &ws)...)
-    // Source scaffold: scan for UNKNOWN_IDENT under main package root
+    // Source scaffold: scan for UNKNOWN_IDENT under main package root and recursively in local imports
     if p := ws.FindPackage("main"); p != nil && p.Root != "" {
-        // Pragma scaffolding: collect disables for source files
-        disables := scanPragmas(dir, p.Root)
-        srcDiags := scanSourceUnknown(dir, p.Root)
-        // apply per-file disables only to source diags
-        filtered := srcDiags[:0]
-        for _, d := range srcDiags {
-            if d.File != "" {
-                if m := disables[d.File]; m != nil && m[d.Code] { continue }
-            }
-            filtered = append(filtered, d)
+        roots := append([]string{}, p.Root)
+        // child-first ordering for local imports
+        roots = append(collectLocalImportRoots(&ws, p), roots...)
+        // Deduplicate while preserving order
+        seenRoot := map[string]bool{}
+        uniq := roots[:0]
+        for _, r := range roots {
+            if r == "" || seenRoot[r] { continue }
+            seenRoot[r] = true
+            uniq = append(uniq, r)
         }
-        diags = append(diags, filtered...)
+        for _, root := range uniq {
+            disables := scanPragmas(dir, root)
+            srcDiags := scanSourceUnknown(dir, root)
+            filtered := srcDiags[:0]
+            for _, d := range srcDiags {
+                if d.File != "" {
+                    if m := disables[d.File]; m != nil && m[d.Code] { continue }
+                }
+                filtered = append(filtered, d)
+            }
+            diags = append(diags, filtered...)
+        }
     }
 
     // Stage B placeholder: parser/semantics-backed rules (no-op until frontend is integrated)

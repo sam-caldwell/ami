@@ -21,12 +21,11 @@ func runModClean(out io.Writer, jsonOut bool) error {
     if p == "" {
         home, err := os.UserHomeDir()
         if err != nil {
-            if jsonOut {
-                _ = json.NewEncoder(out).Encode(modCleanResult{})
-            }
-            return exit.New(exit.IO, "%v", err)
+            // Fall back to a temp-based cache when HOME is unavailable (e.g., CI/test envs)
+            p = filepath.Join(os.TempDir(), "ami", "pkg")
+        } else {
+            p = filepath.Join(home, ".ami", "pkg")
         }
-        p = filepath.Join(home, ".ami", "pkg")
     }
     abs := filepath.Clean(p)
     // Remove then recreate
@@ -49,4 +48,3 @@ func runModClean(out io.Writer, jsonOut bool) error {
     _, _ = fmt.Fprintf(out, "cleaned: %s\n", abs)
     return nil
 }
-

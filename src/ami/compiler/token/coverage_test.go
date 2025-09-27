@@ -36,6 +36,16 @@ func TestKind_String_AllCases(t *testing.T) {
         KwIngress:  "KwIngress",
         KwEgress:   "KwEgress",
         KwError:    "KwError",
+        LParenSym:  "LParen",
+        RParenSym:  "RParen",
+        LBraceSym:  "LBrace",
+        RBraceSym:  "RBrace",
+        LBracketSym:"LBracket",
+        RBracketSym:"RBracket",
+        CommaSym:   "Comma",
+        SemiSym:    "Semi",
+        DotSym:     "Dot",
+        ColonSym:   "Colon",
     }
     for k, want := range cases {
         if got := k.String(); got != want {

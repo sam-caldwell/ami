@@ -46,4 +46,16 @@ const (
     KwIngress
     KwEgress
     KwError
+
+    // Punctuation (symbols with distinct kinds)
+    LParenSym   // (
+    RParenSym   // )
+    LBraceSym   // {
+    RBraceSym   // }
+    LBracketSym // [
+    RBracketSym // ]
+    CommaSym    // ,
+    SemiSym     // ;
+    DotSym      // .
+    ColonSym    // :
 )

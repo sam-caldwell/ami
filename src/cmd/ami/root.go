@@ -88,6 +88,7 @@ func newRootCmd() *cobra.Command {
     mod := newModCmd()
     mod.AddCommand(newModCleanCmd())
     mod.AddCommand(newModListCmd())
+    mod.AddCommand(newModUpdateCmd())
     cmd.AddCommand(mod)
     return cmd
 }

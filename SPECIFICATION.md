@@ -433,7 +433,7 @@ packages:
   - [ ] Existing `ami.manifest` vs `ami.sum` mismatch → `diag.v1` with `code:"E_INTEGRITY_MANIFEST"`; exits with 3.
 - [ ] Tests: minimal project build, multi‑package, missing deps, repeatability
   - [ ] Multi‑package determinism for non‑debug obj indexes and asm
-  - [ ] Parser diagnostics stream multiple records in JSON; exit 1
+  - [X] Parser diagnostics stream multiple records in JSON; exit 1
   - [X] Missing file I/O emits `diag.v1` and exits 2 (JSON) and prints clear error (human)
   - [ ] End to End testing of compiled binaries to ensure ami compiler produces working binaries.
 - [ ] Directory layout is deterministic and mirrors the logical package/unit structure; all paths are relative to workspace.
@@ -744,7 +744,7 @@ Tests & Docs
     - style for concurrency,
     - used to restrict files to specific opsys/arch environments
 ### 1.2.2.0. Pipeline Grammar and Semantics (Ch. 1.1, 2.2)
-- [ ] Multiple entrypoints (1.1.5, 1.8.2): program may define multiple named ingress pipelines
+- [X] Multiple entrypoints (1.1.5, 1.8.2): program may define multiple named ingress pipelines
 - [ ] Pipelines create graphs of nodes (e.g., Ingress) configured by attributes:
   ```
   pipeline <PipelineNameIdentifier> {

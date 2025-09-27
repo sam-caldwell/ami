@@ -40,6 +40,9 @@ Stage B toggles (advanced rules):
   - Memory safety: `E_PTR_UNSUPPORTED_SYNTAX`, `E_MUT_BLOCK_UNSUPPORTED`, `E_MUT_ASSIGN_UNMARKED`.
   - RAII hint: `W_RAII_OWNED_HINT` when `release(x)` is not wrapped in `mutate(...)`.
   - Unused imports: `W_UNUSED_IMPORT` for identifier‑form imports.
+  - Capability (I/O): `E_IO_PERMISSION` when `io.*` nodes are used outside `ingress`/`egress`.
+  - Pipeline hints: `W_PIPELINE_INGRESS_POS`, `W_PIPELINE_EGRESS_POS`, `W_PIPELINE_UNREACHABLE_NODE`.
+  - Buffer/backpressure smells: `W_PIPELINE_BUFFER_DROP_ALIAS`, `W_PIPELINE_BUFFER_POLICY_SMELL`.
 
 ## Configuration
 

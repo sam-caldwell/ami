@@ -77,7 +77,7 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
             var decos []astDecorator
             for _, d := range n.Decorators {
                 var a []string
-                for _, e := range d.Args { a = append(a, exprText(e)) }
+                for _, e := range d.Args { a = append(a, decoExprText(e)) }
                 decos = append(decos, astDecorator{Name: d.Name, Args: a})
             }
             u.Funcs = append(u.Funcs, astFunc{Name: n.Name, TypeParams: tf, Params: ps, Results: rs, Decorators: decos})
@@ -111,4 +111,32 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
     out := filepath.Join(dir, unit+".ast.json")
     if err := os.WriteFile(out, b, 0o644); err != nil { return "", err }
     return out, nil
+}
+
+// decoExprText is a tiny helper to stringify AST expressions for decorator args.
+// Keep this aligned with parser's exprText for consistency in debug outputs.
+func decoExprText(e ast.Expr) string {
+    switch v := e.(type) {
+    case *ast.IdentExpr:
+        return v.Name
+    case *ast.StringLit:
+        return v.Value
+    case *ast.NumberLit:
+        return v.Text
+    case *ast.SelectorExpr:
+        left := decoExprText(v.X)
+        if left == "" { left = "?" }
+        return left + "." + v.Sel
+    case *ast.CallExpr:
+        if len(v.Args) > 0 { return v.Name + "(…)" }
+        return v.Name + "()"
+    case *ast.SliceLit:
+        return "slice"
+    case *ast.SetLit:
+        return "set"
+    case *ast.MapLit:
+        return "map"
+    default:
+        return ""
+    }
 }

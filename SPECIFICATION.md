@@ -432,7 +432,7 @@ packages:
   - [ ] Missing file I/O emits `diag.v1` and exits 2 (JSON) and prints clear error (human)
   - [ ] End to End testing of compiled binaries to ensure ami compiler produces working binaries.
 - [ ] Directory layout is deterministic and mirrors the logical package/unit structure; all paths are relative to workspace.
-- [ ] Do not emit debug artifacts without `--verbose`.
+ - [X] Do not emit debug artifacts without `--verbose`.
 - [ ] Ensure artifacts are reproducible across runs (given the same inputs) and contain ISO‑8601 UTC timestamps only where needed (e.g., top‑level metadata), never embedded in the core structures used by tests.
 - [ ] Include these paths in the human/JSON build logs so users can locate them quickly.
 - [ ] Rewrite `ami.manifest` in `build/ami.manifest`
@@ -442,10 +442,10 @@ packages:
     - [ ] Contains cross references to all ./build/debug artifacts (if any)
     - [ ] Contains list of binaries produced in ./build/**/*
 - [ ] Tests:
-    - [ ] With `--verbose`, expected files exist and validate against schemas (AST/IR JSON), assembly is non‑empty.
-    - [ ] Without `--verbose`, no `build/debug/` directory is created.
+    - [X] With `--verbose`, expected files exist and validate against schemas (AST/IR JSON), assembly is non‑empty.
+    - [X] Without `--verbose`, no `build/debug/` directory is created.
     - [ ] Contents are deterministic (golden tests) and paths are stable.
-- [ ] Build plan emitted and validates in verbose and JSON modes.
+- [X] Build plan emitted and validates in verbose and JSON modes.
 #### 1.1.9.4. Debug Artifacts when `--verbose` is set
 - [ ] When `--verbose` is provided to `ami build`
   - generate debugging information in `./build/debug` for compiler debugging (not produced otherwise)

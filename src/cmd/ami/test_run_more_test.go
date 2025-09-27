@@ -2,6 +2,8 @@ package main
 
 import (
     "bytes"
+    "encoding/json"
+    "io"
     "os"
     "path/filepath"
     "strings"
@@ -211,3 +213,50 @@ func TestRunTest_Human_AmiSummaryLine(t *testing.T) {
 // Failing go tests should write messages to stderr.
 // Note: stderr forwarding on failures depends on whether `go test -json` writes errors to stderr.
 // We rely on higher-level CLI tests elsewhere; avoiding brittle stderr assertions here.
+// JSON mode with failing tests returns error and ok=false summary.
+func TestRunTest_JSON_FailingSummaryAndError(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "json_fail")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    testSrc := `package tmp
+import "testing"
+func TestFail(t *testing.T){ t.Fatal("boom") }
+`
+    if err := os.WriteFile(filepath.Join(dir, "tmp_test.go"), []byte(testSrc), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    var buf bytes.Buffer
+    err := runTest(&buf, dir, true, false, 0)
+    if err == nil { t.Fatalf("expected error from failing tests") }
+    // Parse summary
+    lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+    var last map[string]any
+    if e := json.Unmarshal(lines[len(lines)-1], &last); e != nil { t.Fatalf("summary json: %v", e) }
+    if ok, _ := last["ok"].(bool); ok { t.Fatalf("expected ok=false, got ok=true: %v", last) }
+    if int(last["failures"].(float64)) < 1 { t.Fatalf("expected failures>=1: %v", last) }
+}
+
+// Verbose manifest includes AMI entries sorted deterministically.
+func TestRunTest_Verbose_AmiManifestOrder(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "ami_manifest_order")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    // Two AMI files with cases out of lexical order
+    a := "package app\n#pragma test:case zeta\n#pragma test:assert parse_ok\nfunc F(){}\n"
+    b := "package app\n#pragma test:case alpha\n#pragma test:assert parse_ok\nfunc G(){}\n"
+    if err := os.WriteFile(filepath.Join(dir, "b.ami"), []byte(b), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "a.ami"), []byte(a), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    if err := runTest(io.Discard, dir, false, true, 0); err != nil { t.Fatalf("runTest: %v", err) }
+    bts, err := os.ReadFile(filepath.Join(dir, "build", "test", "test.manifest"))
+    if err != nil { t.Fatalf("read manifest: %v", err) }
+    lines := strings.Split(strings.TrimSpace(string(bts)), "\n")
+    var amis []string
+    for _, ln := range lines {
+        if strings.HasPrefix(ln, "ami:") { amis = append(amis, ln) }
+    }
+    if len(amis) != 2 { t.Fatalf("expected two ami entries, got: %v", amis) }
+    // Expect a.ami before b.ami deterministically
+    if !(strings.Contains(amis[0], "ami:a.ami") && strings.Contains(amis[1], "ami:b.ami")) {
+        t.Fatalf("AMI entries not sorted by filename: %v", amis)
+    }
+}

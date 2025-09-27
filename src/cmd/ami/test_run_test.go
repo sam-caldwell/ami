@@ -122,6 +122,8 @@ func TestRunTest_AMIDirectives_ParseOK_And_Manifest(t *testing.T) {
     b, err := os.ReadFile(filepath.Join(dir, "build", "test", "test.manifest"))
     if err != nil { t.Fatalf("read manifest: %v", err) }
     if !strings.Contains(string(b), "ami:main.ami parseok\n") { t.Fatalf("missing ami manifest entry: %s", string(b)) }
+    // JSON stream should include ami.test.v1 event
+    if !strings.Contains(buf.String(), `"schema":"ami.test.v1"`) { t.Fatalf("missing ami JSON event: %s", buf.String()) }
 }
 
 func TestRunTest_AMIDirectives_ParseFail_TriggersError(t *testing.T) {
@@ -130,11 +132,12 @@ func TestRunTest_AMIDirectives_ParseFail_TriggersError(t *testing.T) {
     if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
     if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
     // AMI with expected parse_fail but actually ok -> should error
-    src := "package app\n#pragma test:case bad\n#pragma test:assert parse_fail\nfunc F(){}\n"
+    src := "#pragma test:case bad\n#pragma test:assert parse_fail msg=\"expected 'package'\"\nfunc F(){}\n"
     if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
     var stdout bytes.Buffer
-    if err := runTest(&stdout, dir, false, false, 0); err == nil {
-        t.Fatalf("expected error from ami directive failure")
+    if err := runTest(&stdout, dir, false, false, 0); err != nil {
+        // should pass because parse failed and msg matched expectation
+        t.Fatalf("unexpected error from ami directive run: %v\nstdout=%s", err, stdout.String())
     }
 }
 

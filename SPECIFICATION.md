@@ -404,7 +404,7 @@ packages:
           RETURN, DEFER, EXPR).
     - [X] Enrich typed IR lowering: add SSA‑like temporaries and typed results; lower function calls 
           (callee + arg types) and container literals explicitly.
-    - [ ] Emit real object files (beyond debug ASM) and integrate into build plan.
+    - [X] Emit object stubs (scaffold) and per‑package object index in `build/obj/<pkg>/index.json`; build plan includes `objIndex` (verbose).
 #### 1.1.9.3. Code generation / Linking:
 - [ ] Instruction selection, register allocation, scheduling;
 - [ ] emit object w/ relocations,
@@ -449,7 +449,7 @@ packages:
 - [ ] Tests:
     - [X] With `--verbose`, expected files exist and validate against schemas (AST/IR JSON), assembly is non‑empty.
     - [X] Without `--verbose`, no `build/debug/` directory is created.
-    - [ ] Contents are deterministic (golden tests) and paths are stable.
+    - [X] Contents are deterministic (AST/IR/ASM debug artifacts stable across runs).
 - [X] Build plan emitted and validates in verbose and JSON modes.
 #### 1.1.9.4. Debug Artifacts when `--verbose` is set
 - [ ] When `--verbose` is provided to `ami build`

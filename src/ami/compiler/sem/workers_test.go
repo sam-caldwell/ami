@@ -42,6 +42,19 @@ func TestWorkers_GoodSignature(t *testing.T) {
     for _, d := range ds { if d.Code == "E_WORKER_SIGNATURE" || d.Code == "E_WORKER_UNDEFINED" { t.Fatalf("unexpected: %+v", ds) } }
 }
 
+func TestWorkers_Signature_Checked_WithDecorators(t *testing.T) {
+    code := "package app\n" +
+        "@metrics\nfunc F(a int){}\n" +
+        "pipeline P(){ ingress; Transform(F); egress }\n"
+    f := (&source.FileSet{}).AddFile("w5.ami", code)
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    ds := AnalyzeWorkers(af)
+    found := false
+    for _, d := range ds { if d.Code == "E_WORKER_SIGNATURE" { found = true } }
+    if !found { t.Fatalf("expected E_WORKER_SIGNATURE with decorator present: %+v", ds) }
+}
+
 func TestWorkers_DottedImport_SuppressesUndefined(t *testing.T) {
     code := "package app\n" +
         "import alpha\n" +

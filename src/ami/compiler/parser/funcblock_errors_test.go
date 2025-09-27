@@ -36,3 +36,9 @@ func TestParse_Pipeline_MissingRBrace(t *testing.T) {
     _, _ = p.ParseFileCollect()
 }
 
+func TestParse_FuncBlock_UnknownToken(t *testing.T) {
+    src := "package app\nfunc F(){ @ }\n"
+    f := (&source.FileSet{}).AddFile("utok.ami", src)
+    p := New(f)
+    _, _ = p.ParseFileCollect()
+}

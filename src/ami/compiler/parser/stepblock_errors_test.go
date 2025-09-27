@@ -22,3 +22,11 @@ func TestParse_Pipeline_Chained_Errors(t *testing.T) {
     p := New(f)
     _, _ = p.ParseFileCollect() // tolerate parse errors; we want branch coverage
 }
+
+// TestParse_Pipeline_StepArgs_AttrArgs_Errors hits unexpected token branches in args and attr args.
+func TestParse_Pipeline_StepArgs_AttrArgs_Errors(t *testing.T) {
+    src := "package app\npipeline P(){ Alpha(,).Collect edge.MultiPath(,) ; egress }\n"
+    f := (&source.FileSet{}).AddFile("argsattr.ami", src)
+    p := New(f)
+    _, _ = p.ParseFileCollect()
+}

@@ -13,7 +13,7 @@ func TestLint_Human_Summary_And_StrictPromotion(t *testing.T) {
     dir := filepath.Join("build", "test", "ami_lint", "human_summary")
     srcDir := filepath.Join(dir, "src")
     if err := os.MkdirAll(srcDir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
-    content := "package x\n// TODO: fix\nvar bad_name\n"
+    content := "package x\n// TODO: fix\nfunc F(){}\n"
     if err := os.WriteFile(filepath.Join(srcDir, "main.ami"), []byte(content), 0o644); err != nil { t.Fatalf("write: %v", err) }
     ws := workspace.DefaultWorkspace()
     ws.Packages[0].Package.Root = "./src"
@@ -50,4 +50,3 @@ func TestLint_Human_MaxWarn_Boundary(t *testing.T) {
         t.Fatalf("expected error when warnings exceed maxWarn; out=%s", out.String())
     }
 }
-

@@ -230,8 +230,12 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         if len(files) > 0 {
             var fs source.FileSet
             for _, f := range files { b, err := os.ReadFile(f); if err == nil { fs.AddFile(f, string(b)) } }
+            // Run compile with CWD set to workspace dir so outputs land under dir/build
+            oldwd, _ := os.Getwd()
+            _ = os.Chdir(dir)
             pkgs := []driver.Package{{Name: p.Name, Files: &fs}}
             _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false})
+            _ = os.Chdir(oldwd)
             if jsonOut && len(diags) > 0 {
                 enc := json.NewEncoder(out)
                 for i := range diags { _ = enc.Encode(diags[i]) }

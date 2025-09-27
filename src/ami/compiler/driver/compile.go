@@ -31,6 +31,9 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         // stable order by file name
         files := append([]*source.File(nil), p.Files.Files...)
         sort.SliceStable(files, func(i, j int) bool { return files[i].Name < files[j].Name })
+        // package-wide function signatures (params/results)
+        paramSigs := map[string][]string{}
+        resultSigs := map[string][]string{}
         for _, f := range files {
             if f == nil { continue }
             // memory safety diagnostics
@@ -39,6 +42,16 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             pr := parser.New(f)
             af, _ := pr.ParseFile()
             if af == nil { continue }
+            // update function signatures from this unit
+            for _, d := range af.Decls {
+                if fn, ok := d.(*ast.FuncDecl); ok {
+                    var ps []string
+                    var rs []string
+                    for _, p := range fn.Params { ps = append(ps, p.Type) }
+                    for _, r := range fn.Results { rs = append(rs, r.Type) }
+                    if fn.Name != "" { paramSigs[fn.Name] = ps; resultSigs[fn.Name] = rs }
+                }
+            }
             // aggregate edges and collect snapshots for package index
             unit := unitName(f.Name)
             pkgEdges = append(pkgEdges, collectEdges(unit, af)...)
@@ -74,7 +87,10 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             outDiags = append(outDiags, sem.AnalyzePipelineSemantics(af)...)
             outDiags = append(outDiags, sem.AnalyzeFunctions(af)...)
             outDiags = append(outDiags, sem.AnalyzeMultiPath(af)...)
+            outDiags = append(outDiags, sem.AnalyzeEventTypeFlow(af)...)
             outDiags = append(outDiags, sem.AnalyzeReturnTypes(af)...)
+            outDiags = append(outDiags, sem.AnalyzeReturnTypesWithSigs(af, resultSigs)...)
+            outDiags = append(outDiags, sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs)...)
             // lower functions in this unit into a module
             m := lowerFile(p.Name, af)
             if opts.Debug {

@@ -15,6 +15,8 @@ type edgeEntry struct {
     To       string `json:"to"`
     Bounded  bool   `json:"bounded"`
     Delivery string `json:"delivery"`
+    Type     string `json:"type,omitempty"`
+    Tiny     bool   `json:"tinyBuffer,omitempty"`
 }
 
 type edgesIndex struct {
@@ -59,6 +61,8 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                 // derive bounded/delivery from target step attributes (scaffold defaults)
                 bounded := false
                 delivery := "atLeastOnce"
+                etype := ""
+                tiny := false
                 for _, at := range stepAttrs[e.To] {
                     // simple delivery inference
                     if at.Name == "dropOldest" || at.Name == "dropNewest" { delivery = "bestEffort" }
@@ -66,6 +70,12 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                         // if capacity>0 => bounded
                         if len(at.Args) > 0 {
                             if at.Args[0].Text != "0" && at.Args[0].Text != "" { bounded = true }
+                            if at.Args[0].Text == "0" || at.Args[0].Text == "1" {
+                                if len(at.Args) > 1 {
+                                    pol := at.Args[1].Text
+                                    if pol == "dropOldest" || pol == "dropNewest" { tiny = true }
+                                }
+                            }
                         }
                         // second arg policy
                         if len(at.Args) > 1 {
@@ -74,8 +84,11 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                             if pol == "block" { delivery = "atLeastOnce" }
                         }
                     }
+                    if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 {
+                        if at.Args[0].Text != "" { etype = at.Args[0].Text }
+                    }
                 }
-                out = append(out, edgeEntry{Unit: unit, From: e.From, To: e.To, Bounded: bounded, Delivery: delivery})
+                out = append(out, edgeEntry{Unit: unit, From: e.From, To: e.To, Bounded: bounded, Delivery: delivery, Type: etype, Tiny: tiny})
             }
         }
     }

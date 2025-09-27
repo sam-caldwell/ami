@@ -45,7 +45,8 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                 }
             }
             if st.Name != "Collect" { continue }
-            // validate merge.* attributes
+            // validate merge.* attributes and basic normalization
+            seen := map[string]string{}
             for _, at := range st.Attrs {
                 if strings.HasPrefix(at.Name, "merge.") {
                     if rng, ok := merges[at.Name]; ok {
@@ -57,6 +58,48 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         if argc < rng.min || (rng.max >= 0 && argc > rng.max) {
                             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: at.Name + ": invalid number of arguments", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                             continue
+                        }
+                        // additional validations
+                        switch at.Name {
+                        case "merge.Sort":
+                            if argc >= 2 {
+                                ord := at.Args[1].Text
+                                if ord != "asc" && ord != "desc" {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Sort: order must be 'asc' or 'desc'", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                }
+                            }
+                        case "merge.Watermark":
+                            if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_MISSING_FIELD", Message: "merge.Watermark: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                            }
+                        case "merge.Window":
+                            if argc >= 1 {
+                                if at.Args[0].Text == "0" || strings.HasPrefix(at.Args[0].Text, "-") {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WINDOW_ZERO_OR_NEGATIVE", Message: "merge.Window: size should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                }
+                            }
+                        case "merge.Buffer":
+                            if argc >= 1 {
+                                if at.Args[0].Text == "0" || at.Args[0].Text == "1" {
+                                    if argc >= 2 {
+                                        pol := at.Args[1].Text
+                                        if pol == "dropOldest" || pol == "dropNewest" {
+                                            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_TINY_BUFFER", Message: "merge.Buffer: tiny capacity with dropping policy", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // conflict detection on repeated attributes with differing primary arg
+                        key := at.Name
+                        val := ""
+                        if len(at.Args) > 0 { val = at.Args[0].Text }
+                        if prev, ok := seen[key]; ok {
+                            if prev != val {
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: at.Name + ": conflicting values", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                            }
+                        } else {
+                            seen[key] = val
                         }
                     } else {
                         out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_UNKNOWN", Message: "unknown merge attribute: " + at.Name, Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})

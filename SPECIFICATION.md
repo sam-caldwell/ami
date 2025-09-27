@@ -123,25 +123,25 @@
 # Details
 ## 1.0.0.0. Features and Work Breakdown
 ### 1.0.0.1 Workspace File Schema (`ami.workspace`)
-- AMI projects are build around a YAML manifest called `ami.worksapce`.
-- [ ] Create `docs/Workspace/README.md` to document the file format and schema, including the following required fields:
-    - [ ] `project`: `{ name, version }` (version follows SemVer)
-    - [ ] `packages`: list of import paths with version constraints (e.g., `^1.2`, `~1.2.3`, exact `1.2.3`)
-        - Accepted forms: exact `X.Y.Z` (with optional leading `v`), `^X.Y.Z`, `~X.Y.Z`, `>X.Y.Z`, `>=X.Y.Z`, and macro `==latest`.
-        - SemVer must be `MAJOR.MINOR.PATCH`; prereleases allowed when specified (e.g., `^1.0.0-rc.1`).
-        - Whitespace inside constraints is ignored (e.g., `>= 1.2.3` is accepted).
-        - Unsupported operators (e.g., `<=`) are rejected.
-    - [ ] Exact `toolchain.*` keys per Chapter 3.0 examples:
+- AMI projects are built around a YAML manifest called `ami.workspace`.
+- [X] Create `docs/Workspace/README.md` to document the file format and schema, including the following required fields:
+    - [X] `project`: `{ name, version }` (version follows SemVer)
+    - [X] `packages`: list of import paths with version constraints (e.g., `^1.2`, `~1.2.3`, exact `1.2.3`)
+        - [X] Accepted forms: exact `X.Y.Z` (with optional leading `v`), `^X.Y.Z`, `~X.Y.Z`, `>X.Y.Z`, `>=X.Y.Z`, and macro `==latest`.
+        - [X] SemVer must be `MAJOR.MINOR.PATCH`; prereleases allowed when specified (e.g., `^1.0.0-rc.1`).
+        - [X] Whitespace inside constraints is ignored (e.g., `>= 1.2.3` is accepted).
+        - [X] Unsupported operators (e.g., `<=`) are rejected.
+    - [X] Exact `toolchain.*` keys per Chapter 3.0 examples:
         - [X] `toolchain.compiler.concurrency`: integer ≥1 or the macro `NUM_CPU` (string). If `NUM_CPU`, detect host CPU count at runtime.
         - [X] `toolchain.compiler.target`: workspace‑relative output directory path (default `./build`). Must not be absolute; must not traverse outside workspace (reject `..`).
-        - [ ] `toolchain.compiler.env`: array of objects, each `{ os: "<os>/<arch>" }` describing cross‑compile triples.
+        - [X] `toolchain.compiler.env`: list of `os/arch` pairs; duplicates eliminated and order preserved.
             - [X] `os/arch` must match pattern `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`.
-            - [ ] Known examples (valid): windows/amd64, linux/amd64, linux/arm64, darwin/amd64, darwin/arm64. But be sure this set of pairs is extensible
+            - [X] Known examples (valid): windows/amd64, linux/amd64, linux/arm64, darwin/amd64, darwin/arm64. Extensible.
             - [X] Duplicates are eliminated; ordering is preserved as declared.
         - [X] `ami init` seeds `toolchain.compiler.env` with the current host OS/arch pair (e.g., `darwin/arm64`).
-        - [ ] `toolchain.linker`: object (reserved for future keys). For now must be an object; unknown types rejected.
-        - [ ] `toolchain.linter`: object (reserved for future keys). For now must be an object; unknown types rejected.
-    - [ ] Top‑level `version`: schema version in SemVer format (e.g., `1.0.0`).
+        - [X] `toolchain.linker`: object (reserved for future keys). For now must be an object; unknown types rejected.
+        - [X] `toolchain.linter`: object (reserved for future keys). For now must be an object; unknown types rejected.
+    - [X] Top‑level `version`: schema version in SemVer format (e.g., `1.0.0`).
     - [ ] On `ami build`, enforce `toolchain.*` constraints; violations → `USER_ERROR` with clear message (and JSON diagnostic when `--json`).
         - JSON diagnostics: emits `diag.v1` with `level:"error"`, `code:"E_WS_SCHEMA"`, `message:"workspace validation failed: …"`, `file:"ami.workspace"`.
     - [ ] Tests: invalid/missing keys, version constraint violations, JSON diagnostics on build
@@ -210,8 +210,8 @@
     - add `spf13/cobra` (and `spf13/pflag` via Cobra) to `go.mod`
 ## 1.1.0.0. AMI Toolchain Command Details
 ### 1.1.1.0. Workspace Management (`ami init`)
-- [ ] `ami init` subcommand features complete:
-    - [ ] Create `ami.workspace` minimal schema if the file does not exist or if `--force` is used using the following
+- [X] `ami init` subcommand features complete:
+    - [X] Create `ami.workspace` minimal schema if the file does not exist or if `--force` is used using the following
       template:
 ```yaml
 ---
@@ -284,7 +284,6 @@ packages:
   - [x] E2E pattern documented in `docs/test-patterns/README.md`.
 ### 1.1.7.0. Project Linter (`ami lint`)
 > Goal: Help users maintain code quality by providing a built-in linter as a first-class toolchain utility
-- [ ] Command uses the core compiler (citation needed) to lint the AMI source grammar
 - [x] Define lint entry points for AMI language sources (`.ami`) in workspace packages (Stage A scaffold)
     - [x] linter starts in 'main' package root (scaffold)
     - [X] linter processes imports in linear, recursive order (top-down, child first)
@@ -312,7 +311,7 @@ packages:
         - [X] Warn on underscores in identifiers (W_IDENT_UNDERSCORE); pragma/config suppressible
     - [x] Imports: duplicate imports (W_IMPORT_DUPLICATE); stable ordering (W_IMPORT_ORDER);
           disallowed relative paths to parents (W_IMPORT_RELATIVE); invalid version constraints (W_IMPORT_CONSTRAINT_INVALID)
-    - [ ] Imports: duplicate alias (W_DUP_IMPORT_ALIAS), unused (W_UNUSED_IMPORT)
+    - [X] Imports: duplicate alias (W_DUP_IMPORT_ALIAS), unused (W_UNUSED_IMPORT)
         - [X] Parser-backed unused imports for ident-form imports (W_UNUSED_IMPORT)
     - [ ] Code hygiene: unreachable nodes/edges, duplicate function declarations across files (lint layer), 
           TODO/FIXME policy
@@ -337,9 +336,10 @@ packages:
         - [X] Tests validate position presence and formatting
 - [ ] Lint: cross‑package import/constraint consistency checks (strict mode)
     - [X] Validate conflicting exact versions across packages (E_IMPORT_CONSTRAINT_MULTI); promoted by strict
-    - [ ] Detect forbidden prerelease imports when constraints omit prereleases
-    - [ ] Ensure consistent import of the same package/version across the workspace (single version rule in strict mode)
-    - [ ] Report mismatches as lint diagnostics with clear guidance
+    - [X] Detect forbidden prerelease imports when constraints omit prereleases (E_IMPORT_PRERELEASE_FORBIDDEN)
+    - [X] Ensure consistent import of the same package/version across the workspace (single version rule in strict mode)
+        - Strict requires an exact pinned version per import path; ranges alone are flagged (W_IMPORT_SINGLE_VERSION) and promoted to error in strict.
+    - [X] Report range incompatibilities conservatively (E_IMPORT_CONSTRAINT)
 ### 1.1.8.0. Project Test Runner (`ami test`)
 - [X] Executing `ami test [path]` runs tests in the target directory
   - Collects `_test.go` via `go test -json ./...` and emits a human OK on success
@@ -347,44 +347,6 @@ packages:
 - [X] With `--verbose`, writes test results to `build/test/test.log`
 - [X] With `--verbose`, writes `build/test/test.manifest` listing each test in execution order
 ### 1.1.9.0. Project Builder (`ami build`)
-### 1.1.10.0. Pipeline Visualizer (`ami pipeline visualize`)
-> Goal: Provide quick, in‑terminal ASCII visualizations of AMI pipelines to aid understanding and debugging without external tooling.
-
-- Command hierarchy
-  - Parent: `ami pipeline`
-  - Subcommand: `visualize`
-- Behavior
-  - Reads `ami.workspace` to locate the main package (default `packages.main.root`) and source roots.
-  - Discovers pipelines in sources and renders each as an ASCII graph to stdout in human mode.
-  - When `--json` is present, emits a machine‑readable structure (e.g., `graph.v1`) describing nodes, edges, and attributes instead of ASCII.
-  - Supports `--package <key>` and `--file <path>` to narrow scope (optional for initial milestone; default is main package and all `.ami` units).
-  - Honors global flags; `--color` may colorize node kinds and edges in human mode (never with `--json`).
-- Rendering (human)
-  - ASCII only (no Unicode box‑drawing) for broad terminal compatibility.
-  - Deterministic layout: stable ordering of nodes and edges; fixed width spacing; wrap long labels with ellipses.
-  - One pipeline per block; separate blocks with a blank line; prefix with pipeline name and package.
-  - Example (illustrative):
-    ```
-    package: main  pipeline: IngestToStore
-    [ingress] --> (WorkerA) --> (WorkerB) --> [egress]
-                  |                         
-                  +--> (ErrorHandler) ------+
-    ```
-- JSON (`--json`)
-  - Schema `graph.v1` (stable ordering): `{ package, unit, name, nodes:[{id, kind, label}], edges:[{from, to, attrs}] }`.
-  - Final summary record `{ schema:"graph.v1", type:"summary", pipelines:<n> }` may be added (TBD).
-- Inputs
-  - Source discovery aligns with build/lint: start at `packages.main.root` and include direct imports (workspace‑local only for initial phase).
-  - Parser/AST extraction provided by compiler front‑end (Agent D). This command consumes the tolerant shape (no semantics beyond graph extraction).
-- Errors
-  - On missing workspace or packages, exit `USER_ERROR` and print a clear message; with `--json`, emit a `diag.v1` error record.
-  - On parse/graph extraction failures, emit `diag.v1` stream and exit 1.
-- Tests
-  - Unit tests for renderer: given a minimal graph structure, assert ASCII layout (goldens) and JSON structure.
-  - CLI tests: run command with/without `--json`, validate exit code and outputs.
-  - E2E test: small sample pipeline sources under `build/test/e2e/pipeline_visualize/...` and assert the ASCII output contains expected lines.
-- Future
-  - Add `--focus <node>` to center graph; `--width` to control wrapping; `--legend` toggle; `--save <file>` to write ASCII/JSON to a file.
 #### 1.1.9.1. Configuration
 - [ ] The build / parse / compiler tool is configured by `ami.workspace`
 - [ ] If `toolchain.compiler.env` is empty, default to a single target `darwin/arm64` for this project phase.
@@ -510,6 +472,44 @@ packages:
           - ASM,
           - per‑package `index.json`,
           - and `edges.json` when present.
+### 1.1.10.0. Pipeline Visualizer (`ami pipeline visualize`)
+> Goal: Provide quick, in‑terminal ASCII visualizations of AMI pipelines to aid understanding and debugging without external tooling.
+
+- Command hierarchy
+    - Parent: `ami pipeline`
+    - Subcommand: `visualize`
+- Behavior
+    - Reads `ami.workspace` to locate the main package (default `packages.main.root`) and source roots.
+    - Discovers pipelines in sources and renders each as an ASCII graph to stdout in human mode.
+    - When `--json` is present, emits a machine‑readable structure (e.g., `graph.v1`) describing nodes, edges, and attributes instead of ASCII.
+    - Supports `--package <key>` and `--file <path>` to narrow scope (optional for initial milestone; default is main package and all `.ami` units).
+    - Honors global flags; `--color` may colorize node kinds and edges in human mode (never with `--json`).
+- Rendering (human)
+    - ASCII only (no Unicode box‑drawing) for broad terminal compatibility.
+    - Deterministic layout: stable ordering of nodes and edges; fixed width spacing; wrap long labels with ellipses.
+    - One pipeline per block; separate blocks with a blank line; prefix with pipeline name and package.
+    - Example (illustrative):
+      ```
+      package: main  pipeline: IngestToStore
+      [ingress] --> (WorkerA) --> (WorkerB) --> [egress]
+                    |                         
+                    +--> (ErrorHandler) ------+
+      ```
+- JSON (`--json`)
+    - Schema `graph.v1` (stable ordering): `{ package, unit, name, nodes:[{id, kind, label}], edges:[{from, to, attrs}] }`.
+    - Final summary record `{ schema:"graph.v1", type:"summary", pipelines:<n> }` may be added (TBD).
+- Inputs
+    - Source discovery aligns with build/lint: start at `packages.main.root` and include direct imports (workspace‑local only for initial phase).
+    - Parser/AST extraction provided by compiler front‑end (Agent D). This command consumes the tolerant shape (no semantics beyond graph extraction).
+- Errors
+    - On missing workspace or packages, exit `USER_ERROR` and print a clear message; with `--json`, emit a `diag.v1` error record.
+    - On parse/graph extraction failures, emit `diag.v1` stream and exit 1.
+- Tests
+    - Unit tests for renderer: given a minimal graph structure, assert ASCII layout (goldens) and JSON structure.
+    - CLI tests: run command with/without `--json`, validate exit code and outputs.
+    - E2E test: small sample pipeline sources under `build/test/e2e/pipeline_visualize/...` and assert the ASCII output contains expected lines.
+- Future
+    - Add `--focus <node>` to center graph; `--width` to control wrapping; `--legend` toggle; `--save <file>` to write ASCII/JSON to a file.
 ### 1.1.0.10. Version Subcommand (`ami version`)
 - [X] Subcommand with build‑time injected version (ldflags)
 ### 1.1.0.11. Help Subcommand (`ami help`)
@@ -802,7 +802,7 @@ Tests & Docs
     - [X] `edges.v1`: per-package summary with `bounded` and `delivery` (defaults scaffolded).
   - [X] Map `#pragma backpressure` defaults into IR attributes (scaffold via debug edge object defaults).
   - [ ] Stub `edge.*` specs (FIFO, LIFO, Pipeline) as compiler-generated artifacts for analysis/codegen; see `src/ami/compiler/edge` and `docs/edges.md`.
-  - [ ] Event payload flow type checking: downstream worker `Event<T>` inputs must match upstream worker `Event<U>` outputs; mismatches emit `E_EVENT_TYPE_FLOW`.
+  - [C] Event payload flow type checking (scaffold): when both sides declare explicit step type, mismatches emit `E_EVENT_TYPE_FLOW`.
 - [ ] Error pipelines (1.1.8): parsing supported in AST (`error { ... }`), semantics validated:
   - [ ] Error pipeline must end with `egress` (`E_ERRPIPE_END_EGRESS`).
   - [ ] Error pipeline cannot start with `ingress` (`E_ERRPIPE_START_INVALID`).
@@ -837,16 +837,16 @@ Tests & Docs
   - [ ] `E_EDGE_MULTIPATH_CONTEXT`: `edge.MultiPath` used outside a `Collect` node.
   - [ ] `E_MERGE_ATTR_UNKNOWN`: unknown `merge.*` attribute.
   - [ ] `E_MERGE_ATTR_ARGS`: wrong arity/type for `merge.*` attribute args.
-  - [ ] `E_MERGE_ATTR_CONFLICT`: conflicting attributes (e.g., incompatible ordering directives).
+  - [X] `E_MERGE_ATTR_CONFLICT`: conflicting attributes (e.g., duplicate with different values).
   - [ ] `E_MERGE_ATTR_REQUIRED`: missing required attributes (e.g., `merge.Sort` without a field).
 - [ ] IR & Tooling (scaffold)
   - [ ] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args). Full normalization deferred.
   - [ ] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
 - [ ] Lint & Smells
   - [X] `W_MERGE_SORT_NO_FIELD`: `merge.Sort` specified without a field.
-- [ ] `W_MERGE_TINY_BUFFER`: `merge.Buffer` set to very small capacity (<=1) with `dropOldest`/`dropNewest` policy.
-  - [ ] `W_MERGE_WATERMARK_MISSING_FIELD`: `merge.Watermark` without a field.
-  - [ ] `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`: invalid window size.
+- [X] `W_MERGE_TINY_BUFFER`: `merge.Buffer` set to very small capacity (<=1) with `dropOldest`/`dropNewest` policy.
+  - [X] `W_MERGE_WATERMARK_MISSING_FIELD`: `merge.Watermark` without a field.
+  - [X] `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`: invalid window size.
   - [ ] Ensure rules are suppressible and configurable.
 - [ ] Tests (scaffold)
   - [X] Parser round‑trips `edge.MultiPath(...)` as raw attr on `Collect`.
@@ -1166,8 +1166,8 @@ Types & Semantics (incremental)
     - [ ] `E_TYPE_AMBIGUOUS`: insufficient constraints to determine a concrete type variable.
     - [ ] `E_TYPE_UNINFERRED`: remaining type variables at an emission point (e.g., return) that require explicit annotation.
     - [ ] `E_RETURN_TYPE_MISMATCH`: return expression type does not match declared result type (added).
-    - [ ] `E_CALL_ARG_TYPE_MISMATCH`: function call argument incompatible with parameter type (added).
-    - [ ] `E_CALL_ARITY_MISMATCH`: function call arity differs from callee signature (added).
+    - [X] `E_CALL_ARG_TYPE_MISMATCH`: function call argument incompatible with parameter type (scaffold).
+    - [X] `E_CALL_ARITY_MISMATCH`: function call arity differs from callee signature (scaffold).
   - Tests
     - [ ] Happy: infer `T` in `Event<T>` from a call site, propagate through assignment and return; infer container element types from literals/usages.
     - [ ] Happy: call-site instantiation for `Event<T>`/`Owned<T>` and assignment unification for generics (no return yet).

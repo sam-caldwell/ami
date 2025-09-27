@@ -17,7 +17,9 @@ func lintCrossPackageConstraints(ws *workspace.Workspace) []diag.Record {
     now := time.Now().UTC()
     // path -> set of exact versions (normalized)
     vers := map[string]map[string]bool{}
-    // path -> list of constraints (non-exact) for overlap checks
+    // path -> list of constraints (all, including exact) for deeper checks
+    all := map[string][]semver.Constraint{}
+    // path -> list of non-exact constraints (for range intersection)
     ranges := map[string][]semver.Constraint{}
     for _, pe := range ws.Packages {
         for _, entry := range pe.Package.Import {
@@ -25,11 +27,17 @@ func lintCrossPackageConstraints(ws *workspace.Workspace) []diag.Record {
             if path == "" || strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") { continue }
             if constraint == "" { continue }
             c, err := semver.ParseConstraint(constraint)
-            if err != nil || c.Latest || c.Op != "" { continue }
-            vmap := vers[path]
-            if vmap == nil { vmap = map[string]bool{}; vers[path] = vmap }
-            v := c.Version
-            vmap[v] = true
+            if err != nil { continue }
+            all[path] = append(all[path], c)
+            if c.Latest { continue }
+            if c.Op == "" { // exact
+                vmap := vers[path]
+                if vmap == nil { vmap = map[string]bool{}; vers[path] = vmap }
+                v := c.Version
+                vmap[v] = true
+            } else {
+                ranges[path] = append(ranges[path], c)
+            }
         }
     }
     for p, vset := range vers {
@@ -67,16 +75,39 @@ func lintCrossPackageConstraints(ws *workspace.Workspace) []diag.Record {
         }
     }
 
-    // Conservative range incompatibility checks
-    for p, list := range ranges {
-        // pairwise check
-        for i := 0; i < len(list); i++ {
-            for j := i+1; j < len(list); j++ {
-                if constraintsConflict(list[i], list[j]) {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "E_IMPORT_CONSTRAINT", Message: "incompatible version constraints for " + p, File: "ami.workspace"})
-                    break
-                }
+    // Range incompatibility and single-version rule checks
+    for p, list := range all {
+        // 1) If there is at least one exact version, ensure it satisfies all constraints.
+        var exacts []semver.Constraint
+        var others []semver.Constraint
+        for _, c := range list { if c.Op == "" { exacts = append(exacts, c) } else { others = append(others, c) } }
+        if len(exacts) > 0 {
+            // pick the first exact; conflicting exacts already flagged
+            chosen := exacts[0]
+            for _, c := range others { if !semver.Satisfies(chosen.Version, c) {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "E_IMPORT_CONSTRAINT", Message: "exact version " + chosen.Version + " does not satisfy constraint for " + p, File: "ami.workspace"})
+                break } }
+            continue
+        }
+        // 2) No exacts: intersect all range constraints; if empty → E_IMPORT_CONSTRAINT
+        var ok bool
+        var inter semver.Bound
+        for i, c := range others {
+            b, bok := semver.Bounds(c)
+            if !bok { continue }
+            if i == 0 { inter = b; ok = true; continue }
+            if ok {
+                inter, ok = semver.Intersect(inter, b)
+                if !ok { break }
             }
+        }
+        if len(others) > 0 && !ok {
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "E_IMPORT_CONSTRAINT", Message: "incompatible version constraints for " + p, File: "ami.workspace"})
+            continue
+        }
+        // 3) Single-version rule (strict): emit warning when only ranges are present, asking to pin exact
+        if len(others) > 0 {
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_IMPORT_SINGLE_VERSION", Message: "no exact version pinned for " + p + "; strict mode requires a single pinned version", File: "ami.workspace"})
         }
     }
     return out
@@ -84,26 +115,9 @@ func lintCrossPackageConstraints(ws *workspace.Workspace) []diag.Record {
 
 // constraintsConflict implements a conservative overlap check for two constraints.
 func constraintsConflict(a, b semver.Constraint) bool {
-    // exact handled elsewhere
-    if a.Op == "" || b.Op == "" { return false }
-    // ^ vs ^ with different major → conflict
-    if a.Op == "^" && b.Op == "^" {
-        va, _ := semver.ParseVersion(a.Version)
-        vb, _ := semver.ParseVersion(b.Version)
-        return va.Major != vb.Major
-    }
-    // ~ vs ~ with different major/minor → conflict
-    if a.Op == "~" && b.Op == "~" {
-        va, _ := semver.ParseVersion(a.Version)
-        vb, _ := semver.ParseVersion(b.Version)
-        return va.Major != vb.Major || va.Minor != vb.Minor
-    }
-    // ^ vs ~ conflict when majors differ
-    if (a.Op == "^" && b.Op == "~") || (a.Op == "~" && b.Op == "^") {
-        va, _ := semver.ParseVersion(a.Version)
-        vb, _ := semver.ParseVersion(b.Version)
-        return va.Major != vb.Major
-    }
-    // >= ranges: conservative, assume overlap
-    return false
+    ba, oka := semver.Bounds(a)
+    bb, okb := semver.Bounds(b)
+    if !oka || !okb { return false }
+    _, ok := semver.Intersect(ba, bb)
+    return !ok
 }

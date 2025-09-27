@@ -81,6 +81,31 @@ func TestCompile_PipelineSemanticsDiagnostics(t *testing.T) {
     if !hasStart || !hasUnknown { t.Fatalf("missing expected codes: %v", diags) }
 }
 
+func TestCompile_PipelinesDebug_AttrsRaw(t *testing.T) {
+    ws := workspace.Workspace{}
+    fs := &source.FileSet{}
+    fs.AddFile("pp.ami", "package app\npipeline P(){ Alpha() edge.MultiPath(merge.Stable()) ; egress }\n")
+    pkgs := []Package{{Name: "app", Files: fs}}
+    _, _ = Compile(ws, pkgs, Options{Debug: true})
+    pfile := filepath.Join("build", "debug", "ir", "app", "pp.pipelines.json")
+    b, err := os.ReadFile(pfile)
+    if err != nil { t.Fatalf("read pipelines: %v", err) }
+    var pobj map[string]any
+    if err := json.Unmarshal(b, &pobj); err != nil { t.Fatalf("json: %v", err) }
+    pipes, _ := pobj["pipelines"].([]any)
+    if len(pipes) != 1 { t.Fatalf("pipes len: %d", len(pipes)) }
+    p0 := pipes[0].(map[string]any)
+    steps, _ := p0["steps"].([]any)
+    if len(steps) == 0 { t.Fatalf("steps empty") }
+    s0 := steps[0].(map[string]any)
+    attrs, ok := s0["attrs"].([]any)
+    if !ok || len(attrs) != 1 { t.Fatalf("attrs: %#v", s0["attrs"]) }
+    a0 := attrs[0].(map[string]any)
+    if a0["name"] != "edge.MultiPath" { t.Fatalf("attr name: %v", a0["name"]) }
+    av, _ := a0["args"].([]any)
+    if len(av) != 1 || av[0].(string) != "merge.Stable()" { t.Fatalf("attr args: %#v", av) }
+}
+
 func TestCompile_IRTyping_ReduceAnyOnReturn(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
@@ -141,7 +166,7 @@ func TestCompile_IRTyping_CallResultType(t *testing.T) {
 func TestCompile_EdgesIndexDebug(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
-    fs.AddFile("g.ami", "package app\npipeline P() { A -> Collect; Collect merge.Buffer(10, dropNewest), merge.Sort(\"ts\"); MultiPath(u,v); egress }\n")
+    fs.AddFile("g.ami", "package app\npipeline P() { A type(\"X\"); A -> Collect; Collect type(\"X\"), merge.Buffer(10, dropNewest), merge.Sort(\"ts\"); MultiPath(u,v); egress }\n")
     pkgs := []Package{{Name: "app", Files: fs}}
     _, _ = Compile(ws, pkgs, Options{Debug: true})
     edges := filepath.Join("build", "debug", "asm", "app", "edges.json")
@@ -155,6 +180,8 @@ func TestCompile_EdgesIndexDebug(t *testing.T) {
     e0 := edgesArr[0].(map[string]any)
     if _, ok := e0["bounded"]; !ok { t.Fatalf("bounded missing") }
     if _, ok := e0["delivery"]; !ok { t.Fatalf("delivery missing") }
+    if e0["bounded"] != true || e0["delivery"] != "bestEffort" { t.Fatalf("edge derivation wrong: %+v", e0) }
+    if e0["type"] != "X" { t.Fatalf("edge type not propagated: %+v", e0) }
     // multipath collect snapshot present
     if obj["collect"] == nil { t.Fatalf("collect snapshot missing") }
     col := obj["collect"].([]any)
@@ -181,7 +208,7 @@ func TestCompile_SourcesDebug_ImportsDetailed(t *testing.T) {
 func TestCompile_ASTDebug_FileExistsAndSchema(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
-    code := "package app\nimport alpha >= v1.0.0\nfunc F<T any>(a T) (R) { return a }\npipeline P(){ Alpha() }\n"
+    code := "package app\nimport alpha >= v1.0.0\nfunc F<T any>(a T) (R) { return a }\npipeline P(){ Alpha(\"x\", y) edge.MultiPath(merge.Sort(\"ts\"), merge.Stable()) }\n"
     fs.AddFile("u2.ami", code)
     pkgs := []Package{{Name: "app", Files: fs}}
     _, _ = Compile(ws, pkgs, Options{Debug: true})
@@ -215,4 +242,17 @@ func TestCompile_ASTDebug_FileExistsAndSchema(t *testing.T) {
     if len(steps) != 1 { t.Fatalf("steps len: %d", len(steps)) }
     s0, _ := steps[0].(map[string]any)
     if s0["name"] != "Alpha" { t.Fatalf("step name: %v", s0["name"]) }
+    if args, ok := s0["args"].([]any); !ok || len(args) != 2 || args[0].(string) != "x" || args[1].(string) != "y" {
+        t.Fatalf("step args: %#v", s0["args"])
+    }
+    if attrs, ok := s0["attrs"].([]any); !ok || len(attrs) != 1 {
+        t.Fatalf("attrs: %#v", s0["attrs"])
+    } else {
+        a0 := attrs[0].(map[string]any)
+        if a0["name"] != "edge.MultiPath" { t.Fatalf("attr name: %v", a0["name"]) }
+        av, _ := a0["args"].([]any)
+        if len(av) != 2 || av[0].(string) != "merge.Sort(…)" || av[1].(string) != "merge.Stable()" {
+            t.Fatalf("attr args: %#v", av)
+        }
+    }
 }

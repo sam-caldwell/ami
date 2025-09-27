@@ -103,7 +103,7 @@ func TestParser_Pipeline_Attr_DottedNames(t *testing.T) {
             for _, at := range st.Attrs {
                 if at.Name == "edge.MultiPath" {
                     if len(at.Args) != 2 { t.Fatalf("args len: %d", len(at.Args)) }
-                    if at.Args[0].Text != "merge.Sort()" || at.Args[1].Text != "merge.Stable()" {
+                    if at.Args[0].Text != "merge.Sort(…)" || at.Args[1].Text != "merge.Stable()" {
                         t.Fatalf("attr args: %+v", at.Args)
                     }
                     found = true

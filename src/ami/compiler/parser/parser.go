@@ -549,7 +549,10 @@ func exprText(e ast.Expr) string {
         if left == "" { left = "?" }
         return left + "." + v.Sel
     case *ast.CallExpr:
-        // return callee name with parentheses
+        // return callee name with parentheses; include ellipsis when args present
+        if len(v.Args) > 0 {
+            return v.Name + "(…)"
+        }
         return v.Name + "()"
     case *ast.SliceLit:
         return "slice"

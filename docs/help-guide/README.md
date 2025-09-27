@@ -18,6 +18,7 @@ Commands
 - `ami lint`         : run linter checks
 - `ami test`         : run project tests
 - `ami build`        : build the workspace
+- `ami pipeline visualize` : render ASCII pipeline graphs (stub)
 
 Notes
 

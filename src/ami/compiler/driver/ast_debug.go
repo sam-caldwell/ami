@@ -43,6 +43,12 @@ type astPipe struct {
 type astPipeStep struct {
     Name string   `json:"name"`
     Args []string `json:"args,omitempty"`
+    Attrs []astAttr `json:"attrs,omitempty"`
+}
+
+type astAttr struct {
+    Name string   `json:"name"`
+    Args []string `json:"args,omitempty"`
 }
 
 // writeASTDebug writes a per-unit AST summary as ast.v1 JSON.
@@ -69,7 +75,14 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
                 if st, ok := s.(*ast.StepStmt); ok {
                     var args []string
                     for _, a := range st.Args { args = append(args, a.Text) }
-                    steps = append(steps, astPipeStep{Name: st.Name, Args: args})
+                    // attributes
+                    var attrs []astAttr
+                    for _, at := range st.Attrs {
+                        var aargs []string
+                        for _, aa := range at.Args { aargs = append(aargs, aa.Text) }
+                        attrs = append(attrs, astAttr{Name: at.Name, Args: aargs})
+                    }
+                    steps = append(steps, astPipeStep{Name: st.Name, Args: args, Attrs: attrs})
                 }
             }
             u.Pipelines = append(u.Pipelines, astPipe{Name: n.Name, Steps: steps})
@@ -87,4 +100,3 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
     if err := os.WriteFile(out, b, 0o644); err != nil { return "", err }
     return out, nil
 }
-

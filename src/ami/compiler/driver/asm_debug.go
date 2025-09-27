@@ -29,10 +29,15 @@ func writeAsmDebug(pkg, unit string, af *ast.File, m ir.Module) (string, error) 
             }
         }
     }
-    // Emit multipath pseudo-ops for pipelines
+    // Emit multipath pseudo-ops and edge warnings for pipelines
     if af != nil {
         for _, d := range af.Decls {
             if pd, ok := d.(*ast.PipelineDecl); ok {
+                // collect attrs by step
+                stepAttrs := map[string][]ast.Attr{}
+                for _, s := range pd.Stmts {
+                    if st, ok := s.(*ast.StepStmt); ok { stepAttrs[st.Name] = st.Attrs }
+                }
                 for _, s := range pd.Stmts {
                     if st, ok := s.(*ast.StepStmt); ok && st.Name == "Collect" {
                         // detect MultiPath and merge attributes
@@ -53,6 +58,24 @@ func writeAsmDebug(pkg, unit string, af *ast.File, m ir.Module) (string, error) 
                         }
                         for _, m := range merges {
                             fmt.Fprintf(f, "; mp_merge %s(%v)\n", m.Name, m.Args)
+                        }
+                    }
+                    if e, ok := s.(*ast.EdgeStmt); ok {
+                        // tiny buffer warnings on edge via target step attrs
+                        atts := stepAttrs[e.To]
+                        tiny := false
+                        for _, at := range atts {
+                            if at.Name == "merge.Buffer" {
+                                if len(at.Args) > 0 && (at.Args[0].Text == "0" || at.Args[0].Text == "1") {
+                                    if len(at.Args) > 1 {
+                                        pol := at.Args[1].Text
+                                        if pol == "dropOldest" || pol == "dropNewest" { tiny = true }
+                                    }
+                                }
+                            }
+                        }
+                        if tiny {
+                            fmt.Fprintf(f, "; edge_tiny_buffer %s->%s\n", e.From, e.To)
                         }
                     }
                 }

@@ -24,6 +24,7 @@ type astImport struct {
     Path       string `json:"path"`
     Constraint string `json:"constraint,omitempty"`
     Pos        *dbgPos `json:"pos,omitempty"`
+    Kind       string  `json:"kind"`
 }
 
 type astTypeParam struct {
@@ -39,12 +40,14 @@ type astFunc struct {
     Decorators []astDecorator `json:"decorators,omitempty"`
     Pos        *dbgPos        `json:"pos,omitempty"`
     NamePos    *dbgPos        `json:"namePos,omitempty"`
+    Kind       string         `json:"kind"`
 }
 
 type astPipe struct {
     Name  string       `json:"name"`
     Steps []astPipeStep `json:"steps"`
     Pos   *dbgPos      `json:"pos,omitempty"`
+    Kind  string       `json:"kind"`
 }
 
 type astPipeStep struct {
@@ -52,6 +55,7 @@ type astPipeStep struct {
     Args []string `json:"args,omitempty"`
     Attrs []astAttr `json:"attrs,omitempty"`
     Pos  *dbgPos  `json:"pos,omitempty"`
+    Kind string   `json:"kind"`
 }
 
 type astAttr struct {
@@ -63,6 +67,7 @@ type astDecorator struct {
     Name string   `json:"name"`
     Args []string `json:"args,omitempty"`
     Pos  *dbgPos  `json:"pos,omitempty"`
+    Kind string   `json:"kind"`
 }
 
 type astPragma struct {
@@ -72,6 +77,7 @@ type astPragma struct {
     Args   []string          `json:"args,omitempty"`
     Params map[string]string `json:"params,omitempty"`
     Pos    *dbgPos           `json:"pos,omitempty"`
+    Kind   string            `json:"kind"`
 }
 
 type dbgPos struct {
@@ -94,7 +100,7 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
     for _, d := range f.Decls {
         switch n := d.(type) {
         case *ast.ImportDecl:
-            u.Imports = append(u.Imports, astImport{Path: n.Path, Constraint: n.Constraint, Pos: posPtr(n.Pos)})
+            u.Imports = append(u.Imports, astImport{Path: n.Path, Constraint: n.Constraint, Pos: posPtr(n.Pos), Kind: "ImportDecl"})
         case *ast.FuncDecl:
             var tf []astTypeParam
             for _, tp := range n.TypeParams { tf = append(tf, astTypeParam{Name: tp.Name, Constraint: tp.Constraint}) }
@@ -108,7 +114,7 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
                 for _, e := range d.Args { a = append(a, decoExprText(e)) }
                 decos = append(decos, astDecorator{Name: d.Name, Args: a})
             }
-            u.Funcs = append(u.Funcs, astFunc{Name: n.Name, TypeParams: tf, Params: ps, Results: rs, Decorators: decos, Pos: posPtr(n.Pos), NamePos: posPtr(n.NamePos)})
+            u.Funcs = append(u.Funcs, astFunc{Name: n.Name, TypeParams: tf, Params: ps, Results: rs, Decorators: decos, Pos: posPtr(n.Pos), NamePos: posPtr(n.NamePos), Kind: "FuncDecl"})
         case *ast.PipelineDecl:
             var steps []astPipeStep
             for _, s := range n.Stmts {
@@ -122,15 +128,15 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
                         for _, aa := range at.Args { aargs = append(aargs, aa.Text) }
                         attrs = append(attrs, astAttr{Name: at.Name, Args: aargs})
                     }
-                    steps = append(steps, astPipeStep{Name: st.Name, Args: args, Attrs: attrs, Pos: posPtr(st.Pos)})
+                    steps = append(steps, astPipeStep{Name: st.Name, Args: args, Attrs: attrs, Pos: posPtr(st.Pos), Kind: "StepStmt"})
                 }
             }
-            u.Pipelines = append(u.Pipelines, astPipe{Name: n.Name, Steps: steps, Pos: posPtr(n.Pos)})
+            u.Pipelines = append(u.Pipelines, astPipe{Name: n.Name, Steps: steps, Pos: posPtr(n.Pos), Kind: "PipelineDecl"})
         }
     }
     // pragmas
     for _, pr := range f.Pragmas {
-        ap := astPragma{Domain: pr.Domain, Key: pr.Key, Value: pr.Value, Pos: posPtr(pr.Pos)}
+        ap := astPragma{Domain: pr.Domain, Key: pr.Key, Value: pr.Value, Pos: posPtr(pr.Pos), Kind: "Pragma"}
         if len(pr.Args) > 0 { ap.Args = append(ap.Args, pr.Args...) }
         if len(pr.Params) > 0 { ap.Params = pr.Params }
         u.Pragmas = append(u.Pragmas, ap)

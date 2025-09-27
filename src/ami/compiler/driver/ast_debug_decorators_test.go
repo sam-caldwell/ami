@@ -29,6 +29,9 @@ func TestWriteASTDebug_IncludesDecorators(t *testing.T) {
     if !ok || len(decos) != 2 { t.Fatalf("decorators: %#v", f0["decorators"]) }
     d0 := decos[0].(map[string]any)
     d1 := decos[1].(map[string]any)
+    if d0["name"] != "trace" || d1["name"] != "deprecated" { t.Fatalf("order: %#v", decos) }
+    d0 := decos[0].(map[string]any)
+    d1 := decos[1].(map[string]any)
     if d0["name"] != "trace" { t.Fatalf("d0 name: %v", d0["name"]) }
     if d1["name"] != "deprecated" { t.Fatalf("d1 name: %v", d1["name"]) }
     if args, _ := d1["args"].([]any); len(args) != 1 || args[0].(string) == "" { t.Fatalf("d1 args: %#v", d1["args"]) }

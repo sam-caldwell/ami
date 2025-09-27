@@ -27,5 +27,7 @@ func TestIR_Function_IncludesDecorators(t *testing.T) {
     f0 := fns[0].(map[string]any)
     decs, ok := f0["decorators"].([]any)
     if !ok || len(decs) != 2 { t.Fatalf("decorators: %#v", f0["decorators"]) }
+    d0 := decs[0].(map[string]any)
+    d1 := decs[1].(map[string]any)
+    if d0["name"] != "trace" || d1["name"] != "deprecated" { t.Fatalf("order: %#v", decs) }
 }
-

@@ -94,6 +94,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             outDiags = append(outDiags, sem.AnalyzeReturnTypes(af)...)
             outDiags = append(outDiags, sem.AnalyzeReturnTypesWithSigs(af, resultSigs)...)
             outDiags = append(outDiags, sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs)...)
+            outDiags = append(outDiags, sem.AnalyzePackageAndImports(af)...)
             // lower
             m := lowerFile(p.Name, af)
             if opts.Debug {

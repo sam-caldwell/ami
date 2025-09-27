@@ -42,6 +42,7 @@ func (p *Parser) ParseFile() (*ast.File, error) {
         if p.cur.Kind != token.Ident { return f, p.firstErr() }
     }
     f.PackageName = p.cur.Lexeme
+    f.PackagePos = p.cur.Pos
     p.next()
 
     // zero or more imports: `import ident`
@@ -163,6 +164,8 @@ func (p *Parser) ParseFile() (*ast.File, error) {
             f.Decls = append(f.Decls, eb)
         }
     }
+    // collect pragmas from raw file content (lines starting with '#pragma ')
+    f.Pragmas = p.collectPragmas()
     return f, p.firstErr()
 }
 
@@ -655,7 +658,8 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
             p.next()
             continue
         }
-        if p.cur.Kind == token.Ident || p.cur.Kind == token.KwIngress || p.cur.Kind == token.KwEgress {
+        if p.cur.Kind == token.Ident || p.cur.Kind == token.KwIngress || p.cur.Kind == token.KwEgress ||
+            p.cur.Kind == token.KwNodeTransform || p.cur.Kind == token.KwNodeFanout || p.cur.Kind == token.KwNodeCollect || p.cur.Kind == token.KwNodeMutable {
             // Determine if this is an edge or a step call
             name := p.cur.Lexeme
             namePos := p.cur.Pos
@@ -670,7 +674,9 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
             if p.cur.Kind == token.Arrow {
                 // Edge: name -> ident
                 p.next()
-                if p.cur.Kind != token.Ident { p.errf("expected identifier after '->', got %q", p.cur.Lexeme); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
+                if !(p.cur.Kind == token.Ident || p.cur.Kind == token.KwNodeTransform || p.cur.Kind == token.KwNodeFanout || p.cur.Kind == token.KwNodeCollect || p.cur.Kind == token.KwNodeMutable || p.cur.Kind == token.KwIngress || p.cur.Kind == token.KwEgress) {
+                    p.errf("expected identifier after '->', got %q", p.cur.Lexeme); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue
+                }
                 to := p.cur.Lexeme
                 toPos := p.cur.Pos
                 edge := &ast.EdgeStmt{Pos: namePos, From: name, FromPos: namePos, To: to, ToPos: toPos, Leading: p.pending}
@@ -790,6 +796,43 @@ func (p *Parser) syncUntil(kinds ...token.Kind) {
 func (p *Parser) ParseFileCollect() (*ast.File, []error) {
     f, _ := p.ParseFile()
     return f, p.errors
+}
+
+// collectPragmas scans the raw file content for lines beginning with '#pragma '
+// and returns them as AST pragmas with 1-based line positions.
+func (p *Parser) collectPragmas() []ast.Pragma {
+    if p == nil || p.s == nil { return nil }
+    // reach into scanner's file via helper below
+    // Fallback: use token stream won’t contain raw lines; so reparse via positions is complex.
+    // We can access the file pointer through the Scanner struct directly since we’re in the same module.
+    // Define a local type assertion to access p.s.file.
+    var content string
+    // unsafe but in-package: reference the unexported field through a helper
+    content = p.sFileContent()
+    if content == "" { return nil }
+    var out []ast.Pragma
+    line := 1
+    start := 0
+    for i := 0; i <= len(content); i++ {
+        if i == len(content) || content[i] == '\n' {
+            ln := content[start:i]
+            if len(ln) >= 8 && ln[:8] == "#pragma " {
+                out = append(out, ast.Pragma{Pos: source.Position{Line: line, Column: 1, Offset: start}, Text: ln[8:]})
+            }
+            line++
+            start = i + 1
+        }
+    }
+    return out
+}
+
+// sFileContent returns the underlying source file content for pragma scanning.
+func (p *Parser) sFileContent() string {
+    // Reach into scanner since we are within the same module.
+    type hasFile interface{ FileContent() string }
+    if p == nil || p.s == nil { return "" }
+    // Provide a tiny adapter via a method on scanner.Scanner.
+    return p.s.FileContent()
 }
 
 // (removed duplicate isTypeName; see richer implementation below)

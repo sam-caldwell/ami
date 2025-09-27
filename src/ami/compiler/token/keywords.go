@@ -32,4 +32,9 @@ var Keywords = map[string]Kind{
     "float64":  KwFloat64,
     "string":   KwStringTy,
     "rune":     KwRune,
+    // Node keywords
+    "transform": KwNodeTransform,
+    "fanout":    KwNodeFanout,
+    "collect":   KwNodeCollect,
+    "mutable":   KwNodeMutable,
 }

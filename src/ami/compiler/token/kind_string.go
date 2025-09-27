@@ -103,6 +103,14 @@ func (k Kind) String() string {
         return "KwString"
     case KwRune:
         return "KwRune"
+    case KwNodeTransform:
+        return "KwNodeTransform"
+    case KwNodeFanout:
+        return "KwNodeFanout"
+    case KwNodeCollect:
+        return "KwNodeCollect"
+    case KwNodeMutable:
+        return "KwNodeMutable"
     case LParenSym:
         return "LParen"
     case RParenSym:

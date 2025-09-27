@@ -67,6 +67,18 @@ func TestParser_Pipeline_And_ErrorBlock(t *testing.T) {
     if len(file.Decls) != 2 { t.Fatalf("want 2 decls, got %d", len(file.Decls)) }
 }
 
+func TestParser_Pragmas_Captured(t *testing.T) {
+    src := "package app\n#pragma test:case basic\n#pragma lint:disable W_IDENT_UNDERSCORE\nfunc F(){}\n"
+    f := &source.File{Name: "t.ami", Content: src}
+    p := New(f)
+    file, err := p.ParseFile()
+    if err != nil { t.Fatalf("parse: %v", err) }
+    if len(file.Pragmas) != 2 { t.Fatalf("want 2 pragmas, got %d", len(file.Pragmas)) }
+    if file.Pragmas[0].Text != "test:case basic" { t.Fatalf("p0: %+v", file.Pragmas[0]) }
+    if file.Pragmas[1].Text != "lint:disable W_IDENT_UNDERSCORE" { t.Fatalf("p1: %+v", file.Pragmas[1]) }
+    if file.Pragmas[0].Pos.Line != 2 || file.Pragmas[1].Pos.Line != 3 { t.Fatalf("pragma positions wrong: %+v", file.Pragmas) }
+}
+
 func TestParser_Tolerant_Recovery_MultipleErrors(t *testing.T) {
     // Two malformed lines: bad import path and bad func header; expect both errors collected
     src := "package app\nimport 123\nfunc ( {\n}"
@@ -112,6 +124,27 @@ func TestParser_Pipeline_Attr_DottedNames(t *testing.T) {
         }
     }
     if !found { t.Fatalf("edge.MultiPath not found") }
+}
+
+func TestParser_Pipeline_Steps_TypeAttrs_CollectEdges(t *testing.T) {
+    src := "package app\npipeline P(){ ingress; A type(\"X\"); B type(\"Y\"); A -> Collect; B -> Collect; egress }\n"
+    f := &source.File{Name: "t.ami", Content: src}
+    p := New(f)
+    file, err := p.ParseFile()
+    if err != nil { t.Fatalf("parse: %v", err) }
+    pd, ok := file.Decls[0].(*ast.PipelineDecl)
+    if !ok { t.Fatalf("decl not PipelineDecl: %T", file.Decls[0]) }
+    var aType, bType string
+    for _, s := range pd.Stmts {
+        if st, ok := s.(*ast.StepStmt); ok {
+            if st.Name == "A" || st.Name == "B" {
+                for _, at := range st.Attrs {
+                    if at.Name == "type" && len(at.Args) > 0 { if st.Name == "A" { aType = at.Args[0].Text } else { bType = at.Args[0].Text } }
+                }
+            }
+        }
+    }
+    if aType != "X" || bType != "Y" { t.Fatalf("types parsed: A=%q B=%q", aType, bType) }
 }
 
 func TestParser_Func_Assign_Binary_Defer(t *testing.T) {

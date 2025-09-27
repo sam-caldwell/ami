@@ -2,6 +2,7 @@ package main
 
 import (
     "bytes"
+    "encoding/json"
     "os"
     "path/filepath"
     "testing"

@@ -68,6 +68,11 @@ const (
     KwStringTy // 'string' (distinct from String literal token)
     KwRune
 
+    // Node keywords
+    KwNodeTransform
+    KwNodeFanout
+    KwNodeCollect
+    KwNodeMutable
 
     // Punctuation (symbols with distinct kinds)
     LParenSym   // (

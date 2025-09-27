@@ -8,6 +8,7 @@ type Expr struct {
     Result *Value   // optional result
     // Debug signature info for calls (JSON-only debug emission)
     ParamTypes  []string
+    ParamNames  []string
     ResultTypes []string
 }
 

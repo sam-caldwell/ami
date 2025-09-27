@@ -362,7 +362,7 @@ packages:
     - [ ] Detect circular references and return an error/terminate
     - [X] Lex/Tokenize/Parse: Source → tokens → AST (per .ami file)
     - [ ] Type-Checking: resolve names, perform inference/checks and const folding.
-    - [ ] If verbose is used, write AST and other required information to build/debug/ files.
+    - [X] If verbose is used, write AST and other required information to build/debug/ files.
     - [ ] Variable declarations and local bindings (to enable broader local type inference in bodies).
 - [X] Tuple/multi-value returns syntax and parsing.
 - [X] Container literal syntax for `slice<T>`, `set<T>`, and `map<K,V>` (for container inference rules):

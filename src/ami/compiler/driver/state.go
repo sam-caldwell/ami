@@ -6,4 +6,5 @@ type lowerState struct {
     varTypes map[string]string
     funcResults map[string][]string
     funcParams  map[string][]string
+    funcParamNames map[string][]string
 }

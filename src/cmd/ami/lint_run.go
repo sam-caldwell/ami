@@ -70,6 +70,7 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
             srcDiags = append(srcDiags, scanSourceGoSyntax(dir, root)...)
             srcDiags = append(srcDiags, scanSourceLangNotGo(dir, root)...)
             srcDiags = append(srcDiags, scanSourceTodos(dir, root)...)
+            srcDiags = append(srcDiags, scanSourceFormatting(dir, root)...)
             filtered := srcDiags[:0]
             for _, d := range srcDiags {
                 if d.File != "" {

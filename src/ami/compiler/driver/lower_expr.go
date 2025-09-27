@@ -91,6 +91,7 @@ func lowerCallExpr(st *lowerState, c *ast.CallExpr) ir.Expr {
     id := st.newTemp()
     rtype := "any"
     var pSig, rSig []string
+    var pNames []string
     if st != nil {
         if st.funcResults != nil {
             if rs, ok := st.funcResults[c.Name]; ok && len(rs) > 0 && rs[0] != "" { rtype = rs[0]; rSig = rs }
@@ -98,9 +99,12 @@ func lowerCallExpr(st *lowerState, c *ast.CallExpr) ir.Expr {
         if st.funcParams != nil {
             if ps, ok := st.funcParams[c.Name]; ok { pSig = ps }
         }
+        if st.funcParamNames != nil {
+            if pn, ok := st.funcParamNames[c.Name]; ok { pNames = pn }
+        }
     }
     res := &ir.Value{ID: id, Type: rtype}
-    return ir.Expr{Op: "call", Callee: c.Name, Args: args, Result: res, ParamTypes: pSig, ResultTypes: rSig}
+    return ir.Expr{Op: "call", Callee: c.Name, Args: args, Result: res, ParamTypes: pSig, ParamNames: pNames, ResultTypes: rSig}
 }
 
 func (s *lowerState) newTemp() string {

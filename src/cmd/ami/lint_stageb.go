@@ -39,6 +39,8 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
     // Walk each root, analyze every .ami file.
     for _, r := range roots {
         root := filepath.Clean(filepath.Join(dir, r))
+        // Track duplicates across files within this root
+        dupFuncs := map[string]sourceWithPos{}
         _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
             if err != nil || d.IsDir() || filepath.Ext(path) != ".ami" { return nil }
             // Read file content and create a source.File
@@ -106,6 +108,73 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                 })
             }
 
+            // Duplicate function declarations across files in this root
+            if t.StageB {
+                for _, dcl := range af.Decls {
+                    if fn, ok := dcl.(*ast.FuncDecl); ok && fn != nil {
+                        name := fn.Name
+                        if prior, seen := dupFuncs[name]; seen {
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_DUP_FUNC_DECL", Message: "duplicate function declaration: " + name, File: path, Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}, Data: map[string]any{"prevLine": prior.line, "prevColumn": prior.col}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        } else {
+                            dupFuncs[name] = sourceWithPos{line: fn.NamePos.Line, col: fn.NamePos.Column}
+                        }
+                    }
+                }
+            }
+
+            // Pipeline position hints: ingress should be first; egress should be last
+            if t.StageB {
+                for _, dcl := range af.Decls {
+                    pd, ok := dcl.(*ast.PipelineDecl); if !ok || pd == nil { continue }
+                    var stmts []ast.Stmt
+                    if len(pd.Stmts) > 0 { stmts = pd.Stmts } else if pd.Body != nil { stmts = pd.Body.Stmts }
+                    if len(stmts) == 0 { continue }
+                    firstIdx := 0
+                    lastIdx := len(stmts) - 1
+                    ingressIdx := -1
+                    egressIdx := -1
+                    var ingressPos, egressPos diag.Position
+                    for i, s := range stmts {
+                        if st, ok := s.(*ast.StepStmt); ok {
+                            lname := strings.ToLower(st.Name)
+                            if lname == "ingress" && ingressIdx < 0 { ingressIdx = i; ingressPos = diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset} }
+                            if lname == "egress" { egressIdx = i; egressPos = diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset} }
+                        }
+                    }
+                    if ingressIdx >= 0 && ingressIdx != firstIdx {
+                        d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_INGRESS_POS", Message: "'ingress' should be the first step in a pipeline", File: path, Pos: &ingressPos}
+                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                    }
+                    if egressIdx >= 0 && egressIdx != lastIdx {
+                        d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_EGRESS_POS", Message: "'egress' should be the last step in a pipeline", File: path, Pos: &egressPos}
+                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                    }
+                }
+            }
+
+            // Collections hints
+            if t.StageB {
+                walkExprs(af, func(e ast.Expr) {
+                    switch n := e.(type) {
+                    case *ast.SliceLit:
+                        if len(n.Elems) == 1 {
+                            d := diag.Record{Timestamp: now, Level: diag.Info, Code: "W_SLICE_ARITY_HINT", Message: "slice literal has a single element; verify intended arity", File: path, Pos: &diag.Position{Line: n.Pos.Line, Column: n.Pos.Column, Offset: n.Pos.Offset}, Data: map[string]any{"count": 1}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                    case *ast.SetLit:
+                        if len(n.Elems) == 0 {
+                            d := diag.Record{Timestamp: now, Level: diag.Info, Code: "W_SET_EMPTY_HINT", Message: "set literal is empty", File: path, Pos: &diag.Position{Line: n.Pos.Line, Column: n.Pos.Column, Offset: n.Pos.Offset}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                    case *ast.MapLit:
+                        if len(n.Elems) == 0 {
+                            d := diag.Record{Timestamp: now, Level: diag.Info, Code: "W_MAP_EMPTY_HINT", Message: "map literal is empty", File: path, Pos: &diag.Position{Line: n.Pos.Line, Column: n.Pos.Column, Offset: n.Pos.Offset}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                    }
+                })
+            }
             // RAII hint: release(x) should be wrapped: mutate(release(x))
             if t.StageB || t.RAIIHint {
                 wrapped := collectMutateWrappedReleases(af)

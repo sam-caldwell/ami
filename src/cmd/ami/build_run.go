@@ -219,6 +219,15 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     }
 
     if jsonOut {
+        // Collect object index paths when available (verbose compile may have produced them)
+        var objIdx []string
+        for _, e := range ws.Packages {
+            idx := filepath.Join(dir, "build", "obj", e.Package.Name, "index.json")
+            if st, err := os.Stat(idx); err == nil && !st.IsDir() {
+                rel, _ := filepath.Rel(dir, idx)
+                objIdx = append(objIdx, rel)
+            }
+        }
         // Emit a simple success summary for consistency with machine parsing.
         rec := diag.Record{
             Timestamp: time.Now().UTC(),
@@ -226,7 +235,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             Code:      "BUILD_OK",
             Message:   "workspace valid; build planning deferred",
             File:      "ami.workspace",
-            Data:      map[string]any{"targets": envs, "targetDir": absTarget},
+            Data:      map[string]any{"targets": envs, "targetDir": absTarget, "objIndex": objIdx},
         }
         return json.NewEncoder(out).Encode(rec)
     }

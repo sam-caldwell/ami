@@ -896,24 +896,24 @@ See also: `docs/merge.md` for a design summary and examples.
     - [ ] `merge.Window(size)` bounded in‑flight window.
     - [ ] `merge.Watermark(field, lateness)` (lateness in time/units as defined by docx; tolerant scaffold accepts int/str until finalized).
     - [ ] `merge.Timeout(ms)` overall wait before forcing a merge decision.
-  - [ ] `merge.Buffer(capacity[, backpressure])` with `backpressure ∈ {block, dropOldest, dropNewest}` (parser accepts both explicit policies; linter warns on legacy `drop`).
+  - [X] `merge.Buffer(capacity[, backpressure])` with `backpressure ∈ {block, dropOldest, dropNewest}` (parser accepts both explicit policies; linter warns on legacy `drop`).
     - [ ] `merge.PartitionBy(field)` partition upstreams by key before merging.
   - [ ] Diagnostics:
     - [ ] `E_MERGE_ATTR_UNKNOWN` (unknown attribute), `E_MERGE_ATTR_ARGS` (invalid arity/type),
       `E_MERGE_ATTR_REQUIRED` (missing required field), `E_MERGE_ATTR_CONFLICT` (conflicting directives), and any docx‑specific constraints.
-  - [ ] Edge policy interaction: when `merge.Buffer(..., backpressure in {dropOldest, dropNewest})` and `capacity<=1`, emit lint smell (not a hard error). Also warn when using ambiguous `drop`.
+  - [X] Edge policy interaction: when `merge.Buffer(..., backpressure in {dropOldest, dropNewest})` and `capacity<=1`, emit lint smell (not a hard error). Also warn when using ambiguous `drop`.
  - [ ] IR & Schemas
   - [X] pipelines.v1 carries MultiPath scaffold (inputs + raw merge ops).
    - [X] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
   - [X] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
 - [ ] Lint (Smells & Hints)
-- [ ] `W_MERGE_SORT_NO_FIELD` (Sort without a field), `W_MERGE_TINY_BUFFER` (Buffer capacity<=1 with `dropOldest`/`dropNewest`), `W_MERGE_WATERMARK_MISSING_FIELD`, `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`.
+- [X] `W_MERGE_SORT_NO_FIELD` (Sort without a field), `W_MERGE_TINY_BUFFER` (Buffer capacity<=1 with `dropOldest`/`dropNewest`), `W_MERGE_WATERMARK_MISSING_FIELD`, `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`.
   - [X] Ensure rules are suppressible via pragmas and configurable via workspace severities.
 - [ ] Tests
   - [X] Parser: accept and round‑trip `edge.MultiPath(...)` with `merge.*` attributes.
   - [ ] Semantics: context enforcement (Collect‑only), per‑attribute arity/type validation, conflicts, and required fields.
   - [ ] IR: golden JSON snapshots verifying normalized merge config.
-- [ ] Lint: smells/hints coverage for tiny buffer with `dropOldest`/`dropNewest`, invalid windows, missing fields.
+- [X] Lint: smells/hints coverage for tiny buffer with `dropOldest`/`dropNewest`, invalid windows, missing fields.
   - [ ] Determinism: verify `merge.Sort` + `merge.Stable` yields stable order across runs with identical inputs (scaffold level).
 - [ ] Documentation
   - [X] `docs/merge.md`: detailed attribute semantics, precedence/resolution rules, examples.

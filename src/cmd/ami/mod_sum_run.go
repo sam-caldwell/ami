@@ -101,8 +101,8 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
                     missing = append(missing, key(p.Name, p.Version))
                     continue
                 }
-                // After fetching, compute hash and update ami.sum entry if needed
-                got, herr := hashDir(cp)
+                // After fetching, compute commit digest and update ami.sum entry if needed
+                got, herr := computeCommitDigest(cp, p.Version)
                 if herr != nil {
                     mismatched = append(mismatched, key(p.Name, p.Version))
                     continue

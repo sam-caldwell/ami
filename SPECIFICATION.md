@@ -1193,10 +1193,10 @@ Types & Semantics (incremental)
 
 Type System and Semantics (Phase 2.1)
 
-- [ ] Types: add composite types and mapping from AST
-  - [ ] `types.Pointer`, `types.Slice`, `types.Map`, `types.Set`, `types.SliceTy`
-  - [ ] Mapper `types.FromAST(ast.TypeRef) Type` handles generics (`Event<T>`, `Error<E>`, `Owned<T>`, `map<K,V>`, `set<T>`, `slice<T>`) and pointer/slice forms (`*T`, `[]T`)
-  - [ ] Function signatures: `types.Function{Params, Results}` with string rendering; tests added
+- [C] Types: add composite types and mapping from AST
+  - [C] `types.Pointer`, `types.Slice`, `types.Map`, `types.Set`, `types.SliceTy`
+  - [C] Mapper `types.FromAST(ast.TypeRef) Type` handles generics (`Event<T>`, `Error<E>`, `Owned<T>`, `map<K,V>`, `set<T>`, `slice<T>`) and pointer/slice forms (`*T`, `[]T`)
+  - [C] Function signatures: `types.Function{Params, Results}` with string rendering; tests added
 - [ ] Semantics: function type inference and import symbol scope
   - [ ] Build `types.Function` from `FuncDecl` params/results and insert into top scope as `ObjFunc`
   - [ ] Insert imported package symbols into scope (alias or last path segment) as `ObjType` of `types.TPackage`

@@ -161,8 +161,9 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 if as, err := writeAsmDebug(p.Name, unit, af, m); err == nil { bmu.ASM = as }
                 bmp.Units = append(bmp.Units, bmu)
             }
-            // emit object stub in all modes
+            // emit object stub and per-unit asm under build/obj in all modes
             _, _ = writeObjectStub(p.Name, unit, m)
+            _, _ = writeAsmObject(p.Name, unit, m)
         }
         if opts.Debug && (len(pkgEdges) > 0 || len(pkgCollects) > 0) {
             if ei, err := writeEdgesIndex(p.Name, pkgEdges, pkgCollects); err == nil {

@@ -116,7 +116,48 @@ func TestA(t *testing.T){ }
     if err := c.Execute(); err != nil { t.Fatalf("execute: %v", err) }
     // JSON summary present
     if !strings.Contains(out.String(), `"ok":`) { t.Fatalf("missing JSON summary: %s", out.String()) }
-    // Artifacts present
-    if _, err := os.Stat(filepath.Join(dir, "build", "test", "test.log")); err != nil { t.Fatalf("test.log missing: %v", err) }
-    if _, err := os.Stat(filepath.Join(dir, "build", "test", "test.manifest")); err != nil { t.Fatalf("test.manifest missing: %v", err) }
+    // Artifacts present (check relative to cwd, which is already dir)
+    if _, err := os.Stat(filepath.Join("build", "test", "test.log")); err != nil { t.Fatalf("test.log missing: %v", err) }
+    if _, err := os.Stat(filepath.Join("build", "test", "test.manifest")); err != nil { t.Fatalf("test.manifest missing: %v", err) }
+}
+
+// CLI: ensure --packages flag is accepted and run succeeds.
+func TestNewTestCmd_CLI_PackagesFlag(t *testing.T) {
+    dir := filepath.Join("build", "test", "cli_test_cmd_pkgs")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    testSrc := `package tmp
+import "testing"
+func TestA(t *testing.T){ }
+`
+    if err := os.WriteFile(filepath.Join(dir, "tmp_test.go"), []byte(testSrc), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    cwd, _ := os.Getwd()
+    defer os.Chdir(cwd)
+    _ = os.Chdir(dir)
+    c := newTestCmd()
+    var out bytes.Buffer
+    c.SetOut(&out)
+    c.SetArgs([]string{"--json", "--packages", "2"})
+    if err := c.Execute(); err != nil { t.Fatalf("execute: %v", err) }
+    if !strings.Contains(out.String(), `"ok":`) { t.Fatalf("missing JSON summary: %s", out.String()) }
+}
+
+// JSON stream includes final ami_tests and ami_failures fields.
+func TestRunTest_JSON_IncludesAmiSummaryFields(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "json_ami_fields")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    // One AMI directive test case that passes
+    src := "package app\n#pragma test:case c1\n#pragma test:assert parse_ok\nfunc F(){}\n"
+    if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    var buf bytes.Buffer
+    if err := runTest(&buf, dir, true, false, 0); err != nil { t.Fatalf("runTest: %v", err) }
+    lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+    last := lines[len(lines)-1]
+    s := string(last)
+    if !strings.Contains(s, `"ami_tests":`) || !strings.Contains(s, `"ami_failures":`) {
+        t.Fatalf("missing ami summary fields: %s", s)
+    }
 }

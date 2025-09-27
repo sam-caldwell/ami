@@ -375,7 +375,10 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             }
             return nil
         })
-        if len(bins) > 0 { outObj["binaries"] = bins }
+        if len(bins) > 0 {
+            sort.Strings(bins)
+            outObj["binaries"] = bins
+        }
         if verbose {
             // collect debug artifact references for cross-linking
             var debugRefs []string
@@ -399,7 +402,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 idx := filepath.Join(dir, "build", "debug", "asm", e.Package.Name, "edges.json")
                 if st, err := os.Stat(idx); err == nil && !st.IsDir() { if rel, err := filepath.Rel(dir, idx); err == nil { debugRefs = append(debugRefs, rel) } }
             }
-            if len(debugRefs) > 0 { outObj["debug"] = debugRefs }
+            if len(debugRefs) > 0 { sort.Strings(debugRefs); outObj["debug"] = debugRefs }
         }
         f, err := os.OpenFile(filepath.Join(buildDir, "ami.manifest"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
         if err == nil {

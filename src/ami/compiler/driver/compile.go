@@ -159,10 +159,10 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 if pp, err := writePipelinesDebug(p.Name, unit, af); err == nil { bmu.Pipelines = pp }
                 if em, err := writeEventMetaDebug(p.Name, unit); err == nil { bmu.EventMeta = em }
                 if as, err := writeAsmDebug(p.Name, unit, af, m); err == nil { bmu.ASM = as }
-                // emit object stub regardless of ASM, to scaffold codegen outputs
-                _, _ = writeObjectStub(p.Name, unit, m)
                 bmp.Units = append(bmp.Units, bmu)
             }
+            // emit object stub in all modes
+            _, _ = writeObjectStub(p.Name, unit, m)
         }
         if opts.Debug && (len(pkgEdges) > 0 || len(pkgCollects) > 0) {
             if ei, err := writeEdgesIndex(p.Name, pkgEdges, pkgCollects); err == nil {
@@ -172,11 +172,9 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].AsmIndex = ai } }
             }
         }
-        if opts.Debug {
-            // Build object index for package under build/obj/<pkg>
-            objDir := filepath.Join("build", "obj", p.Name)
-            if idx, err := codegen.BuildObjIndex(p.Name, objDir); err == nil { _ = codegen.WriteObjIndex(idx) }
-        }
+        // Build object index for package under build/obj/<pkg> (always)
+        objDir := filepath.Join("build", "obj", p.Name)
+        if idx, err := codegen.BuildObjIndex(p.Name, objDir); err == nil { _ = codegen.WriteObjIndex(idx) }
         if opts.Debug { manifestPkgs = append(manifestPkgs, bmPkgs...) }
     }
     if opts.Debug && len(manifestPkgs) > 0 {

@@ -1151,7 +1151,7 @@ Types & Semantics (incremental)
 - [ ] Function signatures: `types.Function{Params, Results}` built from `FuncDecl` for scope/type introspection.
 - [ ] Import symbol scope: insert alias or last path segment into top‑level scope (kind `ObjType`, type `package`).
 - [ ] Tests: verify type mapping and inferred function signatures; scope contains imported package symbol.
-- [ ] Owned<T>: added to the type mapper; string rendering `Owned<…>`.
+- [X] Owned<T>: added to the type mapper; string rendering `Owned<…>`.
 - [ ] RAII + Defer: semantic analyzer recognizes `defer`-scheduled releases/transfers and counts them toward required Owned<T> cleanup at function end; flags double-release when mixed with immediate release.
 - [ ] Worker resolution across imports: dotted references like `pkg.Func()` accepted when `pkg` is imported; undefined worker diagnostics suppressed in that case (signature validation across packages deferred).
 - [ ] Type inference/unification across expressions and generic instantiation inside bodies (future)
@@ -1194,10 +1194,10 @@ Types & Semantics (incremental)
 
 Type System and Semantics (Phase 2.1)
 
-- [C] Types: add composite types and mapping from AST
-  - [C] `types.Pointer`, `types.Slice`, `types.Map`, `types.Set`, `types.SliceTy`
-  - [C] Mapper `types.FromAST(ast.TypeRef) Type` handles generics (`Event<T>`, `Error<E>`, `Owned<T>`, `map<K,V>`, `set<T>`, `slice<T>`) and pointer/slice forms (`*T`, `[]T`)
-  - [C] Function signatures: `types.Function{Params, Results}` with string rendering; tests added
+- [X] Types: add composite types and mapping from AST
+  - [X] `types.Pointer`, `types.Slice`, `types.Map`, `types.Set`, `types.SliceTy`
+  - [X] Mapper `types.FromAST(ast.TypeRef) Type` handles generics (`Event<T>`, `Error<E>`, `Owned<T>`, `map<K,V>`, `set<T>`, `slice<T>`) and pointer/slice forms (`*T`, `[]T`)
+  - [X] Function signatures: `types.Function{Params, Results}` with string rendering; tests added
 - [ ] Semantics: function type inference and import symbol scope
   - [ ] Build `types.Function` from `FuncDecl` params/results and insert into top scope as `ObjFunc`
   - [ ] Insert imported package symbols into scope (alias or last path segment) as `ObjType` of `types.TPackage`

@@ -31,12 +31,12 @@ func TestScanner_CommentsAndSymbols(t *testing.T) {
     // Expect line comment first
     t1 := s.Next()
     if t1.Kind != token.LineComment || t1.Lexeme == "" { t.Fatalf("want line comment, got %+v", t1) }
-    // block comment next
-    tbc := s.Next()
-    if tbc.Kind != token.BlockComment || tbc.Lexeme == "" { t.Fatalf("want block comment, got %+v", tbc) }
     // then LParen symbol
     t1 = s.Next()
     if t1.Kind != token.LParenSym || t1.Lexeme != token.LParen { t.Fatalf("want LParen sym, got %+v", t1) }
+    // block comment next (inside parens)
+    tbc := s.Next()
+    if tbc.Kind != token.BlockComment || tbc.Lexeme == "" { t.Fatalf("want block comment, got %+v", tbc) }
     // RParen
     t2 := s.Next()
     if t2.Kind != token.RParenSym || t2.Lexeme != token.RParen { t.Fatalf("want RParen sym, got %+v", t2) }

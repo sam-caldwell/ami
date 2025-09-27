@@ -61,6 +61,11 @@ func lintWorkspace(dir string, ws *workspace.Workspace) []diag.Record {
             abs := filepath.Clean(filepath.Join(dir, path))
             if _, err := os.Stat(abs); err != nil {
                 diags = append(diags, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_IMPORT_LOCAL_MISSING", Message: "local import path not found: " + entry, File: "ami.workspace"})
+            } else {
+                // Path exists; ensure it is declared as a package in workspace
+                if findPackageByRoot(ws, path) == nil {
+                    diags = append(diags, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_IMPORT_LOCAL_UNDECLARED", Message: "local import not declared as package: " + entry, File: "ami.workspace"})
+                }
             }
         }
     }

@@ -6,7 +6,7 @@ import "github.com/sam-caldwell/ami/src/ami/compiler/source"
 type BlockStmt struct {
     LBrace source.Position
     RBrace source.Position
+    Stmts  []Stmt
 }
 
 func (*BlockStmt) isNode() {}
-

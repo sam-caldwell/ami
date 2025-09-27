@@ -262,7 +262,7 @@ packages:
 ### 1.1.5.0. Package Fetch (`ami mod get <url>`)
 - [x] `ami mod get <url>`: fetch a package into `${HOME}/.ami/pkg/<name>/<version>`
 - [ ] Supported sources (initial):
-    - [ ] `git+ssh://host/path#<semver-tag>` (key‑based authentication only; no interactive prompts).
+    - [B] `git+ssh://host/path#<semver-tag>` (key‑based authentication only; no interactive prompts).
       - Example: `git+ssh://git@github.com/org/repo.git#v1.2.3`
     - [x] Local path: `./subproject` (must be within workspace and declared in `ami.workspace`).
 - [x] Sources are modular to allow later HTTPS implementation (internal runner separated by source type).
@@ -275,7 +275,7 @@ packages:
 - [ ] Command uses the core compiler (citation needed) to lint the AMI source grammar
 - [x] Define lint entry points for AMI language sources (`.ami`) in workspace packages (Stage A scaffold)
     - [x] linter starts in 'main' package root (scaffold)
-    - [B] linter processes imports in linear, recursive order (top-down, child first)
+    - [X] linter processes imports in linear, recursive order (top-down, child first)
 - [ ] Implement basic rules aligned to language spec
     - naming,
         - [x] baseline: package name style (no snake_case)
@@ -312,10 +312,10 @@ packages:
     - [x] Inline suppression: `#pragma lint:disable RULE[,RULE2]` and `#pragma lint:enable RULE` (file‑wide scope, scaffold applied to source diags)
     - [ ] File/package suppression via config; per‑directory overrides allowed
     - [ ] Strict mode preset: elevate warnings to errors (`--strict` or workspace config)
-- [ ] Lint: include line/column positions in diagnostics where available
-    - [ ] Attach source file + `{line,column,offset}` to lint `diag.v1` records (when resolvable)
-    - [ ] Fall back to file‑only when exact positions are unavailable
-    - [ ] Tests validate position presence and formatting
+    - [A] Lint: include line/column positions in diagnostics where available
+        - [X] Attach source file + `{line,column,offset}` to lint `diag.v1` records (when resolvable)
+        - [X] Fall back to file‑only when exact positions are unavailable
+        - [X] Tests validate position presence and formatting
 - [ ] Lint: cross‑package import/constraint consistency checks (strict mode)
     - [ ] Validate imports across packages match `ami.workspace` version constraints (E_IMPORT_CONSTRAINT)
     - [ ] Detect forbidden prerelease imports when constraints omit prereleases
@@ -480,12 +480,12 @@ packages:
 - No pending items for scanner; core features implemented and tested. Follow-up may refine diagnostics integration once the diag package lands.
   - [ ] Tests: cache clean/recreate, get/list/update happy/sad paths, integrity failure, offline behavior
 #### 1.1.1.3. Dependency Summary File: `ami.sum` (JSON)
-- [ ] Create the `workspace.Manifest` struct to represent `ami.sum` (JSON) in memory (`src/workspace/manifest.go`)
-- [ ] `workspace.Manifest` has a `Load(path string)` method to deserialize the file `ami.sum`.
-- [ ] `workspace.Manifest` has a `Save(path string)` method to serialize and write `ami.sum`.
-- [ ] `workspace.Manifest` has a `Validate()` method to verify `ami.sum` packages against AMI_PACKAGE_CACHE.
-- [ ] the file maps packages and their semver tags to the git commit hash (sha-256)
-- [ ] Format (canonical JSON, UTF‑8, LF newlines, stable key order on write):
+- [X] Create the `workspace.Manifest` struct to represent `ami.sum` (JSON) in memory (`src/workspace/manifest.go`)
+- [X] `workspace.Manifest` has a `Load(path string)` method to deserialize the file `ami.sum`.
+- [X] `workspace.Manifest` has a `Save(path string)` method to serialize and write `ami.sum`.
+- [X] `workspace.Manifest` has a `Validate()` method to verify `ami.sum` packages against AMI_PACKAGE_CACHE.
+- [X] the file maps packages and their semver tags to the git commit hash (sha-256)
+- [X] Format (canonical JSON, UTF‑8, LF newlines, stable key order on write):
   - Object form, nested by package then version:
     {
       "schema": "ami.sum/v1",
@@ -1146,7 +1146,7 @@ Type System and Semantics (Phase 2.1)
   - [ ] Local variable inference from initializer expressions; locals participate in call-arg checks.
   - [ ] Broader local expression inference (idents across scopes), return-site inference without annotations, and container propagation.
 - [ ] Semantics: cross‑package name resolution (multi‑file), constant evaluation, additional validation rules
-- [ ] IR: lower imperative subset and full pipeline semantics with typed annotations
+- [X] IR: lower imperative subset and full pipeline semantics with typed annotations
 - [ ] Codegen: emit real object files (beyond debug ASM) and integrate into build plan
 
 
@@ -1160,7 +1160,7 @@ Type System and Semantics (Phase 2.1)
 #### 8.2) Non‑Debug Build Artifacts
 
 - [ ] Emit per‑unit assembly under `build/obj/<package>/<unit>.s` for normal builds (no `--verbose`).
-- [ ] Per‑package index `build/obj/<package>/index.json` (`objindex.v1`) lists `{ unit, path, size, sha256 }`.
+- [X] Per‑package index `build/obj/<package>/index.json` (`objindex.v1`) lists `{ unit, path, size, sha256 }`.
 - [ ] Determinism: indexes and obj asm are stable across runs; tests cover single and multi‑package scenarios (timestamp normalized in tests).
 - [ ] `ami.manifest` includes these entries as `kind:"obj"` when present.
 

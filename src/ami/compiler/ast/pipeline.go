@@ -6,9 +6,13 @@ import "github.com/sam-caldwell/ami/src/ami/compiler/source"
 type PipelineDecl struct {
     Pos  source.Position
     Name string
+    NamePos source.Position
     Body *BlockStmt
     Error *ErrorBlock
     Leading []Comment
+    Stmts  []Stmt
+    LParen source.Position
+    RParen source.Position
 }
 
 func (*PipelineDecl) isNode() {}

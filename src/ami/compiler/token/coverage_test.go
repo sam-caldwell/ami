@@ -46,6 +46,8 @@ func TestKind_String_AllCases(t *testing.T) {
         SemiSym:    "Semi",
         DotSym:     "Dot",
         ColonSym:   "Colon",
+        LineComment:"LineComment",
+        BlockComment:"BlockComment",
     }
     for k, want := range cases {
         if got := k.String(); got != want {

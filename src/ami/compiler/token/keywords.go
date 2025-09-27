@@ -6,10 +6,11 @@ var Keywords = map[string]Kind{
     "import":   KwImport,
     "func":     KwFunc,
     "return":   KwReturn,
+    "var":      KwVar,
+    "defer":    KwDefer,
     // AMI domain-reserved (pipeline semantics)
     "pipeline": KwPipeline,
     "ingress":  KwIngress,
     "egress":   KwEgress,
     "error":    KwError,
 }
-

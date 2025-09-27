@@ -47,3 +47,26 @@ func TestModGet_GitFileScheme_TagsAndCopies(t *testing.T) {
     if _, err := os.Stat(filepath.Join(cache, "repo", "v1.2.3", "x.txt")); err != nil { t.Fatalf("cached file missing: %v", err) }
     if _, err := os.Stat(filepath.Join(wsdir, "ami.sum")); err != nil { t.Fatalf("ami.sum missing: %v", err) }
 }
+
+func TestModGet_GitSSH_MissingTag_Errors(t *testing.T) {
+    // No actual network call should occur because missing tag is validated early.
+    wsdir := filepath.Join("build", "test", "mod_get_git", "ssh_missing_tag")
+    if err := os.MkdirAll(wsdir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(wsdir, "ami.workspace"), []byte("version: 1.0.0\npackages: []\n"), 0o644); err != nil { t.Fatalf("write ws: %v", err) }
+    var buf bytes.Buffer
+    src := "git+ssh://git@github.com/org/repo.git" // no #tag
+    if err := runModGet(&buf, wsdir, src, true); err == nil {
+        t.Fatalf("expected error for missing tag")
+    }
+}
+
+func TestModGet_FileGit_RequiresAbsolutePath(t *testing.T) {
+    wsdir := filepath.Join("build", "test", "mod_get_git", "file_rel")
+    if err := os.MkdirAll(wsdir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(wsdir, "ami.workspace"), []byte("version: 1.0.0\npackages: []\n"), 0o644); err != nil { t.Fatalf("write ws: %v", err) }
+    var buf bytes.Buffer
+    src := "file+git://relative/path#v1.0.0" // relative path is invalid
+    if err := runModGet(&buf, wsdir, src, true); err == nil {
+        t.Fatalf("expected error for relative file+git path")
+    }
+}

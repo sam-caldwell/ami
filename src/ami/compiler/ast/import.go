@@ -8,6 +8,7 @@ type ImportDecl struct {
     Pos  source.Position
     Path string
     Leading []Comment
+    PathPos source.Position
 }
 
 func (*ImportDecl) isNode() {}

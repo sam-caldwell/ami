@@ -42,6 +42,8 @@ const (
     KwImport
     KwFunc
     KwReturn
+    KwVar
+    KwDefer
     KwPipeline
     KwIngress
     KwEgress

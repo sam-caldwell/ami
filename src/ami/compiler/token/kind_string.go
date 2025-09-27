@@ -55,6 +55,10 @@ func (k Kind) String() string {
         return "KwFunc"
     case KwReturn:
         return "KwReturn"
+    case KwVar:
+        return "KwVar"
+    case KwDefer:
+        return "KwDefer"
     case KwPipeline:
         return "KwPipeline"
     case KwIngress:

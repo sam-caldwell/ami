@@ -23,6 +23,15 @@ func EncodeModule(m Module) ([]byte, error) {
             "results": valuesToJSON(f.Results),
             "blocks":  []any{},
         }
+        if len(f.Decorators) > 0 {
+            decs := make([]any, 0, len(f.Decorators))
+            for _, d := range f.Decorators {
+                obj := map[string]any{"name": d.Name}
+                if len(d.Args) > 0 { obj["args"] = d.Args }
+                decs = append(decs, obj)
+            }
+            jf["decorators"] = decs
+        }
         bl := make([]any, 0, len(f.Blocks))
         for _, b := range f.Blocks {
             jb := map[string]any{

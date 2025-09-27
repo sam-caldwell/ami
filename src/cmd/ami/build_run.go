@@ -265,6 +265,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             Targets   []string  `json:"targets"`
             Packages  []planPkg `json:"packages"`
             ObjIndex  []string  `json:"objIndex,omitempty"`
+            Objects   []string  `json:"objects,omitempty"`
         }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
         for _, e := range ws.Packages {
             plan.Packages = append(plan.Packages, planPkg{Key: e.Key, Name: e.Package.Name, Version: e.Package.Version, Root: e.Package.Root})
@@ -273,6 +274,11 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             if st, err := os.Stat(idx); err == nil && !st.IsDir() {
                 rel, _ := filepath.Rel(dir, idx)
                 plan.ObjIndex = append(plan.ObjIndex, rel)
+            }
+            // Include .o object files when present
+            glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
+            if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { plan.Objects = append(plan.Objects, rel) } }
             }
         }
         if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
@@ -361,6 +367,15 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             "toolchain": map[string]any{"targetDir": absTarget, "targets": envs},
             "objIndex":  objIdx,
         }
+        // Include objects when present for visibility
+        var objects []string
+        for _, e := range ws.Packages {
+            glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
+            if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { objects = append(objects, rel) } }
+            }
+        }
+        if len(objects) > 0 { sort.Strings(objects); outObj["objects"] = objects }
         // integrity evidence from ami.sum vs cache
         if len(sum.Packages) > 0 {
             if v, m, mm, err := sum.Validate(); err == nil {

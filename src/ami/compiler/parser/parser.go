@@ -350,6 +350,16 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                 tname = p.cur.Lexeme
                 tpos = p.cur.Pos
                 p.next()
+                // consume optional generic type parameters like '<T[,U]>' in var type position
+                if p.cur.Kind == token.Lt {
+                    depth := 1
+                    // advance into '<'
+                    p.next()
+                    for depth > 0 && p.cur.Kind != token.EOF {
+                        if p.cur.Kind == token.Lt { depth++ } else if p.cur.Kind == token.Gt { depth-- }
+                        p.next()
+                    }
+                }
             }
             var init ast.Expr
             if p.cur.Kind == token.Assign { p.next(); e, ok := p.parseExpr(); if ok { init = e } }

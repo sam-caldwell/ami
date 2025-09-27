@@ -83,8 +83,8 @@
     - [X] `ami test` implemented:
       - [X] Go test wrapper that collects `_test.go`, streams `go test -json` events, prints human "test: OK" on success, and emits a final JSON summary in `--json` mode.
       - [X] `--verbose` writes `build/test/test.log` and `build/test/test.manifest` with `<package> <test>` entries in run order.
-      - [ ] Native AMI directive‑based assertions (parser/sem) integrated into harness.
-      - [ ] Package‑level concurrency flag and explicit per‑package summaries in human mode.
+      - [X] Native AMI directive‑based assertions (parser/sem) integrated into harness: support `#pragma test:case <name>` and `#pragma test:assert parse_ok|parse_fail` with manifest entries and failures affecting exit code.
+      - [X] Package‑level concurrency flag (`--packages`) and explicit per‑package summaries in human mode.
       - Notes: runtime execution of AMI code deferred; current scope wraps Go tests per roadmap M12.
     - [ ] `ami build` is completely implemented with >=80% test coverage and all tests passing.
   - [ ] Deterministic behaviors (no prompts, stable outputs)

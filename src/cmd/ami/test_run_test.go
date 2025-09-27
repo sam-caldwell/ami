@@ -111,6 +111,7 @@ func TestRunTest_AMIDirectives_ParseOK_And_Manifest(t *testing.T) {
     dir := filepath.Join("build", "test", "ami_testcmd", "ami_ok")
     _ = os.RemoveAll(dir)
     if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
     // AMI file with parse-ok
     src := "package app\n#pragma test:case parseok\n#pragma test:assert parse_ok\nfunc F(){}\n"
     if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
@@ -127,6 +128,7 @@ func TestRunTest_AMIDirectives_ParseFail_TriggersError(t *testing.T) {
     dir := filepath.Join("build", "test", "ami_testcmd", "ami_fail")
     _ = os.RemoveAll(dir)
     if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
     // AMI with expected parse_fail but actually ok -> should error
     src := "package app\n#pragma test:case bad\n#pragma test:assert parse_fail\nfunc F(){}\n"
     if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }

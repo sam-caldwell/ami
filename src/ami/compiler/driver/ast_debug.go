@@ -137,6 +137,11 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
     }
     // Deterministic ordering
     sort.SliceStable(u.Imports, func(i, j int) bool { return u.Imports[i].Path < u.Imports[j].Path })
+    sort.SliceStable(u.Pragmas, func(i, j int) bool {
+        if u.Pragmas[i].Pos == nil || u.Pragmas[j].Pos == nil { return i < j }
+        if u.Pragmas[i].Pos.Line == u.Pragmas[j].Pos.Line { return u.Pragmas[i].Pos.Column < u.Pragmas[j].Pos.Column }
+        return u.Pragmas[i].Pos.Line < u.Pragmas[j].Pos.Line
+    })
     sort.SliceStable(u.Funcs, func(i, j int) bool { return u.Funcs[i].Name < u.Funcs[j].Name })
     sort.SliceStable(u.Pipelines, func(i, j int) bool { return u.Pipelines[i].Name < u.Pipelines[j].Name })
     dir := filepath.Join("build", "debug", "ast", pkg)

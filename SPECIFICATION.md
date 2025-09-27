@@ -397,7 +397,7 @@ packages:
     - [ ] capability (I/O) violations (nodes exceeding permissions)
     - [X] Lower a minimal imperative subset with typed annotations into IR for debug (scaffold ops: VAR, ASSIGN, 
           RETURN, DEFER, EXPR).
-    - [ ] Enrich typed IR lowering: add SSA‑like temporaries and typed results; lower function calls 
+    - [X] Enrich typed IR lowering: add SSA‑like temporaries and typed results; lower function calls 
           (callee + arg types) and container literals explicitly.
     - [ ] Emit real object files (beyond debug ASM) and integrate into build plan.
 #### 1.1.9.3. Code generation / Linking:
@@ -500,7 +500,7 @@ packages:
       ```
 - JSON (`--json`)
     - Schema `graph.v1` (stable ordering): `{ package, unit, name, nodes:[{id, kind, label}], edges:[{from, to, attrs}] }`.
-    - Final summary record `{ schema:"graph.v1", type:"summary", pipelines:<n> }` may be added (TBD).
+    - [X] Final summary record `{ schema:"graph.v1", type:"summary", pipelines:<n> }` emitted after graphs.
 - Inputs
     - Source discovery aligns with build/lint: start at `packages.main.root` and include direct imports (workspace‑local only for initial phase).
     - Parser/AST extraction provided by compiler front‑end (Agent D). This command consumes the tolerant shape (no semantics beyond graph extraction).

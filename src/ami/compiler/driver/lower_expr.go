@@ -42,6 +42,40 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
         if lx.Result != nil { args = append(args, *lx.Result) }
         if ly.Result != nil { args = append(args, *ly.Result) }
         return ir.Expr{Op: opName(v.Op), Args: args, Result: res}, true
+    case *ast.SliceLit:
+        // Lower as a typed container literal with flattened element args.
+        id := st.newTemp()
+        typ := "slice<" + v.TypeName + ">"
+        var args []ir.Value
+        for _, el := range v.Elems {
+            if ex, ok := lowerExpr(st, el); ok && ex.Result != nil {
+                args = append(args, *ex.Result)
+            }
+        }
+        res := &ir.Value{ID: id, Type: typ}
+        return ir.Expr{Op: "slice.lit", Args: args, Result: res}, true
+    case *ast.SetLit:
+        id := st.newTemp()
+        typ := "set<" + v.TypeName + ">"
+        var args []ir.Value
+        for _, el := range v.Elems {
+            if ex, ok := lowerExpr(st, el); ok && ex.Result != nil {
+                args = append(args, *ex.Result)
+            }
+        }
+        res := &ir.Value{ID: id, Type: typ}
+        return ir.Expr{Op: "set.lit", Args: args, Result: res}, true
+    case *ast.MapLit:
+        id := st.newTemp()
+        typ := "map<" + v.KeyType + "," + v.ValType + ">"
+        var args []ir.Value
+        // Flatten key/value pairs: [k1, v1, k2, v2, ...]
+        for _, kv := range v.Elems {
+            if kx, ok := lowerExpr(st, kv.Key); ok && kx.Result != nil { args = append(args, *kx.Result) }
+            if vx, ok := lowerExpr(st, kv.Val); ok && vx.Result != nil { args = append(args, *vx.Result) }
+        }
+        res := &ir.Value{ID: id, Type: typ}
+        return ir.Expr{Op: "map.lit", Args: args, Result: res}, true
     default:
         return ir.Expr{}, false
     }

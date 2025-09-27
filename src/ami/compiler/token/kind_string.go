@@ -67,6 +67,42 @@ func (k Kind) String() string {
         return "KwEgress"
     case KwError:
         return "KwError"
+    case KwBool:
+        return "KwBool"
+    case KwByte:
+        return "KwByte"
+    case KwInt:
+        return "KwInt"
+    case KwInt8:
+        return "KwInt8"
+    case KwInt16:
+        return "KwInt16"
+    case KwInt32:
+        return "KwInt32"
+    case KwInt64:
+        return "KwInt64"
+    case KwInt128:
+        return "KwInt128"
+    case KwUint:
+        return "KwUint"
+    case KwUint8:
+        return "KwUint8"
+    case KwUint16:
+        return "KwUint16"
+    case KwUint32:
+        return "KwUint32"
+    case KwUint64:
+        return "KwUint64"
+    case KwUint128:
+        return "KwUint128"
+    case KwFloat32:
+        return "KwFloat32"
+    case KwFloat64:
+        return "KwFloat64"
+    case KwStringTy:
+        return "KwString"
+    case KwRune:
+        return "KwRune"
     case LParenSym:
         return "LParen"
     case RParenSym:
@@ -87,6 +123,28 @@ func (k Kind) String() string {
         return "Dot"
     case ColonSym:
         return "Colon"
+    case PipeSym:
+        return "Pipe"
+    case BackslashSym:
+        return "Backslash"
+    case DollarSym:
+        return "Dollar"
+    case TickSym:
+        return "Tick"
+    case TildeSym:
+        return "Tilde"
+    case QuestionSym:
+        return "Question"
+    case AtSym:
+        return "At"
+    case PoundSym:
+        return "Pound"
+    case CaretSym:
+        return "Caret"
+    case SingleQuoteSym:
+        return "SingleQuote"
+    case DoubleQuoteSym:
+        return "DoubleQuote"
     case LineComment:
         return "LineComment"
     case BlockComment:

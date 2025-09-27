@@ -26,7 +26,7 @@ func TestScanner_NilOrEmpty(t *testing.T) {
 
 func TestScanner_CommentsAndSymbols(t *testing.T) {
     src := `// line comment
-(/* block */) ,;`
+(/* block */) ,;|#`
     s := New(&source.File{Name: "t.ami", Content: src})
     // Expect line comment first
     t1 := s.Next()
@@ -46,6 +46,10 @@ func TestScanner_CommentsAndSymbols(t *testing.T) {
     // semi
     t4 := s.Next()
     if t4.Kind != token.SemiSym || t4.Lexeme != token.Semi { t.Fatalf("want semicolon sym, got %+v", t4) }
+    // pipe
+    if tok := s.Next(); tok.Kind != token.PipeSym || tok.Lexeme != token.Pipe { t.Fatalf("want pipe sym, got %+v", tok) }
+    // pound
+    if tok := s.Next(); tok.Kind != token.PoundSym || tok.Lexeme != "#" { t.Fatalf("want pound sym, got %+v", tok) }
     // EOF
     if tok := s.Next(); tok.Kind != token.EOF { t.Fatalf("expected EOF, got %+v", tok) }
 }

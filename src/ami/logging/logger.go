@@ -25,12 +25,9 @@ func New(opts Options) (*Logger, error) {
     l := &Logger{}
     l.pkg = opts.Package
 
-    // choose formatter
-    if opts.JSON {
-        l.formatter = JSONFormatter{}
-    } else {
-        l.formatter = HumanFormatter{Verbose: opts.Verbose, Color: opts.Color}
-    }
+    // choose formatter: JSON always (even when --json is not used)
+    // HumanFormatter remains available for non-logger human outputs, but logger emits JSON.
+    l.formatter = JSONFormatter{}
 
     // primary writer
     if opts.Out != nil {

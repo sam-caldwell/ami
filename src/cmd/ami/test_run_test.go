@@ -59,8 +59,37 @@ func TestA(t *testing.T){ }
     if err := os.WriteFile(filepath.Join(dir, "tmp_test.go"), []byte(testSrc), 0o644); err != nil { t.Fatalf("write: %v", err) }
     var buf bytes.Buffer
     if err := runTest(&buf, dir, true, false); err != nil { t.Fatalf("runTest: %v", err) }
-    if !strings.Contains(buf.String(), `{"ok":true}`) {
-        t.Fatalf("expected JSON ok:true, got: %s", buf.String())
+    // Summary should be last line
+    lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+    var last map[string]any
+    if err := json.Unmarshal(lines[len(lines)-1], &last); err != nil { t.Fatalf("json: %v; %s", err, buf.String()) }
+    if ok, _ := last["ok"].(bool); !ok { t.Fatalf("ok=false in summary: %v", last) }
+    // Single module/single test
+    if int(last["packages"].(float64)) != 1 || int(last["tests"].(float64)) != 1 || int(last["failures"].(float64)) != 0 {
+        t.Fatalf("unexpected counts: %v", last)
+    }
+}
+
+func TestRunTest_JSON_StreamsEventsAndSummary(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "json_stream")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    testSrc := `package tmp
+import "testing"
+func TestA(t *testing.T){ }
+`
+    if err := os.WriteFile(filepath.Join(dir, "tmp_test.go"), []byte(testSrc), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    var buf bytes.Buffer
+    if err := runTest(&buf, dir, true, false); err != nil { t.Fatalf("runTest: %v", err) }
+    s := buf.String()
+    if !strings.Contains(s, `"Action":"run"`) { t.Fatalf("expected streamed events in JSON output: %s", s) }
+    lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+    var last map[string]any
+    if err := json.Unmarshal(lines[len(lines)-1], &last); err != nil { t.Fatalf("summary json: %v", err) }
+    if ok, _ := last["ok"].(bool); !ok { t.Fatalf("expected ok=true summary; last=%v", last) }
+    if int(last["packages"].(float64)) != 1 || int(last["tests"].(float64)) != 1 || int(last["failures"].(float64)) != 0 {
+        t.Fatalf("unexpected counts: %v", last)
     }
 }
 

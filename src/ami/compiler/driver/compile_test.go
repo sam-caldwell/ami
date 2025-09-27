@@ -166,7 +166,7 @@ func TestCompile_IRTyping_CallResultType(t *testing.T) {
 func TestCompile_EdgesIndexDebug(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
-    fs.AddFile("g.ami", "package app\npipeline P() { A type(\"X\"); A -> Collect; Collect type(\"X\"), merge.Buffer(10, dropNewest), merge.Sort(\"ts\"); MultiPath(u,v); egress }\n")
+    fs.AddFile("g.ami", "package app\npipeline P() { ingress; A type(\"X\"); A -> Collect; Collect type(\"X\"), merge.Buffer(10, dropNewest), merge.Sort(\"ts\"); MultiPath(u,v); egress }\n")
     pkgs := []Package{{Name: "app", Files: fs}}
     _, _ = Compile(ws, pkgs, Options{Debug: true})
     edges := filepath.Join("build", "debug", "asm", "app", "edges.json")

@@ -83,7 +83,7 @@ func AnalyzeEventTypeFlow(f *ast.File) []diag.Record {
             tTo := stepType[e.to]
             if tFrom != "" && tTo != "" && tFrom != tTo {
                 pos := stepPos[e.to]
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_TYPE_FLOW", Message: "event type mismatch across edge", Pos: &pos})
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_TYPE_FLOW", Message: "event type mismatch across edge", Pos: &pos, Data: map[string]any{"from": e.from, "to": e.to, "fromType": tFrom, "toType": tTo}})
             }
         }
         // MultiPath inputs: if Collect has >1 typed upstream with differing types, flag mismatch at Collect
@@ -98,7 +98,10 @@ func AnalyzeEventTypeFlow(f *ast.File) []diag.Record {
         for node, set := range inTypes {
             if len(set) > 1 {
                 pos := stepPos[node]
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_TYPE_FLOW", Message: "event types differ across multiple upstreams", Pos: &pos})
+                // collect list of types for diagnostics
+                types := make([]string, 0, len(set))
+                for k := range set { types = append(types, k) }
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_TYPE_FLOW", Message: "event types differ across multiple upstreams", Pos: &pos, Data: map[string]any{"node": node, "types": types}})
             }
         }
     }

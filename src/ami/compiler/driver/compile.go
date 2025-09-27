@@ -25,37 +25,44 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     sort.SliceStable(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
     for _, p := range pkgs {
         if p.Files == nil { continue }
-        // collect per-package edges
-        var pkgEdges []edgeEntry
-        var pkgCollects []collectEntry
-        // stable order by file name
+        // PHASE 0: sort files deterministically
         files := append([]*source.File(nil), p.Files.Files...)
         sort.SliceStable(files, func(i, j int) bool { return files[i].Name < files[j].Name })
-        // package-wide function signatures (params/results)
-        paramSigs := map[string][]string{}
-        resultSigs := map[string][]string{}
+        // memory safety (per file)
+        for _, f := range files { if f != nil { outDiags = append(outDiags, sem.AnalyzeMemorySafety(f)...)} }
+        // PHASE 1: parse all files and collect ASTs
+        type unit struct{ file *source.File; ast *ast.File; unit string }
+        var units []unit
         for _, f := range files {
             if f == nil { continue }
-            // memory safety diagnostics
-            outDiags = append(outDiags, sem.AnalyzeMemorySafety(f)...)
-            // parse
             pr := parser.New(f)
             af, _ := pr.ParseFile()
             if af == nil { continue }
-            // update function signatures from this unit
-            for _, d := range af.Decls {
-                if fn, ok := d.(*ast.FuncDecl); ok {
+            units = append(units, unit{file: f, ast: af, unit: unitName(f.Name)})
+        }
+        // collect signatures across package
+        paramSigs := map[string][]string{}
+        resultSigs := map[string][]string{}
+        for _, u := range units {
+            for _, d := range u.ast.Decls {
+                if fn, ok := d.(*ast.FuncDecl); ok && fn.Name != "" {
                     var ps []string
                     var rs []string
                     for _, p := range fn.Params { ps = append(ps, p.Type) }
                     for _, r := range fn.Results { rs = append(rs, r.Type) }
-                    if fn.Name != "" { paramSigs[fn.Name] = ps; resultSigs[fn.Name] = rs }
+                    paramSigs[fn.Name] = ps
+                    resultSigs[fn.Name] = rs
                 }
             }
+        }
+        // PHASE 2: per-unit analyses, edges collection, lowering and debug
+        var pkgEdges []edgeEntry
+        var pkgCollects []collectEntry
+        for _, u := range units {
+            af := u.ast
+            unit := u.unit
             // aggregate edges and collect snapshots for package index
-            unit := unitName(f.Name)
             pkgEdges = append(pkgEdges, collectEdges(unit, af)...)
-            // collect MultiPath snapshots for Collect steps
             for _, d := range af.Decls {
                 if pd, ok := d.(*ast.PipelineDecl); ok {
                     for _, s := range pd.Stmts {
@@ -73,17 +80,13 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                                     merges = append(merges, mergeAttr{Name: at.Name, Args: margs})
                                 }
                             }
-                            if len(args) > 0 || len(merges) > 0 {
-                                mp = &edgeMultiPath{Args: args, Merge: merges}
-                            }
-                            if mp != nil {
-                                pkgCollects = append(pkgCollects, collectEntry{Unit: unit, Step: st.Name, MultiPath: mp})
-                            }
+                            if len(args) > 0 || len(merges) > 0 { mp = &edgeMultiPath{Args: args, Merge: merges} }
+                            if mp != nil { pkgCollects = append(pkgCollects, collectEntry{Unit: unit, Step: st.Name, MultiPath: mp}) }
                         }
                     }
                 }
             }
-            // pipeline and function semantics
+            // analyzers
             outDiags = append(outDiags, sem.AnalyzePipelineSemantics(af)...)
             outDiags = append(outDiags, sem.AnalyzeFunctions(af)...)
             outDiags = append(outDiags, sem.AnalyzeMultiPath(af)...)
@@ -91,14 +94,11 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             outDiags = append(outDiags, sem.AnalyzeReturnTypes(af)...)
             outDiags = append(outDiags, sem.AnalyzeReturnTypesWithSigs(af, resultSigs)...)
             outDiags = append(outDiags, sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs)...)
-            // lower functions in this unit into a module
+            // lower
             m := lowerFile(p.Name, af)
             if opts.Debug {
-                // sources debug with import constraints
                 _, _ = writeSourcesDebug(p.Name, unit, af)
-                // AST debug summary
                 _, _ = writeASTDebug(p.Name, unit, af)
-                // write per-unit IR JSON: build/debug/ir/<package>/<unit>.ir.json
                 dir := filepath.Join("build", "debug", "ir", p.Name)
                 _ = os.MkdirAll(dir, 0o755)
                 b, err := ir.EncodeModule(m)
@@ -107,20 +107,14 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                     _ = os.WriteFile(out, b, 0o644)
                     arts.IR = append(arts.IR, out)
                 }
-                // pipelines debug snapshot
-                if _, err := writePipelinesDebug(p.Name, unit, af); err == nil {
-                    // intentionally ignore errors in debug artifacts in this scaffold
-                }
-                // event metadata debug
-                if _, err := writeEventMetaDebug(p.Name, unit); err == nil {
-                }
-                // assembly debug listing
-                if _, err := writeAsmDebug(p.Name, unit, af, m); err == nil {
-                }
+                if _, err := writePipelinesDebug(p.Name, unit, af); err == nil {}
+                if _, err := writeEventMetaDebug(p.Name, unit); err == nil {}
+                if _, err := writeAsmDebug(p.Name, unit, af, m); err == nil {}
             }
         }
         if opts.Debug && (len(pkgEdges) > 0 || len(pkgCollects) > 0) {
             _, _ = writeEdgesIndex(p.Name, pkgEdges, pkgCollects)
+            _, _ = writeAsmIndex(p.Name, pkgEdges)
         }
     }
     return arts, outDiags

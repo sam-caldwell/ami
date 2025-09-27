@@ -24,11 +24,10 @@ func TestCompile_MultiPath_MismatchedUpstreams(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
     // Two upstreams with different types feed Collect
-    fs.AddFile("p1.ami", "package app\npipeline P(){ A type(\"X\"); B type(\"Y\"); A -> Collect; B -> Collect; egress }\n")
+    fs.AddFile("p1.ami", "package app\npipeline P(){ ingress; A type(\"X\"); B type(\"Y\"); A -> Collect; B -> Collect; egress }\n")
     pkgs := []Package{{Name: "app", Files: fs}}
     _, diags := Compile(ws, pkgs, Options{Debug: false})
     var hasFlow bool
     for _, d := range diags { if d.Code == "E_EVENT_TYPE_FLOW" { hasFlow = true } }
     if !hasFlow { t.Fatalf("expected E_EVENT_TYPE_FLOW when upstream types differ: %v", diags) }
 }
-

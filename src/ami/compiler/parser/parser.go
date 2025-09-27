@@ -244,7 +244,7 @@ func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position
         nameTok := p.cur
         p.next()
         var typ string
-        if p.cur.Kind == token.Ident { // treat following ident as type scaffold
+        if p.isTypeName(p.cur.Kind) {
             typ = p.cur.Lexeme
             p.next()
         }
@@ -266,7 +266,7 @@ func (p *Parser) parseResultList() ([]ast.Result, source.Position, source.Positi
     p.next()
     var results []ast.Result
     for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
-        if p.cur.Kind != token.Ident { return nil, lp, source.Position{}, fmt.Errorf("expected result ident, got %q", p.cur.Lexeme) }
+        if !p.isTypeName(p.cur.Kind) { return nil, lp, source.Position{}, fmt.Errorf("expected result ident, got %q", p.cur.Lexeme) }
         results = append(results, ast.Result{Pos: p.cur.Pos, Type: p.cur.Lexeme})
         p.next()
         if p.cur.Kind == token.CommaSym { p.next(); continue }
@@ -331,7 +331,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             p.next()
             var tname string
             var tpos source.Position
-            if p.cur.Kind == token.Ident {
+            if p.isTypeName(p.cur.Kind) {
                 tname = p.cur.Lexeme
                 tpos = p.cur.Pos
                 p.next()
@@ -569,7 +569,7 @@ func exprText(e ast.Expr) string {
 func (p *Parser) parseSliceOrSetLiteral(isSlice bool, namePos source.Position) (ast.Expr, bool) {
     // consume '<'
     p.next()
-    if p.cur.Kind != token.Ident { p.errf("expected type name after '<', got %q", p.cur.Lexeme); return nil, false }
+    if !p.isTypeName(p.cur.Kind) { p.errf("expected type name after '<', got %q", p.cur.Lexeme); return nil, false }
     tname := p.cur.Lexeme
     p.next()
     if p.cur.Kind != token.Gt { p.errf("expected '>' after type name, got %q", p.cur.Lexeme); return nil, false }
@@ -594,12 +594,12 @@ func (p *Parser) parseSliceOrSetLiteral(isSlice bool, namePos source.Position) (
 func (p *Parser) parseMapLiteral(namePos source.Position) (ast.Expr, bool) {
     // consume '<'
     p.next()
-    if p.cur.Kind != token.Ident { p.errf("expected key type after '<', got %q", p.cur.Lexeme); return nil, false }
+    if !p.isTypeName(p.cur.Kind) { p.errf("expected key type after '<', got %q", p.cur.Lexeme); return nil, false }
     k := p.cur.Lexeme
     p.next()
     if p.cur.Kind != token.CommaSym { p.errf("expected ',' between key and value type, got %q", p.cur.Lexeme); return nil, false }
     p.next()
-    if p.cur.Kind != token.Ident { p.errf("expected value type name, got %q", p.cur.Lexeme); return nil, false }
+    if !p.isTypeName(p.cur.Kind) { p.errf("expected value type name, got %q", p.cur.Lexeme); return nil, false }
     v := p.cur.Lexeme
     p.next()
     if p.cur.Kind != token.Gt { p.errf("expected '>' after map type params, got %q", p.cur.Lexeme); return nil, false }
@@ -792,6 +792,8 @@ func (p *Parser) ParseFileCollect() (*ast.File, []error) {
     return f, p.errors
 }
 
+// (removed duplicate isTypeName; see richer implementation below)
+
 // parseImportConstraint parses an optional version constraint that follows an import path.
 // Supported form (scaffold): ">= vMAJOR.MINOR.PATCH[-PRERELEASE[.N]]" with or without spaces.
 // Returns the canonical string (e.g., ">= v1.2.3-rc.1") or empty string when none.
@@ -831,5 +833,19 @@ func (p *Parser) parseImportConstraint() string {
             if out == "" { p.errf("expected version after operator, got %q", p.cur.Lexeme) }
             return op + " " + out
         }
+    }
+}
+
+// isTypeName returns true if the current token kind is a valid type name token
+// (an identifier or a recognized primitive type keyword).
+func (p *Parser) isTypeName(k token.Kind) bool {
+    switch k {
+    case token.Ident,
+        token.KwBool, token.KwByte, token.KwInt, token.KwInt8, token.KwInt16, token.KwInt32, token.KwInt64, token.KwInt128,
+        token.KwUint, token.KwUint8, token.KwUint16, token.KwUint32, token.KwUint64, token.KwUint128,
+        token.KwFloat32, token.KwFloat64, token.KwStringTy, token.KwRune:
+        return true
+    default:
+        return false
     }
 }

@@ -56,6 +56,8 @@
   - Error message is written as plain text to stderr (not JSON, not colored) because rendering mode is undefined.
   - Tests cover: `--json --color` on root and subcommands, ensuring exit code 1 and a clear message.
 ## Coding Style Guidelines
+- All builds should be in build/ or build/<time>/
+  - DO NOT PUT logs, build artifacts or temp files in the repo root.
 - Keep Go source files minimal: limit each file to a single top-level declaration—either one function, one type (including a struct), one const block, or one var block.
 - For every .go file there will be a corresponding _test.go file containing at least one happy path and one sad path test.
 - Use docstrings to describe what each top-level declaration is and what it does in clear language.
@@ -142,9 +144,9 @@
         - [X] `toolchain.linker`: object (reserved for future keys). For now must be an object; unknown types rejected.
         - [X] `toolchain.linter`: object (reserved for future keys). For now must be an object; unknown types rejected.
     - [X] Top‑level `version`: schema version in SemVer format (e.g., `1.0.0`).
-    - [ ] On `ami build`, enforce `toolchain.*` constraints; violations → `USER_ERROR` with clear message (and JSON diagnostic when `--json`).
+    - [X] On `ami build`, enforce `toolchain.*` constraints; violations → `USER_ERROR` with clear message (and JSON diagnostic when `--json`).
         - JSON diagnostics: emits `diag.v1` with `level:"error"`, `code:"E_WS_SCHEMA"`, `message:"workspace validation failed: …"`, `file:"ami.workspace"`.
-    - [ ] Tests: invalid/missing keys, version constraint violations, JSON diagnostics on build
+    - [X] Tests: invalid/missing keys, version constraint violations, JSON diagnostics on build
 ### 1.0.0.2 Workspace File Package (`src/workspace/`)
 - [x] Implement a `workspace.Workspace` struct which can serialize/deserialize `ami.workspace`
 - [x] `Workspace` struct should have a Load(path string) method to load `ami.workspace` YAML and deserialize it 
@@ -163,8 +165,8 @@
   - [x] `mod/get.go`   : see 1.1.0.5
   - [x] `mod/list.go`  : see 1.1.0.6
   - [x] `lint.go`      : see 1.1.0.7
-  - [ ] `test.go`      : see 1.1.0.8
-  - [ ] `build.go`     : see 1.1.0.9
+  - [X] `test.go`      : see 1.1.0.8
+  - [X] `build.go`     : see 1.1.0.9
   - [x] `version.go`   : see 1.1.0.10
   - [x] `help.go`      : see 1.1.0.11
 - [x] Implement `--help` via Cobra as an alias for `ami help` command
@@ -178,7 +180,7 @@
 ### 1.0.1.1. Structured Logging
 - [x] Add a structured logger which logs to stdout (and to `build/debug` if `--verbose` is used.
 - [x] Logging exists in a `logging` package.
-- [ ] All logs are JSON structured logs (even when --json is NOT used)
+- [X] All logs are JSON structured logs (even when --json is NOT used)
     - JSON renderer (stable schema: timestamp, level, module, msg, fields)
 - [x] Human renderer (respects `--color`/`--verbose`)
 - [x] Verbose timestamping (human):
@@ -294,7 +296,7 @@ packages:
     - imports,
         - [x] verify import syntax (workspace)
         - [x] verify local import paths exist (workspace)
-        - [ ] verify package versioning rules are satisfied.
+    - [X] verify package versioning rules are satisfied.
     - unused,
     - [x] unknown identifiers (scaffold: sentinel UNKNOWN_IDENT in .ami)
     - formatting markers
@@ -303,7 +305,7 @@ packages:
     - [X] Validate package declarations use valid SemVer (W_PKG_VERSION_INVALID)
     - [X] Validate local import constraints against local packages (E_IMPORT_CONSTRAINT; warn in non‑strict)
     - [ ] Validate identifier naming rules beyond package names (parser‑backed)
-- [ ] Output formats for lint:
+- [X] Output formats for lint:
     - [x] human summary to stdout
     - [x] `diag.v1` JSON lines with a final summary record; when `--verbose`, also stream per‑record NDJSON to `build/debug/lint.ndjson`
 - [ ] Expand lint rules to cover more of the language spec as it stabilizes
@@ -314,9 +316,9 @@ packages:
     - [X] Imports: duplicate alias (W_DUP_IMPORT_ALIAS), unused (W_UNUSED_IMPORT)
         - [X] Parser-backed unused imports for ident-form imports (W_UNUSED_IMPORT)
     - [ ] Code hygiene: unreachable nodes/edges, duplicate function declarations across files (lint layer), 
-          TODO/FIXME policy
+          [X] TODO/FIXME policy
     - [ ] Language‑specific:
-        - [ ] Reminders and detection: `W_LANG_NOT_GO` (info/warn), `W_GO_SYNTAX_DETECTED` (warn)
+        - [X] Reminders and detection: `W_LANG_NOT_GO` (info/warn), `W_GO_SYNTAX_DETECTED` (warn)
             - [X] Detect Go-like files starting with `package` (W_GO_SYNTAX_DETECTED)
 - [ ] Enforce/propagate AMI semantics via analyzer diagnostics surfaced in lint: 
       `E_MUT_BLOCK_UNSUPPORTED`, `E_MUT_ASSIGN_UNMARKED`, `E_PTR_UNSUPPORTED_SYNTAX`
@@ -324,12 +326,12 @@ packages:
   - [X] RAII hint: `W_RAII_OWNED_HINT` when `release(x)` not wrapped in `mutate(...)` (parser-backed)
   - [ ] Collections: `W_MAP_*`, `W_SET_*`, `W_SLICE_ARITY_HINT` mirrored as warnings
   - [ ] Pipelines: ingress/egress position hints (W_PIPELINE_INGRESS_POS, W_PIPELINE_EGRESS_POS)
-- [ ] Lint: severity configuration and rule suppression (pragma/config)
+- [X] Lint: severity configuration and rule suppression (pragma/config)
     - [ ] Severities: error | warn | info (defaults per rule documented); `off` disables a rule
     - [x] Configuration: `ami.workspace` → `toolchain.linter.rules["RULE"] = "error|warn|info|off"`
     - [x] Inline suppression: `#pragma lint:disable RULE[,RULE2]` and `#pragma lint:enable RULE` (file‑wide scope, scaffold applied to source diags)
     - [X] File/package suppression via config; per‑directory overrides via `toolchain.linter.suppress` (path → codes)
-    - [ ] Strict mode preset: elevate warnings to errors (`--strict` or workspace config)
+    - [X] Strict mode preset: elevate warnings to errors (`--strict` or workspace config)
     - [X] Lint: include line/column positions in diagnostics where available
         - [X] Attach source file + `{line,column,offset}` to lint `diag.v1` records (when resolvable)
         - [X] Fall back to file‑only when exact positions are unavailable
@@ -348,13 +350,13 @@ packages:
 - [X] With `--verbose`, writes `build/test/test.manifest` listing each test in execution order
 ### 1.1.9.0. Project Builder (`ami build`)
 #### 1.1.9.1. Configuration
-- [ ] The build / parse / compiler tool is configured by `ami.workspace`
-- [ ] If `toolchain.compiler.env` is empty, default to a single target `darwin/arm64` for this project phase.
+- [X] The build / parse / compiler tool is configured by `ami.workspace`
+- [X] If `toolchain.compiler.env` is empty, default to a single target `darwin/arm64` for this project phase.
 #### 1.1.9.2. Build process:
   - [ ] Compiler can produce consistent error messages when defects are identified in the sources
   - [ ] Compiler can generate a json build plan if `--verbose` is used.
   - [ ] Compiler can track token position to localize detected errors by line and position
-  - [ ] Using `ami.workspace` ensure that all local and remote packages are available on the local machine
+  - [X] Using `ami.workspace` ensure that all local and remote packages are available on the local machine
   - [ ] For every included source file (starting with `main.ami`)...
     - [ ] Detect circular references and return an error/terminate
     - [ ] Lex/Tokenize/Parse: Source → tokens → AST (per .ami file)
@@ -418,7 +420,7 @@ packages:
   - syntax/type errors → USER_ERROR;
   - missing files → SYSTEM_IO_ERROR
 - [ ] JSON diagnostics (when `--json`):
-  - [ ] Workspace schema violation → `diag.v1` with `code:"E_WS_SCHEMA"` and descriptive message.
+  - [X] Workspace schema violation → `diag.v1` with `code:"E_WS_SCHEMA"` and descriptive message.
   - [ ] Syntax errors: streams `diag.v1` records per error; exits with 1.
   - [ ] Semantic errors (e.g., worker signature): streams `diag.v1` records; exits with 1.
   - [ ] Cache vs `ami.sum` integrity mismatch → per‑item `diag.v1` records and a summary `diag.v1` with `code:"E_INTEGRITY"`; exits with 3.
@@ -598,13 +600,13 @@ Tests & Docs
  - [ ] Memory model: ownership & RAII (2.4)
 - [ ] Observability: event IDs, telemetry hooks (1.6)
 #### 1.2.1 Lexical Structure (Chapter 2.1)
-- [ ] Source text: UTF‑8, LF newlines; files end with newline
-- [ ] Identifiers: 
+- [X] Source text: UTF‑8, LF newlines; files end with newline
+- [X] Identifiers: 
   - start `[A‑Za‑z_]`, 
   - continue `[A‑Za‑z0‑9_]`, 
   - case‑sensitive
   - max length: 255 characters
-- [ ] Keywords (tracked in token.Keywords): 
+- [D] Keywords (tracked in token.Keywords): 
   - `_` (blank) recognized as IDENT;
   - `append`: KwAppend
   - `break`: KwBreak
@@ -684,11 +686,11 @@ Tests & Docs
   - `uint64`: KwUint64
   - `uint128`: KwUint128
   - `var`: KwVar  
-- [ ] Literals: 
+- [X] Literals: 
   - integer,
   - float (decimal),
   - string with basic escapes
-- [ ] Operators, symbols, delimiters (tracked in token/symbols.go): 
+- [X] Operators, symbols, delimiters (tracked in token/symbols.go): 
   - `.`: SymPeriod 
   - `|`: SymPipe 
   - `,`: SymComma 
@@ -723,7 +725,7 @@ Tests & Docs
   - `^`: SymCaret
   - `"`: SymDoubleQuote
   - `'`: SymSingleQuote
-- [ ] Comments: 
+- [X] Comments: 
   - `//` line comment, 
   - `/* ... */` block;
   - skipped by scanner
@@ -802,7 +804,7 @@ Tests & Docs
     - [X] `edges.v1`: per-package summary with `bounded` and `delivery` (defaults scaffolded).
   - [X] Map `#pragma backpressure` defaults into IR attributes (scaffold via debug edge object defaults).
   - [ ] Stub `edge.*` specs (FIFO, LIFO, Pipeline) as compiler-generated artifacts for analysis/codegen; see `src/ami/compiler/edge` and `docs/edges.md`.
-  - [C] Event payload flow type checking (scaffold): when both sides declare explicit step type, mismatches emit `E_EVENT_TYPE_FLOW`.
+  - [X] Event payload flow type checking (scaffold): when both sides declare explicit step type, mismatches emit `E_EVENT_TYPE_FLOW`.
 - [ ] Error pipelines (1.1.8): parsing supported in AST (`error { ... }`), semantics validated:
   - [ ] Error pipeline must end with `egress` (`E_ERRPIPE_END_EGRESS`).
   - [ ] Error pipeline cannot start with `ingress` (`E_ERRPIPE_START_INVALID`).

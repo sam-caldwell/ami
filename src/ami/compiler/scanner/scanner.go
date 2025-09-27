@@ -213,6 +213,40 @@ func (s *Scanner) Next() token.Token {
     case ':':
         s.offset++
         return token.Token{Kind: token.ColonSym, Lexeme: ":", Pos: s.file.Pos(start)}
+    case '|':
+        s.offset++
+        return token.Token{Kind: token.PipeSym, Lexeme: "|", Pos: s.file.Pos(start)}
+    case '\\':
+        s.offset++
+        return token.Token{Kind: token.BackslashSym, Lexeme: "\\", Pos: s.file.Pos(start)}
+    case '$':
+        s.offset++
+        return token.Token{Kind: token.DollarSym, Lexeme: "$", Pos: s.file.Pos(start)}
+    case '`':
+        s.offset++
+        return token.Token{Kind: token.TickSym, Lexeme: "`", Pos: s.file.Pos(start)}
+    case '~':
+        s.offset++
+        return token.Token{Kind: token.TildeSym, Lexeme: "~", Pos: s.file.Pos(start)}
+    case '?':
+        s.offset++
+        return token.Token{Kind: token.QuestionSym, Lexeme: "?", Pos: s.file.Pos(start)}
+    case '@':
+        s.offset++
+        return token.Token{Kind: token.AtSym, Lexeme: "@", Pos: s.file.Pos(start)}
+    case '#':
+        s.offset++
+        return token.Token{Kind: token.PoundSym, Lexeme: "#", Pos: s.file.Pos(start)}
+    case '^':
+        s.offset++
+        return token.Token{Kind: token.CaretSym, Lexeme: "^", Pos: s.file.Pos(start)}
+    case '\'':
+        s.offset++
+        return token.Token{Kind: token.SingleQuoteSym, Lexeme: "'", Pos: s.file.Pos(start)}
+    case '"':
+        // handled by string literal logic above; but if reached here treat as symbol
+        s.offset++
+        return token.Token{Kind: token.DoubleQuoteSym, Lexeme: "\"", Pos: s.file.Pos(start)}
     }
 
     // fallback: single unknown symbol

@@ -48,6 +48,26 @@ const (
     KwIngress
     KwEgress
     KwError
+    // Primitive/type keywords (subset used by parser as type names)
+    KwBool
+    KwByte
+    KwInt
+    KwInt8
+    KwInt16
+    KwInt32
+    KwInt64
+    KwInt128
+    KwUint
+    KwUint8
+    KwUint16
+    KwUint32
+    KwUint64
+    KwUint128
+    KwFloat32
+    KwFloat64
+    KwStringTy // 'string' (distinct from String literal token)
+    KwRune
+
 
     // Punctuation (symbols with distinct kinds)
     LParenSym   // (
@@ -60,6 +80,17 @@ const (
     SemiSym     // ;
     DotSym      // .
     ColonSym    // :
+    PipeSym     // |
+    BackslashSym// \
+    DollarSym   // $
+    TickSym     // `
+    TildeSym    // ~
+    QuestionSym // ?
+    AtSym       // @
+    PoundSym    // #
+    CaretSym    // ^
+    SingleQuoteSym // '
+    DoubleQuoteSym // "
 
     // Comments
     LineComment  // //...

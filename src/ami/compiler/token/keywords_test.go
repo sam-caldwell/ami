@@ -15,4 +15,3 @@ func TestLookupKeyword_Miss(t *testing.T) {
         t.Fatalf("LookupKeyword(miss) => (%v,%v); want (Ident,false)", kind, ok)
     }
 }
-

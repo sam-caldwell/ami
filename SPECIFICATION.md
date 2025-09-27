@@ -1022,29 +1022,29 @@ Deliverables
 
 #### 6.10 Function Decorators (Python‑Style)
 
-- [D] Syntax: one or more decorator lines immediately above a function
+- [X] Syntax: one or more decorator lines immediately above a function
   - `@name` and `@name(arg1, arg2, ...)` forms
   - Args support identifiers, strings, numbers (no full expressions initially)
-- [D] Scope: functions only (workers and helpers); not allowed on pipelines/structs/enums
-- [D] Application order: bottom‑to‑top (Python semantics)
+- [X] Scope: functions only (workers and helpers); not allowed on pipelines/structs/enums
+- [X] Application order: bottom‑to‑top (Python semantics)
 - [ ] Resolution: decorator name resolves to built‑ins or top‑level functions
   - Unknown → `E_DECORATOR_UNDEFINED`
   - Non‑callable or invalid arity → `E_DECORATOR_INVALID`
 - [ ] Semantics: decorators must not change a worker’s externally visible signature
   - Worker signature validation preserved; violations → `E_DECORATOR_SIGNATURE`
-- [D] Determinism: decorator lists preserved in source order for AST/IR
+- [X] Determinism: decorator lists preserved in source order for AST
 - [ ] Interactions: decorators may add metadata (e.g., `@deprecated("msg")`, `@metrics`)
   - `@deprecated` emits a compile‑time warning diag.v1 with stable fields
 - [ ] Config: enable/disable specific decorators via `ami.workspace` (linter/compiler settings)
-- [D] IR/AST: attach decorator metadata (name + arg list) to function nodes (IR attachment deferred)
+- [X] AST: attach decorator metadata (name + arg list) to function nodes (IR attachment deferred)
 - [ ] Codegen (scaffold): allow no‑op or pass‑through; reserve hook points for wrappers
 
 Deliverables
 
-- [D] Parser support: capture decorators on function declarations, with args
+- [X] Parser support: capture decorators on function declarations, with args
 - [ ] Semantics: resolution, ordering, and error conditions; signature preservation checks
 - [ ] IR annotations: per‑function decorator list in `ir.v1`
-- [D] Tests: parse (single/multiple), ordering, arg parsing
+- [X] Tests: parse (single/multiple), ordering, arg parsing
 - [ ] Docs: syntax, ordering rules, built‑ins, configuration, and examples
 
 #### 6.11 Enum Conformance (docs/*.docx)

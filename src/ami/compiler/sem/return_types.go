@@ -20,12 +20,13 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
         for i, r := range fn.Results { decl[i] = r.Type }
         // scan body for return statements
         if fn.Body == nil { continue }
+        env := buildLocalEnv(fn)
         for _, st := range fn.Body.Stmts {
             rs, ok := st.(*ast.ReturnStmt)
             if !ok { continue }
             // infer result types
             var got []string
-            for _, e := range rs.Results { got = append(got, inferExprType(e)) }
+            for _, e := range rs.Results { got = append(got, inferExprType(env, e)) }
             // length mismatch
             if len(got) != len(decl) {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return arity mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}})
@@ -43,23 +44,3 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
     }
     return out
 }
-
-func inferExprType(e ast.Expr) string {
-    switch v := e.(type) {
-    case *ast.StringLit:
-        return "string"
-    case *ast.NumberLit:
-        return "int"
-    case *ast.IdentExpr:
-        // unknown without symbol table
-        return "any"
-    case *ast.CallExpr:
-        return "any"
-    case *ast.BinaryExpr:
-        return "any"
-    default:
-        _ = v
-        return "any"
-    }
-}
-

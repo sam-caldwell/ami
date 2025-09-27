@@ -27,7 +27,7 @@ func AnalyzeTypeInference(f *ast.File) []diag.Record {
         for _, st := range fn.Body.Stmts {
             if vd, ok := st.(*ast.VarDecl); ok {
                 if vd.Name != "" {
-                    if vd.Type != "" { env[vd.Name] = vd.Type } else if vd.Init != nil { env[vd.Name] = inferExprType(env, vd.Init) }
+                    if vd.Type != "" { env[vd.Name] = vd.Type } else if vd.Init != nil { env[vd.Name] = inferLocalExprType(env, vd.Init) }
                 }
             }
         }
@@ -35,7 +35,7 @@ func AnalyzeTypeInference(f *ast.File) []diag.Record {
         for _, st := range fn.Body.Stmts {
             switch v := st.(type) {
             case *ast.AssignStmt:
-                vt := inferExprType(env, v.Value)
+                vt := inferLocalExprType(env, v.Value)
                 if old, ok := env[v.Name]; ok && old != "" && vt != "any" && old != vt {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "assignment type mismatch: expected " + old + ", got " + vt, Pos: &diag.Position{Line: v.NamePos.Line, Column: v.NamePos.Column, Offset: v.NamePos.Offset}})
                 }
@@ -53,7 +53,7 @@ func AnalyzeTypeInference(f *ast.File) []diag.Record {
     return out
 }
 
-func inferExprType(env map[string]string, e ast.Expr) string {
+func inferLocalExprType(env map[string]string, e ast.Expr) string {
     switch v := e.(type) {
     case *ast.IdentExpr:
         if t := env[v.Name]; t != "" { return t }
@@ -63,8 +63,8 @@ func inferExprType(env map[string]string, e ast.Expr) string {
     case *ast.StringLit:
         return "string"
     case *ast.BinaryExpr:
-        xt := inferExprType(env, v.X)
-        yt := inferExprType(env, v.Y)
+        xt := inferLocalExprType(env, v.X)
+        yt := inferLocalExprType(env, v.Y)
         switch v.Op {
         case token.Plus:
             if xt == "string" && yt == "string" { return "string" }
@@ -78,13 +78,13 @@ func inferExprType(env map[string]string, e ast.Expr) string {
     case *ast.SliceLit:
         if v.TypeName != "" { return "slice<" + v.TypeName + ">" }
         if len(v.Elems) == 0 { return "slice<any>" }
-        et := inferExprType(env, v.Elems[0])
+        et := inferLocalExprType(env, v.Elems[0])
         if et == "" { et = "any" }
         return "slice<" + et + ">"
     case *ast.SetLit:
         if v.TypeName != "" { return "set<" + v.TypeName + ">" }
         if len(v.Elems) == 0 { return "set<any>" }
-        et := inferExprType(env, v.Elems[0])
+        et := inferLocalExprType(env, v.Elems[0])
         if et == "" { et = "any" }
         return "set<" + et + ">"
     case *ast.MapLit:

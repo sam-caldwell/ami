@@ -24,6 +24,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     var manifestPkgs []bmPackage
     // process packages in a stable order by name
     sort.SliceStable(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
+    // collect resolved sources for debug summary
+    var resolved []resolvedUnit
     for _, p := range pkgs {
         if p.Files == nil { continue }
         // PHASE 0: sort files deterministically
@@ -124,6 +126,10 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             m := lowerFile(p.Name, af, paramSigs, resultSigs, paramNames)
             if opts.Debug {
                 if s, err := writeSourcesDebug(p.Name, unit, af); err == nil { bmu.Sources = s }
+                // accumulate resolved sources payload for top-level summary
+                var imports []string
+                for _, d := range af.Decls { if im, ok := d.(*ast.ImportDecl); ok { imports = append(imports, im.Path) } }
+                resolved = append(resolved, resolvedUnit{Package: p.Name, File: u.file.Name, Imports: imports, Source: u.file.Content})
                 if a, err := writeASTDebug(p.Name, unit, af); err == nil { bmu.AST = a }
                 dir := filepath.Join("build", "debug", "ir", p.Name)
                 _ = os.MkdirAll(dir, 0o755)
@@ -152,6 +158,9 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     }
     if opts.Debug && len(manifestPkgs) > 0 {
         _, _ = writeBuildManifest(BuildManifest{Schema: "manifest.v1", Packages: manifestPkgs})
+    }
+    if opts.Debug && len(resolved) > 0 {
+        _, _ = writeResolvedSourcesDebug(resolved)
     }
     return arts, outDiags
 }

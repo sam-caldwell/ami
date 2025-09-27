@@ -32,4 +32,28 @@ func TestDiagnostics_JSONEmission_IncludesFileAndPos(t *testing.T) {
     }
 }
 
+// Ensure unresolved identifier diagnostics are emitted with consistent JSON fields.
+func TestDiagnostics_JSON_UnresolvedIdent_IncludesFields(t *testing.T) {
+    fs := &source.FileSet{}
+    // unresolved ident 'y' in return
+    code := "package app\nfunc F(){ return y }\n"
+    fs.AddFile("u.ami", code)
+    pkgs := []Package{{Name: "app", Files: fs}}
+    _, diags := Compile(workspace.Workspace{}, pkgs, Options{Debug: false})
+    if len(diags) == 0 {
+        t.Fatalf("expected diagnostics for unresolved ident")
+    }
+    // Find E_UNRESOLVED_IDENT
+    var d diag.Record
+    for _, r := range diags { if r.Code == "E_UNRESOLVED_IDENT" { d = r; break } }
+    if d.Code == "" { t.Fatalf("E_UNRESOLVED_IDENT not found: %+v", diags) }
+    b := diag.Line(d)
+    s := string(b)
+    if !strings.Contains(s, "\"schema\":\"diag.v1\"") { t.Fatalf("missing schema: %s", s) }
+    if !strings.Contains(s, "\"code\":\"E_UNRESOLVED_IDENT\"") { t.Fatalf("missing code: %s", s) }
+    if !strings.Contains(s, "\"message\":\"unresolved identifier") { t.Fatalf("missing message: %s", s) }
+    if !strings.Contains(s, "\"file\":\"u.ami\"") { t.Fatalf("missing file: %s", s) }
+    if !strings.Contains(s, "\"pos\":{") { t.Fatalf("missing pos: %s", s) }
+}
+
 // no extra helpers

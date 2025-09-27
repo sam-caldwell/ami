@@ -602,7 +602,7 @@ Tests & Docs
 - [X] Multiple entrypoints (multiple pipeline declarations)
 - [X] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
  - [X] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
- - [D] Compiler directives: 
+ - [X] Compiler directives: 
    - [X] Backpressure collected via `#pragma backpressure` and mapped into IR (config) and pipelines.v1 default delivery
    - [ ] Capabilities/trust (deferred)
  - [X] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
@@ -1157,7 +1157,7 @@ Types & Semantics (incremental)
  - [X] Composite types and AST→types mapping: `Pointer`, `Slice`, `Map`, `Set`, `slice<T>`, `Event<T>`, `Error<E>`.
    - [X] Textual mapping scaffold: `types.Parse()` and `types.MustParse()` for primitives and generics (`slice<T>`, `set<T>`, `map<K,V>`, `Event<T>`, `Error<E>`); tests added.
 - [X] Function signatures: `types.Function{Params, Results}` built from `FuncDecl` for scope/type introspection.
-- [ ] Import symbol scope: insert alias or last path segment into top‑level scope (kind `ObjType`, type `package`).
+- [X] Import symbol scope: insert alias or last path segment into top‑level scope (kind `ObjType`, type `package`).
 - [X] Tests: verify type mapping and inferred function signatures; scope contains imported package symbol.
 - [X] Owned<T>: added to the type mapper; string rendering `Owned<…>`.
 - [ ] RAII + Defer: semantic analyzer recognizes `defer`-scheduled releases/transfers and counts them toward required Owned<T> cleanup at function end; flags double-release when mixed with immediate release.

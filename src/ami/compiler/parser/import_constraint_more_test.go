@@ -26,3 +26,10 @@ func TestParse_ImportConstraint_UnquotedComposite(t *testing.T) {
     p := New(f)
     if _, err := p.ParseFile(); err != nil { t.Fatalf("ParseFile: %v", err) }
 }
+
+func TestParse_ImportConstraint_QuotedMissingV(t *testing.T) {
+    src := "package app\nimport \"x\" >= \"1.2.3\"\n"
+    f := (&source.FileSet{}).AddFile("icnv.ami", src)
+    p := New(f)
+    _, _ = p.ParseFileCollect()
+}

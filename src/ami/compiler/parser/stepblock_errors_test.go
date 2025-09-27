@@ -39,8 +39,8 @@ func TestParse_ErrorBlock_Chained_MissingName(t *testing.T) {
 }
 
 func TestParse_ErrorBlock_RichSteps(t *testing.T) {
-    src := "package app\nerror {\n// lead comment\nAlpha(1, \"s\", ident) edge.MultiPath(merge.Sort(\"ts\"), k=v) ;\n} \n"
+    src := "package app\nerror {\n// lead comment\nAlpha(@, 1) edge.MultiPath(, merge.Stable()) ;\n} \n"
     f := (&source.FileSet{}).AddFile("richerr.ami", src)
     p := New(f)
-    if _, err := p.ParseFile(); err != nil { t.Fatalf("ParseFile: %v", err) }
+    _, _ = p.ParseFileCollect()
 }

@@ -2,6 +2,7 @@ package parser
 
 import (
     "fmt"
+    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/scanner"
@@ -817,7 +818,42 @@ func (p *Parser) collectPragmas() []ast.Pragma {
         if i == len(content) || content[i] == '\n' {
             ln := content[start:i]
             if len(ln) >= 8 && ln[:8] == "#pragma " {
-                out = append(out, ast.Pragma{Pos: source.Position{Line: line, Column: 1, Offset: start}, Text: ln[8:]})
+                text := ln[8:]
+                pr := ast.Pragma{Pos: source.Position{Line: line, Column: 1, Offset: start}, Text: text}
+                // parse schema: domain:key [args...]
+                // split first space to get head and rest
+                head := text
+                rest := ""
+                if sp := indexSpace(text); sp >= 0 {
+                    head = text[:sp]
+                    rest = strings.TrimSpace(text[sp+1:])
+                }
+                if c := strings.Index(head, ":"); c >= 0 {
+                    pr.Domain = head[:c]
+                    pr.Key = head[c+1:]
+                } else {
+                    pr.Domain = head
+                }
+                pr.Value = rest
+                if rest != "" {
+                    // tokenize by spaces (no quoted parsing for now)
+                    fields := strings.Fields(rest)
+                    pr.Args = append(pr.Args, fields...)
+                    pr.Params = map[string]string{}
+                    for _, tok := range fields {
+                        if eq := strings.Index(tok, "="); eq > 0 {
+                            k := tok[:eq]
+                            v := tok[eq+1:]
+                            // strip surrounding quotes on value when present
+                            if len(v) >= 2 && ((v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'')) {
+                                v = v[1:len(v)-1]
+                            }
+                            pr.Params[k] = v
+                        }
+                    }
+                    if len(pr.Params) == 0 { pr.Params = nil }
+                }
+                out = append(out, pr)
             }
             line++
             start = i + 1
@@ -833,6 +869,14 @@ func (p *Parser) sFileContent() string {
     if p == nil || p.s == nil { return "" }
     // Provide a tiny adapter via a method on scanner.Scanner.
     return p.s.FileContent()
+}
+
+// indexSpace returns the index of the first ASCII space or tab, or -1.
+func indexSpace(s string) int {
+    for i := 0; i < len(s); i++ {
+        if s[i] == ' ' || s[i] == '\t' { return i }
+    }
+    return -1
 }
 
 // (removed duplicate isTypeName; see richer implementation below)

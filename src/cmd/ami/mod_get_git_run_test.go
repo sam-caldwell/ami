@@ -45,6 +45,10 @@ func TestModGet_GitFileScheme_TagsAndCopies(t *testing.T) {
     if err := json.Unmarshal(buf.Bytes(), &res); err != nil { t.Fatalf("json: %v; out=%s", err, buf.String()) }
     if res.Name != "repo" || res.Version != "v1.2.3" { t.Fatalf("unexpected: %+v", res) }
     if _, err := os.Stat(filepath.Join(cache, "repo", "v1.2.3", "x.txt")); err != nil { t.Fatalf("cached file missing: %v", err) }
+    // Ensure VCS metadata was not copied
+    if _, err := os.Stat(filepath.Join(cache, "repo", "v1.2.3", ".git")); err == nil {
+        t.Fatalf(".git directory should not be copied to cache")
+    }
     if _, err := os.Stat(filepath.Join(wsdir, "ami.sum")); err != nil { t.Fatalf("ami.sum missing: %v", err) }
 }
 

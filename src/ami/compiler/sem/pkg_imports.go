@@ -3,6 +3,7 @@ package sem
 import (
     "regexp"
     "time"
+    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -34,9 +35,23 @@ func AnalyzePackageAndImports(f *ast.File) []diag.Record {
         if im, ok := d.(*ast.ImportDecl); ok {
             if im.Path == "" || !impPathRe.MatchString(im.Path) {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IMPORT_PATH_INVALID", Message: "invalid import path", Pos: &diag.Position{Line: im.PathPos.Line, Column: im.PathPos.Column, Offset: im.PathPos.Offset}})
+                continue
+            }
+            // stricter rules: not absolute, no traversal, no empty segments, no trailing slash
+            p := im.Path
+            if len(p) > 0 && p[0] == '/' {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IMPORT_PATH_ABSOLUTE", Message: "import path must not be absolute", Pos: &diag.Position{Line: im.PathPos.Line, Column: im.PathPos.Column, Offset: im.PathPos.Offset}})
+            }
+            if strings.Contains(p, "//") {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IMPORT_PATH_EMPTY_SEGMENT", Message: "import path contains empty segment", Pos: &diag.Position{Line: im.PathPos.Line, Column: im.PathPos.Column, Offset: im.PathPos.Offset}})
+            }
+            if strings.HasSuffix(p, "/") {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IMPORT_PATH_TRAILING_SLASH", Message: "import path must not end with '/'", Pos: &diag.Position{Line: im.PathPos.Line, Column: im.PathPos.Column, Offset: im.PathPos.Offset}})
+            }
+            if strings.Contains(p, "/../") || strings.HasPrefix(p, "../") || strings.HasSuffix(p, "/..") {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IMPORT_PATH_TRAVERSAL", Message: "import path must not traverse", Pos: &diag.Position{Line: im.PathPos.Line, Column: im.PathPos.Column, Offset: im.PathPos.Offset}})
             }
         }
     }
     return out
 }
-

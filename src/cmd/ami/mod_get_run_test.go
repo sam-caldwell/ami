@@ -42,6 +42,24 @@ func TestModGet_LocalDeclared_CopiesAndUpdatesSum(t *testing.T) {
     }
 }
 
+func TestModGet_LocalDeclared_HumanOutput(t *testing.T) {
+    wsdir := filepath.Join("build", "test", "mod_get", "ws_human")
+    if err := os.MkdirAll(filepath.Join(wsdir, ".git"), 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    content := []byte("---\nversion: 1.0.0\npackages:\n  - util:\n      name: util\n      version: 2.0.0\n      root: ./util\n      import: []\n")
+    if err := os.WriteFile(filepath.Join(wsdir, "ami.workspace"), content, 0o644); err != nil { t.Fatalf("write ws: %v", err) }
+    if err := os.MkdirAll(filepath.Join(wsdir, "util"), 0o755); err != nil { t.Fatalf("mkdir util: %v", err) }
+    if err := os.WriteFile(filepath.Join(wsdir, "util", "f.txt"), []byte("hello"), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    cache := filepath.Join("build", "test", "mod_get", "cache_human")
+    old := os.Getenv("AMI_PACKAGE_CACHE")
+    defer os.Setenv("AMI_PACKAGE_CACHE", old)
+    _ = os.Setenv("AMI_PACKAGE_CACHE", cache)
+    var buf bytes.Buffer
+    if err := runModGet(&buf, wsdir, "./util", false); err != nil { t.Fatalf("runModGet: %v", err) }
+    if !bytes.Contains(buf.Bytes(), []byte("fetched util@2.0.0")) {
+        t.Fatalf("expected human output; got: %s", buf.String())
+    }
+}
+
 func TestModGet_Errors_WhenOutsideWorkspace(t *testing.T) {
     wsdir := filepath.Join("build", "test", "mod_get", "err_outside")
     if err := os.MkdirAll(filepath.Join(wsdir, ".git"), 0o755); err != nil { t.Fatalf("mkdir: %v", err) }

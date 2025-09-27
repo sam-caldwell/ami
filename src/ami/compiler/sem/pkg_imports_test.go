@@ -15,10 +15,9 @@ func TestPackageImport_Validation_Good(t *testing.T) {
 }
 
 func TestPackageImport_Validation_Bad(t *testing.T) {
-    f := (&source.FileSet{}).AddFile("bad.ami", "package bad_name\nimport \"weird space\"\n")
+    f := (&source.FileSet{}).AddFile("bad.ami", "package bad_name\nimport \"weird space\"\nimport \"/abs\"\nimport \"x//y\"\nimport \"x/../z\"\nimport \"a/\"\n")
     p := parser.New(f)
     af, _ := p.ParseFile()
     diags := AnalyzePackageAndImports(af)
-    if len(diags) < 2 { t.Fatalf("expected diags, got %d: %+v", len(diags), diags) }
+    if len(diags) < 5 { t.Fatalf("expected multiple diags, got %d: %+v", len(diags), diags) }
 }
-

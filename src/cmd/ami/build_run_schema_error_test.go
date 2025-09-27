@@ -27,7 +27,7 @@ func TestRunBuild_WorkspaceSchemaError_Human(t *testing.T) {
         t.Fatalf("save: %v", err)
     }
     var buf bytes.Buffer
-    err := runBuild(&buf, dir, false)
+    err := runBuild(&buf, dir, false, false)
     if err == nil { t.Fatalf("expected error") }
     if exit.UnwrapCode(err) != exit.User {
         t.Fatalf("expected User exit; got %v", exit.UnwrapCode(err))

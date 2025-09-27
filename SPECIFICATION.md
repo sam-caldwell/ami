@@ -79,7 +79,7 @@
     - [x] `ami mod audit` implemented: audits workspace imports vs `ami.sum` and cache; JSON/human outputs; unit + e2e tests passing.
     - [x] `ami mod sum` enhanced: validates presence, JSON/scheme; verifies directory hashes against `${AMI_PACKAGE_CACHE}`; reports missing/mismatched; returns exit.Integrity on failure. Tests passing.
     - [x] `ami lint` Stage A implemented with >=80% coverage and tests passing (workspace presence, name style, import shape/order, local path checks, UNKNOWN_IDENT scan, strict mode, verbose debug file). Stage B (parser-backed rules) pending.
-    - [ ] `ami pipeline visualize` implemented: renders ASCII pipeline graphs to the terminal; JSON/human output; unit + e2e tests.
+    - [X] `ami pipeline visualize` implemented: renders ASCII pipeline graphs to the terminal; JSON/human output; unit + e2e tests.
     - [ ] `ami test` implemented: Go test wrapper + native AMI directive‑based assertions (parser/sem). Includes flags, package‑level concurrency, per‑package summaries; runtime execution deferred. Coverage ≥80% and tests passing.
     - [ ] `ami build` is completely implemented with >=80% test coverage and all tests passing.
   - [ ] Deterministic behaviors (no prompts, stable outputs)
@@ -264,14 +264,14 @@ packages:
 - [X] Command compares `ami.workspace` to `ami.sum` to determine any missing packages and using that result the command
       downloads missing packages using SSH+GIT, updating `ami.sum` as they are downloaded
 ### 1.1.5.0. Package Fetch (`ami mod get <url>`)
-- [x] `ami mod get <url>`: fetch a package into `${HOME}/.ami/pkg/<name>/<version>`
-- [ ] Supported sources (initial):
+- [X] `ami mod get <url>`: fetch a package into `${HOME}/.ami/pkg/<name>/<version>`
+- [X] Supported sources (initial):
     - [X] `git+ssh://host/path#<semver-tag>` (key‑based authentication only; no interactive prompts).
       - Example: `git+ssh://git@github.com/org/repo.git#v1.2.3`
-    - [x] Local path: `./subproject` (must be within workspace and declared in `ami.workspace`).
-- [x] Sources are modular to allow later HTTPS implementation (internal runner separated by source type).
-- [x] Command updates `ami.sum` as packages are downloaded (schema `ami.sum/v1`, object form with name → {version, sha256}).
-  - [x] Audit pre‑checks integrated into `ami mod update`: non‑fatal audit summary in human mode and `audit` object in JSON output.
+    - [X] Local path: `./subproject` (must be within workspace and declared in `ami.workspace`).
+- [X] Sources are modular to allow later HTTPS implementation (internal runner separated by source type).
+- [X] Command updates `ami.sum` as packages are downloaded (schema `ami.sum/v1`, object form with name → {version, sha256}).
+  - [X] Audit pre‑checks integrated into `ami mod update`: non‑fatal audit summary in human mode and `audit` object in JSON output.
 ### 1.1.6.0. Package List (`ami mod list`)
 - [x] Command lists all packages and versions in the package cache `${AMI_PACKAGE_CACHE}`
 - [x] `ami mod list`: list cached packages (name, version, size, updated)
@@ -348,14 +348,15 @@ packages:
   - On failure, writes errors to stderr and returns a non-zero exit
 - [X] With `--verbose`, writes test results to `build/test/test.log`
 - [X] With `--verbose`, writes `build/test/test.manifest` listing each test in execution order
+ - [X] With `--json`, streams `go test -json` events to stdout and emits a final summary object including `ok`, `packages`, `tests`, and `failures` counts.
 ### 1.1.9.0. Project Builder (`ami build`)
 #### 1.1.9.1. Configuration
 - [X] The build / parse / compiler tool is configured by `ami.workspace`
 - [X] If `toolchain.compiler.env` is empty, default to a single target `darwin/arm64` for this project phase.
 #### 1.1.9.2. Build process:
   - [ ] Compiler can produce consistent error messages when defects are identified in the sources
-  - [ ] Compiler can generate a json build plan if `--verbose` is used.
-  - [ ] Compiler can track token position to localize detected errors by line and position
+  - [X] Compiler can generate a json build plan if `--verbose` is used.
+  - [X] Compiler can track token position to localize detected errors by line and position
   - [X] Using `ami.workspace` ensure that all local and remote packages are available on the local machine
   - [ ] For every included source file (starting with `main.ami`)...
     - [ ] Detect circular references and return an error/terminate
@@ -462,9 +463,9 @@ packages:
             - Lowered IR in JSON capturing control/data flow before codegen; stable for golden tests.
         - [X] Edges summary (debug): `build/debug/asm/<package>/edges.json` (`edges.v1`)
             - Per‑package list of input edge initializations with derived semantics: `bounded` (true when `maxCapacity>0`) and `delivery` (`atLeastOnce` for `block`, `bestEffort` for `dropOldest`/`dropNewest`). Also embedded into `asm.v1` index under optional `edges`.
-      - [ ] Unlinked assembly artifacts: `build/debug/asm/<package>/<unit>.s` and index `asm.v1`
+      - [X] Unlinked assembly artifacts: `build/debug/asm/<package>/<unit>.s` and index `asm.v1`
         - [X] Target assembly emitted prior to link steps; human‑readable text.
-      - [ ] Manifest: enumerate all debug artifacts across all packages as structured JSON:
+      - [X] Manifest: enumerate all debug artifacts across all packages as structured JSON:
         - including
           - resolved,
           - AST,
@@ -592,7 +593,7 @@ Tests & Docs
 - [ ] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
 - [ ] Compiler directives (backpressure/capabilities/trust): collected via `#pragma` and mapped into IR (used by codegen header)
 - [ ] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
-- [ ] Parser/semantics diagnostics for package identifiers and import paths (happy/sad tests)
+- [X] Parser/semantics diagnostics for package identifiers and import paths (happy/sad tests)
 - [ ] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
 - [ ] Event typing, error typing, and contracts (1.7, 2.2)
 - [ ] Worker function signatures and factories (2.2.6, 2.2.13)
@@ -606,7 +607,7 @@ Tests & Docs
   - continue `[A‑Za‑z0‑9_]`, 
   - case‑sensitive
   - max length: 255 characters
-- [D] Keywords (tracked in token.Keywords): 
+- [X] Keywords (tracked in token.Keywords): 
   - `_` (blank) recognized as IDENT;
   - `append`: KwAppend
   - `break`: KwBreak
@@ -729,10 +730,10 @@ Tests & Docs
   - `//` line comment, 
   - `/* ... */` block;
   - skipped by scanner
-- [ ] Special underscore 
+- [X] Special underscore 
   - `_` sink identifier semantics (semantic checks)
-- [ ] Package identifiers and import paths (validation rules)
-- [ ] Compiler directives (2.1.10): 
+- [X] Package identifiers and import paths (validation rules)
+- [X] Compiler directives (2.1.10): 
   - `#pragma`
     - style for concurrency,
     - used to restrict files to specific opsys/arch environments
@@ -803,7 +804,7 @@ Tests & Docs
     - [X] `pipelines.v1`: step edge object with derived `bounded` and `delivery` fields (defaults scaffolded).
     - [X] `edges.v1`: per-package summary with `bounded` and `delivery` (defaults scaffolded).
   - [X] Map `#pragma backpressure` defaults into IR attributes (scaffold via debug edge object defaults).
-  - [ ] Stub `edge.*` specs (FIFO, LIFO, Pipeline) as compiler-generated artifacts for analysis/codegen; see `src/ami/compiler/edge` and `docs/edges.md`.
+  - [X] Stub `edge.*` specs (FIFO, LIFO, Pipeline) as compiler-generated artifacts for analysis/codegen; see `src/ami/compiler/edge` and `docs/edges.md`.
   - [X] Event payload flow type checking (scaffold): when both sides declare explicit step type, mismatches emit `E_EVENT_TYPE_FLOW`.
 - [ ] Error pipelines (1.1.8): parsing supported in AST (`error { ... }`), semantics validated:
   - [ ] Error pipeline must end with `egress` (`E_ERRPIPE_END_EGRESS`).
@@ -824,7 +825,7 @@ Tests & Docs
 - [ ] Edge spec: `edge.MultiPath(...)`
   - [X] Parser tolerant acceptance of `edge.MultiPath(<kv/attr list>)` alongside existing `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline`.
   - [ ] Grammar: keys/attrs may be specified via `k=v` pairs and/or `merge.*(...)` attribute calls (order-insensitive; last-write-wins for duplicates).
-  - [ ] Semantics (scaffold): `edge.MultiPath` is valid only on `Collect` nodes; analyzer emits `E_MP_ONLY_COLLECT` for non‑Collect usage (code name differs from earlier draft `E_EDGE_MULTIPATH_CONTEXT`).
+  - [X] Semantics (scaffold): `edge.MultiPath` is valid only on `Collect` nodes; analyzer emits `E_MP_ONLY_COLLECT` for non‑Collect usage (code name differs from earlier draft `E_EDGE_MULTIPATH_CONTEXT`).
 - [ ] Stdlib: `merge` package API (attributes)
   - [ ] `merge.Sort(field[, order])`: field selector string (e.g., "ts", "id"), optional order in {asc, desc}; see "merge.Sort() Semantics" below. Stable ordering when combined with `merge.Stable()`.
   - [ ] `merge.Stable()`: requests stable sorting semantics.
@@ -837,13 +838,13 @@ Tests & Docs
   - [ ] `merge.PartitionBy(field)`: partition streams by key prior to merging.
 - [ ] Semantics & Diagnostics
   - [ ] `E_EDGE_MULTIPATH_CONTEXT`: `edge.MultiPath` used outside a `Collect` node.
-  - [ ] `E_MERGE_ATTR_UNKNOWN`: unknown `merge.*` attribute.
-  - [ ] `E_MERGE_ATTR_ARGS`: wrong arity/type for `merge.*` attribute args.
+  - [X] `E_MERGE_ATTR_UNKNOWN`: unknown `merge.*` attribute.
+  - [X] `E_MERGE_ATTR_ARGS`: wrong arity/type for `merge.*` attribute args.
   - [X] `E_MERGE_ATTR_CONFLICT`: conflicting attributes (e.g., duplicate with different values).
   - [ ] `E_MERGE_ATTR_REQUIRED`: missing required attributes (e.g., `merge.Sort` without a field).
 - [ ] IR & Tooling (scaffold)
   - [ ] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args). Full normalization deferred.
-  - [ ] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
+  - [X] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
 - [ ] Lint & Smells
   - [X] `W_MERGE_SORT_NO_FIELD`: `merge.Sort` specified without a field.
 - [X] `W_MERGE_TINY_BUFFER`: `merge.Buffer` set to very small capacity (<=1) with `dropOldest`/`dropNewest` policy.
@@ -890,8 +891,8 @@ See also: `docs/merge.md` for a design summary and examples.
   - [ ] Edge policy interaction: when `merge.Buffer(..., backpressure in {dropOldest, dropNewest})` and `capacity<=1`, emit lint smell (not a hard error). Also warn when using ambiguous `drop`.
  - [ ] IR & Schemas
    - [ ] pipelines.v1 carries MultiPath scaffold (inputs + raw merge ops).
-   - [ ] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
-  - [ ] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
+   - [X] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
+  - [X] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
 - [ ] Lint (Smells & Hints)
 - [ ] `W_MERGE_SORT_NO_FIELD` (Sort without a field), `W_MERGE_TINY_BUFFER` (Buffer capacity<=1 with `dropOldest`/`dropNewest`), `W_MERGE_WATERMARK_MISSING_FIELD`, `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`.
   - [ ] Ensure rules are suppressible via pragmas and configurable via workspace severities.
@@ -1416,7 +1417,7 @@ Canonical diagnostic codes (this phase):
   >     ] 
   > }
   > ```
-- Assembly listing (`*.s`): text; additionally, emit an index JSON `asm.v1` per package
+- [X] Assembly listing (`*.s`): text; additionally, emit an index JSON `asm.v1` per package
   > ```
   > { 
   >     schema:"asm.v1", 

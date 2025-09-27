@@ -17,7 +17,7 @@ func TestRunBuild_WorkspaceSchemaError_JSON(t *testing.T) {
     ws.Toolchain.Compiler.Concurrency = "0" // invalid per schema
     if err := ws.Save(filepath.Join(dir, "ami.workspace")); err != nil { t.Fatalf("save: %v", err) }
     var buf bytes.Buffer
-    err := runBuild(&buf, dir, true)
+    err := runBuild(&buf, dir, true, false)
     if err == nil { t.Fatalf("expected error") }
     // Decode diag record
     var m map[string]any
@@ -28,4 +28,3 @@ func TestRunBuild_WorkspaceSchemaError_JSON(t *testing.T) {
     if m["code"] != "E_WS_SCHEMA" { t.Fatalf("expected E_WS_SCHEMA; got %v", m["code"]) }
     if m["file"] != "ami.workspace" { t.Fatalf("expected file ami.workspace; got %v", m["file"]) }
 }
-

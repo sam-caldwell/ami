@@ -105,3 +105,25 @@ func TestAmiTest_Failing_EmitsError(t *testing.T) {
         t.Fatalf("expected non-nil error from failing tests\nstdout=%s\nstderr=%s", stdout.String(), stderr.String())
     }
 }
+
+func TestAmiTest_JSON_Failing_SummaryEmitted(t *testing.T) {
+    bin := buildAmi(t)
+    ws := filepath.Join("build", "test", "e2e", "ami_test", "json_fail")
+    _ = os.RemoveAll(ws)
+    stageGoModule(t, ws, "package tmp\nimport \"testing\"\nfunc TestFail(t *testing.T){ t.Fatal(\"boom\") }\n")
+
+    cmd := exec.Command(bin, "test", "--json")
+    cmd.Dir = ws
+    cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
+    var stdout, stderr bytes.Buffer
+    cmd.Stdout, cmd.Stderr = &stdout, &stderr
+    if err := cmd.Run(); err == nil {
+        t.Fatalf("expected non-zero exit for failing tests\nstdout=%s\nstderr=%s", stdout.String(), stderr.String())
+    }
+    // Summary should be last line in stdout and show ok:false and failures>=1
+    lines := bytes.Split(bytes.TrimSpace(stdout.Bytes()), []byte("\n"))
+    var last map[string]any
+    if err := json.Unmarshal(lines[len(lines)-1], &last); err != nil { t.Fatalf("summary json: %v\nstdout=%s", err, stdout.String()) }
+    if ok, _ := last["ok"].(bool); ok { t.Fatalf("expected ok=false; last=%v", last) }
+    if int(last["failures"].(float64)) < 1 { t.Fatalf("expected failures>=1; last=%v", last) }
+}

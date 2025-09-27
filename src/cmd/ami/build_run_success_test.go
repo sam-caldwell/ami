@@ -19,13 +19,13 @@ func TestRunBuild_Success_JSONAndHuman(t *testing.T) {
 
     // JSON mode
     var jb bytes.Buffer
-    if err := runBuild(&jb, dir, true); err != nil { t.Fatalf("runBuild json: %v", err) }
+    if err := runBuild(&jb, dir, true, false); err != nil { t.Fatalf("runBuild json: %v", err) }
     var m map[string]any
     if e := json.Unmarshal(jb.Bytes(), &m); e != nil { t.Fatalf("json: %v; out=%s", e, jb.String()) }
     if m["code"] != "BUILD_OK" { t.Fatalf("expected BUILD_OK; got %v", m["code"]) }
 
     // Human mode
     var hb bytes.Buffer
-    if err := runBuild(&hb, dir, false); err != nil { t.Fatalf("runBuild human: %v", err) }
+    if err := runBuild(&hb, dir, false, false); err != nil { t.Fatalf("runBuild human: %v", err) }
     if hb.Len() == 0 { t.Fatalf("expected human message output") }
 }

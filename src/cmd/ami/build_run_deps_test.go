@@ -20,7 +20,7 @@ func TestRunBuild_FailsWhenSumMissing_JSON(t *testing.T) {
     if err := ws.Save(filepath.Join(dir, "ami.workspace")); err != nil { t.Fatalf("save: %v", err) }
 
     var buf bytes.Buffer
-    err := runBuild(&buf, dir, true)
+    err := runBuild(&buf, dir, true, false)
     if err == nil { t.Fatalf("expected error") }
     var m map[string]any
     if e := json.Unmarshal(buf.Bytes(), &m); e != nil { t.Fatalf("json: %v; out=%s", e, buf.String()) }
@@ -28,4 +28,3 @@ func TestRunBuild_FailsWhenSumMissing_JSON(t *testing.T) {
     data := m["data"].(map[string]any)
     if data == nil || data["sumFound"] != false { t.Fatalf("expected sumFound=false; data=%v", data) }
 }
-

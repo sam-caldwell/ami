@@ -16,7 +16,7 @@ import (
 
 // runBuild validates the workspace and prepares build configuration.
 // For this phase, it enforces toolchain.* constraints and emits diagnostics.
-func runBuild(out io.Writer, dir string, jsonOut bool) error {
+func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     if lg := getRootLogger(); lg != nil {
         lg.Info("build.start", map[string]any{"dir": dir, "json": jsonOut})
     }
@@ -130,6 +130,27 @@ func runBuild(out io.Writer, dir string, jsonOut bool) error {
             _ = json.NewEncoder(out).Encode(rec)
         }
         return exit.New(exit.Integrity, "dependency integrity check failed; run 'ami mod update'")
+    }
+
+    // When verbose, emit a simple build plan JSON under build/debug/build.plan.json
+    if verbose {
+        _ = os.MkdirAll(filepath.Join(dir, "build", "debug"), 0o755)
+        planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
+        type planPkg struct{ Key, Name, Version, Root string }
+        plan := struct {
+            Schema    string    `json:"schema"`
+            TargetDir string    `json:"targetDir"`
+            Targets   []string  `json:"targets"`
+            Packages  []planPkg `json:"packages"`
+        }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
+        for _, e := range ws.Packages {
+            plan.Packages = append(plan.Packages, planPkg{Key: e.Key, Name: e.Package.Name, Version: e.Package.Version, Root: e.Package.Root})
+        }
+        // Best-effort write; do not fail build on plan write error
+        if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
+            _ = json.NewEncoder(f).Encode(plan)
+            _ = f.Close()
+        }
     }
 
     if jsonOut {

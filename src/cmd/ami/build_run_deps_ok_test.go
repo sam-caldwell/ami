@@ -37,9 +37,8 @@ func TestRunBuild_RemoteDepsOK_JSON(t *testing.T) {
     if err := m.Save(filepath.Join(dir, "ami.sum")); err != nil { t.Fatalf("save sum: %v", err) }
 
     var buf bytes.Buffer
-    if err := runBuild(&buf, dir, true); err != nil { t.Fatalf("runBuild: %v", err) }
+    if err := runBuild(&buf, dir, true, false); err != nil { t.Fatalf("runBuild: %v", err) }
     var mres map[string]any
     if e := json.Unmarshal(buf.Bytes(), &mres); e != nil { t.Fatalf("json: %v; out=%s", e, buf.String()) }
     if mres["code"] != "BUILD_OK" { t.Fatalf("expected BUILD_OK; got %v", mres["code"]) }
 }
-

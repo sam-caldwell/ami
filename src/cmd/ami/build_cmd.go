@@ -15,7 +15,8 @@ func newBuildCmd() *cobra.Command {
             // Resolve absolute working directory for deterministic behavior.
             wd, err := os.Getwd()
             if err != nil { return err }
-            return runBuild(cmd.OutOrStdout(), wd, jsonOut)
+            verbose, _ := cmd.Flags().GetBool("verbose")
+            return runBuild(cmd.OutOrStdout(), wd, jsonOut, verbose)
         },
     }
     cmd.Flags().BoolVar(&jsonOut, "json", false, "emit JSON diagnostics and results")

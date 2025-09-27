@@ -72,8 +72,9 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
             if strings.HasPrefix(st.Name, "io.") {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
             }
-            // unknown nodes
-            if st.Name != "ingress" && st.Name != "egress" {
+            // unknown nodes: treat core nodes as known (ingress/egress/transform/fanout/collect/mutable)
+            nameLower := strings.ToLower(st.Name)
+            if nameLower != "ingress" && nameLower != "egress" && nameLower != "transform" && nameLower != "fanout" && nameLower != "collect" && nameLower != "mutable" {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_UNKNOWN_NODE", Message: "unknown node: " + st.Name, File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
             }
         }

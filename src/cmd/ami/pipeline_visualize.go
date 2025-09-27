@@ -3,6 +3,7 @@ package main
 import (
     "encoding/json"
     "github.com/spf13/cobra"
+    "github.com/sam-caldwell/ami/src/ami/visualize/ascii"
     "github.com/sam-caldwell/ami/src/schemas/graph"
 )
 
@@ -14,25 +15,29 @@ func newPipelineVisualizeCmd() *cobra.Command {
         Use:   "visualize",
         Short: "Render ASCII pipeline graphs (stub)",
         RunE: func(cmd *cobra.Command, args []string) error {
+            // Placeholder graph until AST extraction is wired in.
+            g := graph.Graph{
+                Package: "main",
+                Unit:    "",
+                Name:    "Placeholder",
+                Nodes: []graph.Node{
+                    {ID: "ingress", Kind: "ingress", Label: "ingress"},
+                    {ID: "worker",  Kind: "worker",  Label: "worker"},
+                    {ID: "egress",  Kind: "egress",  Label: "egress"},
+                },
+                Edges: []graph.Edge{
+                    {From: "ingress", To: "worker"},
+                    {From: "worker",  To: "egress"},
+                },
+            }
             if jsonOut {
-                g := graph.Graph{
-                    Package: "main",
-                    Unit:    "",
-                    Name:    "Placeholder",
-                    Nodes: []graph.Node{
-                        {ID: "ingress", Kind: "ingress", Label: "ingress"},
-                        {ID: "worker", Kind: "worker", Label: "worker"},
-                        {ID: "egress",  Kind: "egress",  Label: "egress"},
-                    },
-                    Edges: []graph.Edge{
-                        {From: "ingress", To: "worker"},
-                        {From: "worker",  To: "egress"},
-                    },
-                }
+                // JSON: emit a single graph object (graph.v1 schema)
                 return json.NewEncoder(cmd.OutOrStdout()).Encode(g)
             }
-            // ASCII renderer to be implemented later; show help for now.
-            return cmd.Help()
+            // Human: render a single-line ASCII visualization
+            line := ascii.RenderLine(g, ascii.Options{})
+            _, _ = cmd.OutOrStdout().Write([]byte(line + "\n"))
+            return nil
         },
     }
     cmd.Flags().BoolVar(&jsonOut, "json", false, "emit machine-parsable JSON output (graph.v1)")

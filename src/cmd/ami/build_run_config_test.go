@@ -20,7 +20,7 @@ func TestRunBuild_UsesWorkspaceConfig_JSON(t *testing.T) {
     if err := ws.Save(filepath.Join(dir, "ami.workspace")); err != nil { t.Fatalf("save: %v", err) }
 
     var buf bytes.Buffer
-    if err := runBuild(&buf, dir, true); err != nil { t.Fatalf("runBuild: %v", err) }
+    if err := runBuild(&buf, dir, true, false); err != nil { t.Fatalf("runBuild: %v", err) }
     var m map[string]any
     if e := json.Unmarshal(buf.Bytes(), &m); e != nil { t.Fatalf("json: %v; out=%s", e, buf.String()) }
     data := m["data"].(map[string]any)
@@ -38,7 +38,7 @@ func TestRunBuild_DefaultEnvWhenEmpty_JSON(t *testing.T) {
     if err := ws.Save(filepath.Join(dir, "ami.workspace")); err != nil { t.Fatalf("save: %v", err) }
 
     var buf bytes.Buffer
-    if err := runBuild(&buf, dir, true); err != nil { t.Fatalf("runBuild: %v", err) }
+    if err := runBuild(&buf, dir, true, false); err != nil { t.Fatalf("runBuild: %v", err) }
     var m map[string]any
     if e := json.Unmarshal(buf.Bytes(), &m); e != nil { t.Fatalf("json: %v; out=%s", e, buf.String()) }
     data := m["data"].(map[string]any)

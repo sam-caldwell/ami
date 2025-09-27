@@ -13,7 +13,7 @@ type bmUnit struct {
     EventMeta string `json:"eventmeta,omitempty"`
     ASM       string `json:"asm,omitempty"`
     AST       string `json:"ast,omitempty"`
-    Sources   string `json:"sources,omitempty""
+    Sources   string `json:"sources,omitempty"`
 }
 
 type bmPackage struct {

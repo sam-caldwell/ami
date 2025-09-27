@@ -65,6 +65,15 @@ func TestCompile_MemSafetyDiagnostics(t *testing.T) {
     pkgs := []Package{{Name: "app", Files: fs}}
     _, diags := Compile(ws, pkgs, Options{Debug: false})
     if len(diags) == 0 { t.Fatalf("expected diagnostics for mem safety") }
+    // Assert positions and file are populated
+    hasPos := false
+    for _, d := range diags {
+        if d.Pos != nil && d.File != "" && d.Pos.Line > 0 && d.Pos.Column > 0 {
+            hasPos = true
+            break
+        }
+    }
+    if !hasPos { t.Fatalf("expected at least one diagnostic with file and position; got: %+v", diags) }
 }
 
 func TestCompile_PipelineSemanticsDiagnostics(t *testing.T) {
@@ -79,6 +88,14 @@ func TestCompile_PipelineSemanticsDiagnostics(t *testing.T) {
     hasUnknown := false
     for _, d := range diags { if d.Code == "E_PIPELINE_START_INGRESS" { hasStart = true }; if d.Code == "E_UNKNOWN_NODE" { hasUnknown = true } }
     if !hasStart || !hasUnknown { t.Fatalf("missing expected codes: %v", diags) }
+    // Positions present
+    for _, d := range diags {
+        if d.Code == "E_PIPELINE_START_INGRESS" || d.Code == "E_UNKNOWN_NODE" {
+            if d.File == "" || d.Pos == nil || d.Pos.Line <= 0 || d.Pos.Column <= 0 {
+                t.Fatalf("expected file/pos on diag: %+v", d)
+            }
+        }
+    }
 }
 
 func TestCompile_PipelinesDebug_AttrsRaw(t *testing.T) {

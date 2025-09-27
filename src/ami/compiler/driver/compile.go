@@ -21,6 +21,7 @@ import (
 func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, []diag.Record) {
     var arts Artifacts
     var outDiags []diag.Record
+    var manifestPkgs []bmPackage
     // process packages in a stable order by name
     sort.SliceStable(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
     for _, p := range pkgs {
@@ -93,14 +94,22 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 }
             }
             // analyzers
-            outDiags = append(outDiags, sem.AnalyzePipelineSemantics(af)...)
-            outDiags = append(outDiags, sem.AnalyzeFunctions(af)...)
-            outDiags = append(outDiags, sem.AnalyzeMultiPath(af)...)
-            outDiags = append(outDiags, sem.AnalyzeEventTypeFlow(af)...)
-            outDiags = append(outDiags, sem.AnalyzeReturnTypes(af)...)
-            outDiags = append(outDiags, sem.AnalyzeReturnTypesWithSigs(af, resultSigs)...)
-            outDiags = append(outDiags, sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs)...)
-            outDiags = append(outDiags, sem.AnalyzePackageAndImports(af)...)
+            attachFile := func(di []diag.Record) {
+                for i := range di {
+                    if di[i].File == "" {
+                        di[i].File = u.file.Name
+                    }
+                }
+                outDiags = append(outDiags, di...)
+            }
+            attachFile(sem.AnalyzePipelineSemantics(af))
+            attachFile(sem.AnalyzeFunctions(af))
+            attachFile(sem.AnalyzeMultiPath(af))
+            attachFile(sem.AnalyzeEventTypeFlow(af))
+            attachFile(sem.AnalyzeReturnTypes(af))
+            attachFile(sem.AnalyzeReturnTypesWithSigs(af, resultSigs))
+            attachFile(sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs))
+            attachFile(sem.AnalyzePackageAndImports(af))
             // lower
             m := lowerFile(p.Name, af)
             if opts.Debug {
@@ -129,27 +138,11 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].AsmIndex = ai } }
             }
         }
-        // write build manifest for this package set (accumulate across all pkgs)
-        if opts.Debug {
-            // compile packages processed so far into manifest
-            // In this loop, we only have one package 'p' per iteration; collect into bmAll and write at end.
-        }
-        // After each package, append to global manifest list; actual write deferred after loop.
-        // We use arts (function scope), so collect externally.
-        // To keep scope minimal, we write manifest after all packages processed (below).
-        // Append bmPkgs to a global slice; to avoid extra state, rebuild at end via bmPkgs aggregation.
-        // For simplicity, accumulate across loop: make a copy and attach to a top-level slice outside the loop.
-        // We'll move bmPkgs into a shared slice.
-        // Note: we can't declare outer slice earlier in function? We'll do it now.
+        if opts.Debug { manifestPkgs = append(manifestPkgs, bmPkgs...) }
     }
-    // Build manifest across packages when debug
-    // We reconstruct by scanning debug directories if needed, but we tracked bmPkgs per package.
-    // However bmPkgs is local to last package loop; adjust: above we created bmPkgs per package; accumulate per global.
-    // Given scope, safer approach: scan build/debug directories to build manifest.
-    // For current milestone, we skip reconstruction to avoid filesystem walk latency.
-    // Instead, write a minimal manifest with IR artifacts we tracked.
-    // If at least one IR artifact exists, write packages from per-run tmp we had not persisted.
-    // As a pragmatic step, don't fail when we lack accumulated bmPkgs; rely on edges/asm manifests already present.
+    if opts.Debug && len(manifestPkgs) > 0 {
+        _, _ = writeBuildManifest(BuildManifest{Schema: "manifest.v1", Packages: manifestPkgs})
+    }
     return arts, outDiags
 }
 

@@ -8,7 +8,6 @@ import (
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
-    "github.com/sam-caldwell/ami/src/ami/compiler/sem"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     diag "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -48,9 +47,9 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
             f := &source.File{Name: path, Content: string(b)}
             now := time.Now().UTC()
 
-            // Memory safety
+            // Memory safety without external sem package dependency
             if t.StageB || t.MemorySafety {
-                ms := sem.AnalyzeMemorySafety(f)
+                ms := analyzeMemorySafety(f)
                 if len(ms) > 0 {
                     for _, d := range ms {
                         if m := disables[path]; m != nil && m[d.Code] { continue }

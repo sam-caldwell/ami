@@ -350,6 +350,26 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             "toolchain": map[string]any{"targetDir": absTarget, "targets": envs},
             "objIndex":  objIdx,
         }
+        // discover binaries under build/ (exclude debug/ and obj/); treat executable regular files as binaries
+        var bins []string
+        _ = filepath.WalkDir(buildDir, func(path string, d os.DirEntry, err error) error {
+            if err != nil { return nil }
+            if d.IsDir() {
+                // skip debug and obj subtrees
+                base := filepath.Base(path)
+                if base == "debug" || base == "obj" { return filepath.SkipDir }
+                return nil
+            }
+            // regular file: check any execute bit
+            if info, e := d.Info(); e == nil {
+                mode := info.Mode()
+                if mode.IsRegular() && (mode&0o111 != 0) {
+                    if rel, rerr := filepath.Rel(dir, path); rerr == nil { bins = append(bins, rel) }
+                }
+            }
+            return nil
+        })
+        if len(bins) > 0 { outObj["binaries"] = bins }
         if verbose {
             // collect debug artifact references for cross-linking
             var debugRefs []string

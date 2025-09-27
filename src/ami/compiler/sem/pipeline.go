@@ -78,6 +78,45 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_UNKNOWN_NODE", Message: "unknown node: " + st.Name, File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
             }
         }
+        // Detect cycles using explicit edge statements (A -> B).
+        type edge struct{ from, to string; fromPos, toPos diag.Position }
+        var edges []edge
+        for _, s := range pd.Stmts {
+            if e, ok := s.(*ast.EdgeStmt); ok {
+                edges = append(edges, edge{
+                    from:   e.From,
+                    to:     e.To,
+                    fromPos: diag.Position{Line: e.FromPos.Line, Column: e.FromPos.Column, Offset: e.FromPos.Offset},
+                    toPos:   diag.Position{Line: e.ToPos.Line, Column: e.ToPos.Column, Offset: e.ToPos.Offset},
+                })
+            }
+        }
+        if len(edges) > 0 {
+            // adjacency based on names; detect back-edge using DFS with recursion stack
+            adj := map[string][]string{}
+            for _, e := range edges { adj[e.from] = append(adj[e.from], e.to) }
+            // helper to detect cycle
+            visiting := map[string]bool{}
+            visited := map[string]bool{}
+            var hasCycle bool
+            var dfs func(n string)
+            dfs = func(n string) {
+                if hasCycle || visiting[n] { hasCycle = true; return }
+                if visited[n] { return }
+                visiting[n] = true
+                for _, m := range adj[n] { dfs(m) }
+                visiting[n] = false
+                visited[n] = true
+            }
+            for _, st := range steps { // iterate known nodes deterministically
+                dfs(st.Name)
+                if hasCycle { break }
+            }
+            if hasCycle {
+                // Report a generic cycle error at the pipeline name position.
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_CYCLE", Message: "circular reference detected in pipeline '" + pd.Name + "'", Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}})
+            }
+        }
     }
     return out
 }

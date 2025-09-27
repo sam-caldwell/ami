@@ -117,6 +117,10 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
         count  int
         msgSub string
         gotErrs int
+        code   string
+        line   int
+        column int
+        offset int
     }
     amiTests, amiFailures := 0, 0
     var amiManifest []string
@@ -140,6 +144,8 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
             expCount := -1
             expMsg := ""
             var caseNames []string
+            var expCode string
+            var expLine, expCol, expOff int
             for _, pr := range file.Pragmas {
                 if pr.Domain == "test" {
                     switch pr.Key {
@@ -156,6 +162,10 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                             }
                             if v, ok := pr.Params["msg"]; ok { expMsg = v }
                             if v, ok := pr.Params["message"]; ok { expMsg = v }
+                            if v, ok := pr.Params["code"]; ok { expCode = v }
+                            if v, ok := pr.Params["line"]; ok { if n, e := strconv.Atoi(v); e == nil { expLine = n } }
+                            if v, ok := pr.Params["column"]; ok { if n, e := strconv.Atoi(v); e == nil { expCol = n } }
+                            if v, ok := pr.Params["offset"]; ok { if n, e := strconv.Atoi(v); e == nil { expOff = n } }
                         }
                     }
                 }
@@ -174,6 +184,25 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                 for _, e := range errs { s += e.Error() + "\n" }
                 if !strings.Contains(s, expMsg) { ok = false }
             }
+            // Code assertion: parser uses a stable code E_PARSE.
+            if expCode != "" && ok {
+                if expCode != "E_PARSE" { ok = false }
+            }
+            // Position assertions: require at least one error match.
+            if (expLine != 0 || expCol != 0 || expOff != 0) && ok {
+                matched := false
+                for _, e := range errs {
+                    type withPos interface{ Position() source.Position }
+                    if wp, ok2 := e.(withPos); ok2 {
+                        pos := wp.Position()
+                        if (expLine == 0 || pos.Line == expLine) && (expCol == 0 || pos.Column == expCol) && (expOff == 0 || pos.Offset == expOff) {
+                            matched = true
+                            break
+                        }
+                    }
+                }
+                if !matched { ok = false }
+            }
             // Record for each case
             rel := path
             if rp, rerr := filepath.Rel(root, path); rerr == nil { rel = rp }
@@ -181,7 +210,7 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                 amiTests++
                 if !ok { amiFailures++ }
                 amiManifest = append(amiManifest, fmt.Sprintf("ami:%s %s", rel, name))
-                amiEvents = append(amiEvents, amiResult{name: name, file: rel, ok: ok, expect: map[bool]string{true:"parse_ok", false:"parse_fail"}[expectParseOK], count: expCount, msgSub: expMsg, gotErrs: len(errs)})
+                amiEvents = append(amiEvents, amiResult{name: name, file: rel, ok: ok, expect: map[bool]string{true:"parse_ok", false:"parse_fail"}[expectParseOK], count: expCount, msgSub: expMsg, gotErrs: len(errs), code: expCode, line: expLine, column: expCol, offset: expOff})
             }
             return nil
         })
@@ -245,7 +274,26 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                 "count":   ev.count,
                 "gotErrs": ev.gotErrs,
                 "msg":     ev.msgSub,
+                "code":    ev.code,
+                "line":    ev.line,
+                "column":  ev.column,
+                "offset":  ev.offset,
             })
+        }
+        // Per-package summary events
+        if len(c.byPkg) > 0 {
+            pkgs := make([]string, 0, len(c.byPkg))
+            for k := range c.byPkg { pkgs = append(pkgs, k) }
+            sort.Strings(pkgs)
+            for _, pkg := range pkgs {
+                v := c.byPkg[pkg]
+                _ = json.NewEncoder(out).Encode(map[string]any{
+                    "schema":  "ami.test.pkg.v1",
+                    "package": pkg,
+                    "ok":      v.ok,
+                    "fail":    v.fail,
+                })
+            }
         }
         _ = json.NewEncoder(out).Encode(map[string]any{
             "ok":       err == nil && amiFailures == 0,

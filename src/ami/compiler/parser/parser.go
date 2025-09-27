@@ -614,8 +614,9 @@ func (p *Parser) parseAttrArg() (ast.Arg, bool) {
             }
             return ast.Arg{Pos: pos, Text: key + "=" + exprText(e)}, true
         }
-        // plain identifier as arg
-        return ast.Arg{Pos: pos, Text: key}, true
+        // otherwise treat as ident-led expression (selector/call allowed)
+        e := p.parseIdentExpr(key, pos)
+        return ast.Arg{Pos: ePos(e), Text: exprText(e), IsString: isStringLit(e)}, true
     }
     // fallback to generic expression
     e, ok := p.parseExprPrec(1)
@@ -773,8 +774,7 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
                     if p.cur.Kind == token.LParenSym {
                         p.next()
                         for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
-                            e, ok := p.parseExprPrec(1)
-                            if ok { aargs = append(aargs, ast.Arg{Pos: ePos(e), Text: exprText(e)}) } else { p.errf("unexpected token in attr args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
+                            if arg, ok := p.parseAttrArg(); ok { aargs = append(aargs, arg) } else { p.errf("unexpected token in attr args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
                             if p.cur.Kind == token.CommaSym { p.next(); continue }
                         }
                         if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in attr call") }
@@ -875,8 +875,7 @@ func (p *Parser) parseStepBlock() (*ast.BlockStmt, error) {
                     if p.cur.Kind == token.LParenSym {
                         p.next()
                         for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
-                            e, ok := p.parseExprPrec(1)
-                            if ok { aargs = append(aargs, ast.Arg{Pos: ePos(e), Text: exprText(e)}) } else { p.errf("unexpected token in attr args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
+                            if arg, ok := p.parseAttrArg(); ok { aargs = append(aargs, arg) } else { p.errf("unexpected token in attr args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
                             if p.cur.Kind == token.CommaSym { p.next(); continue }
                         }
                         if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in attr call") }

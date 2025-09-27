@@ -806,10 +806,10 @@ Tests & Docs
   - [X] Map `#pragma backpressure` defaults into IR attributes (scaffold via debug edge object defaults).
   - [X] Stub `edge.*` specs (FIFO, LIFO, Pipeline) as compiler-generated artifacts for analysis/codegen; see `src/ami/compiler/edge` and `docs/edges.md`.
   - [X] Event payload flow type checking (scaffold): when both sides declare explicit step type, mismatches emit `E_EVENT_TYPE_FLOW`.
-- [ ] Error pipelines (1.1.8): parsing supported in AST (`error { ... }`), semantics validated:
-  - [ ] Error pipeline must end with `egress` (`E_ERRPIPE_END_EGRESS`).
-  - [ ] Error pipeline cannot start with `ingress` (`E_ERRPIPE_START_INVALID`).
-  - [ ] Unknown nodes in error path flagged as `E_UNKNOWN_NODE`.
+  - [X] Error pipelines (1.1.8): parsing supported in AST (`error { ... }`), semantics validated:
+  - [X] Error pipeline must end with `egress` (`E_ERRPIPE_END_EGRESS`).
+  - [X] Error pipeline cannot start with `ingress` (`E_ERRPIPE_START_INVALID`).
+  - [X] Unknown nodes in error path flagged as `E_UNKNOWN_NODE`.
 - [ ] Event lifecycle and metadata (1.1.6–1.1.7): id, timestamp, attempt, trace context; immutable payload
   - [X] Debug contract emitted per unit as `build/debug/ir/<package>/<unit>.eventmeta.json` (`eventmeta.v1`) with fields: `id`, `timestamp` (ISO‑8601 UTC), `attempt` (int), and structured `trace` context (`trace.traceparent`, `trace.tracestate`); plus `immutablePayload: true`.
   - Runtime semantics are deferred; compiler enforces immutable event parameter shape (no pointers) and records generics; body‑level immutability checks are deferred until the imperative subset lands.

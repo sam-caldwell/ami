@@ -14,6 +14,7 @@ func lowerStmtAssign(st *lowerState, as *ast.AssignStmt) ir.Instruction {
         }
         return ir.Assign{DestID: as.Name, Src: *ex.Result}
     }
-    // fallback: assign from unknown value of type any
-    return ir.Assign{DestID: as.Name, Src: ir.Value{ID: "", Type: "any"}}
+    // fallback: assign from unknown temp value of type any
+    id := st.newTemp()
+    return ir.Assign{DestID: as.Name, Src: ir.Value{ID: id, Type: "any"}}
 }

@@ -100,20 +100,34 @@ func newPipelineVisualizeCmd() *cobra.Command {
                 }
             }
             if jsonOut {
+                noSummary, _ := cmd.Flags().GetBool("no-summary")
                 enc := json.NewEncoder(cmd.OutOrStdout())
                 for _, g := range graphs { _ = enc.Encode(g) }
                 // summary object
-                sum := map[string]any{"schema": graph.Schema, "type": "summary", "pipelines": len(graphs)}
-                _ = enc.Encode(sum)
+                if !noSummary {
+                    sum := map[string]any{"schema": graph.Schema, "type": "summary", "pipelines": len(graphs)}
+                    _ = enc.Encode(sum)
+                }
                 return nil
             }
-            // Human: header + one-line ASCII per pipeline
+            // Optional focus filter for human mode
+            focus, _ := cmd.Flags().GetString("focus")
+            if focus != "" {
+                ff := strings.ToLower(focus)
+                var filtered []graph.Graph
+                for _, g := range graphs {
+                    if graphContains(g, ff) { filtered = append(filtered, g) }
+                }
+                graphs = filtered
+            }
+            // Human: header + ASCII block per pipeline
+            width, _ := cmd.Flags().GetInt("width")
             for i, g := range graphs {
                 header := fmt.Sprintf("package: %s  pipeline: %s\n", g.Package, g.Name)
-                line := ascii.RenderLine(g, ascii.Options{})
+                line := ascii.RenderBlock(g, ascii.Options{Width: width})
                 if i > 0 { _, _ = cmd.OutOrStdout().Write([]byte("\n")) }
                 _, _ = cmd.OutOrStdout().Write([]byte(header))
-                _, _ = cmd.OutOrStdout().Write([]byte(line + "\n"))
+                _, _ = cmd.OutOrStdout().Write([]byte(line))
             }
             return nil
         },
@@ -121,27 +135,55 @@ func newPipelineVisualizeCmd() *cobra.Command {
     cmd.Flags().BoolVar(&jsonOut, "json", false, "emit machine-parsable JSON output (graph.v1)")
     cmd.Flags().StringVar(&pkgKey, "package", "", "visualize a specific workspace package key (e.g., main)")
     cmd.Flags().StringVar(&fileOnly, "file", "", "visualize only a specific .ami file path")
+    cmd.Flags().String("focus", "", "only show pipelines that include this node substring")
+    cmd.Flags().Int("width", 0, "wrap ASCII lines to this width (0=disable)")
+    cmd.Flags().Bool("no-summary", false, "omit JSON summary record")
     return cmd
 }
 
 // graphFromPipeline constructs a simple straight-line graph from a PipelineDecl's step order.
 func graphFromPipeline(pkg string, unit string, pd *ast.PipelineDecl) graph.Graph {
     g := graph.Graph{Package: pkg, Unit: unit, Name: pd.Name}
-    // Collect steps in order
+    // Collect steps and map names to node IDs
     var ids []string
+    nameToID := map[string]string{}
     for i, s := range pd.Stmts {
-        st, ok := s.(*ast.StepStmt); if !ok { continue }
-        // normalize kind: lower-case last segment of Name
+        st, ok := s.(*ast.StepStmt)
+        if !ok { continue }
         parts := strings.Split(st.Name, ".")
-        kind := strings.ToLower(parts[len(parts)-1])
-        id := fmt.Sprintf("%02d:%s", i, kind)
-        lbl := kind
-        g.Nodes = append(g.Nodes, graph.Node{ID: id, Kind: kind, Label: lbl})
+        base := parts[len(parts)-1]
+        kind := strings.ToLower(base)
+        label := base
+        for _, at := range st.Attrs {
+            if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 {
+                if at.Args[0].Text != "" { label = base + ":" + at.Args[0].Text }
+            }
+        }
+        id := fmt.Sprintf("%02d:%s", i, strings.ToLower(base))
+        g.Nodes = append(g.Nodes, graph.Node{ID: id, Kind: kind, Label: strings.ToLower(label)})
         ids = append(ids, id)
+        if _, ok := nameToID[st.Name]; !ok { nameToID[st.Name] = id }
     }
-    // Sequential edges
-    for i := 0; i+1 < len(ids); i++ {
-        g.Edges = append(g.Edges, graph.Edge{From: ids[i], To: ids[i+1]})
+    // Add explicit edges when present; otherwise chain sequentially
+    var hasExplicit bool
+    for _, s := range pd.Stmts { if _, ok := s.(*ast.EdgeStmt); ok { hasExplicit = true; break } }
+    if hasExplicit {
+        for _, s := range pd.Stmts {
+            if e, ok := s.(*ast.EdgeStmt); ok {
+                if fromID, ok1 := nameToID[e.From]; ok1 {
+                    if toID, ok2 := nameToID[e.To]; ok2 {
+                        // Annotate with attributes derived from the source step (fromID)
+                        attrs := deriveEdgeAttrs(pd, fromID, nameToID)
+                        g.Edges = append(g.Edges, graph.Edge{From: fromID, To: toID, Attrs: attrs})
+                    }
+                }
+            }
+        }
+    } else {
+        for i := 0; i+1 < len(ids); i++ {
+            attrs := deriveEdgeAttrs(pd, ids[i], nameToID)
+            g.Edges = append(g.Edges, graph.Edge{From: ids[i], To: ids[i+1], Attrs: attrs})
+        }
     }
     return g
 }
@@ -152,4 +194,75 @@ func findPackageByRootKey(ws *workspace.Workspace, key string) *workspace.Packag
         if ws.Packages[i].Key == key { return &ws.Packages[i].Package }
     }
     return nil
+}
+
+// graphContains checks if g's name or any node label/kind contains focus (lowercase substring).
+func graphContains(g graph.Graph, focus string) bool {
+    if strings.Contains(strings.ToLower(g.Name), focus) { return true }
+    for _, n := range g.Nodes {
+        if strings.Contains(strings.ToLower(n.Label), focus) || strings.Contains(strings.ToLower(n.Kind), focus) {
+            return true
+        }
+    }
+    return false
+}
+
+// deriveEdgeAttrs inspects the step corresponding to fromID and returns edge attrs.
+// Recognizes:
+// - merge.Buffer(size, policy) → bounded (size>0), delivery (policy→bestEffort for dropOldest/dropNewest; atLeastOnce for block)
+// - type(TypeName) → type
+func deriveEdgeAttrs(pd *ast.PipelineDecl, fromID string, nameToID map[string]string) map[string]any {
+    // find the step index matching fromID by scanning the constructed IDs
+    // fromID is of the form "NN:kind" where NN is zero-padded index.
+    // Extract index safely.
+    var idx int
+    if len(fromID) >= 2 && fromID[2] == ':' {
+        // parse first two digits
+        tens := int(fromID[0]-'0')
+        ones := int(fromID[1]-'0')
+        if 0 <= tens && tens <= 9 && 0 <= ones && ones <= 9 {
+            idx = tens*10 + ones
+        }
+    }
+    // count StepStmt to match idx
+    si := -1
+    for i, s := range pd.Stmts {
+        if _, ok := s.(*ast.StepStmt); ok { si++; if si == idx { return attrsFromStep(s.(*ast.StepStmt)) } }
+    }
+    return nil
+}
+
+func attrsFromStep(st *ast.StepStmt) map[string]any {
+    if st == nil { return nil }
+    var bounded bool
+    delivery := ""
+    typ := ""
+    for _, at := range st.Attrs {
+        if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 {
+            typ = at.Args[0].Text
+        }
+        if len(at.Name) >= 6 && at.Name[:6] == "merge." {
+            if at.Name == "merge.Buffer" {
+                // args: size, policy
+                if len(at.Args) > 0 {
+                    if at.Args[0].Text != "0" && at.Args[0].Text != "" { bounded = true }
+                }
+                if len(at.Args) > 1 {
+                    pol := at.Args[1].Text
+                    switch pol {
+                    case "dropOldest", "dropNewest":
+                        delivery = "bestEffort"
+                    case "block":
+                        delivery = "atLeastOnce"
+                    }
+                }
+            }
+        }
+    }
+    m := map[string]any{}
+    if bounded { m["bounded"] = true }
+    if delivery != "" { m["delivery"] = delivery }
+    if typ != "" { m["type"] = typ }
+    if len(m) == 0 { return nil }
+    return m
 }

@@ -84,5 +84,20 @@ func exprToJSON(e Expr) any {
     if e.Callee != "" { obj["callee"] = e.Callee }
     if len(e.Args) > 0 { obj["args"] = valuesToJSON(e.Args) }
     if e.Result != nil { obj["result"] = map[string]any{"id": e.Result.ID, "type": e.Result.Type} }
+    // Enrich call expressions with simple type signature hints for downstream phases.
+    if e.Op == "call" {
+        if len(e.Args) > 0 {
+            ats := make([]any, 0, len(e.Args))
+            for _, a := range e.Args { ats = append(ats, a.Type) }
+            obj["argTypes"] = ats
+        } else {
+            obj["argTypes"] = []any{}
+        }
+        if e.Result != nil {
+            obj["retTypes"] = []any{e.Result.Type}
+        } else {
+            obj["retTypes"] = []any{}
+        }
+    }
     return obj
 }

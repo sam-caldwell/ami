@@ -603,9 +603,9 @@ Tests & Docs
    - [ ] Capabilities/trust (deferred)
  - [X] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
 - [X] Parser/semantics diagnostics for package identifiers and import paths (happy/sad tests)
-- [ ] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
+- [X] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
 - [ ] Event typing, error typing, and contracts (1.7, 2.2)
-- [ ] Worker function signatures and factories (2.2.6, 2.2.13)
+- [X] Worker function signatures and factories (2.2.6, 2.2.13)
 - [ ] Node‑state tables and access (2.2.14, 2.3.5)
  - [ ] Memory model: ownership & RAII (2.4)
 - [ ] Observability: event IDs, telemetry hooks (1.6)
@@ -1047,7 +1047,7 @@ Deliverables
 
 - [X] Parser support: capture decorators on function declarations, with args
 - [ ] Semantics: resolution, ordering, and error conditions; signature preservation checks
-- [ ] IR annotations: per‑function decorator list in `ir.v1`
+- [X] IR annotations: per‑function decorator list in `ir.v1`
 - [X] Tests: parse (single/multiple), ordering, arg parsing
 - [ ] Docs: syntax, ordering rules, built‑ins, configuration, and examples
 

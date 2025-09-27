@@ -213,6 +213,13 @@ func modGetGit(out io.Writer, dir string, src string, jsonOut bool) error {
         return exit.New(exit.Network, "git clone failed: %v", err)
     }
 
+    // Compute commit digest from the cloned repo
+    digest, derr := computeCommitDigest(tmp, version)
+    if derr != nil {
+        if jsonOut { _ = json.NewEncoder(out).Encode(modGetResult{Source: src, Name: name, Version: version, Message: "commit digest failed"}) }
+        return exit.New(exit.IO, "commit digest: %v", derr)
+    }
+
     // Determine cache path
     cache := os.Getenv("AMI_PACKAGE_CACHE")
     if cache == "" {
@@ -241,11 +248,7 @@ func modGetGit(out io.Writer, dir string, src string, jsonOut bool) error {
             }
         }
     }
-    h, err := hashDir(dest)
-    if err != nil {
-        if jsonOut { _ = json.NewEncoder(out).Encode(modGetResult{Source: src, Name: name, Version: version, Path: dest, Message: "hash failed"}) }
-        return exit.New(exit.IO, "hash failed: %v", err)
-    }
+    h := digest
     pkgs, _ := sum["packages"].(map[string]any)
     if pkgs == nil { pkgs = map[string]any{} }
     pkgs[name] = map[string]any{"version": version, "sha256": h}

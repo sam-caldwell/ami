@@ -455,10 +455,10 @@ packages:
 - [ ] When `--verbose` is provided to `ami build`
   - generate debugging information in `./build/debug` for compiler debugging (not produced otherwise)
     - [X] A Resolved source stream (`build/debug/source/resolved.json`).
-      - [ ] An Abstract Syntax Trees (per package/unit)
-          - [ ] stored in .json format
-          - [ ] stored as `build/debug/ast/<package>/<unit>.ast.json`
-          - [ ] using stable field ordering and explicit node kinds, positions.
+      - [X] An Abstract Syntax Trees (per package/unit)
+          - [X] stored in .json format
+          - [X] stored as `build/debug/ast/<package>/<unit>.ast.json`
+          - [X] using stable field ordering and positions for nodes (imports, funcs, pipelines, steps, pragmas).
       - [ ] Artifacts under `./build/debug/` to aid compiler debugging (not produced otherwise):
       - [ ] Full timestamped activity logs for the compiler in `./build/debug/activity.log`
   - [ ] Intermediate Representation (IR)

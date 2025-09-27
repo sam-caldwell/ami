@@ -24,8 +24,8 @@ func Parse(s string) (Type, error) {
     if i := strings.IndexByte(s, '<'); i >= 0 && strings.HasSuffix(s, ">") {
         base := s[:i]
         inner := s[i+1:len(s)-1]
-        // split by top-level commas (no nested generics beyond single level needed for now)
-        parts := splitTop(inner)
+        // split by top-level commas (reuse FromAST helpers)
+        parts := splitAllTop(inner)
         switch base {
         case "map":
             if len(parts) != 2 { return nil, fmt.Errorf("map requires two type args") }
@@ -46,22 +46,4 @@ func Parse(s string) (Type, error) {
 }
 
 // splitTop splits a comma-separated list without breaking nested <...> groups.
-func splitTop(s string) []string {
-    var out []string
-    depth := 0
-    start := 0
-    for i := 0; i < len(s); i++ {
-        switch s[i] {
-        case '<': depth++
-        case '>': if depth > 0 { depth-- }
-        case ',':
-            if depth == 0 {
-                out = append(out, strings.TrimSpace(s[start:i]))
-                start = i + 1
-            }
-        }
-    }
-    if start <= len(s) { out = append(out, strings.TrimSpace(s[start:])) }
-    return out
-}
-
+// splitTop removed in favor of splitAllTop from fromast.go

@@ -24,7 +24,7 @@ func FromAST(t string) Type {
     // map generic
     if strings.HasPrefix(s, "map<") && strings.HasSuffix(s, ">") {
         inner := s[len("map<") : len(s)-1]
-        parts := splitTop(inner)
+        parts := splitAllTop(inner)
         if len(parts) == 2 {
             return Map{Key: FromAST(parts[0]), Val: FromAST(parts[1])}
         }
@@ -44,7 +44,7 @@ func FromAST(t string) Type {
     if i := strings.IndexByte(s, '<'); i >= 0 && strings.HasSuffix(s, ">") {
         name := s[:i]
         inner := s[i+1 : len(s)-1]
-        parts := splitTop(inner)
+        parts := splitAllTop(inner)
         args := make([]Type, 0, len(parts))
         for _, p := range parts { args = append(args, FromAST(p)) }
         return Generic{Name: name, Args: args}

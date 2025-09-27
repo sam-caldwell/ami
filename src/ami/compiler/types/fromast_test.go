@@ -28,7 +28,6 @@ func TestBuildFunction_FromFuncDecl(t *testing.T) {
     }
     ft := BuildFunction(fn)
     got := ft.String()
-    want := "func(int,Event<T>)->(map<string,int64>)"
+    want := "func(int,Event<T>) -> (map<string,int64>)"
     if got != want { t.Fatalf("function string: %s != %s", got, want) }
 }
-

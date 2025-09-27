@@ -363,7 +363,7 @@ packages:
   - [X] Compiler can generate a json build plan if `--verbose` is used.
   - [X] Compiler can track token position to localize detected errors by line and position
   - [X] Using `ami.workspace` ensure that all local and remote packages are available on the local machine
-  - [ ] For every included source file (starting with `main.ami`)...
+  - [X] For every included source file (starting with `main.ami`)...
     - [X] Detect circular references and return an error/terminate
     - [X] Lex/Tokenize/Parse: Source → tokens → AST (per .ami file)
     - [X] Type-Checking: resolve names, perform inference/checks and const folding.

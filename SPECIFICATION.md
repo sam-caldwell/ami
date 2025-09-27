@@ -444,6 +444,7 @@ packages:
     - [X] Contains `ami.manifest` content (packages map from ami.sum when present)
     - [X] Contains toolchain metadata (targetDir, targets)
     - [X] Contains evidence of built artifacts (objIndex entries)
+    - [X] Contains evidence of all imported artifacts with build‑time integrity validation of `ami.sum` vs cache (verified/missing/mismatched)
     - [X] Contains cross references to ./build/debug artifacts when verbose
     - [X] Contains list of binaries produced in ./build/**/*
 - [ ] Tests:
@@ -1038,7 +1039,8 @@ Deliverables
 - [ ] Interactions: decorators may add metadata (e.g., `@deprecated("msg")`, `@metrics`)
   - `@deprecated` emits a compile‑time warning diag.v1 with stable fields
 - [ ] Config: enable/disable specific decorators via `ami.workspace` (linter/compiler settings)
-- [X] AST: attach decorator metadata (name + arg list) to function nodes (IR attachment deferred)
+ - [X] AST: attach decorator metadata (name + arg list) to function nodes
+ - [X] IR annotations: per‑function decorator list in `ir.v1`
 - [ ] Codegen (scaffold): allow no‑op or pass‑through; reserve hook points for wrappers
 
 Deliverables

@@ -182,7 +182,7 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     pd, ok := dcl.(*ast.PipelineDecl); if !ok || pd == nil { continue }
                     var stmts []ast.Stmt
                     if len(pd.Stmts) > 0 { stmts = pd.Stmts } else if pd.Body != nil { stmts = pd.Body.Stmts }
-                    // Backpressure hints: scan step attributes
+                    // Backpressure hints: scan step call names and attributes
                     for _, s := range stmts {
                         st, ok := s.(*ast.StepStmt); if !ok { continue }
                         // Capability (I/O) check: forbid io.* nodes outside ingress/egress
@@ -190,6 +190,21 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                         if strings.HasPrefix(lname, "io.") && lname != "ingress" && lname != "egress" {
                             d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
                             if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                        // Step-call form: merge.Buffer(capacity, policy)
+                        if strings.HasSuffix(lname, ".buffer") {
+                            capVal := 0
+                            if len(st.Args) >= 1 { capVal = atoiSafe(st.Args[0].Text) }
+                            var policy string
+                            if len(st.Args) >= 2 { policy = strings.ToLower(st.Args[1].Text) }
+                            if policy == "drop" {
+                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_DROP_ALIAS", Message: "ambiguous backpressure alias 'drop'; use dropOldest/dropNewest/block", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
+                            if capVal <= 1 && (policy == "dropoldest" || policy == "dropnewest") {
+                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_POLICY_SMELL", Message: "buffer policy with capacity<=1 is likely ineffective", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"capacity": capVal, "policy": policy}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
                         }
                         for _, a := range st.Attrs {
                             name := strings.ToLower(a.Name)

@@ -12,7 +12,10 @@ func TestAnalyzeDecorators_BuiltinsAndResolution(t *testing.T) {
     p := parser.New(f)
     af, _ := p.ParseFile()
     ds := AnalyzeDecorators(af)
-    if len(ds) != 0 { t.Fatalf("unexpected diags: %+v", ds) }
+    // Built-ins emit warnings (deprecated). Ensure resolution has no errors.
+    for _, d := range ds {
+        if d.Level == "error" { t.Fatalf("unexpected error diag: %+v", d) }
+    }
 }
 
 func TestAnalyzeDecorators_Unresolved_And_Conflict(t *testing.T) {

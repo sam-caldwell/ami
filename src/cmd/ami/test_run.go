@@ -108,9 +108,18 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
     }
 
     // Run AMI directive tests by scanning *.ami files.
-    type amiResult struct{ name, file string; ok bool }
+    type amiResult struct{
+        name   string
+        file   string
+        ok     bool
+        expect string
+        count  int
+        msgSub string
+        gotErrs int
+    }
     amiTests, amiFailures := 0, 0
     var amiManifest []string
+    var amiEvents []amiResult
     evaluateAMIDirectives := func(root string) {
         // Walk tree shallowly by listing files recursively using filepath.WalkDir.
         _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
@@ -124,9 +133,11 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
             var fs source.FileSet
             f := fs.AddFile(path, string(b))
             p := parser.New(f)
-            file, perr := p.ParseFile()
+            file, errs := p.ParseFileCollect()
             // default expectation: parse_ok
             expectParseOK := true
+            expCount := -1
+            expMsg := ""
             var caseNames []string
             for _, pr := range file.Pragmas {
                 if pr.Domain == "test" {
@@ -138,12 +149,30 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                             if pr.Args[0] == "parse_fail" { expectParseOK = false }
                             if pr.Args[0] == "parse_ok" { expectParseOK = true }
                         }
+                        if pr.Params != nil {
+                            if v, ok := pr.Params["count"]; ok {
+                                if n, e := strconv.Atoi(v); e == nil { expCount = n }
+                            }
+                            if v, ok := pr.Params["msg"]; ok { expMsg = v }
+                            if v, ok := pr.Params["message"]; ok { expMsg = v }
+                        }
                     }
                 }
             }
             if len(caseNames) == 0 { return nil }
             // Determine result based on expectation vs error
-            ok := (perr == nil) == expectParseOK
+            ok := (len(errs) == 0) == expectParseOK
+            // Count assertion
+            if expCount >= 0 && ok {
+                if expectParseOK && expCount != 0 { ok = false }
+                if !expectParseOK && expCount != len(errs) { ok = false }
+            }
+            // Message substring assertion when provided
+            if expMsg != "" && ok {
+                s := ""
+                for _, e := range errs { s += e.Error() + "\n" }
+                if !strings.Contains(s, expMsg) { ok = false }
+            }
             // Record for each case
             rel := path
             if rp, rerr := filepath.Rel(root, path); rerr == nil { rel = rp }
@@ -151,6 +180,7 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                 amiTests++
                 if !ok { amiFailures++ }
                 amiManifest = append(amiManifest, fmt.Sprintf("ami:%s %s", rel, name))
+                amiEvents = append(amiEvents, amiResult{name: name, file: rel, ok: ok, expect: map[bool]string{true:"parse_ok", false:"parse_fail"}[expectParseOK], count: expCount, msgSub: expMsg, gotErrs: len(errs)})
             }
             return nil
         })
@@ -203,6 +233,19 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
         }
     } else {
         // Emit final JSON summary record as a newline-delimited object with counts
+        // Stream AMI directive events before the final summary for visibility.
+        for _, ev := range amiEvents {
+            _ = json.NewEncoder(out).Encode(map[string]any{
+                "schema":  "ami.test.v1",
+                "file":    ev.file,
+                "case":    ev.name,
+                "ok":      ev.ok,
+                "expect":  ev.expect,
+                "count":   ev.count,
+                "gotErrs": ev.gotErrs,
+                "msg":     ev.msgSub,
+            })
+        }
         _ = json.NewEncoder(out).Encode(map[string]any{
             "ok":       err == nil && amiFailures == 0,
             "packages": c.packages,

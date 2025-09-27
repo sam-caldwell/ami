@@ -795,50 +795,75 @@ func (p *Parser) parseStepBlock() (*ast.BlockStmt, error) {
         }
         if p.cur.Kind == token.Ident || p.cur.Kind == token.KwIngress || p.cur.Kind == token.KwEgress ||
             p.cur.Kind == token.KwNodeTransform || p.cur.Kind == token.KwNodeFanout || p.cur.Kind == token.KwNodeCollect || p.cur.Kind == token.KwNodeMutable {
-            // step name
-            st := &ast.StepStmt{Pos: p.cur.Pos, Name: p.cur.Lexeme, Leading: p.pending}
-            p.pending = nil
-            p.next()
-            // optional type(attr) or call args
-            if p.cur.Kind == token.LParenSym {
-                // Parse arguments similar to call syntax and store as ast.Arg
-                p.next()
-                var args []ast.Arg
-                for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
-                    e, ok := p.parseExprPrec(1)
-                    if ok {
-                        args = append(args, ast.Arg{Pos: ePos(e), Text: exprText(e)})
-                    } else {
-                        p.errf("unexpected token in args: %q", p.cur.Lexeme)
-                        p.syncUntil(token.CommaSym, token.RParenSym)
-                    }
-                    if p.cur.Kind == token.CommaSym { p.next(); continue }
-                }
-                if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in step args") }
-                st.Args = args
-            }
-            // attributes list (dotted names with optional parens)
-            var attrs []ast.Attr
-            for p.cur.Kind == token.Ident || p.cur.Kind == token.KwType {
-                aname := p.cur.Lexeme
-                apos := p.cur.Pos
-                p.next()
-                for p.cur.Kind == token.DotSym { p.next(); if p.cur.Kind != token.Ident { p.errf("expected ident after '.' in attribute name, got %q", p.cur.Lexeme); break }; aname += "." + p.cur.Lexeme; p.next() }
-                var aargs []ast.Arg
+            // helper to parse a step body (args + attrs) given a consumed name
+            parseStepBody := func(startName string, startPos source.Position) *ast.StepStmt {
+                st := &ast.StepStmt{Pos: startPos, Name: startName, Leading: p.pending}
+                p.pending = nil
                 if p.cur.Kind == token.LParenSym {
                     p.next()
+                    var args []ast.Arg
                     for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
                         e, ok := p.parseExprPrec(1)
-                        if ok { aargs = append(aargs, ast.Arg{Pos: ePos(e), Text: exprText(e)}) } else { p.errf("unexpected token in attr args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
+                        if ok { args = append(args, ast.Arg{Pos: ePos(e), Text: exprText(e)}) } else { p.errf("unexpected token in args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
                         if p.cur.Kind == token.CommaSym { p.next(); continue }
                     }
-                    if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in attr call") }
+                    if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in step args") }
+                    st.Args = args
                 }
-                attrs = append(attrs, ast.Attr{Pos: apos, Name: aname, Args: aargs})
-                if p.cur.Kind == token.CommaSym { p.next(); continue }
+                var attrs []ast.Attr
+                for p.cur.Kind == token.Ident || p.cur.Kind == token.KwType {
+                    aname := p.cur.Lexeme
+                    apos := p.cur.Pos
+                    p.next()
+                    for p.cur.Kind == token.DotSym { p.next(); if p.cur.Kind != token.Ident { p.errf("expected ident after '.' in attribute name, got %q", p.cur.Lexeme); break }; aname += "." + p.cur.Lexeme; p.next() }
+                    var aargs []ast.Arg
+                    if p.cur.Kind == token.LParenSym {
+                        p.next()
+                        for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
+                            e, ok := p.parseExprPrec(1)
+                            if ok { aargs = append(aargs, ast.Arg{Pos: ePos(e), Text: exprText(e)}) } else { p.errf("unexpected token in attr args: %q", p.cur.Lexeme); p.syncUntil(token.CommaSym, token.RParenSym) }
+                            if p.cur.Kind == token.CommaSym { p.next(); continue }
+                        }
+                        if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' in attr call") }
+                    }
+                    attrs = append(attrs, ast.Attr{Pos: apos, Name: aname, Args: aargs})
+                    if p.cur.Kind == token.CommaSym { p.next(); continue }
+                }
+                st.Attrs = attrs
+                return st
             }
-            st.Attrs = attrs
+
+            // read initial name (allow dotted)
+            name := p.cur.Lexeme
+            npos := p.cur.Pos
+            p.next()
+            for p.cur.Kind == token.DotSym {
+                p.next()
+                if p.cur.Kind != token.Ident { p.errf("expected identifier after '.', got %q", p.cur.Lexeme); break }
+                name = name + "." + p.cur.Lexeme
+                p.next()
+            }
+            st := parseStepBody(name, npos)
             stmts = append(stmts, st)
+            // chained notation: additional .Name(args...) segments
+            for p.cur.Kind == token.DotSym {
+                p.next()
+                if !(p.cur.Kind == token.Ident || p.cur.Kind == token.KwIngress || p.cur.Kind == token.KwEgress || p.cur.Kind == token.KwNodeTransform || p.cur.Kind == token.KwNodeFanout || p.cur.Kind == token.KwNodeCollect || p.cur.Kind == token.KwNodeMutable) {
+                    p.errf("expected node name after '.', got %q", p.cur.Lexeme)
+                    break
+                }
+                cname := p.cur.Lexeme
+                cpos := p.cur.Pos
+                p.next()
+                for p.cur.Kind == token.DotSym {
+                    p.next()
+                    if p.cur.Kind != token.Ident { p.errf("expected identifier after '.', got %q", p.cur.Lexeme); break }
+                    cname = cname + "." + p.cur.Lexeme
+                    p.next()
+                }
+                cst := parseStepBody(cname, cpos)
+                stmts = append(stmts, cst)
+            }
             if p.cur.Kind == token.SemiSym { p.next() }
             continue
         }

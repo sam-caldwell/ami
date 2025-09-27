@@ -91,7 +91,9 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
     for _, r := range reqs {
         vers := manifest.Versions(r.Name)
         if len(vers) == 0 { continue }
-        if best, ok := workspace.HighestSatisfying(vers, r.Constraint, false); ok {
+        // include prereleases only if the constraint specifies a prerelease component
+        includePre := strings.Contains(r.Constraint.Version, "-")
+        if best, ok := workspace.HighestSatisfying(vers, r.Constraint, includePre); ok {
             selected = append(selected, modUpdateItem{Name: r.Name, Version: best})
         }
     }

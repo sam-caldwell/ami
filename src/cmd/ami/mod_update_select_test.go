@@ -37,3 +37,27 @@ func TestModUpdate_ReportsSelectedVersions_ForRemoteReqs(t *testing.T) {
     if !found { t.Fatalf("expected selection lib@v1.4.0; got: %+v", res.Selected) }
 }
 
+// When the constraint includes a prerelease, selection may include prereleases.
+func TestModUpdate_ReportsPrerelease_WhenConstraintHasPrerelease(t *testing.T) {
+    dir := filepath.Join("build", "test", "mod_update", "select_prerelease")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    ws := workspace.DefaultWorkspace()
+    ws.Packages = workspace.PackageList{
+        {Key: "main", Package: workspace.Package{Name: "app", Version: "1.0.0", Root: "./src", Import: []string{"lib@^1.4.0-rc.1"}}},
+    }
+    if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "src", "x.txt"), []byte("x"), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    if err := ws.Save(filepath.Join(dir, "ami.workspace")); err != nil { t.Fatalf("save ws: %v", err) }
+    // ami.sum with only prerelease options
+    sum := []byte(`{ "schema": "ami.sum/v1", "packages": { "lib": { "v1.4.0-rc.2": "aaa", "v1.4.0-rc.3": "bbb" } } }`)
+    if err := os.WriteFile(filepath.Join(dir, "ami.sum"), sum, 0o644); err != nil { t.Fatalf("write sum: %v", err) }
+
+    var buf bytes.Buffer
+    if err := runModUpdate(&buf, dir, true); err != nil { t.Fatalf("runModUpdate: %v", err) }
+    var res modUpdateResult
+    if err := json.Unmarshal(buf.Bytes(), &res); err != nil { t.Fatalf("json: %v; out=%s", err, buf.String()) }
+    found := false
+    for _, s := range res.Selected { if s.Name == "lib" && s.Version == "v1.4.0-rc.3" { found = true; break } }
+    if !found { t.Fatalf("expected selection lib@v1.4.0-rc.3; got: %+v", res.Selected) }
+}

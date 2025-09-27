@@ -17,7 +17,7 @@ func TestParser_Broader_Coverage(t *testing.T) {
         " var c map<string,int> = map<string,int>{\"k1\":1, \"k2\":2};\n" +
         " a = a; b = b; c = c;\n" +
         "}\n" +
-        "pipeline P(){ Alpha(in=edge.FIFO(min=1,max=5,backpressure=dropOldest)).Transform(\"W\").Collect edge.MultiPath(merge.Sort(\"ts\"), merge.Stable(), window=100); egress }\n" +
+        "pipeline P(){ Alpha().Transform(\"W\").Collect edge.MultiPath(merge.Sort(\"ts\"), merge.Stable()); egress }\n" +
         "error { Foo() }\n"
     f := (&source.FileSet{}).AddFile("cov.ami", src)
     p := New(f)

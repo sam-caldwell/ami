@@ -36,6 +36,16 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
         ex := lowerCallExpr(st, v)
         return ex, true
     case *ast.BinaryExpr:
+        // simple const-fold for string concatenation
+        if v.Op == token.Plus {
+            if sx, ok := v.X.(*ast.StringLit); ok {
+                if sy, ok2 := v.Y.(*ast.StringLit); ok2 {
+                    id := st.newTemp()
+                    res := &ir.Value{ID: id, Type: "string"}
+                    return ir.Expr{Op: fmt.Sprintf("lit:%q", sx.Value+sy.Value), Result: res}, true
+                }
+            }
+        }
         lx, okx := lowerExpr(st, v.X)
         ly, oky := lowerExpr(st, v.Y)
         if !okx || !oky { return ir.Expr{}, false }

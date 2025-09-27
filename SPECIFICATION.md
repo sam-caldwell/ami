@@ -544,7 +544,11 @@ packages:
 # Remaining Work
 
 - No pending items for scanner; core features implemented and tested. Follow-up may refine diagnostics integration once the diag package lands.
-  - [ ] Tests: cache clean/recreate, get/list/update happy/sad paths, integrity failure, offline behavior
+  - Tests:
+    - [ ] cache clean/recreate
+    - [ ] get/list/update happy/sad paths
+    - [ ] integrity failure
+    - [X] offline behavior (mod get/mod sum)
 #### 1.1.1.3. Dependency Summary File: `ami.sum` (JSON)
 - [X] Create the `workspace.Manifest` struct to represent `ami.sum` (JSON) in memory (`src/workspace/manifest.go`)
 - [X] `workspace.Manifest` has a `Load(path string)` method to deserialize the file `ami.sum`.

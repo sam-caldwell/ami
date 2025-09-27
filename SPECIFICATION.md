@@ -1235,7 +1235,7 @@ Edges Runtime Scaffolding (for harness/tests)
   - [X] Pipeline runtime buffer (scaffold analogous to FIFO) with `Push/Pop`.
 - [C] Thread‑safe counters and tests for order (FIFO/LIFO), backpressure handling, and simple concurrency.
   - [X] Order/backpressure tests for FIFO/LIFO.
-  - [ ] Simple concurrency tests (defer to next step).
+  - [X] Simple concurrency tests (single producer/consumer) for FIFO/LIFO.
 
 ### 9) Determinism and Non‑Interactive Operation
 

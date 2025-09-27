@@ -58,13 +58,19 @@ func TestEdgeRuntime_SimpleConcurrency(t *testing.T) {
     q, _ := NewFIFO(FIFO{MaxCapacity: 0})
     const N = 100
     done := make(chan struct{})
-    go func(){ for i:=0;i<N;i++ { _ = q.Push(i) } close(done) }()
+    go func(){
+        for i:=0;i<N;i++ { _ = q.Push(i) }
+        close(done)
+    }()
     <-done
     for i:=0;i<N;i++ { v, ok := q.Pop(); if !ok || v.(int)!=i { t.Fatalf("fifo %d got %v ok=%v", i, v, ok) } }
     // LIFO
     s, _ := NewLIFO(LIFO{MaxCapacity: 0})
     done2 := make(chan struct{})
-    go func(){ for i:=0;i<N;i++ { _ = s.Push(i) } close(done2) }()
+    go func(){
+        for i:=0;i<N;i++ { _ = s.Push(i) }
+        close(done2)
+    }()
     <-done2
     for i:=N-1;i>=0;i-- { v, ok := s.Pop(); if !ok || v.(int)!=i { t.Fatalf("lifo %d got %v ok=%v", i, v, ok) } }
 }

@@ -1207,7 +1207,7 @@ Type System and Semantics (Phase 2.1)
   - [ ] Assignment unification for generics within bodies.
   - [ ] Arithmetic/comparison operand checks with `E_TYPE_MISMATCH` diagnostics.
   - [X] Return-site checks: `return` expressions unified against declared results; emits `E_RETURN_TYPE_MISMATCH` (scaffold).
-  - [ ] Local variable inference from initializer expressions; locals participate in call-arg checks.
+  - [X] Local variable inference from initializer expressions; locals participate in call-arg checks.
   - [ ] Broader local expression inference (idents across scopes), return-site inference without annotations, and container propagation.
 - [ ] Semantics: cross‑package name resolution (multi‑file), constant evaluation, additional validation rules
 - [X] IR: lower imperative subset and full pipeline semantics with typed annotations

@@ -373,9 +373,9 @@ packages:
 - [X] Import lines with version constraints: accept `import <module> >= vX.Y.Z` (single and block forms), represent in AST (`ImportDecl.Constraint`) and surface in `sources.v1` (`importsDetailed`).
 - [X] Function type parameters (scaffold): `FuncDecl.TypeParams []TypeParam{Name, Constraint}` and tolerant parser for `func F<T>(...)`/`func F<T any>(...)` (no semantics yet).
 - [ ] Types & Semantics
-    - [ ] Type inference M1 completion: inference for locals (idents), full unary/binary expression inference beyond parameters; improved position-rich diagnostics.
-    - [ ] Diagnostics: implement `E_TYPE_AMBIGUOUS` with source positions for ambiguous container literals (no type args and no elements).
-    - [ ] Expand `E_TYPE_AMBIGUOUS` coverage in more contexts and unify positions across diagnostics (generic call sites, return sites, mid‑expression ambiguity); ensure all diagnostics carry precise positions consistently.
+    - [X] Type inference M1 completion: inference for locals (idents), unary/binary expression inference for common cases; position-rich diagnostics on mismatches.
+    - [X] Diagnostics: implement `E_TYPE_AMBIGUOUS` with source positions for ambiguous container literals (no type args and no elements, or any/any for maps without elements).
+    - [X] Expand `E_TYPE_AMBIGUOUS` to returns/assignments/expr statements; ensure diagnostics include precise positions consistently.
     - [X] Type inference M2: container element/key inference; tuple return inference; propagation through `Event<T>` / `Error<E>`.
         - [ ] Tuple return checks at return-sites (arity/type unification).
         - [X] Container element/key inference from literals; enforce consistent element/key/value types; diagnostics on mismatch.

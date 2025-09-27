@@ -13,6 +13,7 @@ type astUnit struct {
     Schema    string       `json:"schema"`
     Package   string       `json:"package"`
     Unit      string       `json:"unit"`
+    Pragmas   []astPragma  `json:"pragmas,omitempty"`
     Imports   []astImport  `json:"imports,omitempty"`
     Funcs     []astFunc    `json:"funcs,omitempty"`
     Pipelines []astPipe    `json:"pipelines,omitempty"`
@@ -57,6 +58,14 @@ type astDecorator struct {
     Args []string `json:"args,omitempty"`
 }
 
+type astPragma struct {
+    Domain string            `json:"domain,omitempty"`
+    Key    string            `json:"key,omitempty"`
+    Value  string            `json:"value,omitempty"`
+    Args   []string          `json:"args,omitempty"`
+    Params map[string]string `json:"params,omitempty"`
+}
+
 // writeASTDebug writes a per-unit AST summary as ast.v1 JSON.
 func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
     var u astUnit
@@ -99,6 +108,13 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
             }
             u.Pipelines = append(u.Pipelines, astPipe{Name: n.Name, Steps: steps})
         }
+    }
+    // pragmas
+    for _, pr := range f.Pragmas {
+        ap := astPragma{Domain: pr.Domain, Key: pr.Key, Value: pr.Value}
+        if len(pr.Args) > 0 { ap.Args = append(ap.Args, pr.Args...) }
+        if len(pr.Params) > 0 { ap.Params = pr.Params }
+        u.Pragmas = append(u.Pragmas, ap)
     }
     // Deterministic ordering
     sort.SliceStable(u.Imports, func(i, j int) bool { return u.Imports[i].Path < u.Imports[j].Path })

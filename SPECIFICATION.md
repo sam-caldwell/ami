@@ -1040,8 +1040,8 @@ Deliverables
 - [ ] Semantics: decorators must not change a worker’s externally visible signature
   - Worker signature validation preserved; violations → `E_DECORATOR_SIGNATURE`
 - [X] Determinism: decorator lists preserved in source order for AST
-- [ ] Interactions: decorators may add metadata (e.g., `@deprecated("msg")`, `@metrics`)
-  - `@deprecated` emits a compile‑time warning diag.v1 with stable fields
+- [X] Interactions: decorators may add metadata (e.g., `@deprecated("msg")`, `@metrics`)
+  - [X] `@deprecated` emits a compile‑time warning diag.v1 with stable fields
 - [ ] Config: enable/disable specific decorators via `ami.workspace` (linter/compiler settings)
  - [X] AST: attach decorator metadata (name + arg list) to function nodes
  - [X] IR annotations: per‑function decorator list in `ir.v1`

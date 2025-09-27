@@ -350,6 +350,31 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             "toolchain": map[string]any{"targetDir": absTarget, "targets": envs},
             "objIndex":  objIdx,
         }
+        if verbose {
+            // collect debug artifact references for cross-linking
+            var debugRefs []string
+            // AST
+            for _, e := range ws.Packages {
+                glob := filepath.Join(dir, "build", "debug", "ast", e.Package.Name, "*.ast.json")
+                if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                    for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { debugRefs = append(debugRefs, rel) } }
+                }
+                // IR
+                glob = filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "*.ir.json")
+                if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                    for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { debugRefs = append(debugRefs, rel) } }
+                }
+                // ASM listings
+                glob = filepath.Join(dir, "build", "debug", "asm", e.Package.Name, "*.s")
+                if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                    for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { debugRefs = append(debugRefs, rel) } }
+                }
+                // Edges index
+                idx := filepath.Join(dir, "build", "debug", "asm", e.Package.Name, "edges.json")
+                if st, err := os.Stat(idx); err == nil && !st.IsDir() { if rel, err := filepath.Rel(dir, idx); err == nil { debugRefs = append(debugRefs, rel) } }
+            }
+            if len(debugRefs) > 0 { outObj["debug"] = debugRefs }
+        }
         f, err := os.OpenFile(filepath.Join(buildDir, "ami.manifest"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
         if err == nil {
             _ = json.NewEncoder(f).Encode(outObj)
@@ -374,7 +399,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             Code:      "BUILD_OK",
             Message:   "workspace valid; build planning deferred",
             File:      "ami.workspace",
-            Data:      map[string]any{"targets": envs, "targetDir": absTarget, "objIndex": objIdx},
+            Data:      map[string]any{"targets": envs, "targetDir": absTarget, "objIndex": objIdx, "buildManifest": filepath.Join("build", "ami.manifest")},
         }
         return json.NewEncoder(out).Encode(rec)
     }

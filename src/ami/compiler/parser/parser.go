@@ -751,9 +751,8 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
                     p.next()
                     var args []ast.Arg
                     for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
-                        e, ok := p.parseExprPrec(1)
-                        if ok {
-                            args = append(args, ast.Arg{Pos: ePos(e), Text: exprText(e)})
+                        if arg, ok := p.parseAttrArg(); ok {
+                            args = append(args, arg)
                         } else {
                             p.errf("unexpected token in args: %q", p.cur.Lexeme)
                             p.syncUntil(token.CommaSym, token.RParenSym)

@@ -33,6 +33,7 @@ type astFunc struct {
     TypeParams []astTypeParam `json:"typeParams,omitempty"`
     Params     []string       `json:"params,omitempty"`
     Results    []string       `json:"results,omitempty"`
+    Decorators []astDecorator `json:"decorators,omitempty"`
 }
 
 type astPipe struct {
@@ -47,6 +48,11 @@ type astPipeStep struct {
 }
 
 type astAttr struct {
+    Name string   `json:"name"`
+    Args []string `json:"args,omitempty"`
+}
+
+type astDecorator struct {
     Name string   `json:"name"`
     Args []string `json:"args,omitempty"`
 }
@@ -68,7 +74,13 @@ func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
             for _, p := range n.Params { ps = append(ps, p.Name) }
             var rs []string
             for _, r := range n.Results { rs = append(rs, r.Type) }
-            u.Funcs = append(u.Funcs, astFunc{Name: n.Name, TypeParams: tf, Params: ps, Results: rs})
+            var decos []astDecorator
+            for _, d := range n.Decorators {
+                var a []string
+                for _, e := range d.Args { a = append(a, exprText(e)) }
+                decos = append(decos, astDecorator{Name: d.Name, Args: a})
+            }
+            u.Funcs = append(u.Funcs, astFunc{Name: n.Name, TypeParams: tf, Params: ps, Results: rs, Decorators: decos})
         case *ast.PipelineDecl:
             var steps []astPipeStep
             for _, s := range n.Stmts {

@@ -156,7 +156,13 @@ func (p *Parser) ParseFile() (*ast.File, error) {
                 p.next()
             }
         }
-        if p.cur.Kind != token.KwFunc { break }
+        if p.cur.Kind != token.KwFunc {
+            if len(p.pendingDecos) > 0 {
+                p.errf("decorators are only allowed immediately before function declarations")
+                p.pendingDecos = nil
+            }
+            break
+        }
         fn, err := p.parseFuncDecl()
         if err != nil {
             p.errf("%v", err)

@@ -1,7 +1,7 @@
 package driver
 
 import (
-    "bytes"
+    "encoding/json"
     "os"
     "testing"
 )
@@ -15,9 +15,10 @@ func TestWriteEdgesIndex_SortsAndWrites(t *testing.T) {
     if err != nil { t.Fatalf("write: %v", err) }
     b, err := os.ReadFile(path)
     if err != nil { t.Fatalf("read: %v", err) }
-    if !bytes.Contains(b, []byte(`"schema": "edges.v1"`)) { t.Fatalf("missing schema: %s", string(b)) }
-    // Ensure a->b appears before b->c in file contents to validate sorting
-    ai := bytes.Index(b, []byte(`"from":"a","to":"b"`))
-    bi := bytes.Index(b, []byte(`"from":"b","to":"c"`))
-    if ai < 0 || bi < 0 || !(ai < bi) { t.Fatalf("order not sorted: %s", string(b)) }
+    var idx edgesIndex
+    if err := json.Unmarshal(b, &idx); err != nil { t.Fatalf("json: %v", err) }
+    if idx.Schema != "edges.v1" || idx.Package != "main" { t.Fatalf("unexpected header: %+v", idx) }
+    if len(idx.Edges) < 2 { t.Fatalf("expected at least 2 edges: %+v", idx.Edges) }
+    if !(idx.Edges[0].From == "a" && idx.Edges[0].To == "b") { t.Fatalf("first edge not a->b: %+v", idx.Edges[0]) }
+    if !(idx.Edges[1].From == "b" && idx.Edges[1].To == "c") { t.Fatalf("second edge not b->c: %+v", idx.Edges[1]) }
 }

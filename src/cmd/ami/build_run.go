@@ -7,6 +7,7 @@ import (
     "io"
     "os"
     "path/filepath"
+    "sort"
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/exit"
@@ -344,6 +345,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         if st, err := os.Stat(sumPath); err == nil && !st.IsDir() {
             if err := sum.Load(sumPath); err == nil { pkgs = sum.Packages }
         }
+        sort.Strings(objIdx)
         outObj := map[string]any{
             "schema":    "ami.manifest/v1",
             "packages":  pkgs,
@@ -421,6 +423,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 objIdx = append(objIdx, rel)
             }
         }
+        sort.Strings(objIdx)
         // Emit a simple success summary for consistency with machine parsing.
         rec := diag.Record{
             Timestamp: time.Now().UTC(),

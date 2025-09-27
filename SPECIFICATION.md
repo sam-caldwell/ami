@@ -119,7 +119,7 @@
      - `examples` target stages builds under `build/examples/**`
 ## Remaining Work
 
-- CLI: scaffold and register additional subcommands as stubs in root (`mod list/sum/get`, `test`, `build`); add minimal help/tests; keep root stable.
+- [X] CLI: scaffold and register additional subcommands as stubs in root (`mod list/sum/get`, `test`, `build`); add minimal help/tests; keep root stable.
 - [X] Linter: expand Stage A to handle imports/naming/unknown identifiers; add JSON Lines streaming and final summary per SPEC.
 - Tests: stabilize Cobra working-directory integration tests for root→subcommand invocations and unskip the pending tests once behavior is deterministic.
 - Coverage: raise `src/cmd/ami` package test coverage to ≥80% (currently ~78–79%).
@@ -539,7 +539,7 @@ packages:
   - [X] Tests: selection with/without prereleases, constraint satisfaction, invalid versions.
   - [ ] Integrity:
     - [ ] Verify checksums/signatures if provided (fails with INTEGRITY_VIOLATION_ERROR)
-  - [ ] Network errors return NETWORK_REGISTRY_ERROR
+  - [X] Network errors return NETWORK_REGISTRY_ERROR
 
 # Remaining Work
 

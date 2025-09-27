@@ -117,8 +117,16 @@ func TestA(t *testing.T){ }
     // JSON summary present
     if !strings.Contains(out.String(), `"ok":`) { t.Fatalf("missing JSON summary: %s", out.String()) }
     // Artifacts present (check relative to cwd, which is already dir)
-    if _, err := os.Stat(filepath.Join("build", "test", "test.log")); err != nil { t.Fatalf("test.log missing: %v", err) }
-    if _, err := os.Stat(filepath.Join("build", "test", "test.manifest")); err != nil { t.Fatalf("test.manifest missing: %v", err) }
+    logPath := filepath.Join("build", "test", "test.log")
+    manPath := filepath.Join("build", "test", "test.manifest")
+    if _, err := os.Stat(logPath); err != nil { t.Fatalf("test.log missing: %v", err) }
+    if _, err := os.Stat(manPath); err != nil { t.Fatalf("test.manifest missing: %v", err) }
+    // test.log should contain go test JSON events
+    if b, err := os.ReadFile(logPath); err == nil {
+        if !strings.Contains(string(b), `"Action":"run"`) {
+            t.Fatalf("expected JSON events in test.log; got: %s", string(b))
+        }
+    }
 }
 
 // CLI: ensure --packages flag is accepted and run succeeds.
@@ -160,6 +168,28 @@ func TestRunTest_JSON_IncludesAmiSummaryFields(t *testing.T) {
     if !strings.Contains(s, `"ami_tests":`) || !strings.Contains(s, `"ami_failures":`) {
         t.Fatalf("missing ami summary fields: %s", s)
     }
+}
+
+// JSON stream contains ami.test.v1 events with expected fields.
+func TestRunTest_JSON_AmiEventsContainFields(t *testing.T) {
+    dir := filepath.Join("build", "test", "ami_testcmd", "json_ami_events_fields")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmp\n\ngo 1.22\n"), 0o644); err != nil { t.Fatalf("gomod: %v", err) }
+    src := "package app\n#pragma test:case case1\n#pragma test:assert parse_ok\nfunc F(){}\n"
+    if err := os.WriteFile(filepath.Join(dir, "main.ami"), []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    var buf bytes.Buffer
+    if err := runTest(&buf, dir, true, false, 0); err != nil { t.Fatalf("runTest: %v", err) }
+    lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+    found := false
+    for _, ln := range lines[:len(lines)-1] { // exclude final summary
+        s := string(ln)
+        if strings.Contains(s, `"schema":"ami.test.v1"`) && strings.Contains(s, `"file":"main.ami"`) && strings.Contains(s, `"case":"case1"`) {
+            found = true
+            break
+        }
+    }
+    if !found { t.Fatalf("ami.test.v1 event missing or malformed: %s", buf.String()) }
 }
 
 // Human mode emits AMI summary line and OK when only AMI cases pass.

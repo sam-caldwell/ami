@@ -444,7 +444,7 @@ packages:
     - [X] Contains `ami.manifest` content (packages map from ami.sum when present)
     - [X] Contains toolchain metadata (targetDir, targets)
     - [X] Contains evidence of built artifacts (objIndex entries)
-    - [ ] Contains cross references to all ./build/debug artifacts (if any)
+    - [X] Contains cross references to ./build/debug artifacts when verbose
     - [ ] Contains list of binaries produced in ./build/**/*
 - [ ] Tests:
     - [X] With `--verbose`, expected files exist and validate against schemas (AST/IR JSON), assembly is non‑empty.

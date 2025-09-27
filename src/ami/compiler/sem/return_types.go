@@ -32,10 +32,9 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return arity mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}})
                 continue
             }
-            // element-wise mismatch when both sides are concrete
+            // element-wise mismatch using compatibility rules
             for i := range got {
-                if decl[i] == "" || decl[i] == "any" || got[i] == "" || got[i] == "any" { continue }
-                if decl[i] != got[i] {
+                if !typesCompatible(decl[i], got[i]) {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}})
                     break
                 }

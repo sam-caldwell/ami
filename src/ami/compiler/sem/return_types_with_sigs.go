@@ -61,8 +61,7 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
             // compare
             mismatch := false
             for i := range got {
-                if decl[i] == "" || decl[i] == "any" || got[i] == "any" { continue }
-                if decl[i] != got[i] { mismatch = true; break }
+                if !typesCompatible(decl[i], got[i]) { mismatch = true; break }
             }
             if mismatch {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_RESULT_MISMATCH", Message: "return type mismatch from call", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}})

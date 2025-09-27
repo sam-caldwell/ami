@@ -14,6 +14,19 @@ func AnalyzeNameResolution(f *ast.File) []diag.Record {
     var out []diag.Record
     if f == nil { return out }
     now := time.Unix(0, 0).UTC()
+    // collect import aliases for scope: alias or last path segment
+    imports := map[string]struct{}{}
+    for _, d := range f.Decls {
+        if im, ok := d.(*ast.ImportDecl); ok {
+            alias := im.Alias
+            if alias == "" {
+                // derive from last path segment
+                p := im.Path
+                if i := lastSlash(p); i >= 0 && i+1 < len(p) { alias = p[i+1:] } else { alias = p }
+            }
+            if alias != "" { imports[alias] = struct{}{} }
+        }
+    }
     for _, d := range f.Decls {
         fn, ok := d.(*ast.FuncDecl)
         if !ok || fn.Body == nil { continue }
@@ -29,6 +42,7 @@ func AnalyzeNameResolution(f *ast.File) []diag.Record {
             switch v := e.(type) {
             case *ast.IdentExpr:
                 if v.Name != "" && !env[v.Name] {
+                    if _, ok := imports[v.Name]; ok { return }
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_UNRESOLVED_IDENT", Message: "unresolved identifier: " + v.Name, Pos: &diag.Position{Line: v.Pos.Line, Column: v.Pos.Column, Offset: v.Pos.Offset}})
                 }
             case *ast.BinaryExpr:
@@ -60,3 +74,7 @@ func AnalyzeNameResolution(f *ast.File) []diag.Record {
     return out
 }
 
+func lastSlash(s string) int {
+    for i := len(s) - 1; i >= 0; i-- { if s[i] == '/' { return i } }
+    return -1
+}

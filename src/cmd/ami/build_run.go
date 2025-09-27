@@ -134,29 +134,20 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         return exit.New(exit.Integrity, "dependency integrity check failed; run 'ami mod update'")
     }
 
-    // When verbose, emit build plan and write front-end debug artifacts (AST/IR/etc.).
+    // When verbose, emit front-end debug artifacts (AST/IR/etc.) and build plan including obj index.
     if verbose {
         _ = os.MkdirAll(filepath.Join(dir, "build", "debug"), 0o755)
-        planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
-        type planPkg struct{ Key, Name, Version, Root string }
-        plan := struct {
-            Schema    string    `json:"schema"`
-            TargetDir string    `json:"targetDir"`
-            Targets   []string  `json:"targets"`
-            Packages  []planPkg `json:"packages"`
-        }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
-        for _, e := range ws.Packages {
-            plan.Packages = append(plan.Packages, planPkg{Key: e.Key, Name: e.Package.Name, Version: e.Package.Version, Root: e.Package.Root})
-        }
-        // Best-effort write; do not fail build on plan write error
-        if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
-            _ = json.NewEncoder(f).Encode(plan)
-            _ = f.Close()
-        }
-
         // Front-end debug artifacts: parse main package .ami files and compile with Debug=true
         if p := ws.FindPackage("main"); p != nil && p.Root != "" {
             root := filepath.Clean(filepath.Join(dir, p.Root))
+            // check for missing package root
+            if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
+                if jsonOut {
+                    rec := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_FS_MISSING", Message: fmt.Sprintf("missing package root: %s", root), File: "ami.workspace"}
+                    _ = json.NewEncoder(out).Encode(rec)
+                }
+                return exit.New(exit.IO, "missing package root: %s", root)
+            }
             // Collect .ami files under root
             var files []string
             _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
@@ -177,6 +168,29 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: true})
                 _ = os.Chdir(oldwd)
             }
+        }
+        // Build plan after emitting artifacts; include object index paths when present
+        planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
+        type planPkg struct{ Key, Name, Version, Root string }
+        plan := struct {
+            Schema    string    `json:"schema"`
+            TargetDir string    `json:"targetDir"`
+            Targets   []string  `json:"targets"`
+            Packages  []planPkg `json:"packages"`
+            ObjIndex  []string  `json:"objIndex,omitempty"`
+        }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
+        for _, e := range ws.Packages {
+            plan.Packages = append(plan.Packages, planPkg{Key: e.Key, Name: e.Package.Name, Version: e.Package.Version, Root: e.Package.Root})
+            // if object index exists for this package, include path
+            idx := filepath.Join(dir, "build", "obj", e.Package.Name, "index.json")
+            if st, err := os.Stat(idx); err == nil && !st.IsDir() {
+                rel, _ := filepath.Rel(dir, idx)
+                plan.ObjIndex = append(plan.ObjIndex, rel)
+            }
+        }
+        if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
+            _ = json.NewEncoder(f).Encode(plan)
+            _ = f.Close()
         }
     }
 

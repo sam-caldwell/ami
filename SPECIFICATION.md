@@ -384,10 +384,10 @@ packages:
     - [X] Type inference M2: container element/key inference; tuple return inference; propagation through `Event<T>` / `Error<E>`.
         - [X] Tuple return checks at return-sites (arity/type unification).
         - [X] Container element/key inference from literals; enforce consistent element/key/value types; diagnostics on mismatch.
-    - [D] Type inference M3 (conservative): allow generic `Event<typevar>` to flow across pipeline steps without mismatch (conservative compatibility rule).
-    - [D] Broader local scoping inference (shadowing, nested blocks) and return inference without annotations.
-    - [D] Propagation of inferred container types across assignments, function calls, and returns.
-    - [D] Cross‑package name resolution (multi‑file), constant evaluation, and additional validation rules per Phase 2.1 scope.
+    - [X] Type inference M3 (conservative): allow generic `Event<typevar>` to flow across pipeline steps without mismatch (conservative compatibility rule).
+    - [X] Broader local scoping inference (shadowing, nested blocks) and return inference without annotations.
+    - [X] Propagation of inferred container types across assignments, function calls, and returns.
+    - [X] Cross‑package name resolution (multi‑file), constant evaluation, and additional validation rules per Phase 2.1 scope.
 -  [ ] IR & Codegen
   - [ ] IR (SSA) Construction: Lower AST → AMI SSA (Static Single Assignment)
   - [ ] Optimization and Analyses:
@@ -769,7 +769,7 @@ Tests & Docs
   }
   ```
   where valid nodes are `Ingress`,`Transform`,`Fanout`,`Collect`,`Egress`
-- [D] Node‑chained notation (2.2.4): canonical attribute form 
+- [X] Node‑chained notation (2.2.4): canonical attribute form 
   ```
     Ingress(
        ...<attribute list>...

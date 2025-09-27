@@ -425,7 +425,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
 
 func (p *Parser) isExprStart(k token.Kind) bool {
     switch k {
-    case token.Ident, token.Number, token.String:
+    case token.Ident, token.Number, token.String, token.KwSlice, token.KwSet, token.KwMap:
         return true
     default:
         return false

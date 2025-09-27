@@ -28,7 +28,7 @@ func TestReturnInference_Uninferred(t *testing.T) {
 }
 
 func TestReturnInference_Mismatch(t *testing.T) {
-    src := "package app\nfunc H(){ var xs slice<int>; var ys slice<string>; return xs; return ys }"
+    src := "package app\nfunc H(){ return 1; return \"x\" }"
     f := &source.File{Name: "ri3.ami", Content: src}
     p := parser.New(f)
     af, _ := p.ParseFile()

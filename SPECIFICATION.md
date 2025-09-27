@@ -429,7 +429,7 @@ packages:
   - [X] Workspace schema violation → `diag.v1` with `code:"E_WS_SCHEMA"` and descriptive message.
   - [X] Syntax errors: streams `diag.v1` records per error; exits with 1.
   - [X] Semantic errors (e.g., worker signature): streams `diag.v1` records; exits with 1.
-  - [ ] Cache vs `ami.sum` integrity mismatch → per‑item `diag.v1` records and a summary `diag.v1` with `code:"E_INTEGRITY"`; exits with 3.
+  - [B] Cache vs `ami.sum` integrity mismatch → per‑item `diag.v1` records and a summary `diag.v1` with `code:"E_INTEGRITY"`; exits with 3.
   - [ ] Existing `ami.manifest` vs `ami.sum` mismatch → `diag.v1` with `code:"E_INTEGRITY_MANIFEST"`; exits with 3.
 - [ ] Tests: minimal project build, multi‑package, missing deps, repeatability
   - [ ] Multi‑package determinism for non‑debug obj indexes and asm

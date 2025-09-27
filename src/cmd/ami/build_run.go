@@ -114,8 +114,32 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     // Consider issues when ami.sum missing or any lists are non-empty as violations for this phase.
     if len(rep.Requirements) > 0 && (!rep.SumFound || len(rep.MissingInSum) > 0 || len(rep.Unsatisfied) > 0 || len(rep.MissingInCache) > 0 || len(rep.Mismatched) > 0 || len(rep.ParseErrors) > 0) {
         if jsonOut {
-            rec := diag.Record{
-                Timestamp: time.Now().UTC(),
+            enc := json.NewEncoder(out)
+            now := time.Now().UTC()
+            // Emit per-item diagnostics for cache integrity mismatches to aid tooling.
+            for _, k := range rep.MissingInCache {
+                _ = enc.Encode(diag.Record{
+                    Timestamp: now,
+                    Level:     diag.Error,
+                    Code:      "E_INTEGRITY",
+                    Message:   "dependency missing from cache: " + k,
+                    File:      "ami.sum",
+                    Data:      map[string]any{"kind": "missingInCache", "key": k},
+                })
+            }
+            for _, k := range rep.Mismatched {
+                _ = enc.Encode(diag.Record{
+                    Timestamp: now,
+                    Level:     diag.Error,
+                    Code:      "E_INTEGRITY",
+                    Message:   "dependency hash mismatch: " + k,
+                    File:      "ami.sum",
+                    Data:      map[string]any{"kind": "mismatched", "key": k},
+                })
+            }
+            // Emit a summary record last with full context for consumers.
+            _ = enc.Encode(diag.Record{
+                Timestamp: now,
                 Level:     diag.Error,
                 Code:      "E_INTEGRITY",
                 Message:   "dependency integrity check failed; run 'ami mod update'",
@@ -128,8 +152,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                     "mismatched":     rep.Mismatched,
                     "parseErrors":    rep.ParseErrors,
                 },
-            }
-            _ = json.NewEncoder(out).Encode(rec)
+            })
         }
         return exit.New(exit.Integrity, "dependency integrity check failed; run 'ami mod update'")
     }

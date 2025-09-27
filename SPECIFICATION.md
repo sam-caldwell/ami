@@ -569,7 +569,7 @@ packages:
         }
       }
     }
-- [ ] Resolution rules:
+- [X] Resolution rules:
   - `ami mod get <url>@<semver>` resolves the tag (e.g., `v1.2.3`) to a commit.
   - If the remote repository supports Git SHA‑256 object format, record that commit OID directly.
   - If the remote repository uses SHA‑1, derive a SHA‑256 identifier deterministically from the raw commit object content (Git‑canonical header `"commit <len>\0"` + body) and record the resulting SHA‑256 digest as `<sha256-commit-oid>`.
@@ -578,10 +578,10 @@ packages:
   - On verify all required dependencies in `ami.workspace` have entries in `ami.sum` and that local cache contents
     match the recorded digest; mismatch → `INTEGRITY_VIOLATION_ERROR (3)`.
 - [ ] Tests:
-  - Create `ami.sum` from empty via update/get; ensure deterministic ordering (canonical key sort).
-  - SHA‑256 recorded from raw commit object for annotated and lightweight tags; deterministic digest.
-  - Detect and error on digest mismatch (cache tamper) with exit code 3 (build integrity test).
-  - `ami.sum` is not removed by `ami clean` and persists across builds.
+  - [X] Create `ami.sum` from empty via update/get; ensure deterministic ordering (canonical key sort).
+  - [ ] SHA‑256 recorded from raw commit object for annotated and lightweight tags; deterministic digest.
+  - [X] Detect and error on digest mismatch (cache tamper) with exit code 3 (build integrity test).
+  - [X] `ami.sum` is not removed by `ami clean` and persists across builds.
 
 CLI & Output
 

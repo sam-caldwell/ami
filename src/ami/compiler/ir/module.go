@@ -5,4 +5,7 @@ type Module struct {
     Package   string
     Functions []Function
     Directives []Directive
+    Concurrency int    `json:"concurrency,omitempty"`
+    Backpressure string `json:"backpressurePolicy,omitempty"`
+    TelemetryEnabled bool `json:"telemetryEnabled,omitempty"`
 }

@@ -445,7 +445,7 @@ packages:
     - [X] Contains toolchain metadata (targetDir, targets)
     - [X] Contains evidence of built artifacts (objIndex entries)
     - [X] Contains cross references to ./build/debug artifacts when verbose
-    - [ ] Contains list of binaries produced in ./build/**/*
+    - [X] Contains list of binaries produced in ./build/**/*
 - [ ] Tests:
     - [X] With `--verbose`, expected files exist and validate against schemas (AST/IR JSON), assembly is non‑empty.
     - [X] Without `--verbose`, no `build/debug/` directory is created.

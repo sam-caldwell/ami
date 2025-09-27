@@ -15,6 +15,9 @@ func EncodeModule(m Module) ([]byte, error) {
         "package":  m.Package,
         "functions": []any{},
     }
+    if m.Concurrency > 0 { jm["concurrency"] = m.Concurrency }
+    if m.Backpressure != "" { jm["backpressurePolicy"] = m.Backpressure }
+    if m.TelemetryEnabled { jm["telemetryEnabled"] = true }
     // directives (pragma-derived)
     if len(m.Directives) > 0 {
         ds := make([]any, 0, len(m.Directives))

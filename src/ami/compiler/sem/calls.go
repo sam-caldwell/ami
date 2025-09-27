@@ -8,7 +8,7 @@ import (
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
-type sig struct{ params, results []string }
+type sig struct{ params, results []string; paramNames []string }
 
 // AnalyzeCalls checks call sites against known function signatures to detect arity
 // and basic argument type mismatches (scaffold typing rules).
@@ -22,9 +22,10 @@ func AnalyzeCalls(f *ast.File) []diag.Record {
         if fn, ok := d.(*ast.FuncDecl); ok {
             var ps []string
             var rs []string
-            for _, p := range fn.Params { ps = append(ps, p.Type) }
+            var pnames []string
+            for _, p := range fn.Params { ps = append(ps, p.Type); pnames = append(pnames, p.Name) }
             for _, r := range fn.Results { rs = append(rs, r.Type) }
-            funcs[fn.Name] = sig{params: ps, results: rs}
+            funcs[fn.Name] = sig{params: ps, results: rs, paramNames: pnames}
         }
     }
     // analyze each function body
@@ -83,7 +84,9 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
         if pt != at {
             p := epos(a)
             msg := fmt.Sprintf("call argument type mismatch: arg %d expected %s, got %s", i, pt, at)
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: msg, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"argIndex": i, "expected": pt, "actual": at}})
+            data := map[string]any{"argIndex": i, "expected": pt, "actual": at, "callee": c.Name}
+            if i < len(s.paramNames) && s.paramNames[i] != "" { data["paramName"] = s.paramNames[i] }
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: msg, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
         }
     }
     return out

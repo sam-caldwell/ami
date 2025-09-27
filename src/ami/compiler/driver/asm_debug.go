@@ -19,6 +19,18 @@ func writeAsmDebug(pkg, unit string, af *ast.File, m ir.Module) (string, error) 
     defer f.Close()
     // minimal textual dump
     fmt.Fprintf(f, "; asm listing for %s/%s\n", pkg, unit)
+    if af != nil {
+        for _, pr := range af.Pragmas {
+            // print a stable pragma header line
+            fmt.Fprintf(f, "; pragma %s:%s %s\n", pr.Domain, pr.Key, pr.Value)
+            if len(pr.Args) > 0 {
+                fmt.Fprintf(f, ";  args %v\n", pr.Args)
+            }
+            if len(pr.Params) > 0 {
+                fmt.Fprintf(f, ";  params %v\n", pr.Params)
+            }
+        }
+    }
     for _, fn := range m.Functions {
         fmt.Fprintf(f, "; function %s\n", fn.Name)
         for _, b := range fn.Blocks {

@@ -11,6 +11,7 @@ func newBuildCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "build",
         Short: "Validate workspace and build (phase: validation)",
+        Example: "\n  # Human output\n  ami build\n\n  # JSON diagnostics (machine-parsable)\n  ami build --json\n\n  # Write debug artifacts under build/debug/\n  ami build --verbose\n",
         RunE: func(cmd *cobra.Command, args []string) error {
             // Resolve absolute working directory for deterministic behavior.
             wd, err := os.Getwd()

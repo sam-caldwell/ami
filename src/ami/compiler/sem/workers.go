@@ -56,6 +56,10 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: "worker undefined: " + wname, Pos: &diag.Position{Line: a0.Pos.Line, Column: a0.Pos.Column, Offset: a0.Pos.Offset}})
                 continue
             }
+            // Workers cannot be decorated
+            if len(fn.Decorators) > 0 {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_ON_WORKER", Message: "workers cannot be decorated", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
+            }
             // accept factories New* without signature checks
             if strings.HasPrefix(fn.Name, "New") { continue }
             // signature check: 1 param Event<...>; 2 results: Event<...>, error

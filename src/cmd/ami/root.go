@@ -16,6 +16,7 @@ func newRootCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:           "ami",
         Short:         "AMI toolchain CLI",
+        Example: "\n  # Initialize a new workspace\n  ami init\n\n  # Build with debug artifacts\n  ami build --verbose\n\n  # Lint strictly and emit JSON\n  ami lint --strict --json\n\n  # Run tests and write logs/manifest\n  ami test --verbose\n\n  # Manage modules\n  ami mod list --json\n  ami mod get ./vendor/alpha\n\n  # Visualize pipelines\n  ami pipeline visualize\n",
         SilenceUsage:  true,
         SilenceErrors: true,
         RunE: func(cmd *cobra.Command, args []string) error {
@@ -94,6 +95,10 @@ func newRootCmd() *cobra.Command {
     pipe := newPipelineCmd()
     pipe.AddCommand(newPipelineVisualizeCmd())
     cmd.AddCommand(pipe)
+    // events commands (hidden)
+    events := newEventsCmd()
+    events.AddCommand(newEventsSchemaCmd())
+    cmd.AddCommand(events)
     return cmd
 }
 

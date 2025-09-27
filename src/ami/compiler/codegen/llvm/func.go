@@ -1,0 +1,66 @@
+package llvm
+
+import (
+    "fmt"
+    "strings"
+
+    "github.com/sam-caldwell/ami/src/ami/compiler/ir"
+)
+
+// lowerFunction converts an ir.Function into a textual LLVM function definition.
+func lowerFunction(fn ir.Function) (string, error) {
+    // Signature
+    ret := "void"
+    switch len(fn.Results) {
+    case 0:
+        ret = "void"
+    case 1:
+        ret = mapType(fn.Results[0].Type)
+    default:
+        return "", fmt.Errorf("multi-result functions not supported in LLVM emitter scaffold")
+    }
+    // Params
+    var params []string
+    for _, p := range fn.Params {
+        params = append(params, fmt.Sprintf("%s %%%s", mapType(p.Type), p.ID))
+    }
+    // Body
+    var b strings.Builder
+    fmt.Fprintf(&b, "define %s @%s(%s) {\n", ret, fn.Name, strings.Join(params, ", "))
+    for i, blk := range fn.Blocks {
+        // label
+        name := blk.Name
+        if name == "" { name = fmt.Sprintf("b%d", i) }
+        fmt.Fprintf(&b, "%s:\n", name)
+        for _, ins := range blk.Instr {
+            switch v := ins.(type) {
+            case ir.Var:
+                b.WriteString(lowerVar(v))
+            case ir.Assign:
+                b.WriteString(lowerAssign(v))
+            case ir.Expr:
+                b.WriteString(lowerExpr(v))
+            case ir.Return:
+                s, err := lowerReturn(v)
+                if err != nil { return "", err }
+                b.WriteString(s)
+            default:
+                // Unknown instruction (future): keep deterministic comment
+                b.WriteString("  ; instr\n")
+            }
+        }
+    }
+    // Ensure a terminator exists: synthesize a default return when missing
+    if !strings.Contains(b.String(), "\n  ret ") {
+        if ret == "void" {
+            b.WriteString("  ret void\n")
+        } else {
+            // Zero initializer for known scalars; use 0 or null pointer
+            zero := "0"
+            if ret == "ptr" { zero = "null" }
+            fmt.Fprintf(&b, "  ret %s %s\n", ret, zero)
+        }
+    }
+    b.WriteString("}\n")
+    return b.String(), nil
+}

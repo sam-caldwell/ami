@@ -11,6 +11,7 @@ func newCleanCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "clean",
         Short: "Remove and recreate the build directory",
+        Example: "\n  # Clean build directory with human output\n  ami clean\n\n  # JSON output for automation\n  ami clean --json\n",
         RunE: func(cmd *cobra.Command, args []string) error {
             // Resolve absolute working directory for deterministic behavior.
             wd, err := os.Getwd()

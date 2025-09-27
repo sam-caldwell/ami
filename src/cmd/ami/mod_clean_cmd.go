@@ -8,6 +8,7 @@ func newModCleanCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "clean",
         Short: "Remove and recreate the AMI package cache",
+        Example: "\n  # Reset the package cache\n  ami mod clean\n\n  # JSON output\n  ami mod clean --json\n",
         RunE: func(cmd *cobra.Command, args []string) error {
             return runModClean(cmd.OutOrStdout(), jsonOut)
         },
@@ -15,4 +16,3 @@ func newModCleanCmd() *cobra.Command {
     cmd.Flags().BoolVar(&jsonOut, "json", false, "emit machine-parsable JSON output")
     return cmd
 }
-

@@ -40,7 +40,8 @@ type pipeMergeAttr struct {
 }
 
 type pipeMultiPath struct {
-    Args []string `json:"args"`
+    Args   []string `json:"args"`
+    Inputs []string `json:"inputs,omitempty"`
 }
 
 type pipeAttr struct {
@@ -106,7 +107,15 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                     if (at.Name == "edge.MultiPath" || at.Name == "MultiPath") && st.Name == "Collect" {
                         var margs []string
                         for _, aa := range at.Args { margs = append(margs, aa.Text) }
-                        op.MultiPath = &pipeMultiPath{Args: margs}
+                        // collect inputs by scanning edges in this pipeline body
+                        var inputs []string
+                        for _, s2 := range pd.Stmts {
+                            if e, ok := s2.(*ast.EdgeStmt); ok && e.To == st.Name {
+                                inputs = append(inputs, e.From)
+                            }
+                        }
+                        sort.Strings(inputs)
+                        op.MultiPath = &pipeMultiPath{Args: margs, Inputs: inputs}
                     }
                 }
                 op.Attrs = rawAttrs

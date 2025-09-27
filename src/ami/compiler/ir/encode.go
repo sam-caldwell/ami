@@ -20,6 +20,7 @@ func EncodeModule(m Module) ([]byte, error) {
     if m.TelemetryEnabled { jm["telemetryEnabled"] = true }
     if len(m.Capabilities) > 0 { jm["capabilities"] = m.Capabilities }
     if m.TrustLevel != "" { jm["trustLevel"] = m.TrustLevel }
+    if m.ExecContext != nil { jm["execContext"] = m.ExecContext }
     // directives (pragma-derived)
     if len(m.Directives) > 0 {
         ds := make([]any, 0, len(m.Directives))

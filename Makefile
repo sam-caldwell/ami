@@ -77,10 +77,6 @@ test-hotspots:
 	 done | sed 's#//.*$$##'
 
 examples:
-	@if [ ! -x build/ami ]; then \
-	  echo "ami binary not found. Build it first: 'go build -o build/ami ./src/cmd/ami'"; \
-	  exit 1; \
-	fi
 	# Build all example workspaces and stage their outputs under build/examples/
 	rm -rf build/examples
 	mkdir -p build/examples
@@ -88,8 +84,8 @@ examples:
 	for d in examples/*; do \
 	  if [ -f "$$d/ami.workspace" ]; then \
 	    echo "Building example: $$d"; \
-	    (cd "$$d" && ../../build/ami build --verbose); \
 	    name=$$(basename "$$d"); \
+	    ( cd "$$d" && { [ -x ../../build/ami ] && ../../build/ami build --verbose || go run ../../src/cmd/ami build --verbose; } ); \
 	    mkdir -p "build/examples/$$name"; \
 	    if [ -d "$$d/build" ]; then \
 	      cp -R "$$d/build/." "build/examples/$$name/"; \

@@ -247,9 +247,13 @@ func modGetGit(out io.Writer, dir string, src string, jsonOut bool) error {
         if jsonOut { _ = json.NewEncoder(out).Encode(modGetResult{Source: src, Name: name, Version: version, Path: dest, Message: "hash failed"}) }
         return exit.New(exit.IO, "hash failed: %v", err)
     }
+    // also compute commit digest for resolution trace (non-breaking addition)
+    commitDigest, _ := computeCommitDigest(tmp, version)
     pkgs, _ := sum["packages"].(map[string]any)
     if pkgs == nil { pkgs = map[string]any{} }
-    pkgs[name] = map[string]any{"version": version, "sha256": h}
+    entry := map[string]any{"version": version, "sha256": h}
+    if commitDigest != "" { entry["commit"] = commitDigest }
+    pkgs[name] = entry
     sum["packages"] = pkgs
     if b, err := json.MarshalIndent(sum, "", "  "); err == nil {
         if err := os.WriteFile(sumPath, b, 0o644); err != nil {

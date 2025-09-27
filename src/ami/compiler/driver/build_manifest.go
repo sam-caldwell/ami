@@ -9,6 +9,7 @@ import (
 type bmUnit struct {
     Unit      string `json:"unit"`
     IR        string `json:"ir,omitempty"`
+    LLVM      string `json:"llvm,omitempty"`
     Pipelines string `json:"pipelines,omitempty"`
     EventMeta string `json:"eventmeta,omitempty"`
     ASM       string `json:"asm,omitempty"`
@@ -38,4 +39,3 @@ func writeBuildManifest(m BuildManifest) (string, error) {
     if err := os.WriteFile(out, b, 0o644); err != nil { return "", err }
     return out, nil
 }
-

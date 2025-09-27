@@ -22,6 +22,7 @@ func newLintCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "lint",
         Short: "Lint the workspace and sources (Stage A)",
+        Example: "\n  # Lint with default rules (human output)\n  ami lint\n\n  # Treat warnings as errors\n  ami lint --strict\n\n  # Only show JSON diagnostics\n  ami lint --json\n\n  # Filter by rule name/pattern\n  ami lint --rules re:^IMPORT\n",
         RunE: func(cmd *cobra.Command, args []string) error {
             verbose, _ := cmd.Root().PersistentFlags().GetBool("verbose")
             if lg := getRootLogger(); lg != nil {

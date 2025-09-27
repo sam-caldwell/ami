@@ -8,6 +8,7 @@ import (
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/codegen"
+    llvme "github.com/sam-caldwell/ami/src/ami/compiler/codegen/llvm"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     "github.com/sam-caldwell/ami/src/ami/compiler/sem"
@@ -24,11 +25,15 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     var arts Artifacts
     var outDiags []diag.Record
     var manifestPkgs []bmPackage
+    if opts.Log != nil {
+        opts.Log("start", map[string]any{"packages": len(pkgs), "debug": opts.Debug})
+    }
     // process packages in a stable order by name
     sort.SliceStable(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
     // collect resolved sources for debug summary
     var resolved []resolvedUnit
     for _, p := range pkgs {
+        if opts.Log != nil { opts.Log("pkg.start", map[string]any{"pkg": p.Name}) }
         if p.Files == nil { continue }
         // PHASE 0: sort files deterministically
         files := append([]*source.File(nil), p.Files.Files...)
@@ -82,6 +87,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         var pkgCollects []collectEntry
         var bmPkgs []bmPackage
         for _, u := range units {
+            if opts.Log != nil { opts.Log("unit.start", map[string]any{"pkg": p.Name, "unit": u.unit}) }
             af := u.ast
             unit := u.unit
             // manifest package entry lookup/create
@@ -156,15 +162,48 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                     _ = os.WriteFile(out, b, 0o644)
                     arts.IR = append(arts.IR, out)
                     bmu.IR = out
+                    if opts.Log != nil { opts.Log("unit.ir.write", map[string]any{"pkg": p.Name, "unit": unit, "path": out}) }
                 }
                 if pp, err := writePipelinesDebug(p.Name, unit, af); err == nil { bmu.Pipelines = pp }
+                if ssa, err := writeSSADebug(p.Name, unit, m); err == nil { _ = ssa }
                 if em, err := writeEventMetaDebug(p.Name, unit); err == nil { bmu.EventMeta = em }
                 if as, err := writeAsmDebug(p.Name, unit, af, m); err == nil { bmu.ASM = as }
+                // LLVM textual emission (debug only)
+                if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
+                    ldir := filepath.Join("build", "debug", "llvm", p.Name)
+                    _ = os.MkdirAll(ldir, 0o755)
+                    lpath := filepath.Join(ldir, unit+".ll")
+                    _ = os.WriteFile(lpath, []byte(llvmText), 0o644)
+                    bmu.LLVM = lpath
+                    if opts.Log != nil { opts.Log("unit.llvm.write", map[string]any{"pkg": p.Name, "unit": unit, "path": lpath}) }
+                }
                 bmp.Units = append(bmp.Units, bmu)
             }
             // emit object stub and per-unit asm under build/obj in all modes
             _, _ = writeObjectStub(p.Name, unit, m)
             _, _ = writeAsmObject(p.Name, unit, m)
+            // Attempt non-debug LLVM -> .o compilation (guarded)
+            // Emit .ll under build/obj and attempt to compile to .o via clang.
+            if !opts.Debug {
+                if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
+                    objDir := filepath.Join("build", "obj", p.Name)
+                    _ = os.MkdirAll(objDir, 0o755)
+                    llPath := filepath.Join(objDir, unit+".ll")
+                    _ = os.WriteFile(llPath, []byte(llvmText), 0o644)
+                    if opts.Log != nil { opts.Log("unit.ll.emit", map[string]any{"pkg": p.Name, "unit": unit, "path": llPath}) }
+                    if clang, err := llvme.FindClang(); err != nil {
+                        outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_TOOLCHAIN_MISSING", Message: "clang not found in PATH", File: "clang"})
+                    } else {
+                        oPath := filepath.Join(objDir, unit+".o")
+                        if err := llvme.CompileLLToObject(clang, llPath, oPath, llvme.DefaultTriple); err != nil {
+                            outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile LLVM to object", File: llPath})
+                        } else if opts.Log != nil {
+                            opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})
+                        }
+                    }
+                }
+            }
+            if opts.Log != nil { opts.Log("unit.end", map[string]any{"pkg": p.Name, "unit": unit}) }
         }
         if opts.Debug && (len(pkgEdges) > 0 || len(pkgCollects) > 0) {
             if ei, err := writeEdgesIndex(p.Name, pkgEdges, pkgCollects); err == nil {
@@ -178,6 +217,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         objDir := filepath.Join("build", "obj", p.Name)
         if idx, err := codegen.BuildObjIndex(p.Name, objDir); err == nil { _ = codegen.WriteObjIndex(idx) }
         if opts.Debug { manifestPkgs = append(manifestPkgs, bmPkgs...) }
+        if opts.Log != nil { opts.Log("pkg.end", map[string]any{"pkg": p.Name}) }
     }
     if opts.Debug && len(manifestPkgs) > 0 {
         _, _ = writeBuildManifest(BuildManifest{Schema: "manifest.v1", Packages: manifestPkgs})
@@ -185,6 +225,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     if opts.Debug && len(resolved) > 0 {
         _, _ = writeResolvedSourcesDebug(resolved)
     }
+    if opts.Log != nil { opts.Log("end", map[string]any{"packages": len(pkgs), "debug": opts.Debug}) }
     return arts, outDiags
 }
 

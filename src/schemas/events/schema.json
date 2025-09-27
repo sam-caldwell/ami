@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/ami/events.v1.schema.json",
+  "title": "AMI Event (events.v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "events.v1" },
+    "id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "attempt": { "type": "integer", "minimum": 0 },
+    "trace": { "type": "object", "additionalProperties": true },
+    "payload": {}
+  },
+  "required": ["schema", "id"],
+  "unevaluatedProperties": true
+}
+

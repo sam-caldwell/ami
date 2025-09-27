@@ -8,6 +8,7 @@ func newModListCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "list",
         Short: "List cached modules",
+        Example: "\n  # Human output\n  ami mod list\n\n  # JSON output\n  ami mod list --json\n",
         RunE: func(cmd *cobra.Command, args []string) error {
             return runModList(cmd.OutOrStdout(), jsonOut)
         },

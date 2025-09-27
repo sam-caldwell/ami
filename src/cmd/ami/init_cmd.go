@@ -12,6 +12,7 @@ func newInitCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "init",
         Short: "Initialize an AMI workspace",
+        Example: "\n  # Initialize a new workspace in the current directory\n  ami init\n\n  # Force re-initialization, adding any missing fields\n  ami init --force\n\n  # Emit machine-parsable JSON\n  ami init --json\n",
         RunE: func(cmd *cobra.Command, args []string) error {
             // Resolve absolute working directory to avoid surprises with relative paths.
             wd, err := os.Getwd()

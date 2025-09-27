@@ -8,6 +8,17 @@ import (
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
+// decorator disable set (scaffold for workspace wiring)
+var disabledDecorators = map[string]struct{}{}
+
+// SetDisabledDecorators replaces the set of disabled decorator names for analysis.
+// Names are matched case-sensitively against full name and last-segment base.
+func SetDisabledDecorators(names ...string) {
+    m := map[string]struct{}{}
+    for _, n := range names { if n != "" { m[n] = struct{}{} } }
+    disabledDecorators = m
+}
+
 // AnalyzeDecorators performs basic resolution and consistency checks for function decorators.
 // Scaffold rules:
 // - Built-ins: deprecated, metrics (recognized without requiring a top-level symbol)
@@ -18,6 +29,17 @@ func AnalyzeDecorators(f *ast.File) []diag.Record {
     var out []diag.Record
     if f == nil { return out }
     now := time.Unix(0, 0).UTC()
+    // recognize canonical worker signature
+    typeIsEvent := func(s string) bool { return s == "Event" || strings.HasPrefix(s, "Event<") }
+    isWorkerSig := func(fn *ast.FuncDecl) bool {
+        if fn == nil { return false }
+        if len(fn.Params) != 1 { return false }
+        if !typeIsEvent(fn.Params[0].Type) { return false }
+        if len(fn.Results) != 2 { return false }
+        if !typeIsEvent(fn.Results[0].Type) { return false }
+        if fn.Results[1].Type != "error" { return false }
+        return true
+    }
     // index top-level function names
     funcs := map[string]struct{}{}
     for _, d := range f.Decls {
@@ -31,6 +53,10 @@ func AnalyzeDecorators(f *ast.File) []diag.Record {
         fn, ok := d.(*ast.FuncDecl)
         if !ok { continue }
         if len(fn.Decorators) == 0 { continue }
+        // reject decorators on worker functions
+        if isWorkerSig(fn) {
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_ON_WORKER", Message: "workers cannot be decorated", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}, Data: map[string]any{"function": fn.Name}})
+        }
         seen := map[string]string{}
         for _, dec := range fn.Decorators {
             name := strings.TrimSpace(dec.Name)
@@ -43,6 +69,9 @@ func AnalyzeDecorators(f *ast.File) []diag.Record {
             if i := strings.LastIndexByte(name, '.'); i >= 0 && i+1 < len(name) {
                 base = name[i+1:]
             }
+            // disabled check
+            if _, off := disabledDecorators[name]; off { out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_DISABLED", Message: "decorator disabled: " + name, Pos: &diag.Position{Line: dec.Pos.Line, Column: dec.Pos.Column, Offset: dec.Pos.Offset}, Data: map[string]any{"function": fn.Name}}) }
+            if _, off := disabledDecorators[base]; off { out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_DISABLED", Message: "decorator disabled: " + base, Pos: &diag.Position{Line: dec.Pos.Line, Column: dec.Pos.Column, Offset: dec.Pos.Offset}, Data: map[string]any{"function": fn.Name}}) }
             // resolution: built-in or local function exists
             if _, ok := builtins[name]; !ok { // exact built-in match
                 if _, ok := builtins[base]; !ok { // allow short built-in names too

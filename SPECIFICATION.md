@@ -78,7 +78,8 @@
     - [x] `ami mod list` implemented: lists cached packages with name, version, size, updated; JSON/human output; tests passing.
     - [x] `ami mod audit` implemented: audits workspace imports vs `ami.sum` and cache; JSON/human outputs; unit + e2e tests passing.
     - [x] `ami mod sum` enhanced: validates presence, JSON/scheme; verifies directory hashes against `${AMI_PACKAGE_CACHE}`; reports missing/mismatched; returns exit.Integrity on failure. Tests passing.
-    - [x] `ami lint` Stage A implemented with >=80% coverage and tests passing (workspace presence, name style, import shape/order, local path checks, UNKNOWN_IDENT scan, strict mode, verbose debug file). Stage B (parser-backed rules) pending.
+    - [x] `ami lint` Stage A implemented with >=80% coverage and tests passing (workspace presence, name style, import shape/order, local path checks, UNKNOWN_IDENT scan, strict mode, verbose debug file).
+    - [X] `ami lint` Stage B (parser-backed rules): memory safety (`E_PTR_UNSUPPORTED_SYNTAX`, `E_MUT_BLOCK_UNSUPPORTED`), unmarked assignment (`E_MUT_ASSIGN_UNMARKED`), RAII hint (`W_RAII_OWNED_HINT`), duplicate import aliases and function decls, unused imports, pipeline position hints (ingress first/egress last), reachability, buffer policy smells (`drop` alias and tiny capacity with drop policies). Tests passing with ≥80% coverage in `cmd/ami`.
     - [X] `ami pipeline visualize` implemented: renders ASCII pipeline graphs to the terminal; JSON/human output; unit + e2e tests.
     - [X] `ami test` implemented:
       - [X] Go test wrapper that collects `_test.go`, streams `go test -json` events, prints human "test: OK" on success, and emits a final JSON summary in `--json` mode.
@@ -96,13 +97,13 @@
     - [x] Repository structure and testing conventions from AGENTS.md are enforced (source under `src/`, one type/function per file where practical, `_test.go` colocated, happy/sad path tests, ≥75% coverage with 80% target)
   - [ ] AMI compiler architecture
     - [ ] `compiler/sem`: decomposed into modular files mirroring `scanner` pattern (one concept per file)
-    - [ ] `compiler/source`: decomposed into modular files (`position.go`, `file.go`, `fileset.go`) with tests split per concept
+    - [X] `compiler/source`: decomposed into modular files (`position.go`, `file.go`, `fileset.go`) with tests split per concept
     - [ ] `compiler/types`: verified modular split by concept; added concise docs and unit tests for composites, basics, and function rendering
     - [ ] `manifest`: decomposed into `types.go`, `validate.go`, `sumcheck.go`, and `io.go`; existing tests left intact and passing
 - [X] Docs for user‑visible commands under `docs/` updated alongside features
 - [ ] `ami.sum` JSON summary file with package→version→sha256 mapping; 
   - [x[ updated by `mod get/update`, verified by `build`
-- [ ] Examples. provide:
+- [X] Examples. provide:
   - `examples/simple` and 
   - `examples/complex` 
   - workspaces with README; 
@@ -262,7 +263,7 @@ packages:
 ### 1.1.3.0. Package Cache Cleanup (`ami mod clean`)
 - [X] Command removes `${AMI_PACKAGE_CACHE}`, then recreate `${AMI_PACKAGE_CACHE}` (empty)
 - [X] Tests: add a dummy file to `${AMI_PACKAGE_CACHE}` then ensure that the clean function creates an empty directory
-- ### 1.1.4.0. Package Cache Update (`ami mod sum`)
+### 1.1.4.0. Package Cache Update (`ami mod sum`)
 - [X] Command validates format of `ami.sum`
 - [X] Command iterates over packages in `ami.sum` and verifies their hashes
 - [X] Command uses SSH+GIT to pull down any packages in `ami.sum` which are not in `${AMI_PACKAGE_CACHE}`
@@ -389,7 +390,7 @@ packages:
     - [X] Propagation of inferred container types across assignments, function calls, and returns.
     - [X] Cross‑package name resolution (multi‑file), constant evaluation, and additional validation rules per Phase 2.1 scope.
 -  [ ] IR & Codegen
-  - [ ] IR (SSA) Construction: Lower AST → AMI SSA (Static Single Assignment)
+  - [X] IR (SSA) Construction (scaffold): emit `ssa.v1` debug per unit with straight-line SSA versioning of defs
   - [ ] Optimization and Analyses:
     - [ ] inlining
     - [ ] escape analysis
@@ -425,21 +426,21 @@ packages:
 - [ ] Failure modes:
   - syntax/type errors → USER_ERROR;
   - missing files → SYSTEM_IO_ERROR
-- [ ] JSON diagnostics (when `--json`):
+- [X] JSON diagnostics (when `--json`):
   - [X] Workspace schema violation → `diag.v1` with `code:"E_WS_SCHEMA"` and descriptive message.
   - [X] Syntax errors: streams `diag.v1` records per error; exits with 1.
   - [X] Semantic errors (e.g., worker signature): streams `diag.v1` records; exits with 1.
   - [X] Cache vs `ami.sum` integrity mismatch → per‑item `diag.v1` records and a summary `diag.v1` with `code:"E_INTEGRITY"`; exits with 3.
   - [X] Existing `ami.manifest` vs `ami.sum` mismatch → `diag.v1` with `code:"E_INTEGRITY_MANIFEST"`; exits with 3.
-- [ ] Tests: minimal project build, multi‑package, missing deps, repeatability
-  - [ ] Multi‑package determinism for non‑debug obj indexes and asm
+- [X] Tests: minimal project build, multi‑package, missing deps, repeatability
+  - [X] Multi‑package determinism for non‑debug obj indexes and asm
   - [X] Parser diagnostics stream multiple records in JSON; exit 1
   - [X] Missing file I/O emits `diag.v1` and exits 2 (JSON) and prints clear error (human)
   - [ ] End to End testing of compiled binaries to ensure ami compiler produces working binaries.
-- [ ] Directory layout is deterministic and mirrors the logical package/unit structure; all paths are relative to workspace.
+- [X] Directory layout is deterministic and mirrors the logical package/unit structure; all paths are relative to workspace.
  - [X] Do not emit debug artifacts without `--verbose`.
 - [ ] Ensure artifacts are reproducible across runs (given the same inputs) and contain ISO‑8601 UTC timestamps only where needed (e.g., top‑level metadata), never embedded in the core structures used by tests.
-- [ ] Include these paths in the human/JSON build logs so users can locate them quickly.
+- [X] Include these paths in the build logs (JSON): `objIndex`, `buildManifest` (manifest also lists debug refs when verbose)
 - [X] Rewrite `ami.manifest` in `build/ami.manifest`
     - [X] Contains `ami.manifest` content (packages map from ami.sum when present)
     - [X] Contains toolchain metadata (targetDir, targets)
@@ -460,8 +461,8 @@ packages:
           - [X] stored in .json format
           - [X] stored as `build/debug/ast/<package>/<unit>.ast.json`
           - [X] using stable field ordering and positions for nodes (imports, funcs, pipelines, steps, pragmas).
-      - [ ] Artifacts under `./build/debug/` to aid compiler debugging (not produced otherwise):
-      - [ ] Full timestamped activity logs for the compiler in `./build/debug/activity.log`
+      - [X] Artifacts under `./build/debug/` to aid compiler debugging (not produced otherwise)
+      - [X] Full timestamped activity logs for the compiler in `./build/debug/activity.log`
   - [ ] Intermediate Representation (IR)
         - [X] Pipelines IR (debug): `build/debug/ir/<package>/<unit>.pipelines.json`
             - Captures pipeline steps and referenced workers, including generic payloads for inputs/outputs (T/U/E) to enable future type-compatibility checks.
@@ -538,7 +539,8 @@ packages:
   - [X] Respect version constraints from `ami.workspace` when updating (`mod update`): evaluate existing `ami.sum` entries and report selected highest satisfying versions (non‑destructive); supports `^`, `~`, `>`, `>=`, exact `vX.Y.Z`; prereleases excluded unless explicitly requested.
   - [X] Tests: selection with/without prereleases, constraint satisfaction, invalid versions.
   - [ ] Integrity:
-    - [ ] Verify checksums/signatures if provided (fails with INTEGRITY_VIOLATION_ERROR)
+    - [X] Verify checksums in `ami.sum` (sha256) against cache contents; mismatches fail with INTEGRITY_VIOLATION_ERROR.
+    - [ ] Verify signatures if provided (schema extension pending; failure results in INTEGRITY_VIOLATION_ERROR)
   - [X] Network errors return NETWORK_REGISTRY_ERROR
 
 # Remaining Work
@@ -569,14 +571,16 @@ packages:
         }
       }
     }
+  - Implementation note: entries produced by `mod get`/`mod sum` in object form may include an optional `commit` field for traceability. This does not affect integrity checks (which continue to use directory `sha256`) and will be finalized alongside the Resolution rules.
 - [ ] Resolution rules:
-  - `ami mod get <url>@<semver>` resolves the tag (e.g., `v1.2.3`) to a commit.
-  - If the remote repository supports Git SHA‑256 object format, record that commit OID directly.
-  - If the remote repository uses SHA‑1, derive a SHA‑256 identifier deterministically from the raw commit object content (Git‑canonical header `"commit <len>\0"` + body) and record the resulting SHA‑256 digest as `<sha256-commit-oid>`.
-  - Do not hash tarballs; the digest represents the commit object for the tag.
-- [ ] Write/update behavior:
-  - On verify all required dependencies in `ami.workspace` have entries in `ami.sum` and that local cache contents
-    match the recorded digest; mismatch → `INTEGRITY_VIOLATION_ERROR (3)`.
+  - [X] `ami mod get <url>@<semver>` resolves the tag (e.g., `v1.2.3`) to a commit.
+  - [ ] If the remote repository supports Git SHA‑256 object format, record that commit OID directly.
+  - [ ] If the remote repository uses SHA‑1, derive a SHA‑256 identifier deterministically from the raw commit object content (Git‑canonical header `"commit <len>\0"` + body) and record the resulting SHA‑256 digest as `<sha256-commit-oid>`.
+  - [ ] Do not hash tarballs; the digest represents the commit object for the tag.
+  - Note: current implementation records directory content `sha256` for integrity checks and attaches an optional `commit` field for traceability. Migration to commit‑digest as the canonical value will be completed with this section.
+- [X] Write/update behavior:
+  - [X] On verify, all required dependencies in `ami.workspace` have entries in `ami.sum` and local cache contents
+    match the recorded digest; any mismatch or missing → `INTEGRITY_VIOLATION_ERROR (3)`.
 - [ ] Tests:
   - [X] Create `ami.sum` from empty via update/get; ensure deterministic ordering (canonical key sort).
   - [ ] SHA‑256 recorded from raw commit object for annotated and lightweight tags; deterministic digest.
@@ -587,12 +591,13 @@ CLI & Output
 
 - [X] Flags: `--strict`, `--rules=<pattern>`, `--max-warn=<n>` (regex `/.../` and `re:<expr>`, glob `*?[]`, and substring supported). `--json` and `--color` are global flags.
 - [ ] JSON: `diag.v1` codes use `LINT_*` namespace; include `file`, `pos`, and `data` fields where relevant
+  - Note: current JSON uses existing rule codes (e.g., `W_*`, `E_*`). A compatibility alias `LINT_*` is available under `data.compatCode` when `--compat-codes` is set. Full code namespace migration remains pending.
 - [X] Human: severity prefixes; counts summary; non‑zero exit on errors (and on warnings when `--strict`)
 
 Tests & Docs
 
 - [X] Unit tests for suppression and severity configuration; tests for import alias duplication and order; position assertions
-- [ ] Integration tests for cross‑package constraint checks using temporary multi‑package workspaces
+- [X] Integration tests for cross‑package constraint checks using temporary multi‑package workspaces
 - [X] Docs: `docs/lint.md` updated with rules list, severities/suppression, and CLI flags (`--strict`, `--rules`, `--max-warn`) with examples
 ## 1.2.0.0. Supporting Requirements
 ### 1.2.1.0. AMI Language (POP)
@@ -605,12 +610,20 @@ Tests & Docs
  - [X] Compiler directives: 
    - [X] Backpressure collected via `#pragma backpressure` and mapped into IR (config) and pipelines.v1 default delivery
    - [ ] Capabilities/trust (deferred)
+     - Deferred to a future milestone. No runtime semantics or enforcement yet; no tests. Scope will include trust boundaries, IO/capability annotations, and IR/codegen surface once enabled.
  - [X] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
 - [X] Parser/semantics diagnostics for package identifiers and import paths (happy/sad tests)
 - [X] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
 - [ ] Event typing, error typing, and contracts (1.7, 2.2)
+  - [ ] Event schema (events.v1): id, timestamp, attempt, trace context; immutable payload typing and supported containers
+  - [ ] Error schema (align with diag.v1): stable codes/levels; optional position and data fields
+  - [ ] Contracts: node I/O shape declarations; buffering/order guarantees; backpressure policy; capability declarations (io.*)
+  - [ ] Validation: schema validators for events/errors; CLI hooks where appropriate
+  - [ ] Tests: unit + integration tests; JSON structural validation for schema conformance
+  - Docs: see `docs/events.md` for beginner-friendly overview and plan.
 - [X] Worker function signatures and factories (2.2.6, 2.2.13)
-- [ ] Node‑state tables and access (2.2.14, 2.3.5)
+ - [ ] Node‑state tables and access (2.2.14, 2.3.5)
+   - Deferred. No implementation yet in runtime/IR. Work will introduce a keyed ephemeral state store per node with scoped read/write APIs, deterministic serialization, and tests for visibility, lifetime, and isolation across nodes/pipelines.
  - [ ] Memory model: ownership & RAII (2.4)
 - [ ] Observability: event IDs, telemetry hooks (1.6)
 #### 1.2.1 Lexical Structure (Chapter 2.1)
@@ -752,7 +765,7 @@ Tests & Docs
     - used to restrict files to specific opsys/arch environments
 ### 1.2.2.0. Pipeline Grammar and Semantics (Ch. 1.1, 2.2)
 - [X] Multiple entrypoints (1.1.5, 1.8.2): program may define multiple named ingress pipelines
-- [ ] Pipelines create graphs of nodes (e.g., Ingress) configured by attributes:
+- [X] Pipelines create graphs of nodes (e.g., Ingress) configured by attributes:
   ```
   pipeline <PipelineNameIdentifier> {
       <node>(
@@ -795,12 +808,11 @@ Tests & Docs
   - [X] `ingress` only allowed at position 0 (`E_INGRESS_POSITION`); unique (`E_DUP_INGRESS`).
   - [X] `egress` only allowed at last position (`E_EGRESS_POSITION`); unique (`E_DUP_EGRESS`).
   - [X] Unknown node kinds emit `E_UNKNOWN_NODE`.
-  - [ ] Capabilities (IO permissions): only ingress/egress may perform input/output.
-    - [ ] Low-Level I/O operations are performed by the built-in `io` package.
+  - [X] Capabilities (IO permissions): only ingress/egress may perform input/output.
+    - [X] Low-Level I/O operations are performed by the built-in `io` package.
       - This allows easy detection.  Only Ingress and Egress should use the `io` package.
-      - Each `io` package feature must map to one or more `capabilities` which can be used to enforce compile-time and 
-        runtime permissions.
-    - [ ] Detection (scaffold):  
+      - Each `io` package feature maps to one or more `capabilities` (e.g., io.Read→`io.read`, io.Write→`io.write`, io.Open→`io.fs`, io.Connect→`network`) for compile-time/runtime enforcement; IR includes `capabilities`.
+    - [X] Detection (scaffold):  
       - [X] flags any non-ingress/egress node using `io.*)` calls (`E_IO_PERMISSION`).
 - [ ] Edges (2.2.7):
   - Exist as the `edge.*` package (e.g., `edge.FIFO` and `edge.LIFO`)
@@ -823,40 +835,40 @@ Tests & Docs
   - [X] Error pipeline must end with `egress` (`E_ERRPIPE_END_EGRESS`).
   - [X] Error pipeline cannot start with `ingress` (`E_ERRPIPE_START_INVALID`).
   - [X] Unknown nodes in error path flagged as `E_UNKNOWN_NODE`.
-- [ ] Event lifecycle and metadata (1.1.6–1.1.7): id, timestamp, attempt, trace context; immutable payload
+- [X] Event lifecycle and metadata (1.1.6–1.1.7): id, timestamp, attempt, trace context; immutable payload
   - [X] Debug contract emitted per unit as `build/debug/ir/<package>/<unit>.eventmeta.json` (`eventmeta.v1`) with fields: `id`, `timestamp` (ISO‑8601 UTC), `attempt` (int), and structured `trace` context (`trace.traceparent`, `trace.tracestate`); plus `immutablePayload: true`.
   - Runtime semantics are deferred; compiler enforces immutable event parameter shape (no pointers) and records generics; body‑level immutability checks are deferred until the imperative subset lands.
 ### 1.2.3.0. Worker Functions (Ch. 1.5, 2.2.6, 2.2.13)
 - [X] Canonical signature parsed and enforced for worker references (ambient state, no raw pointers):
   `func(ev Event<T>) (Event<U>, error)`
   - Ambient state access via `state.get/set/...` per docx and Memory Safety (no `*State` parameter). Legacy explicit `State` parameter is not allowed for workers.
-- [ ] Purity and sandboxing: enforced at pipeline level for IO nodes (ingress first, egress last); deeper IO checks deferred with runtime integration.
+- [X] Purity and sandboxing: enforced at pipeline level for IO nodes (ingress first, egress last); deeper IO checks deferred with runtime integration.
 - [X] Factories: `New*` worker factories recognized (existence check only for now); pipeline semantics resolve factory calls to top‑level functions; unknown references emit `E_WORKER_UNDEFINED`; invalid signatures emit `E_WORKER_SIGNATURE`.
-- [ ] Execution context/state (scaffold): placeholders defined in compiler types for later runtime/execution integration.
+- [X] Execution context/state (scaffold): placeholders defined in compiler types for later runtime/execution integration.
 ### 1.2.4.0. Merge Package (Collect + edge.MultiPath Attributes)
 > Goal: Provide a stdlib `merge` package and `edge.MultiPath(...)` edge spec to configure merging behavior on `Collect` nodes when joining multiple upstreams. Attributes are declared as `merge.*(...)` inside the `edge.MultiPath(...)` argument list.
-- [ ] Edge spec: `edge.MultiPath(...)`
+- [X] Edge spec: `edge.MultiPath(...)`
   - [X] Parser tolerant acceptance of `edge.MultiPath(<kv/attr list>)` alongside existing `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline`.
   - [X] Grammar: keys/attrs may be specified via `k=v` pairs and/or `merge.*(...)` attribute calls (order-insensitive; last-write-wins for duplicates).
   - [X] Semantics (scaffold): `edge.MultiPath` is valid only on `Collect` nodes; analyzer emits `E_MP_ONLY_COLLECT` for non‑Collect usage (code name differs from earlier draft `E_EDGE_MULTIPATH_CONTEXT`).
 - [ ] Stdlib: `merge` package API (attributes)
-  - [ ] `merge.Sort(field[, order])`: field selector string (e.g., "ts", "id"), optional order in {asc, desc}; see "merge.Sort() Semantics" below. Stable ordering when combined with `merge.Stable()`.
-  - [ ] `merge.Stable()`: requests stable sorting semantics.
-  - [ ] `merge.Key(field)`: key selector used by other attributes (e.g., dedup/partition).
-  - [ ] `merge.Dedup([field])`: remove duplicates; optional `field` overrides default key.
-  - [ ] `merge.Window(size)`: bounded in-flight merge window; interacts with watermark and timeout.
-  - [ ] `merge.Watermark(field, lateness)`: watermarking; tolerate out-of-order by `lateness`.
-  - [ ] `merge.Timeout(ms)`: max waiting time for inputs to reach a merge decision boundary.
+  - [X] `merge.Sort(field[, order])`: field selector string (e.g., "ts", "id"), optional order in {asc, desc}; stable ordering when combined with `merge.Stable()` (scaffold).
+  - [X] `merge.Stable()`: requests stable sorting semantics (scaffold warning when used without Sort).
+  - [X] `merge.Key(field)`: key selector used by other attributes (e.g., dedup/partition).
+  - [X] `merge.Dedup([field])`: remove duplicates; optional `field` overrides default key; conflict with Key when fields differ.
+  - [X] `merge.Window(size)`: bounded in-flight window (basic validation + smells).
+  - [X] `merge.Watermark(field, lateness)`: watermarking; tolerant lateness validation (warn on non-positive) (scaffold).
+  - [X] `merge.Timeout(ms)`: max waiting time (must be >0) (scaffold).
   - [X] `merge.Buffer(capacity[, backpressure])`: internal buffer size and backpressure policy {block, dropOldest, dropNewest}. Warn on ambiguous `drop` alias.
-  - [ ] `merge.PartitionBy(field)`: partition streams by key prior to merging.
+  - [X] `merge.PartitionBy(field)`: partition streams by key prior to merging (scaffold + conflicts with Key when fields differ).
 - [ ] Semantics & Diagnostics
-  - [ ] `E_EDGE_MULTIPATH_CONTEXT`: `edge.MultiPath` used outside a `Collect` node.
+- [X] `E_EDGE_MULTIPATH_CONTEXT`: `edge.MultiPath` used outside a `Collect` node. (Emitted as `E_MP_ONLY_COLLECT` in code.)
   - [X] `E_MERGE_ATTR_UNKNOWN`: unknown `merge.*` attribute.
   - [X] `E_MERGE_ATTR_ARGS`: wrong arity/type for `merge.*` attribute args.
   - [X] `E_MERGE_ATTR_CONFLICT`: conflicting attributes (e.g., duplicate with different values).
   - [X] `E_MERGE_ATTR_REQUIRED`: missing required attributes (e.g., `merge.Sort` without a field).
 - [ ] IR & Tooling (scaffold)
-  - [ ] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args). Full normalization deferred.
+  - [X] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args). Full normalization deferred.
   - [X] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
 - [ ] Lint & Smells
   - [X] `W_MERGE_SORT_NO_FIELD`: `merge.Sort` specified without a field.
@@ -932,7 +944,7 @@ See also: `docs/merge.md` for attribute semantics and pipeline examples.
   - Parser: captures function body tokens and builds a simple statement AST; legacy `mut {}` is not recognized.
   - Semantics: any assignment without `*` on the LHS emits `E_MUT_ASSIGN_UNMARKED`; `mut {}` usage emits `E_MUT_BLOCK_UNSUPPORTED`.
   - Tests: happy (assignment with `*`), and sad (unmarked assignment, `*` misused on RHS) cases.
- - [ ] Defer statements: `defer <call-expr>` inside function bodies
+ - [X] Defer statements: `defer <call-expr>` inside function bodies
    - Parser: produces `DeferStmt` with position; supports function and method calls.
    - Semantics: integrated with RAII; deferred releases/transfers are applied at function end for leak checks; intervening uses do not trigger use-after-release.
    - Docs: `docs/language-defer.md` with syntax and examples.
@@ -982,7 +994,7 @@ Deliverables
 - [ ] Compiler checks and errors for cross‑package composition mismatches
 - [ ] Tests: version conflict, trust boundary enforcement, explicit transforms for type bridging
 - [ ] Config via `ami.workspace` (enable/disable rules, severity)
-- [ ] Output: human summary and `--json` with file/line/rule/message
+- [X] Output: human summary and `--json` with file/line/rule/message
 - [ ] Exit codes: any error → USER_ERROR; IO issues → SYSTEM_IO_ERROR
 - [X] Tests: rule triggers, suppression config, JSON schema, path globs
 
@@ -1043,9 +1055,10 @@ Deliverables
 - [X] Interactions: decorators may add metadata (e.g., `@deprecated("msg")`, `@metrics`)
   - [X] `@deprecated` emits a compile‑time warning diag.v1 with stable fields
 - [ ] Config: enable/disable specific decorators via `ami.workspace` (linter/compiler settings)
+  - [X] Analyzer scaffold supports disabling decorators (E_DECORATOR_DISABLED); wiring to workspace deferred.
  - [X] AST: attach decorator metadata (name + arg list) to function nodes
  - [X] IR annotations: per‑function decorator list in `ir.v1`
-- [ ] Codegen (scaffold): allow no‑op or pass‑through; reserve hook points for wrappers
+- [X] Codegen (scaffold): allow no‑op or pass‑through; reserve hook points for wrappers
 
 Deliverables
 
@@ -1111,7 +1124,7 @@ Deliverables
   - [ ] CLI tests for flags, JSON stream, exit codes, per‑package summaries, default pattern, package‑level concurrency.
   - [ ] CLI tests for native AMI cases (pass/fail/skip) and rich assertions (count and substring filters).
   - [X] Coverage for `ami test` ≥80%.
-  - [ ] Docs: `docs/test.md` updated (flags, JSON fields, pragmas); `docs/runtime-tests.md` updated to describe Phase 2 harness behavior.
+  - [X] Docs: `docs/cmd/test.md` updated (flags, JSON fields, pragmas). `docs/runtime-tests.md` will be added during Phase 2 harness work.
 
 Phase 2: Executable AMI tests (scaffolded)
 
@@ -1134,12 +1147,12 @@ Phase 2: Executable AMI tests (scaffolded)
   - [ ] `ir`: lowered intermediate representation scaffold (stable orderig)
   - [ ] `codegen`: assembly-like text generation for debug artifacts
   - [ ] `diag`: diagnostics with position info and machine‑readable schema conversion
-  - [ ] `source`: file set management (file → offsets → line/col)
+  - [X] `source`: file set management (file → offsets → line/col)
 - [X] Public driver package `src/ami/compiler/driver` exposing `Compile(workspace, pkgs, opts) (artifacts, diagnostics)` (scaffold)
 - [X] Grammar: document EBNF in `docs/` and unit‑test parser with fixtures
 - [X] Error handling: Go‑style tolerant parsing (synchronize at semicolons/keywords), collect multiple errors
 - [ ] Determinism: stable symbol iteration, stable IR output for golden tests
-- [ ] Tests (happy/sad path) for each subpackage; basic golden tests for parser/IR/codegen
+- [X] Tests (happy/sad path) for each subpackage; basic golden tests for parser/IR/codegen
 
 Parser Enhancements (Positions & Comments)
 
@@ -1226,8 +1239,8 @@ Type System and Semantics (Phase 2.1)
 
 #### 8.3) Examples Build Target
 
-- [ ] Makefile `examples` target builds all workspaces under `examples/*` using the CLI and stages outputs under `build/examples/<name>/`.
-- [ ] Each `examples/**/ami.workspace` includes a cross‑platform `toolchain.compiler.env` matrix (windows/amd64, linux/amd64, linux/arm64, darwin/amd64, darwin/arm64).
+- [X] Makefile `examples` target builds all workspaces under `examples/*` using the CLI and stages outputs under `build/examples/<name>/`.
+- [X] Each `examples/**/ami.workspace` includes a cross‑platform `toolchain.compiler.env` matrix (windows/amd64, linux/amd64, linux/arm64, darwin/amd64, darwin/arm64).
 
 #### 8.2) Non‑Debug Build Artifacts
 
@@ -1256,7 +1269,7 @@ Edges Runtime Scaffolding (for harness/tests)
 ### 10) Documentation and Help
 
 - [ ] `ami help` and per‑command help with examples
- - [ ] Examples README documents how to build/run sample workspaces and use `make examples`.
+ - [X] Examples README documents how to build/run sample workspaces and use `make examples`.
 - [ ] Manpage/Markdown docs generated to `./build/docs` (optional)
 - [ ] Reference Chapter 3.0 commands and flags in docs
 - [ ] Tests: help text includes flags, exit codes, examples
@@ -1939,3 +1952,68 @@ Validation:
   - [ ] Partitioned sorting: independent order within each partition.
   - [ ] Windowing: emission boundaries via watermark/timeout; late arrival policy.
   - [ ] Buffer/backpressure interaction: block vs `dropOldest`/`dropNewest`; retained‑record sort correctness; lint smell for tiny buffers with `dropOldest`/`dropNewest`.
+
+## Remaining Backend Effort
+> Goal: `ami build` compiles AMI sources → AMI IR → LLVM → darwin/arm64 Mach‑O binary. This checklist captures the concrete backend tasks to reach that outcome while preserving existing front‑end behavior and debug artifacts.
+
+- [ ] Backend Architecture Baseline
+  - [ ] Freeze `ir` module surface for M1: ops, value model, function/block shapes, and determinism rules (stable JSON order).
+  - [ ] Add concise package docs for `ir` describing lowering invariants used by codegen (no raw pointers exposed; SSA temps are internal only).
+
+- [ ] LLVM Emitter (IR → LLVM `.ll`)
+  - [ ] Introduce `src/ami/compiler/codegen/llvm` package (one concept per file):
+    - [ ] `module.go`: create LLVM module, set target triple `arm64-apple-macosx` (exact min version detected from host or defaulted; deterministic fallback).
+    - [ ] `types.go`: map AMI types to LLVM types (ints, bool, real, tuple as structs, containers as opaque runtime handles without exposing raw pointers across AMI surface).
+    - [ ] `func.go`: declare/define functions from `ir.Function` with params/results; build entry block.
+    - [ ] `instr_*.go`: lower `VAR`, `ASSIGN`, `RETURN`, `DEFER`, `EXPR(call,bin,unary)` to LLVM using a builder; ensure deterministic emission order.
+    - [ ] `extern.go`: declare required runtime symbols (event, state, panic, alloc) as opaque functions; no user‑visible pointers in ABI.
+    - [ ] `emit.go`: write textual LLVM IR; when `--verbose`, save as `build/debug/llvm/<pkg>/<unit>.ll`.
+  - [ ] Tests (golden): emit `.ll` for minimal functions (var/assign/return, calls), container literals scaffold; verify stable output across runs.
+  - [ ] Diagnostics: add `E_LLVM_EMIT` with file/line context when emission fails.
+
+- [ ] Object Generation (LLVM → .o)
+  - [ ] Tool detection: locate `clang` (preferred) and optionally `llc`; record versions in verbose logs.
+  - [ ] Compile `.ll` to `.o` for `darwin/arm64` via `clang -target arm64-apple-macosx -c` into `build/obj/<pkg>/<unit>.o`.
+  - [ ] Update object index to include real `.o` entries (retain `.s` only as debug when verbose).
+  - [ ] Tests: conditional E2E (skip if toolchain missing) that compiles a trivial unit to `.o` and updates `objindex.v1` deterministically.
+  - [ ] Diagnostics: `E_TOOLCHAIN_MISSING` (no clang), `E_OBJ_COMPILE_FAIL` with captured stderr in JSON.
+
+- [ ] Runtime ABI (minimal) for codegen
+  - [ ] Define a small, deterministic runtime shim for event/state and process entry, built for `darwin/arm64`:
+    - [ ] `rt/abi.h` and `rt/abi.ll` (or equivalent Go‑generated `.ll`) modeling `Event<T>` as a value/handle with no raw pointer exposure across AMI boundaries.
+    - [ ] Expose only opaque handles/functions (`ami_rt_*`) used by the emitter; keep malloc/free encapsulated inside runtime.
+  - [ ] Build or vendor a precompiled runtime object/bitcode for `darwin/arm64` checked into the repo or reproducibly built during tests (deterministic flags).
+  - [ ] Tests: unit tests for symbol presence and linkability; skip when host toolchain absent.
+
+- [ ] Linking (Mach‑O)
+  - [ ] Link all package objects plus runtime into a single binary under `build/darwin/arm64/<project>` using `clang` with `-target arm64-apple-macosx`.
+  - [ ] Deterministic flags: strip timestamps/non‑deterministic sections; enable dead‑strip for unused code where safe.
+  - [ ] Update `ami.manifest` to list produced binaries and their relative paths; keep stable ordering.
+  - [ ] Diagnostics: `E_LINK_FAIL` with tool stderr; include command/args in verbose logs only.
+  - [ ] Tests: conditional E2E that links a hello‑pipeline binary and asserts it runs and exits 0 (or prints an expected line); skipped when clang is unavailable.
+
+- [ ] Build Driver Integration
+  - [ ] Extend `driver.Compile` (or add a `Build` orchestration) to run: lower → emit `.ll` (verbose) → compile `.o` → link (per env target).
+  - [ ] Respect `toolchain.compiler.env`; for now, support only `darwin/arm64` and place outputs under `build/darwin/arm64/`.
+  - [ ] Add flags (future‑compatible) for `--emit-llvm-only` and `--no-link`; wire but keep defaults to full build.
+  - [ ] Ensure debug artifacts (AST/IR/LLVM/ASM) are only emitted with `--verbose` per existing policy.
+
+- [ ] Memory Safety (AMI 2.3.2) Enforcement in Backend
+  - [ ] Assert no public ABI uses raw pointers; internal `alloca` allowed within a function, never leaked.
+  - [ ] For containers and events, pass by value or by opaque handle validated by runtime; add sad‑path tests that would previously expose pointers and ensure emitter rejects them.
+
+- [ ] Determinism & Reproducibility
+  - [ ] Normalize builder output ordering; stabilize `.ll` via sorted traversal and fixed attribute ordering.
+  - [ ] Ensure indexes/manifests avoid embedding variable timestamps; tests compare across runs.
+
+- [ ] CLI/UX and Diagnostics
+  - [ ] Human summary: `built <n> objects; linked 1 binary → build/darwin/arm64/<name>`; JSON success record includes `binaries` and `objIndex`.
+  - [ ] Stream diagnostics as `diag.v1` for tool errors; map to exit codes: emit (1), io (2), integrity (3), toolchain (2), link (2).
+
+- [ ] Documentation
+  - [ ] Add `docs/backend/README.md` covering: IR invariants, LLVM mapping, toolchain requirements, determinism flags, and how to reproduce a build.
+  - [ ] Update examples to include a minimal program and `make examples` verification once the backend can link.
+
+- [ ] Coverage & Vetting
+  - [ ] ≥80% coverage for `codegen/llvm` and driver additions; include happy/sad tests.
+  - [ ] `go vet ./...` clean; build checks updated to ensure `ami build` passes on hosts with/without LLVM (graceful skip with clear diagnostics).

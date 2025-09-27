@@ -49,6 +49,8 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             seen := map[string]string{}
             keyField := ""
             partitionField := ""
+            hasSort := false
+            hasStable := false
             for _, at := range st.Attrs {
                 if strings.HasPrefix(at.Name, "merge.") {
                     if rng, ok := merges[at.Name]; ok {
@@ -64,6 +66,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         // additional validations
                         switch at.Name {
                         case "merge.Sort":
+                            hasSort = true
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
                                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Sort: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                             }
@@ -73,6 +76,8 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Sort: order must be 'asc' or 'desc'", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                                 }
                             }
+                        case "merge.Stable":
+                            hasStable = true
                         case "merge.Watermark":
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
                                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Watermark: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
@@ -114,6 +119,8 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                     pol := at.Args[1].Text
                                     if pol == "drop" {
                                         out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_BUFFER_DROP_ALIAS", Message: "merge.Buffer: ambiguous 'drop' alias; use dropOldest/dropNewest/block", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    } else if pol != "block" && pol != "dropOldest" && pol != "dropNewest" {
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Buffer: policy must be one of block|dropOldest|dropNewest", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                                     }
                                 }
                             }
@@ -140,6 +147,11 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             if keyField != "" && partitionField != "" && keyField != partitionField {
                 p := stepPos(st)
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.PartitionBy vs merge.Key conflict", Pos: &p})
+            }
+            // stable requested but no sort field specified
+            if hasStable && !hasSort {
+                p := stepPos(st)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_STABLE_WITHOUT_SORT", Message: "merge.Stable has no effect without merge.Sort", Pos: &p})
             }
             // Dedup(field) conflicts with Key when both provided and different
             for _, at := range st.Attrs {

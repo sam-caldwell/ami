@@ -7,15 +7,16 @@ toolchain:
     concurrency: NUM_CPU
     target: ./build
     env:
-      - { os: "windows/amd64" }
-      - { os: "linux/amd64" }
-      - { os: "linux/arm64" }
-      - { os: "darwin/amd64" }
-      - { os: "darwin/arm64" }
+      - windows/amd64
+      - linux/amd64
+      - linux/arm64
+      - darwin/amd64
+      - darwin/arm64
   linker: {}
   linter: {}
 packages:
   - main:
+      name: correct-main
       version: 0.0.1
       root: ./src
       import: []

@@ -29,6 +29,7 @@ func newPipelineVisualizeCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "visualize",
         Short: "Render ASCII pipeline graphs",
+        Example: "\n  # Human ASCII output\n  ami pipeline visualize\n\n  # Focus on nodes matching substring\n  ami pipeline visualize --focus egress\n\n  # Visualize only a specific file\n  ami pipeline visualize --file src/main.ami\n\n  # JSON output and omit summary record\n  ami pipeline visualize --json --no-summary\n",
         RunE: func(cmd *cobra.Command, args []string) error {
             dir := "."
             wsPath := filepath.Join(dir, "ami.workspace")

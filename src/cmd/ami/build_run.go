@@ -247,7 +247,12 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 oldwd, _ := os.Getwd()
                 _ = os.Chdir(dir)
                 pkgs := []driver.Package{{Name: p.Name, Files: &fs}}
-                _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: true})
+                // hook logger for full timestamped compiler activity under build/debug/activity.log
+                var logcb func(string, map[string]any)
+                if lg := getRootLogger(); lg != nil {
+                    logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
+                }
+                _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: true, Log: logcb})
                 _ = os.Chdir(oldwd)
             }
         }
@@ -290,7 +295,11 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 var fs source.FileSet
                 for _, f := range files { b, err := os.ReadFile(f); if err == nil { fs.AddFile(f, string(b)) } }
                 pkgs := []driver.Package{{Name: p.Name, Files: &fs}}
-                _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false})
+                var logcb func(string, map[string]any)
+                if lg := getRootLogger(); lg != nil {
+                    logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
+                }
+                _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false, Log: logcb})
                 if len(diags) > 0 {
                     enc := json.NewEncoder(out)
                     for i := range diags { _ = enc.Encode(diags[i]) }

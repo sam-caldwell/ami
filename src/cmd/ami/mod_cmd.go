@@ -7,6 +7,7 @@ func newModCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "mod",
         Short: "Module cache operations",
+        Example: "\n  # List packages in the cache\n  ami mod list\n\n  # Fetch a local package into the cache and update ami.sum\n  ami mod get ./vendor/alpha\n\n  # Validate ami.sum against cache contents\n  ami mod sum --json\n\n  # Update cache from workspace packages and rewrite ami.sum\n  ami mod update --json\n\n  # Clean (reset) the package cache\n  ami mod clean --json\n",
         RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
     }
     cmd.AddCommand(newModCleanCmd())

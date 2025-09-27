@@ -102,7 +102,7 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
     if err != nil && c.packages == 0 {
         // Tolerate empty Go package trees; AMI directive tests may still run.
         s := stdout.String() + "\n" + stderr.String()
-        if strings.Contains(s, "no packages to test") || strings.Contains(s, "matched no packages") {
+        if strings.Contains(s, "no packages to test") || strings.Contains(s, "matched no packages") || strings.Contains(s, "directory prefix . does not contain main module") {
             err = nil
             stderr.Reset()
         }
@@ -242,6 +242,10 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
         }
     }
 
+    // Discover and run runtime tests from *_test.ami pragmas
+    runtimeCases, _ := parseRuntimeCases(dir)
+    rc := runRuntime(dir, jsonOut, verbose, out, runtimeCases)
+
     // Emit a brief human summary to stdout when not JSON
     if !jsonOut {
         // Per-package summaries
@@ -258,7 +262,10 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
         if amiTests > 0 {
             fmt.Fprintf(out, "test: ami ok=%d fail=%d\n", amiTests-amiFailures, amiFailures)
         }
-        if err == nil && amiFailures == 0 {
+        if rc.total > 0 {
+            fmt.Fprintf(out, "test: runtime ok=%d fail=%d skip=%d\n", rc.ok, rc.fail, rc.skip)
+        }
+        if err == nil && amiFailures == 0 && rc.fail == 0 {
             fmt.Fprintln(out, "test: OK")
         }
     } else {
@@ -296,21 +303,25 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
             }
         }
         _ = json.NewEncoder(out).Encode(map[string]any{
-            "ok":       err == nil && amiFailures == 0,
+            "ok":       err == nil && amiFailures == 0 && rc.fail == 0,
             "packages": c.packages,
             "tests":    c.tests,
             "failures": c.failures,
             "ami_tests":    amiTests,
             "ami_failures": amiFailures,
+            "runtime_tests": rc.total,
+            "runtime_failures": rc.fail,
+            "runtime_skipped": rc.skip,
         })
     }
 
-    if err != nil || amiFailures > 0 {
+    if err != nil || amiFailures > 0 || rc.fail > 0 {
         // Write stderr summary to process stderr per SPEC
         msg := strings.TrimSpace(stderr.String())
         if msg != "" { fmt.Fprintln(os.Stderr, msg) }
         if err != nil { return err }
-        return fmt.Errorf("ami directive tests failed")
+        if amiFailures > 0 { return fmt.Errorf("ami directive tests failed") }
+        return fmt.Errorf("ami runtime tests failed")
     }
     return nil
 }

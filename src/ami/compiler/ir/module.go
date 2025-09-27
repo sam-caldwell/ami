@@ -10,4 +10,5 @@ type Module struct {
     TelemetryEnabled bool `json:"telemetryEnabled,omitempty"`
     Capabilities []string `json:"capabilities,omitempty"`
     TrustLevel   string   `json:"trustLevel,omitempty"`
+    ExecContext *ExecContext `json:"execContext,omitempty"`
 }

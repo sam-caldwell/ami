@@ -101,15 +101,22 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
                     missing = append(missing, key(p.Name, p.Version))
                     continue
                 }
-                // After fetching, compute directory hash and update ami.sum entry if needed
+                // After fetching, compute directory hash and update ami.sum entry; also attach commit digest if available
                 got, herr := hashDir(cp)
                 if herr != nil {
                     mismatched = append(mismatched, key(p.Name, p.Version))
                     continue
                 }
+                // Try to compute commit digest for traceability; ignore errors
+                commitDigest, _ := computeCommitDigest(cp, p.Version)
                 if !equalSHA(got, p.Sha256) {
-                    // Update m in-place
-                    if updateSumEntry(m, p.Name, p.Version, got, p.Source) {
+                    // Update m in-place (sha256 and optional commit)
+                    if updateSumEntryWithCommit(m, p.Name, p.Version, got, commitDigest, p.Source) {
+                        updatedSum = true
+                    }
+                } else if commitDigest != "" {
+                    // Ensure commit field present even when sha matches
+                    if updateSumEntryWithCommit(m, p.Name, p.Version, p.Sha256, commitDigest, p.Source) {
                         updatedSum = true
                     }
                 }
@@ -263,6 +270,36 @@ func updateSumEntry(m map[string]any, name, version, sha, source string) bool {
             mm["version"] = version
             mm["sha256"] = sha
             if source != "" { mm["source"] = source }
+            t[name] = mm
+            m["packages"] = t
+            return true
+        }
+    }
+    return false
+}
+
+// updateSumEntryWithCommit updates the ami.sum map with sha and optional commit digest.
+func updateSumEntryWithCommit(m map[string]any, name, version, sha, commit, source string) bool {
+    p, ok := m["packages"]
+    if !ok { return false }
+    switch t := p.(type) {
+    case []any:
+        for _, el := range t {
+            if mm, ok := el.(map[string]any); ok {
+                if strOrEmpty(mm["name"]) == name && strOrEmpty(mm["version"]) == version {
+                    mm["sha256"] = sha
+                    if source != "" { mm["source"] = source }
+                    if commit != "" { mm["commit"] = commit }
+                    return true
+                }
+            }
+        }
+    case map[string]any:
+        if mm, ok := t[name].(map[string]any); ok {
+            mm["version"] = version
+            mm["sha256"] = sha
+            if source != "" { mm["source"] = source }
+            if commit != "" { mm["commit"] = commit }
             t[name] = mm
             m["packages"] = t
             return true

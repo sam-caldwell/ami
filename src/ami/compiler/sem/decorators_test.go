@@ -42,3 +42,16 @@ func TestAnalyzeDecorators_Deprecated_Warning(t *testing.T) {
     for _, d := range ds { if d.Code == "W_DEPRECATED" { found = true } }
     if !found { t.Fatalf("expected W_DEPRECATED: %+v", ds) }
 }
+
+func TestAnalyzeDecorators_Disabled(t *testing.T) {
+    defer SetDisabledDecorators() // reset
+    SetDisabledDecorators("metrics")
+    src := "package app\n@metrics\nfunc F(){}\n"
+    f := &source.File{Name: "d4.ami", Content: src}
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    ds := AnalyzeDecorators(af)
+    found := false
+    for _, d := range ds { if d.Code == "E_DECORATOR_DISABLED" { found = true } }
+    if !found { t.Fatalf("expected E_DECORATOR_DISABLED: %+v", ds) }
+}

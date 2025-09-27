@@ -856,7 +856,7 @@ Tests & Docs
 - [X] `W_MERGE_TINY_BUFFER`: `merge.Buffer` set to very small capacity (<=1) with `dropOldest`/`dropNewest` policy.
   - [X] `W_MERGE_WATERMARK_MISSING_FIELD`: `merge.Watermark` without a field.
   - [X] `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`: invalid window size.
-  - [ ] Ensure rules are suppressible and configurable.
+  - [X] Ensure rules are suppressible and configurable.
 - [ ] Tests (scaffold)
   - [X] Parser round‑trips `edge.MultiPath(...)` as raw attr on `Collect`.
   - [X] Semantics: context enforcement (Collect‑only) and basic merge‑op name/arity validation.
@@ -901,7 +901,7 @@ See also: `docs/merge.md` for a design summary and examples.
   - [X] edges.v1 includes per‑Collect MultiPath snapshots for debugging.
 - [ ] Lint (Smells & Hints)
 - [ ] `W_MERGE_SORT_NO_FIELD` (Sort without a field), `W_MERGE_TINY_BUFFER` (Buffer capacity<=1 with `dropOldest`/`dropNewest`), `W_MERGE_WATERMARK_MISSING_FIELD`, `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`.
-  - [ ] Ensure rules are suppressible via pragmas and configurable via workspace severities.
+  - [X] Ensure rules are suppressible via pragmas and configurable via workspace severities.
 - [ ] Tests
   - [ ] Parser: accept and round‑trip `edge.MultiPath(...)` with `merge.*` attributes.
   - [ ] Semantics: context enforcement (Collect‑only), per‑attribute arity/type validation, conflicts, and required fields.

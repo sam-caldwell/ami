@@ -325,6 +325,38 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         }
     }
 
+    // Rewrite ami.manifest into build/ami.manifest with toolchain metadata and objIndex entries.
+    {
+        buildDir := filepath.Join(dir, "build")
+        _ = os.MkdirAll(buildDir, 0o755)
+        objIdx := []string{}
+        for _, e := range ws.Packages {
+            idx := filepath.Join(dir, "build", "obj", e.Package.Name, "index.json")
+            if st, err := os.Stat(idx); err == nil && !st.IsDir() {
+                rel, _ := filepath.Rel(dir, idx)
+                objIdx = append(objIdx, rel)
+            }
+        }
+        // Load ami.sum if present to embed package evidence.
+        sumPath := filepath.Join(dir, "ami.sum")
+        pkgs := map[string]map[string]string{}
+        var sum workspace.Manifest
+        if st, err := os.Stat(sumPath); err == nil && !st.IsDir() {
+            if err := sum.Load(sumPath); err == nil { pkgs = sum.Packages }
+        }
+        outObj := map[string]any{
+            "schema":    "ami.manifest/v1",
+            "packages":  pkgs,
+            "toolchain": map[string]any{"targetDir": absTarget, "targets": envs},
+            "objIndex":  objIdx,
+        }
+        f, err := os.OpenFile(filepath.Join(buildDir, "ami.manifest"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+        if err == nil {
+            _ = json.NewEncoder(f).Encode(outObj)
+            _ = f.Close()
+        }
+    }
+
     if jsonOut {
         // Collect object index paths when available (verbose compile may have produced them)
         var objIdx []string

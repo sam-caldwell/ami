@@ -42,6 +42,7 @@ func typesCompatible(expected, actual string) bool {
 func elemCompatible(a, b string) bool {
     ea := innerGeneric(a)
     eb := innerGeneric(b)
+    if isTypeVar(ea) || isTypeVar(eb) { return true }
     return typesCompatible(ea, eb)
 }
 
@@ -66,4 +67,3 @@ func isTypeVar(s string) bool {
     // consider single-letter ASCII uppercase as a type variable (T/U/E/etc.)
     return len(s) == 1 && s[0] >= 'A' && s[0] <= 'Z'
 }
-

@@ -81,8 +81,7 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
         if pt == "" || pt == "any" || at == "any" { continue }
         if pt != at {
             p := epos(a)
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: "call argument type mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
-            break
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: "call argument type mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"argIndex": i}})
         }
     }
     return out

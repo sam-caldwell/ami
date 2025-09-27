@@ -827,7 +827,7 @@ Tests & Docs
   - [X] Debug contract emitted per unit as `build/debug/ir/<package>/<unit>.eventmeta.json` (`eventmeta.v1`) with fields: `id`, `timestamp` (ISO‑8601 UTC), `attempt` (int), and structured `trace` context (`trace.traceparent`, `trace.tracestate`); plus `immutablePayload: true`.
   - Runtime semantics are deferred; compiler enforces immutable event parameter shape (no pointers) and records generics; body‑level immutability checks are deferred until the imperative subset lands.
 ### 1.2.3.0. Worker Functions (Ch. 1.5, 2.2.6, 2.2.13)
-- [ ] Canonical signature parsed and enforced for worker references (ambient state, no raw pointers):
+- [X] Canonical signature parsed and enforced for worker references (ambient state, no raw pointers):
   `func(ev Event<T>) (Event<U>, error)`
   - Ambient state access via `state.get/set/...` per docx and Memory Safety (no `*State` parameter). Legacy explicit `State` parameter is not allowed for workers.
 - [ ] Purity and sandboxing: enforced at pipeline level for IO nodes (ingress first, egress last); deeper IO checks deferred with runtime integration.

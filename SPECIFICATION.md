@@ -1146,7 +1146,8 @@ Parser Enhancements (Positions & Comments)
 
 Types & Semantics (incremental)
 
-- [ ] Composite types and AST→types mapping: `Pointer`, `Slice`, `Map`, `Set`, `slice<T>`, `Event<T>`, `Error<E>`.
+ - [D] Composite types and AST→types mapping: `Pointer`, `Slice`, `Map`, `Set`, `slice<T>`, `Event<T>`, `Error<E>`.
+   - [X] Textual mapping scaffold: `types.Parse()` and `types.MustParse()` for primitives and generics (`slice<T>`, `set<T>`, `map<K,V>`, `Event<T>`, `Error<E>`); tests added.
 - [ ] Function signatures: `types.Function{Params, Results}` built from `FuncDecl` for scope/type introspection.
 - [ ] Import symbol scope: insert alias or last path segment into top‑level scope (kind `ObjType`, type `package`).
 - [ ] Tests: verify type mapping and inferred function signatures; scope contains imported package symbol.

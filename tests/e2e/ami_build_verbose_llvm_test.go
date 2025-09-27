@@ -48,7 +48,7 @@ func TestE2E_AmiBuild_Verbose_EmitsLLVM(t *testing.T) {
     }
     if !found { t.Fatalf("manifest missing llvm path: %s", ll) }
 
-    // And build.plan.json includes hasObjects=false for app
+    // And build.plan.json includes hasObjects for app (true because a stub .o is always emitted)
     bp := filepath.Join(ws, "build", "debug", "build.plan.json")
     bb, err := os.ReadFile(bp)
     if err != nil { t.Fatalf("read build.plan: %v", err) }
@@ -56,7 +56,7 @@ func TestE2E_AmiBuild_Verbose_EmitsLLVM(t *testing.T) {
     if err := json.Unmarshal(bb, &plan); err != nil { t.Fatalf("json: %v", err) }
     seen := false
     for _, p := range plan.Packages {
-        if p.Name == "app" { if p.HasObjects { t.Fatalf("expected hasObjects=false in verbose mode") }; seen = true }
+        if p.Name == "app" { if !p.HasObjects { t.Fatalf("expected hasObjects=true when object stubs are emitted") }; seen = true }
     }
     if !seen { t.Fatalf("package app not in plan") }
 }

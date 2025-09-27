@@ -8,6 +8,7 @@ import (
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
+    "github.com/sam-caldwell/ami/src/ami/compiler/sem"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     diag "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -68,6 +69,17 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                 d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PARSE_TOLERANT", Message: "parse error in Stage B lint: " + err.Error(), File: path}
                 if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                 return nil
+            }
+
+            // Bridge selected semantics diagnostics into lint when Stage B is enabled.
+            if t.StageB {
+                semDiags := append(sem.AnalyzePipelineSemantics(af), sem.AnalyzeErrorSemantics(af)...)
+                for _, sd := range semDiags {
+                    d := sd
+                    if d.File == "" { d.File = path }
+                    if m := disables[path]; m != nil && m[d.Code] { continue }
+                    out = append(out, d)
+                }
             }
 
             // Collect used identifiers (first segment of selector/call names) for unused import checks.

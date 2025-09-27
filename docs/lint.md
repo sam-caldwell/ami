@@ -24,6 +24,43 @@ Advanced (Stage B) options:
 - `--rule-raii` — hint to wrap `release(x)` calls (`W_RAII_OWNED_HINT`).
 - `--rule-unused` — report unused identifier‑style imports (`W_UNUSED_IMPORT`).
 
+Stage B rules (parser‑backed)
+
+- Memory safety:
+  - `E_PTR_UNSUPPORTED_SYNTAX`: `&x` is not allowed.
+  - `E_MUT_BLOCK_UNSUPPORTED`: unary `*` is not a dereference; only `* name = expr` is allowed.
+  - `E_MUT_ASSIGN_UNMARKED`: plain assignment in function bodies must use `* name = expr`.
+- RAII hint:
+  - `W_RAII_OWNED_HINT`: wrap `release(x)` in `mutate(release(x))` to signal ownership transfer.
+- Imports:
+  - `W_DUP_IMPORT_ALIAS`: duplicate alias in import declarations.
+  - `W_UNUSED_IMPORT`: alias/path imported but not referenced.
+- Functions:
+  - `W_DUP_FUNC_DECL`: same function declared in multiple files.
+- Pipelines:
+  - `W_PIPELINE_INGRESS_POS`: `ingress` should be first.
+  - `W_PIPELINE_EGRESS_POS`: `egress` should be last.
+  - `W_PIPELINE_UNREACHABLE_NODE`: node appears unreachable from `ingress`.
+  - `W_PIPELINE_BUFFER_DROP_ALIAS`: ambiguous `drop` backpressure alias; prefer `dropOldest|dropNewest|block`.
+  - `W_PIPELINE_BUFFER_POLICY_SMELL`: capacity <= 1 with drop policy is likely ineffective.
+  - Semantics parity (selected): `E_PIPELINE_START_INGRESS`, `E_PIPELINE_END_EGRESS`, `E_DUP_EGRESS`, `E_UNKNOWN_NODE`, `E_IO_PERMISSION`.
+
+Examples
+
+```
+// memory safety
+a := &b                  // E_PTR_UNSUPPORTED_SYNTAX
+*c + d                   // E_MUT_BLOCK_UNSUPPORTED
+func F(){ x = 1 }        // E_MUT_ASSIGN_UNMARKED
+
+// RAII hint
+func G(){ release(x) }   // W_RAII_OWNED_HINT; prefer mutate(release(x))
+
+// pipeline smells
+pipeline P(){ Collect.buffer(1, drop); egress; }  // W_PIPELINE_BUFFER_DROP_ALIAS
+pipeline Q(){ ingress(); work(); egress(); tail } // W_PIPELINE_EGRESS_POS
+```
+
 What gets checked (high level):
 - Workspace: `ami.workspace` exists and parses; has a version and a `main` package. Local imports are valid; duplicate or cyclic imports are flagged.
 - Source style: underscores in identifiers, language reminders (`W_LANG_NOT_GO`, `W_GO_SYNTAX_DETECTED`), TODO/FIXME policy.

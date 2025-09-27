@@ -16,7 +16,15 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
         case *ast.AssignStmt:
             out = append(out, lowerStmtAssign(st, v))
         case *ast.ReturnStmt:
-            out = append(out, lowerStmtReturn(st, v))
+            // Materialize return expressions so literals/ops appear as EXPR before RETURN
+            var vals []ir.Value
+            for _, e := range v.Results {
+                if ex, ok := lowerExpr(st, e); ok {
+                    if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
+                    if ex.Result != nil { vals = append(vals, *ex.Result) }
+                }
+            }
+            out = append(out, ir.Return{Values: vals})
         case *ast.DeferStmt:
             out = append(out, lowerStmtDefer(st, v))
         case *ast.ExprStmt:
@@ -27,4 +35,3 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
     }
     return out
 }
-

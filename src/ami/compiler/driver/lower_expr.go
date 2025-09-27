@@ -93,9 +93,9 @@ func foldConst(e ast.Expr) ast.Expr {
         // both number literals
         if nx, ok := x.(*ast.NumberLit); ok {
             if ny, ok2 := y.(*ast.NumberLit); ok2 {
-                // parse base-10 integers (scaffold)
-                ax, err1 := strconv.Atoi(nx.Text)
-                ay, err2 := strconv.Atoi(ny.Text)
+                // parse integers with bases: 0x*, 0b*, 0o*, or decimal
+                ax, err1 := parseInt(nx.Text)
+                ay, err2 := parseInt(ny.Text)
                 if err1 == nil && err2 == nil {
                     var r int
                     switch v.Op {
@@ -116,10 +116,34 @@ func foldConst(e ast.Expr) ast.Expr {
             }
         }
         // no fold; but return possibly simplified children
+        v.X = x
+        v.Y = y
         return v
     default:
         return e
     }
+}
+
+func parseInt(text string) (int, error) {
+    // strip optional sign
+    if len(text) == 0 { return 0, fmt.Errorf("empty") }
+    neg := false
+    if text[0] == '-' { neg = true; text = text[1:] }
+    base := 10
+    if len(text) > 2 && text[0] == '0' {
+        switch text[1] {
+        case 'x', 'X': base = 16; text = text[2:]
+        case 'b', 'B': base = 2;  text = text[2:]
+        case 'o', 'O': base = 8;  text = text[2:]
+        }
+    }
+    // remove underscores if any (future-proof)
+    clean := make([]rune, 0, len(text))
+    for _, r := range text { if r != '_' { clean = append(clean, r) } }
+    n, err := strconv.ParseInt(string(clean), base, 64)
+    if err != nil { return 0, err }
+    if neg { n = -n }
+    return int(n), nil
 }
 
 func lowerCallExpr(st *lowerState, c *ast.CallExpr) ir.Expr {

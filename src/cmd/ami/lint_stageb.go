@@ -175,6 +175,70 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     }
                 })
             }
+
+            // Pipeline buffer/backpressure smells and reachability
+            if t.StageB {
+                for _, dcl := range af.Decls {
+                    pd, ok := dcl.(*ast.PipelineDecl); if !ok || pd == nil { continue }
+                    var stmts []ast.Stmt
+                    if len(pd.Stmts) > 0 { stmts = pd.Stmts } else if pd.Body != nil { stmts = pd.Body.Stmts }
+                    // Backpressure hints: scan step attributes
+                    for _, s := range stmts {
+                        st, ok := s.(*ast.StepStmt); if !ok { continue }
+                        for _, a := range st.Attrs {
+                            name := strings.ToLower(a.Name)
+                            if name == "buffer" || strings.HasSuffix(name, ".buffer") {
+                                // capacity is first arg
+                                capVal := 0
+                                if len(a.Args) >= 1 { capVal = atoiSafe(a.Args[0].Text) }
+                                var policy string
+                                if len(a.Args) >= 2 { policy = strings.ToLower(a.Args[1].Text) }
+                                if policy == "drop" {
+                                    d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_DROP_ALIAS", Message: "ambiguous backpressure alias 'drop'; use dropOldest/dropNewest/block", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                }
+                                if capVal <= 1 && (policy == "dropoldest" || policy == "dropnewest") {
+                                    d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_POLICY_SMELL", Message: "buffer policy with capacity<=1 is likely ineffective", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"capacity": capVal, "policy": policy}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                }
+                            }
+                        }
+                    }
+                    // Reachability: simple graph over edge stmts from 'ingress'
+                    nodes := map[string]bool{}
+                    posByName := map[string]diag.Position{}
+                    adj := map[string][]string{}
+                    for _, s := range stmts {
+                        switch n := s.(type) {
+                        case *ast.StepStmt:
+                            nodes[n.Name] = true
+                            posByName[n.Name] = diag.Position{Line: n.Pos.Line, Column: n.Pos.Column, Offset: n.Pos.Offset}
+                        case *ast.EdgeStmt:
+                            nodes[n.From] = true
+                            nodes[n.To] = true
+                            posByName[n.From] = diag.Position{Line: n.Pos.Line, Column: n.Pos.Column, Offset: n.Pos.Offset}
+                            adj[n.From] = append(adj[n.From], n.To)
+                        }
+                    }
+                    // BFS from ingress
+                    vis := map[string]bool{}
+                    q := []string{"ingress"}
+                    for len(q) > 0 {
+                        u := q[0]; q = q[1:]
+                        if vis[u] { continue }
+                        vis[u] = true
+                        for _, v := range adj[u] { if !vis[v] { q = append(q, v) } }
+                    }
+                    for name := range nodes {
+                        if strings.ToLower(name) == "ingress" { continue }
+                        if !vis[name] {
+                            p := posByName[name]
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_UNREACHABLE_NODE", Message: "pipeline node appears unreachable from ingress", File: path, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"node": name}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                    }
+                }
+            }
             // RAII hint: release(x) should be wrapped: mutate(release(x))
             if t.StageB || t.RAIIHint {
                 wrapped := collectMutateWrappedReleases(af)
@@ -301,4 +365,16 @@ func intToString(i int) string {
     }
     if neg { p--; b[p] = '-' }
     return string(b[p:])
+}
+
+func atoiSafe(s string) int {
+    // simple unsigned parse; non-numeric returns 0
+    n := 0
+    for i := 0; i < len(s); i++ {
+        c := s[i]
+        if c < '0' || c > '9' { break }
+        n = n*10 + int(c-'0')
+        if n > 1_000_000_000 { break }
+    }
+    return n
 }

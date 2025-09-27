@@ -1,6 +1,7 @@
 package sem
 
 import (
+    "fmt"
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
@@ -81,7 +82,8 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
         if pt == "" || pt == "any" || at == "any" { continue }
         if pt != at {
             p := epos(a)
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: "call argument type mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"argIndex": i, "expected": pt, "actual": at}})
+            msg := fmt.Sprintf("call argument type mismatch: arg %d expected %s, got %s", i, pt, at)
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: msg, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"argIndex": i, "expected": pt, "actual": at}})
         }
     }
     return out

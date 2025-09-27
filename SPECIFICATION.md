@@ -872,8 +872,8 @@ Tests & Docs
 See also: `docs/merge.md` for a design summary and examples.
 ### 1.2.5.0. edge.MultiPath() Merge Facility (Collect)
 > Create a first‑class `edge.MultiPath()` facility for `Collect` nodes to express multi‑upstream merge behavior. This section focuses on the end‑to‑end checklist. Align with expectations described in `docs/Asynchronous Machine Interface.docx` (merge/collect semantics, ordering, watermarks, and buffering) and reconcile naming with the existing `merge.*` attribute API.
-- [ ] Grammar & Parser
-- [ ] Parser: Accept `in=edge.MultiPath(<attr list>)` as a step argument on `Collect` nodes (tolerant inputs + raw `merge` ops).
+- [X] Grammar & Parser
+- [X] Parser: Accept `in=edge.MultiPath(<attr list>)` as a step argument on `Collect` nodes (tolerant inputs + raw `merge` ops).
   - [ ] Semantics/IR (scaffold): Minimal validations (Collect‑only, input type checks). IR/schema/codegen scaffolded; merge normalization and full lowering pending.
   - [ ] Attr list supports mixed `k=v` pairs and nested `merge.*(...)` attribute calls; order‑insensitive; last‑write‑wins.
   - [ ] Tolerant parsing (scaffold): capture raw string, normalized kv map, and a list of `merge.*` calls for later semantic validation.

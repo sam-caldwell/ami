@@ -95,14 +95,26 @@ func newPipelineVisualizeCmd() *cobra.Command {
                 for _, d := range af.Decls {
                     if pd, ok := d.(*ast.PipelineDecl); ok {
                         g := graphFromPipeline(pkg.Name, unit, pd)
+                        // Detect circular references early; emit diagnostics and abort
+                        if hasCycle, cyc := detectCycle(g); hasCycle {
+                            if jsonOut {
+                                rec := diag.Record{Level: diag.Error, Code: "E_GRAPH_CYCLE", Message: "circular reference detected", Package: g.Package, File: fpath, Data: map[string]any{"pipeline": g.Name, "cycle": cyc}}
+                                _ = json.NewEncoder(cmd.OutOrStdout()).Encode(rec)
+                            }
+                            return fmt.Errorf("circular reference detected in pipeline %s", g.Name)
+                        }
                         graphs = append(graphs, g)
                     }
                 }
             }
             if jsonOut {
                 noSummary, _ := cmd.Flags().GetBool("no-summary")
+                excludes, _ := cmd.Flags().GetStringSlice("json-exclude")
                 enc := json.NewEncoder(cmd.OutOrStdout())
-                for _, g := range graphs { _ = enc.Encode(g) }
+                for _, g := range graphs {
+                    g = applyJSONExcludes(g, excludes)
+                    _ = enc.Encode(g)
+                }
                 // summary object
                 if !noSummary {
                     sum := map[string]any{"schema": graph.Schema, "type": "summary", "pipelines": len(graphs)}
@@ -123,9 +135,10 @@ func newPipelineVisualizeCmd() *cobra.Command {
             // Human: header + ASCII block per pipeline
             width, _ := cmd.Flags().GetInt("width")
             legend, _ := cmd.Flags().GetBool("legend")
+            color, _ := cmd.Root().Flags().GetBool("color")
             for i, g := range graphs {
                 header := fmt.Sprintf("package: %s  pipeline: %s\n", g.Package, g.Name)
-                line := ascii.RenderBlock(g, ascii.Options{Width: width, Focus: focus, Legend: legend})
+                line := ascii.RenderBlock(g, ascii.Options{Width: width, Focus: focus, Legend: legend, Color: color})
                 if i > 0 { _, _ = cmd.OutOrStdout().Write([]byte("\n")) }
                 _, _ = cmd.OutOrStdout().Write([]byte(header))
                 _, _ = cmd.OutOrStdout().Write([]byte(line))
@@ -139,6 +152,7 @@ func newPipelineVisualizeCmd() *cobra.Command {
     cmd.Flags().String("focus", "", "only show pipelines that include this node substring")
     cmd.Flags().Int("width", 0, "wrap ASCII lines to this width (0=disable)")
     cmd.Flags().Bool("no-summary", false, "omit JSON summary record")
+    cmd.Flags().StringSlice("json-exclude", nil, "comma-separated fields to exclude in JSON (e.g., attrs)")
     cmd.Flags().Bool("legend", false, "show a simple legend in ASCII output")
     return cmd
 }
@@ -207,6 +221,51 @@ func graphContains(g graph.Graph, focus string) bool {
         }
     }
     return false
+}
+
+// detectCycle performs a simple cycle check; returns true and a list of involved node IDs when a cycle exists.
+func detectCycle(g graph.Graph) (bool, []string) {
+    // Kahn's algorithm to detect if a DAG: if processed < nodes => cycle
+    indeg := map[string]int{}
+    adj := map[string][]string{}
+    for _, n := range g.Nodes { indeg[n.ID] = 0 }
+    for _, e := range g.Edges {
+        adj[e.From] = append(adj[e.From], e.To)
+        indeg[e.To]++
+        if _, ok := indeg[e.From]; !ok { indeg[e.From] = 0 }
+    }
+    // queue nodes with indegree 0
+    var q []string
+    for id, d := range indeg { if d == 0 { q = append(q, id) } }
+    // process
+    processed := 0
+    for len(q) > 0 {
+        // pop
+        n := q[0]
+        q = q[1:]
+        processed++
+        for _, m := range adj[n] {
+            indeg[m]--
+            if indeg[m] == 0 { q = append(q, m) }
+        }
+    }
+    if processed == len(indeg) { return false, nil }
+    // Collect nodes with indegree>0 as a conservative cycle set
+    var cyc []string
+    for id, d := range indeg { if d > 0 { cyc = append(cyc, id) } }
+    sort.Strings(cyc)
+    return true, cyc
+}
+
+// applyJSONExcludes drops requested fields from the graph prior to encoding.
+// Supported: "attrs" removes Edge.Attrs objects from all edges.
+func applyJSONExcludes(g graph.Graph, excludes []string) graph.Graph {
+    has := map[string]bool{}
+    for _, e := range excludes { has[strings.ToLower(strings.TrimSpace(e))] = true }
+    if has["attrs"] {
+        for i := range g.Edges { g.Edges[i].Attrs = nil }
+    }
+    return g
 }
 
 // deriveEdgeAttrs inspects the step corresponding to fromID and returns edge attrs.

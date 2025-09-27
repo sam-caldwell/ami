@@ -360,7 +360,7 @@ packages:
   - [X] Using `ami.workspace` ensure that all local and remote packages are available on the local machine
   - [ ] For every included source file (starting with `main.ami`)...
     - [ ] Detect circular references and return an error/terminate
-    - [ ] Lex/Tokenize/Parse: Source → tokens → AST (per .ami file)
+    - [X] Lex/Tokenize/Parse: Source → tokens → AST (per .ami file)
     - [ ] Type-Checking: resolve names, perform inference/checks and const folding.
     - [ ] If verbose is used, write AST and other required information to build/debug/ files.
     - [ ] Variable declarations and local bindings (to enable broader local type inference in bodies).
@@ -501,6 +501,7 @@ packages:
 - JSON (`--json`)
     - Schema `graph.v1` (stable ordering): `{ package, unit, name, nodes:[{id, kind, label}], edges:[{from, to, attrs}] }`.
     - [X] Final summary record `{ schema:"graph.v1", type:"summary", pipelines:<n> }` emitted after graphs.
+    - [X] Detect circular references; emit `diag.v1` error (`E_GRAPH_CYCLE`) and terminate with non‑zero exit. Human mode returns an error.
 - Inputs
     - Source discovery aligns with build/lint: start at `packages.main.root` and include direct imports (workspace‑local only for initial phase).
     - Parser/AST extraction provided by compiler front‑end (Agent D). This command consumes the tolerant shape (no semantics beyond graph extraction).

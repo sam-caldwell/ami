@@ -1,4 +1,5 @@
-.PHONY: all clean lint test build examples e2e-build e2e-test
+.PHONY: all clean lint test build examples e2e-build e2e-test \
+        e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update
 
 all: build
 
@@ -22,6 +23,35 @@ e2e-build:
 e2e-test: e2e-build
 	@echo "Running E2E CLI tests (tests/e2e)..."
 	go test -v ./tests/e2e
+
+# Run a subset of E2E tests by regex name. Usage:
+#   make e2e-one NAME=AmiModGet
+e2e-one: e2e-build
+	@if [ -z "$(NAME)" ]; then \
+	  echo "NAME required, e.g., make e2e-one NAME=AmiModGet"; \
+	  exit 1; \
+	fi
+	@echo "Running E2E tests matching: $(NAME)"
+	go test -v ./tests/e2e -run "$(NAME)"
+
+# Convenience targets per mod subcommand
+e2e-mod-audit: e2e-build
+	go test -v ./tests/e2e -run AmiModAudit
+
+e2e-mod-clean: e2e-build
+	go test -v ./tests/e2e -run AmiModClean
+
+e2e-mod-list: e2e-build
+	go test -v ./tests/e2e -run AmiModList
+
+e2e-mod-get: e2e-build
+	go test -v ./tests/e2e -run AmiModGet
+
+e2e-mod-sum: e2e-build
+	go test -v ./tests/e2e -run AmiModSum
+
+e2e-mod-update: e2e-build
+	go test -v ./tests/e2e -run AmiModUpdate
 
 examples:
 	@if [ ! -x build/ami ]; then \

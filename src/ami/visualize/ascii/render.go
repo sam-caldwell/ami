@@ -107,7 +107,12 @@ func RenderBlock(g graph.Graph, opt Options) string {
         if lbl == "" { lbl = n.Kind }
         // focus highlighting
         if opt.Focus != "" && containsFold(lbl, opt.Focus) {
-            lbl = "*" + lbl + "*"
+            if opt.Color {
+                // bright yellow
+                lbl = "\x1b[33m" + lbl + "\x1b[0m"
+            } else {
+                lbl = "*" + lbl + "*"
+            }
         }
         switch strings.ToLower(n.Kind) {
         case "ingress", "egress":
@@ -138,8 +143,12 @@ func RenderBlock(g graph.Graph, opt Options) string {
         parts = append(parts, t)
         col += len(t)
     }
-    line1 := strings.Join(parts, "")
-    lines := []string{wrapLine(line1, opt.Width)}
+    var lines []string
+    if opt.Width > 0 {
+        lines = append(lines, wrapTokens(parts, opt.Width))
+    } else {
+        lines = append(lines, strings.Join(parts, ""))
+    }
     // Render simple branches: for any chain node with extra outs beyond the primary
     for idx, id := range chain {
         nexts := outs[id]
@@ -156,7 +165,19 @@ func RenderBlock(g graph.Graph, opt Options) string {
             if e, ok := findEdge(g, id, to); ok {
                 if tag := edgeTag(e); tag != "" { arr = "+-[" + tag + "]-> " }
             }
-            lines = append(lines, wrapLine(pad+arr+token(to), opt.Width))
+            // extend dashed alignment towards the target when target is on the primary chain
+            // determine target start column if present
+            targetStart := -1
+            for j, cid := range chain {
+                if cid == to { targetStart = starts[j]; break }
+            }
+            if targetStart > 0 {
+                dashLen := targetStart - starts[idx] - 3
+                if dashLen < 1 { dashLen = 1 }
+                lines = append(lines, wrapLine(strings.Repeat(" ", starts[idx])+"+"+strings.Repeat("-", dashLen)+"> "+token(to), opt.Width))
+            } else {
+                lines = append(lines, wrapLine(pad+arr+token(to), opt.Width))
+            }
         }
         _ = primary
     }
@@ -176,6 +197,22 @@ func wrapLine(s string, w int) string {
         if j > len(s) { j = len(s) }
         out = append(out, s[i:j])
     }
+    return strings.Join(out, "\n")
+}
+
+// wrapTokens wraps a token slice to width w, preserving token boundaries.
+func wrapTokens(parts []string, w int) string {
+    if w <= 0 { return strings.Join(parts, "") }
+    var out []string
+    var line strings.Builder
+    for _, p := range parts {
+        if line.Len()+len(p) > w {
+            out = append(out, line.String())
+            line.Reset()
+        }
+        line.WriteString(p)
+    }
+    if line.Len() > 0 { out = append(out, line.String()) }
     return strings.Join(out, "\n")
 }
 

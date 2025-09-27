@@ -112,7 +112,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzePackageAndImports(af))
             attachFile(sem.AnalyzeContainerTypes(af))
             // lower
-            m := lowerFile(p.Name, af)
+            m := lowerFile(p.Name, af, paramSigs, resultSigs)
             if opts.Debug {
                 if s, err := writeSourcesDebug(p.Name, unit, af); err == nil { bmu.Sources = s }
                 if a, err := writeASTDebug(p.Name, unit, af); err == nil { bmu.AST = a }

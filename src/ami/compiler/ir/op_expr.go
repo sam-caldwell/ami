@@ -6,6 +6,9 @@ type Expr struct {
     Callee string   // callee name when Op=="call"
     Args   []Value  // arguments
     Result *Value   // optional result
+    // Debug signature info for calls (JSON-only debug emission)
+    ParamTypes  []string
+    ResultTypes []string
 }
 
 func (e Expr) isInstruction() Kind { return OpExpr }

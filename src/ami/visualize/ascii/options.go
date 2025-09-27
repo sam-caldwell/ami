@@ -9,4 +9,6 @@ type Options struct {
     Focus string
     // Legend, when true, renders a one-line legend above the block.
     Legend bool
+    // Color enables ANSI color for focus highlighting (human mode only).
+    Color bool
 }

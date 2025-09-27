@@ -12,17 +12,12 @@ func AnalyzeCallsWithSigs(f *ast.File, params map[string][]string, results map[s
     var out []diag.Record
     if f == nil { return out }
     now := time.Unix(0, 0).UTC()
-    vars := map[string]string{}
     // analyze each function with local var types
     for _, d := range f.Decls {
         fn, ok := d.(*ast.FuncDecl)
         if !ok || fn.Body == nil { continue }
-        vars = map[string]string{}
-        for _, st := range fn.Body.Stmts {
-            if v, ok := st.(*ast.VarDecl); ok {
-                if v.Name != "" && v.Type != "" { vars[v.Name] = v.Type }
-            }
-        }
+        // build local env (params, var inits/types, assignments)
+        vars := buildLocalEnv(fn)
         for _, st := range fn.Body.Stmts {
             switch v := st.(type) {
             case *ast.ExprStmt:
@@ -59,4 +54,3 @@ func checkCallWithSigs(c *ast.CallExpr, params map[string][]string, now time.Tim
     }
     return out
 }
-

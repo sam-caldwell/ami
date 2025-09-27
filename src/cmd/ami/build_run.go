@@ -10,6 +10,8 @@ import (
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/exit"
+    "github.com/sam-caldwell/ami/src/ami/compiler/driver"
+    "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
@@ -132,7 +134,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         return exit.New(exit.Integrity, "dependency integrity check failed; run 'ami mod update'")
     }
 
-    // When verbose, emit a simple build plan JSON under build/debug/build.plan.json
+    // When verbose, emit build plan and write front-end debug artifacts (AST/IR/etc.).
     if verbose {
         _ = os.MkdirAll(filepath.Join(dir, "build", "debug"), 0o755)
         planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
@@ -150,6 +152,31 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
             _ = json.NewEncoder(f).Encode(plan)
             _ = f.Close()
+        }
+
+        // Front-end debug artifacts: parse main package .ami files and compile with Debug=true
+        if p := ws.FindPackage("main"); p != nil && p.Root != "" {
+            root := filepath.Clean(filepath.Join(dir, p.Root))
+            // Collect .ami files under root
+            var files []string
+            _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+                if err != nil || d.IsDir() { return nil }
+                if filepath.Ext(path) == ".ami" { files = append(files, path) }
+                return nil
+            })
+            if len(files) > 0 {
+                var fs source.FileSet
+                for _, f := range files {
+                    b, err := os.ReadFile(f); if err != nil { continue }
+                    fs.AddFile(f, string(b))
+                }
+                // Run compile with CWD set to workspace dir so relative debug paths land under dir/build/debug
+                oldwd, _ := os.Getwd()
+                _ = os.Chdir(dir)
+                pkgs := []driver.Package{{Name: p.Name, Files: &fs}}
+                _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: true})
+                _ = os.Chdir(oldwd)
+            }
         }
     }
 

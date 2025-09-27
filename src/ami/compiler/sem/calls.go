@@ -30,12 +30,21 @@ func AnalyzeCalls(f *ast.File) []diag.Record {
     for _, d := range f.Decls {
         fn, ok := d.(*ast.FuncDecl)
         if !ok || fn.Body == nil { continue }
-        // collect local var types
+        // collect local var types from params, var decls/inits and assignments
         vars := map[string]string{}
+        for _, p := range fn.Params { if p.Name != "" && p.Type != "" { vars[p.Name] = p.Type } }
         for _, st := range fn.Body.Stmts {
             switch v := st.(type) {
             case *ast.VarDecl:
-                if v.Name != "" && v.Type != "" { vars[v.Name] = v.Type }
+                if v.Name != "" {
+                    if v.Type != "" { vars[v.Name] = v.Type } else if v.Init != nil {
+                        if t := deduceType(v.Init); t != "any" && t != "" { vars[v.Name] = t }
+                    }
+                }
+            case *ast.AssignStmt:
+                if v.Name != "" && v.Value != nil {
+                    if t := deduceType(v.Value); t != "any" && t != "" { vars[v.Name] = t }
+                }
             }
         }
         // walk statements for calls and return calls
@@ -87,6 +96,8 @@ func inferExprTypeWithVars(e ast.Expr, vars map[string]string) string {
         return "string"
     case *ast.NumberLit:
         return "int"
+    case *ast.SliceLit, *ast.SetLit, *ast.MapLit:
+        return deduceType(e)
     case *ast.CallExpr:
         // unknown without inter-procedural lookup here
         return "any"

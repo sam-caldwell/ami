@@ -98,6 +98,16 @@ func exprToJSON(e Expr) any {
         } else {
             obj["retTypes"] = []any{}
         }
+        if len(e.ParamTypes) > 0 || len(e.ResultTypes) > 0 {
+            sig := map[string]any{"params": []any{}, "results": []any{}}
+            ps := make([]any, 0, len(e.ParamTypes))
+            for _, p := range e.ParamTypes { ps = append(ps, p) }
+            rs := make([]any, 0, len(e.ResultTypes))
+            for _, r := range e.ResultTypes { rs = append(rs, r) }
+            sig["params"] = ps
+            sig["results"] = rs
+            obj["sig"] = sig
+        }
     }
     return obj
 }

@@ -234,7 +234,7 @@ func fetchGitToCache(source, tag, dest string) error {
     defer os.RemoveAll(tmp)
     env := os.Environ()
     env = append(env, "GIT_TERMINAL_PROMPT=0")
-    env = append(env, "GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=no")
+    env = append(env, "GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oConnectTimeout=2")
     cmd := exec.Command("git", "clone", "--depth", "1", "--branch", tag, cloneArg, tmp)
     cmd.Env = env
     if err := cmd.Run(); err != nil { return err }

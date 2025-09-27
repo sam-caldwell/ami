@@ -184,7 +184,7 @@ func modGetGit(out io.Writer, dir string, src string, jsonOut bool) error {
         tgs, err := listGitTags(cloneArg)
         if err != nil {
             if jsonOut { _ = json.NewEncoder(out).Encode(modGetResult{Source: src, Name: name, Message: "list tags failed"}) }
-            return exit.New(exit.IO, "list tags: %v", err)
+            return exit.New(exit.Network, "list tags: %v", err)
         }
         version, err = selectHighestSemver(tgs, false)
         if err != nil || version == "" {
@@ -204,13 +204,13 @@ func modGetGit(out io.Writer, dir string, src string, jsonOut bool) error {
     // Run git clone --depth 1 --branch <tag>
     env := os.Environ()
     env = append(env, "GIT_TERMINAL_PROMPT=0")
-    env = append(env, "GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=no")
+    env = append(env, "GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oConnectTimeout=2")
     cmd := exec.Command("git", "clone", "--depth", "1", "--branch", tag, cloneArg, tmp)
     cmd.Env = env
     if out != nil { /* we keep stdout/stderr quiet for determinism */ }
     if err := cmd.Run(); err != nil {
         if jsonOut { _ = json.NewEncoder(out).Encode(modGetResult{Source: src, Name: name, Version: version, Message: "git clone failed"}) }
-        return exit.New(exit.IO, "git clone failed: %v", err)
+        return exit.New(exit.Network, "git clone failed: %v", err)
     }
 
     // Determine cache path
@@ -282,7 +282,7 @@ func listGitTags(cloneArg string) ([]string, error) {
         return tags, nil
     }
     cmd := exec.Command("git", "ls-remote", "--tags", cloneArg)
-    cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=no")
+    cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_SSH_COMMAND=ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oConnectTimeout=2")
     out, err := cmd.CombinedOutput()
     if err != nil { return nil, fmt.Errorf("git ls-remote: %v: %s", err, string(out)) }
     var tags []string

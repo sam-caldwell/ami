@@ -92,6 +92,11 @@ func lowerExpr(e ir.Expr) string {
             }
             return fmt.Sprintf("  %s %s %%%s, %%%s\n", mnem, ty, e.Args[0].ID, e.Args[1].ID)
         }
+    case "not":
+        if len(e.Args) >= 1 && e.Result != nil && e.Result.ID != "" {
+            // logical not for i1: xor with true
+            return fmt.Sprintf("  %%%s = xor i1 %%%s, true\n", e.Result.ID, e.Args[0].ID)
+        }
     case "xor":
         if len(e.Args) >= 2 {
             // integer xor (or boolean xor as i1)

@@ -97,6 +97,12 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                         }
                                     }
                                 }
+                                if argc >= 2 {
+                                    pol := at.Args[1].Text
+                                    if pol == "drop" {
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_BUFFER_DROP_ALIAS", Message: "merge.Buffer: ambiguous 'drop' alias; use dropOldest/dropNewest/block", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    }
+                                }
                             }
                         }
                         // track fields for combo checks

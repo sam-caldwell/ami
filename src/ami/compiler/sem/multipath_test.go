@@ -43,3 +43,14 @@ func TestMergeAttr_RequiredFields(t *testing.T) {
     for _, d := range ds { if d.Code == "E_MERGE_ATTR_REQUIRED" { errs++ } }
     if errs < 3 { t.Fatalf("expected required-field errors, got %d: %v", errs, ds) }
 }
+
+func TestMergeBuffer_DropAlias_Warns(t *testing.T) {
+    code := "package app\npipeline P() { Collect merge.Buffer(10, drop); egress }\n"
+    f := (&source.FileSet{}).AddFile("m4.ami", code)
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    ds := AnalyzeMultiPath(af)
+    saw := false
+    for _, d := range ds { if d.Code == "W_MERGE_BUFFER_DROP_ALIAS" { saw = true } }
+    if !saw { t.Fatalf("expected drop alias warn: %v", ds) }
+}

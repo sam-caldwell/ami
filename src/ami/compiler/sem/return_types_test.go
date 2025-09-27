@@ -64,7 +64,7 @@ func TestReturnTypes_ContainerLiterals_OK(t *testing.T) {
 }
 
 func TestReturnTypes_ContainerLiteral_Mismatch(t *testing.T) {
-    code := "package app\nfunc A() (slice<int>) { return slice<string>{\"a\"} }\n"
+    code := "package app\nfunc A() (string) { return slice<string>{\"a\"} }\n"
     f := (&source.FileSet{}).AddFile("t_cont_bad.ami", code)
     p := parser.New(f)
     af, _ := p.ParseFile()

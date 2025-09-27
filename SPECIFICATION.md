@@ -764,7 +764,7 @@ Tests & Docs
   }
   ```
   where valid nodes are `Ingress`,`Transform`,`Fanout`,`Collect`,`Egress`
-- [ ] Node‑chained notation (2.2.4): canonical attribute form 
+- [D] Node‑chained notation (2.2.4): canonical attribute form 
   ```
     Ingress(
        ...<attribute list>...

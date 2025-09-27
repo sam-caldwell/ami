@@ -6,5 +6,5 @@ type Function struct {
     Params  []Value
     Results []Value
     Blocks  []Block
+    Decorators []Decorator
 }
-

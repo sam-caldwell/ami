@@ -88,7 +88,7 @@
       - Notes: runtime execution of AMI code deferred; current scope wraps Go tests per roadmap M12.
     - [ ] `ami build` is completely implemented with >=80% test coverage and all tests passing.
   - [ ] Deterministic behaviors (no prompts, stable outputs)
-  - [ ] CLI/toolchain tests run from `./build/test/` (per-test subdirs)
+  - [X] CLI/toolchain tests run from `./build/test/` (per-test subdirs)
   - [x] Code quality guarantee
     - [x] `go vet ./...` and `go test -v ./...` pass
     - [x] Unit and integration tests (>=80% coverage target; ≥75% minimum met for changed packages)
@@ -107,15 +107,15 @@
   - `examples/complex` 
   - workspaces with README; 
 - [ ] Makefile targets
-  - [ ] `make clean`
+  - [X] `make clean`
     - delete `build` directory and recreate it.
-  - [ ] `make lint`
+  - [X] `make lint`
     - Lint the entire repo without errors
-  - [ ] `make test`
+  - [X] `make test`
     - Run all tests for the repo without errors
-  - [ ] `make build`
+  - [X] `make build`
     - build `ami` binary without errors
-  - [ ] `make examples`
+  - [X] `make examples`
      - `examples` target stages builds under `build/examples/**`
 ## Remaining Work
 
@@ -1102,7 +1102,7 @@ Deliverables
 #### 2.1.3) Tests & Docs
   - [ ] CLI tests for flags, JSON stream, exit codes, per‑package summaries, default pattern, package‑level concurrency.
   - [ ] CLI tests for native AMI cases (pass/fail/skip) and rich assertions (count and substring filters).
-  - [ ] Coverage for `ami test` ≥80%.
+  - [A] Coverage for `ami test` ≥80%.
   - [ ] Docs: `docs/test.md` updated (flags, JSON fields, pragmas); `docs/runtime-tests.md` updated to describe Phase 2 harness behavior.
 
 Phase 2: Executable AMI tests (scaffolded)
@@ -1198,10 +1198,10 @@ Type System and Semantics (Phase 2.1)
   - [X] `types.Pointer`, `types.Slice`, `types.Map`, `types.Set`, `types.SliceTy`
   - [X] Mapper `types.FromAST(ast.TypeRef) Type` handles generics (`Event<T>`, `Error<E>`, `Owned<T>`, `map<K,V>`, `set<T>`, `slice<T>`) and pointer/slice forms (`*T`, `[]T`)
   - [X] Function signatures: `types.Function{Params, Results}` with string rendering; tests added
-- [ ] Semantics: function type inference and import symbol scope
-  - [ ] Build `types.Function` from `FuncDecl` params/results and insert into top scope as `ObjFunc`
-  - [ ] Insert imported package symbols into scope (alias or last path segment) as `ObjType` of `types.TPackage`
-  - [ ] Tests: verify inferred signature and import symbol resolution
+- [C] Semantics: function type inference and import symbol scope
+  - [X] Build `types.Function` from `FuncDecl` params/results and insert into top scope as `ObjFunc` (scaffold via helper + tests)
+  - [X] Insert imported package symbols into scope (alias or last path segment) as `ObjType` of `types.TPackage` (scaffold via helper + tests)
+  - [X] Tests: verify inferred signature and import symbol resolution
 - [ ] Types: unification/inference across expressions and generics within bodies
   - [ ] Call-argument type checking + unification for single-letter generics (e.g., `Event<T>`, `Owned<T>`), intra-function only.
   - [ ] Assignment unification for generics within bodies.

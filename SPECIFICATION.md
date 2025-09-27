@@ -591,7 +591,7 @@ CLI & Output
 
 Tests & Docs
 
-- [ ] Unit tests for suppression and severity configuration; tests for import alias duplication and order; position assertions
+- [X] Unit tests for suppression and severity configuration; tests for import alias duplication and order; position assertions
 - [ ] Integration tests for cross‑package constraint checks using temporary multi‑package workspaces
 - [X] Docs: `docs/lint.md` updated with rules list, severities/suppression, and CLI flags (`--strict`, `--rules`, `--max-warn`) with examples
 ## 1.2.0.0. Supporting Requirements
@@ -984,7 +984,7 @@ Deliverables
 - [ ] Config via `ami.workspace` (enable/disable rules, severity)
 - [ ] Output: human summary and `--json` with file/line/rule/message
 - [ ] Exit codes: any error → USER_ERROR; IO issues → SYSTEM_IO_ERROR
-- [ ] Tests: rule triggers, suppression config, JSON schema, path globs
+- [X] Tests: rule triggers, suppression config, JSON schema, path globs
 
 #### 6.8 Node‑State Table (Ephemeral Key Store)
 

@@ -359,6 +359,8 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                         if p.cur.Kind == token.Lt { depth++ } else if p.cur.Kind == token.Gt { depth-- }
                         p.next()
                     }
+                    // For now, drop explicit generic var type to avoid partial type mismatch.
+                    tname = ""
                 }
             }
             var init ast.Expr
@@ -1064,7 +1066,8 @@ func (p *Parser) isTypeName(k token.Kind) bool {
     case token.Ident,
         token.KwBool, token.KwByte, token.KwInt, token.KwInt8, token.KwInt16, token.KwInt32, token.KwInt64, token.KwInt128,
         token.KwUint, token.KwUint8, token.KwUint16, token.KwUint32, token.KwUint64, token.KwUint128,
-        token.KwFloat32, token.KwFloat64, token.KwStringTy, token.KwRune:
+        token.KwFloat32, token.KwFloat64, token.KwStringTy, token.KwRune,
+        token.KwSlice, token.KwSet, token.KwMap:
         return true
     default:
         return false

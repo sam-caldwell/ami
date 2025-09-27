@@ -847,7 +847,7 @@ Tests & Docs
   - [ ] `merge.Window(size)`: bounded in-flight merge window; interacts with watermark and timeout.
   - [ ] `merge.Watermark(field, lateness)`: watermarking; tolerate out-of-order by `lateness`.
   - [ ] `merge.Timeout(ms)`: max waiting time for inputs to reach a merge decision boundary.
-  - [ ] `merge.Buffer(capacity[, backpressure])`: internal buffer size and backpressure policy {block, dropOldest, dropNewest}. Warn on ambiguous `drop` alias.
+  - [X] `merge.Buffer(capacity[, backpressure])`: internal buffer size and backpressure policy {block, dropOldest, dropNewest}. Warn on ambiguous `drop` alias.
   - [ ] `merge.PartitionBy(field)`: partition streams by key prior to merging.
 - [ ] Semantics & Diagnostics
   - [ ] `E_EDGE_MULTIPATH_CONTEXT`: `edge.MultiPath` used outside a `Collect` node.

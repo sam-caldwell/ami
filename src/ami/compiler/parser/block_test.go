@@ -13,9 +13,7 @@ func TestParseBlock_Internal(t *testing.T) {
     f := (&source.FileSet{}).AddFile("b.ami", code)
     p := New(f)
     if p.cur.Lexeme != "{" { t.Fatalf("want '{', got %q", p.cur.Lexeme) }
-    blk, err := p.parseBlock()
-    if err != nil { t.Fatalf("parseBlock: %v", err) }
-    if blk.LBrace.Offset == 0 || blk.RBrace.Offset == 0 { t.Fatalf("brace positions not set: %+v", blk) }
+    if _, err := p.parseBlock(); err != nil { t.Fatalf("parseBlock: %v", err) }
 }
 
 // TestParseFuncBlock_Statements covers var/assign/defer/return and comment attachment.

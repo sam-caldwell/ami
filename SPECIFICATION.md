@@ -854,7 +854,7 @@ Tests & Docs
   - [X] `E_MERGE_ATTR_UNKNOWN`: unknown `merge.*` attribute.
   - [X] `E_MERGE_ATTR_ARGS`: wrong arity/type for `merge.*` attribute args.
   - [X] `E_MERGE_ATTR_CONFLICT`: conflicting attributes (e.g., duplicate with different values).
-  - [ ] `E_MERGE_ATTR_REQUIRED`: missing required attributes (e.g., `merge.Sort` without a field).
+  - [X] `E_MERGE_ATTR_REQUIRED`: missing required attributes (e.g., `merge.Sort` without a field).
 - [ ] IR & Tooling (scaffold)
   - [ ] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args). Full normalization deferred.
   - [X] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
@@ -899,7 +899,7 @@ See also: `docs/merge.md` for a design summary and examples.
   - [X] `merge.Buffer(capacity[, backpressure])` with `backpressure ∈ {block, dropOldest, dropNewest}` (parser accepts both explicit policies; linter warns on legacy `drop`).
     - [ ] `merge.PartitionBy(field)` partition upstreams by key before merging.
   - [ ] Diagnostics:
-    - [ ] `E_MERGE_ATTR_UNKNOWN` (unknown attribute), `E_MERGE_ATTR_ARGS` (invalid arity/type),
+    - [X] `E_MERGE_ATTR_UNKNOWN` (unknown attribute), `E_MERGE_ATTR_ARGS` (invalid arity/type),
       `E_MERGE_ATTR_REQUIRED` (missing required field), `E_MERGE_ATTR_CONFLICT` (conflicting directives), and any docx‑specific constraints.
   - [X] Edge policy interaction: when `merge.Buffer(..., backpressure in {dropOldest, dropNewest})` and `capacity<=1`, emit lint smell (not a hard error). Also warn when using ambiguous `drop`.
  - [ ] IR & Schemas

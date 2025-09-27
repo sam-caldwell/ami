@@ -68,7 +68,7 @@
   - [x] Workspace loader/parser for `ami.workspace`
 - [X] Manifest library `src/ami/manifest` with `Load()` and `Save()` for `ami.manifest`
   - [X] Package cache manager at `${HOME}/.ami/pkg`
-- [ ] Subcommands implemented (init, clean, mod clean/update/get/list, lint, test, build)
+- [X] Subcommands implemented (init, clean, mod clean/update/get/list, lint, test, build)
     - [x] `ami init` is completely implemented with >=80% test coverage and all tests passing.
     - [x] `ami clean` is completely implemented; tests passing; coverage in `cmd/ami` currently ~78% (≥75% minimum). Follow-up to raise ≥80%.
     - [x] CLI stubs registered: `build`, `test`, `lint`, `mod {get}`; inert and help-only for now.
@@ -87,7 +87,7 @@
       - [X] Package‑level concurrency flag (`--packages`) and explicit per‑package summaries in human mode.
       - Notes: runtime execution of AMI code deferred; current scope wraps Go tests per roadmap M12.
     - [ ] `ami build` is completely implemented with >=80% test coverage and all tests passing.
-  - [ ] Deterministic behaviors (no prompts, stable outputs)
+  - [X] Deterministic behaviors (no prompts, stable outputs)
   - [X] CLI/toolchain tests run from `./build/test/` (per-test subdirs)
   - [x] Code quality guarantee
     - [x] `go vet ./...` and `go test -v ./...` pass
@@ -99,7 +99,7 @@
     - [ ] `compiler/source`: decomposed into modular files (`position.go`, `file.go`, `fileset.go`) with tests split per concept
     - [ ] `compiler/types`: verified modular split by concept; added concise docs and unit tests for composites, basics, and function rendering
     - [ ] `manifest`: decomposed into `types.go`, `validate.go`, `sumcheck.go`, and `io.go`; existing tests left intact and passing
-- [ ] Docs for user‑visible commands under `docs/` updated alongside features
+- [X] Docs for user‑visible commands under `docs/` updated alongside features
 - [ ] `ami.sum` JSON summary file with package→version→sha256 mapping; 
   - [x[ updated by `mod get/update`, verified by `build`
 - [ ] Examples. provide:

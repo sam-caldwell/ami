@@ -377,7 +377,7 @@ packages:
     - [X] Diagnostics: implement `E_TYPE_AMBIGUOUS` with source positions for ambiguous container literals (no type args and no elements, or any/any for maps without elements).
     - [X] Expand `E_TYPE_AMBIGUOUS` to returns/assignments/expr statements; ensure diagnostics include precise positions consistently.
     - [X] Type inference M2: container element/key inference; tuple return inference; propagation through `Event<T>` / `Error<E>`.
-        - [ ] Tuple return checks at return-sites (arity/type unification).
+        - [X] Tuple return checks at return-sites (arity/type unification).
         - [X] Container element/key inference from literals; enforce consistent element/key/value types; diagnostics on mismatch.
     - [ ] Type inference M3 (conservative): allow generic `Event<typevar>` to flow across pipeline steps without mismatch (conservative compatibility rule).
     - [ ] Broader local scoping inference (shadowing, nested blocks) and return inference without annotations.

@@ -38,7 +38,19 @@ func TestCompile_IR_CallIncludesSignatureBlock(t *testing.T) {
                         sig := expr["sig"].(map[string]any)
                         ps := sig["params"].([]any)
                         rs := sig["results"].([]any)
-                        if len(ps) == 2 && ps[0] == "string" && ps[1] == "int" && len(rs) == 1 && rs[0] == "int" {
+                        // accept params as either strings or {name,type} objects
+                        getType := func(v any) string {
+                            switch tv := v.(type) {
+                            case string:
+                                return tv
+                            case map[string]any:
+                                if t, ok := tv["type"].(string); ok { return t }
+                                return ""
+                            default:
+                                return ""
+                            }
+                        }
+                        if len(ps) == 2 && getType(ps[0]) == "string" && getType(ps[1]) == "int" && len(rs) == 1 && getType(rs[0]) == "int" {
                             found = true
                         }
                     }
@@ -48,4 +60,3 @@ func TestCompile_IR_CallIncludesSignatureBlock(t *testing.T) {
     }
     if !found { t.Fatalf("call signature not found in IR") }
 }
-

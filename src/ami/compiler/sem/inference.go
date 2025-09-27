@@ -97,4 +97,3 @@ func inferExprType(env map[string]string, e ast.Expr) string {
         return "any"
     }
 }
-

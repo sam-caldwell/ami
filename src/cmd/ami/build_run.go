@@ -180,6 +180,30 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         }
     }
 
+    // In JSON mode, run a non-debug compile to surface parser/semantic diagnostics as a stream.
+    if jsonOut {
+        if p := ws.FindPackage("main"); p != nil && p.Root != "" {
+            root := filepath.Clean(filepath.Join(dir, p.Root))
+            var files []string
+            _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+                if err != nil || d.IsDir() { return nil }
+                if filepath.Ext(path) == ".ami" { files = append(files, path) }
+                return nil
+            })
+            if len(files) > 0 {
+                var fs source.FileSet
+                for _, f := range files { b, err := os.ReadFile(f); if err == nil { fs.AddFile(f, string(b)) } }
+                pkgs := []driver.Package{{Name: p.Name, Files: &fs}}
+                _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false})
+                if len(diags) > 0 {
+                    enc := json.NewEncoder(out)
+                    for i := range diags { _ = enc.Encode(diags[i]) }
+                    return exit.New(exit.User, "compiler reported diagnostics")
+                }
+            }
+        }
+    }
+
     if jsonOut {
         // Emit a simple success summary for consistency with machine parsing.
         rec := diag.Record{

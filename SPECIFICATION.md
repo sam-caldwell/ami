@@ -80,7 +80,7 @@
     - [x] `ami mod sum` enhanced: validates presence, JSON/scheme; verifies directory hashes against `${AMI_PACKAGE_CACHE}`; reports missing/mismatched; returns exit.Integrity on failure. Tests passing.
     - [x] `ami lint` Stage A implemented with >=80% coverage and tests passing (workspace presence, name style, import shape/order, local path checks, UNKNOWN_IDENT scan, strict mode, verbose debug file). Stage B (parser-backed rules) pending.
     - [X] `ami pipeline visualize` implemented: renders ASCII pipeline graphs to the terminal; JSON/human output; unit + e2e tests.
-    - [ ] `ami test` implemented: Go test wrapper + native AMI directive‑based assertions (parser/sem). Includes flags, package‑level concurrency, per‑package summaries; runtime execution deferred. Coverage ≥80% and tests passing.
+    - [A] `ami test` implemented: Go test wrapper + native AMI directive‑based assertions (parser/sem). Includes flags, package‑level concurrency, per‑package summaries; runtime execution deferred. Coverage ≥80% and tests passing.
     - [ ] `ami build` is completely implemented with >=80% test coverage and all tests passing.
   - [ ] Deterministic behaviors (no prompts, stable outputs)
   - [ ] CLI/toolchain tests run from `./build/test/` (per-test subdirs)
@@ -423,7 +423,7 @@ packages:
 - [ ] JSON diagnostics (when `--json`):
   - [X] Workspace schema violation → `diag.v1` with `code:"E_WS_SCHEMA"` and descriptive message.
   - [ ] Syntax errors: streams `diag.v1` records per error; exits with 1.
-  - [ ] Semantic errors (e.g., worker signature): streams `diag.v1` records; exits with 1.
+  - [X] Semantic errors (e.g., worker signature): streams `diag.v1` records; exits with 1.
   - [ ] Cache vs `ami.sum` integrity mismatch → per‑item `diag.v1` records and a summary `diag.v1` with `code:"E_INTEGRITY"`; exits with 3.
   - [ ] Existing `ami.manifest` vs `ami.sum` mismatch → `diag.v1` with `code:"E_INTEGRITY_MANIFEST"`; exits with 3.
 - [ ] Tests: minimal project build, multi‑package, missing deps, repeatability

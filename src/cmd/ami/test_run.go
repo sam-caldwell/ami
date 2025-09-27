@@ -12,14 +12,6 @@ import (
     "strings"
 )
 
-type goTestEvent struct {
-    Time    string  `json:"Time"`
-    Action  string  `json:"Action"`
-    Package string  `json:"Package"`
-    Test    string  `json:"Test,omitempty"`
-    Output  string  `json:"Output,omitempty"`
-}
-
 // runTest executes `go test ./...` in dir. When verbose, writes:
 // - build/test/test.log (full test output)
 // - build/test/test.manifest (each test name in execution order: "<package> <test>")

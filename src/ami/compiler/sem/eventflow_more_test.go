@@ -7,7 +7,7 @@ import (
 )
 
 func TestAnalyzeEventTypeFlow_MismatchAcrossEdge(t *testing.T) {
-    src := "package app\npipeline P(){ Alpha type(\"int\") -> Beta type(\"string\"); egress }\n"
+    src := "package app\npipeline P(){ Alpha type(\"int\"); Alpha -> Beta; Beta type(\"string\"); egress }\n"
     f := &source.File{Name: "ev1.ami", Content: src}
     p := parser.New(f)
     af, _ := p.ParseFile()
@@ -25,4 +25,3 @@ func TestAnalyzeEventTypeFlow_MultiUpstreamMismatch(t *testing.T) {
     ds := AnalyzeEventTypeFlow(af)
     if len(ds) == 0 { t.Fatalf("expected mismatch on collect") }
 }
-

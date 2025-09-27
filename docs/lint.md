@@ -11,6 +11,10 @@ The AMI linter helps maintain code quality and catch common mistakes early. It o
 - JSON output: `ami lint --json`
 - Strict mode (warnings → errors): `ami lint --strict`
 - Verbose debug (writes `build/debug/lint.ndjson`): `ami lint --verbose`
+- Fail fast on any warning/error: `ami lint --failfast`
+- Restrict rules: `ami lint --rules W_IDENT_* --rules /W_PIPELINE_.*/`
+- Warn budget: `ami lint --max-warn 5` (fails when exceeded)
+- JSON compat codes: `ami lint --json --compat-codes` (adds `data.compatCode = LINT_<CODE>`).
 
 Stage B toggles (advanced rules):
 - `--stage-b` enables Stage B.
@@ -57,6 +61,17 @@ Inline per‑file suppression is supported via pragmas:
 ```
 #pragma lint:disable W_IDENT_UNDERSCORE,E_PTR_UNSUPPORTED_SYNTAX
 ```
+
+### Rule Filtering (`--rules`)
+
+`--rules` accepts multiple patterns; a diagnostic is kept when its `code` matches any pattern.
+- Substring: `IDENT` matches `W_IDENT_UNDERSCORE`
+- Glob: `W_PIPELINE_*` matches pipeline rules
+- Regex: `re:^W_(IDENT|PIPELINE)_` or `/^E_IMPORT_/`
+
+### Warning Budget (`--max-warn`)
+
+Set `--max-warn N` to fail the run when warnings exceed N (non‑strict mode). Emits a synthetic error `E_MAX_WARN_EXCEEDED` in JSON mode.
 
 ## Examples
 

@@ -117,6 +117,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeReturnTypesWithSigs(af, resultSigs))
             attachFile(sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs))
             attachFile(sem.AnalyzePackageAndImports(af))
+            // IR/codegen-stage capability check (complements semantics layer)
+            attachFile(analyzeCapabilityIR(af))
             attachFile(sem.AnalyzeContainerTypes(af))
             // lower
             m := lowerFile(p.Name, af, paramSigs, resultSigs, paramNames)

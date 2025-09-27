@@ -83,7 +83,7 @@ func inferRetTypeWithEnv(e ast.Expr, env map[string]string, results map[string][
     case *ast.NumberLit, *ast.StringLit, *ast.SliceLit, *ast.SetLit, *ast.MapLit:
         return deduceType(e)
     default:
-        return inferExprType(e)
+        return inferExprType(env, e)
     }
 }
 

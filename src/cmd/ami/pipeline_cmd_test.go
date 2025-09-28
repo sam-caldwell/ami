@@ -9,6 +9,7 @@ func TestPipeline_HelpStubs_Run(t *testing.T) {
     cases := [][]string{
         {"pipeline", "--help"},
         {"pipeline", "visualize", "--help"},
+        {"pipeline", "stats", "--help"},
     }
     for _, args := range cases {
         c := newRootCmd()
@@ -21,4 +22,3 @@ func TestPipeline_HelpStubs_Run(t *testing.T) {
         if out.Len() == 0 { t.Fatalf("expected help output for %v", args) }
     }
 }
-

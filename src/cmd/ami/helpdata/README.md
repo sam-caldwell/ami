@@ -27,6 +27,7 @@ Commands
 - `ami test`             : run project tests
 - `ami build`            : build the workspace
 - `ami pipeline visualize` : render ASCII pipeline graphs (stub)
+ - `ami pipeline stats`    : show debug logging pipeline counters
 
 Examples
 
@@ -53,6 +54,7 @@ Examples
 - Pipelines:
   - `ami pipeline visualize`
   - `ami pipeline visualize --json --no-summary`
+  - `ami pipeline stats`
 
 Notes
 

@@ -1007,7 +1007,7 @@ See also: `docs/merge.md` for attribute semantics and pipeline examples.
 #### 6.5 Memory Model (Ch. 2.4)
 
 - [ ] Allocation domains: event heap, node‑state, ephemeral stack
-- [ ] Ownership & RAII: explicit ownership transfer; deterministic cleanup (scaffold semantics)
+- [x] Ownership & RAII: scaffold semantics with double-release detection (E_RAII_DOUBLE_RELEASE), release of undeclared (E_RAII_RELEASE_UNOWNED), and immediate use-after-release (E_RAII_USE_AFTER_RELEASE)
 - [ ] Per‑VM memory management for runtime execution
 
 Deliverables

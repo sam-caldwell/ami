@@ -537,6 +537,25 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             sort.Strings(bins)
             outObj["binaries"] = bins
         }
+        // Include per-env summaries if present
+        objectsByEnv := map[string][]string{}
+        objIndexByEnv := map[string][]string{}
+        for _, env := range envs {
+            var objs []string
+            for _, e := range ws.Packages {
+                glob := filepath.Join(dir, "build", env, "obj", e.Package.Name, "*.o")
+                if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                    for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { objs = append(objs, rel) } }
+                }
+                idx := filepath.Join(dir, "build", env, "obj", e.Package.Name, "index.json")
+                if st, err := os.Stat(idx); err == nil && !st.IsDir() {
+                    if rel, rerr := filepath.Rel(dir, idx); rerr == nil { objIndexByEnv[env] = append(objIndexByEnv[env], rel) }
+                }
+            }
+            if len(objs) > 0 { sort.Strings(objs); objectsByEnv[env] = objs }
+        }
+        if len(objectsByEnv) > 0 { outObj["objectsByEnv"] = objectsByEnv }
+        if len(objIndexByEnv) > 0 { outObj["objIndexByEnv"] = objIndexByEnv }
         if verbose {
             // collect debug artifact references for cross-linking
             var debugRefs []string

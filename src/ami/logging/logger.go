@@ -183,3 +183,10 @@ func (l *Logger) Error(msg string, fields map[string]any) { l.log(LevelError, ms
 
 // Fatal logs at fatal level.
 func (l *Logger) Fatal(msg string, fields map[string]any) { l.log(LevelFatal, msg, fields) }
+
+// PipelineStats returns the current stdlib pipeline counters, if a pipeline is active.
+// The boolean indicates whether a pipeline is present (true) or not (false).
+func (l *Logger) PipelineStats() (stdlogger.Stats, bool) {
+    if l.pipe == nil { return stdlogger.Stats{}, false }
+    return l.pipe.Stats(), true
+}

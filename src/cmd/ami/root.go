@@ -93,9 +93,7 @@ func newRootCmd() *cobra.Command {
     mod.AddCommand(newModUpdateCmd())
     cmd.AddCommand(mod)
     // pipeline commands
-    pipe := newPipelineCmd()
-    pipe.AddCommand(newPipelineVisualizeCmd())
-    cmd.AddCommand(pipe)
+    cmd.AddCommand(newPipelineCmd())
     // events commands (hidden)
     events := newEventsCmd()
     events.AddCommand(newEventsSchemaCmd())

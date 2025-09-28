@@ -126,12 +126,30 @@ func deduceType(e ast.Expr) string {
         return "any"
     case *ast.SliceLit:
         if v.TypeName != "" { return "slice<" + v.TypeName + ">" }
+        // infer from first element when available
+        if len(v.Elems) > 0 {
+            et := deduceType(v.Elems[0])
+            if et == "" { et = "any" }
+            return "slice<" + et + ">"
+        }
         return "slice<any>"
     case *ast.SetLit:
         if v.TypeName != "" { return "set<" + v.TypeName + ">" }
+        if len(v.Elems) > 0 {
+            et := deduceType(v.Elems[0])
+            if et == "" { et = "any" }
+            return "set<" + et + ">"
+        }
         return "set<any>"
     case *ast.MapLit:
         kt := v.KeyType; vt := v.ValType
+        if len(v.Elems) > 0 {
+            // infer from first pair
+            kt0 := deduceType(v.Elems[0].Key)
+            vt0 := deduceType(v.Elems[0].Val)
+            if kt == "" { kt = kt0 }
+            if vt == "" { vt = vt0 }
+        }
         if kt == "" { kt = "any" }
         if vt == "" { vt = "any" }
         return "map<" + kt + "," + vt + ">"

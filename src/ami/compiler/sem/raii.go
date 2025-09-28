@@ -24,9 +24,15 @@ func AnalyzeRAII(f *ast.File) []diag.Record {
     for _, d := range f.Decls {
         fn, ok := d.(*ast.FuncDecl)
         if !ok || fn.Body == nil { continue }
+        // Collect local variables/params for simple ownership presence checks.
+        locals := map[string]bool{}
+        for _, p := range fn.Params { if p.Name != "" { locals[p.Name] = true } }
+        for _, st := range fn.Body.Stmts { if vd, ok := st.(*ast.VarDecl); ok && vd.Name != "" { locals[vd.Name] = true } }
         // Track releases by variable name → count and last position
         counts := map[string]int{}
         lastPos := map[string]diag.Position{}
+        // Track variables released immediately; deferred releases do not immediately invalidate usage.
+        releasedNow := map[string]bool{}
         emitDouble := func(name string, pos diag.Position) {
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_DOUBLE_RELEASE", Message: "variable released more than once", Pos: &pos})
         }
@@ -35,15 +41,28 @@ func AnalyzeRAII(f *ast.File) []diag.Record {
             switch v := st.(type) {
             case *ast.DeferStmt:
                 if name, p := releaseTargetFromCall(v.Call); name != "" {
+                    // simple guard: releasing unknown local
+                    if !locals[name] {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_RELEASE_UNOWNED", Message: "release of undeclared variable", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
+                    }
                     counts[name]++
                     if counts[name] > 1 { emitDouble(name, diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}) }
                     lastPos[name] = diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}
                 }
             case *ast.ExprStmt:
                 if name, p := releaseTargetFromExpr(v.X); name != "" {
+                    if !locals[name] {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_RELEASE_UNOWNED", Message: "release of undeclared variable", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
+                    }
                     counts[name]++
                     if counts[name] > 1 { emitDouble(name, diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}) }
                     lastPos[name] = diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}
+                    releasedNow[name] = true
+                    continue
+                }
+                // detect use-after-release for immediate releases by scanning expression for idents
+                if id := firstIdentUseInExpr(v.X, releasedNow); id != "" {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_USE_AFTER_RELEASE", Message: "use after release: " + id, Pos: &diag.Position{Line: v.Pos.Line, Column: v.Pos.Column, Offset: v.Pos.Offset}})
                 }
             }
         }
@@ -79,4 +98,24 @@ func releaseTargetFromCall(c *ast.CallExpr) (string, source.Position) {
         }
     }
     return "", c.NamePos
+}
+
+// firstIdentUseInExpr returns the name of the first identifier used in expression `e`
+// that appears in the `released` set. Returns empty string when none.
+func firstIdentUseInExpr(e ast.Expr, released map[string]bool) string {
+    switch v := e.(type) {
+    case *ast.IdentExpr:
+        if released[v.Name] { return v.Name }
+        return ""
+    case *ast.CallExpr:
+        for _, a := range v.Args { if n := firstIdentUseInExpr(a, released); n != "" { return n } }
+        return ""
+    case *ast.UnaryExpr:
+        return firstIdentUseInExpr(v.X, released)
+    case *ast.BinaryExpr:
+        if n := firstIdentUseInExpr(v.X, released); n != "" { return n }
+        return firstIdentUseInExpr(v.Y, released)
+    default:
+        return ""
+    }
 }

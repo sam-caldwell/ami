@@ -538,7 +538,7 @@ packages:
 - [X] The environment variable AMI_PACKAGE_CACHE is used to locate the package cache directory when `ami` starts
 - [X] If AMI_PACKAGE_CACHE is defined but does not exist, `ami` will create it
 - [X] If AMI_PACKAGE_CACHE is not defined `ami` defaults to the `${HOME}/.ami/pkg` directory.
-  #### 1.1.1.2. Versioning Selection
+#### 1.1.1.2. Versioning Selection
   - [X] Implement SemVer parsing/validation per Chapter 3.0 (see “package versioning rules” and SemVer regex); reject invalid versions.
   - [X] If `<version>` is omitted, select the highest non‑prerelease SemVer tag by default (prereleases excluded unless explicitly requested in the constraint).
   - [X] Respect version constraints from `ami.workspace` when updating (`mod update`): evaluate existing `ami.sum` entries and report selected highest satisfying versions (non‑destructive); supports `^`, `~`, `>`, `>=`, exact `vX.Y.Z`; prereleases excluded unless explicitly requested.
@@ -549,7 +549,6 @@ packages:
   - [X] Network errors return NETWORK_REGISTRY_ERROR
 
 # Remaining Work
-
 - No pending items for scanner; core features implemented and tested. Follow-up may refine diagnostics integration once the diag package lands.
   - Tests:
     - [X] cache clean/recreate

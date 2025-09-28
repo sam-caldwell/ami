@@ -35,6 +35,19 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
     case *ast.CallExpr:
         ex := lowerCallExpr(st, v)
         return ex, true
+    case *ast.UnaryExpr:
+        // lower logical not only for now
+        if v.Op == token.Bang {
+            // lower operand
+            ox, ok := lowerExpr(st, v.X)
+            if !ok { return ir.Expr{}, false }
+            id := st.newTemp()
+            res := &ir.Value{ID: id, Type: "i1"}
+            var args []ir.Value
+            if ox.Result != nil { args = append(args, *ox.Result) }
+            return ir.Expr{Op: "not", Args: args, Result: res}, true
+        }
+        return ir.Expr{}, false
     case *ast.BinaryExpr:
         // simple const-fold for string concatenation
         if v.Op == token.Plus {

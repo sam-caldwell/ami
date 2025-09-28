@@ -473,7 +473,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             es := &ast.ExprStmt{Pos: ePos(expr), X: expr, Leading: leading}
             stmts = append(stmts, es)
             if p.cur.Kind == token.SemiSym { p.next() }
-        case token.String, token.Number:
+        case token.String, token.Number, token.Bang:
             leading := p.pending; p.pending = nil
             e, ok := p.parseExprPrec(1)
             if !ok { p.errf("unexpected token in statement: %q", p.cur.Lexeme); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
@@ -507,6 +507,15 @@ func (p *Parser) parseExpr() (ast.Expr, bool) {
 
 func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
     switch p.cur.Kind {
+    case token.Bang:
+        // unary logical not
+        pos := p.cur.Pos
+        p.next()
+        // parse operand with high precedence
+        rhs, ok := p.parseExprPrec(6)
+        if !ok { return nil, false }
+        u := &ast.UnaryExpr{Pos: pos, Op: token.Bang, X: rhs}
+        return p.parseBinaryRHS(u, minPrec), true
     case token.Ident, token.KwSlice, token.KwSet, token.KwMap:
         name := p.cur.Lexeme
         npos := p.cur.Pos

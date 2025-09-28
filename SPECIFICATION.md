@@ -1268,7 +1268,7 @@ Edges Runtime Scaffolding (for harness/tests)
 - [ ] Provide `push(e Event)` and `pop() Event` methods for `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline` with bounded capacity and backpressure semantics:
   - [X] FIFO/LIFO runtime buffers with `Push/Pop` and policies: `block` → `ErrFull`; `dropOldest`/`dropNewest` implemented (shunt treated as drop).
   - [X] Pipeline runtime buffer (scaffold analogous to FIFO) with `Push/Pop`.
- - [D] Thread‑safe counters and tests for order (FIFO/LIFO), backpressure handling, and simple concurrency.
+ - [X] Thread‑safe counters and tests for order (FIFO/LIFO), backpressure handling, and simple concurrency.
   - [X] Order/backpressure tests for FIFO/LIFO.
   - [X] Simple concurrency tests (single producer/consumer) for FIFO/LIFO.
 

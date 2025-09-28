@@ -55,6 +55,13 @@ func linkExtraFlags(env string, opts []string) []string {
 // runBuild validates the workspace and prepares build configuration.
 // For this phase, it enforces toolchain.* constraints and emits diagnostics.
 func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
+    // Thin wrapper to keep primary logic isolated for readability.
+    return runBuildImpl(out, dir, jsonOut, verbose)
+}
+
+// runBuildImpl validates the workspace and prepares build configuration.
+// For this phase, it enforces toolchain.* constraints and emits diagnostics.
+func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     if lg := getRootLogger(); lg != nil {
         lg.Info("build.start", map[string]any{"dir": dir, "json": jsonOut})
     }
@@ -148,10 +155,47 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         return exit.New(exit.IO, "dependency audit failed: %v", aerr)
     }
 
-    // If ami.manifest exists alongside ami.sum, reserved for future consistency checks.
-    // Compare presence of name@version pairs irrespective of sha (deferred).
+    // If ami.manifest exists alongside ami.sum, perform a simple presence check:
+    // compare name@version pairs irrespective of sha. Mismatch yields E_INTEGRITY_MANIFEST.
     maniPath := filepath.Join(dir, "ami.manifest")
-    _ = maniPath
+    if st, err := os.Stat(maniPath); err == nil && !st.IsDir() {
+        var sum workspace.Manifest
+        var mani workspace.Manifest
+        sumPath := filepath.Join(dir, "ami.sum")
+        if st, err := os.Stat(sumPath); err == nil && !st.IsDir() {
+            _ = sum.Load(sumPath)
+        }
+        _ = mani.Load(maniPath)
+        // Build comparable sets
+        type pair struct{ n, v string }
+        have := map[pair]bool{}
+        want := map[pair]bool{}
+        for name, vers := range sum.Packages { for ver := range vers { have[pair{name, ver}] = true } }
+        for name, vers := range mani.Packages { for ver := range vers { want[pair{name, ver}] = true } }
+        // detect any difference
+        mismatch := false
+        if len(have) != len(want) { mismatch = true }
+        if !mismatch {
+            for k := range have { if !want[k] { mismatch = true; break } }
+            if !mismatch { for k := range want { if !have[k] { mismatch = true; break } } }
+        }
+        if mismatch {
+            if jsonOut {
+                _ = json.NewEncoder(out).Encode(diag.Record{
+                    Timestamp: time.Now().UTC(),
+                    Level:     diag.Error,
+                    Code:      "E_INTEGRITY_MANIFEST",
+                    Message:   "ami.manifest disagrees with ami.sum",
+                    File:      "ami.manifest",
+                    Data: map[string]any{
+                        "sum":  sum.Packages,
+                        "mani": mani.Packages,
+                    },
+                })
+            }
+            return exit.New(exit.Integrity, "manifest mismatch")
+        }
+    }
     // Consider issues when ami.sum missing or any lists are non-empty as violations for this phase.
     if len(rep.Requirements) > 0 && (!rep.SumFound || len(rep.MissingInSum) > 0 || len(rep.Unsatisfied) > 0 || len(rep.MissingInCache) > 0 || len(rep.Mismatched) > 0 || len(rep.ParseErrors) > 0) {
         if jsonOut {
@@ -465,6 +509,9 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             }
         }
     }
+    }
+    // Close link stage block explicitly before manifest rewrite.
+    // (Ensures subsequent steps are outside of the link conditional.)
 
     // Rewrite ami.manifest into build/ami.manifest with toolchain metadata and objIndex entries.
     {
@@ -608,13 +655,12 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     }
 
     if jsonOut {
-        // Collect object index paths when available (verbose compile may have produced them)
+        // Collect object index paths when available
         var objIdx []string
         for _, e := range ws.Packages {
             idx := filepath.Join(dir, "build", "obj", e.Package.Name, "index.json")
             if st, err := os.Stat(idx); err == nil && !st.IsDir() {
-                rel, _ := filepath.Rel(dir, idx)
-                objIdx = append(objIdx, rel)
+                if rel, rerr := filepath.Rel(dir, idx); rerr == nil { objIdx = append(objIdx, rel) }
             }
         }
         sort.Strings(objIdx)
@@ -636,11 +682,12 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             return nil
         })
         if len(bins) > 0 { sort.Strings(bins) }
-        // Include per-env summaries if present
+        // Per-env summaries
         objectsByEnv := map[string][]string{}
         objIndexByEnv := map[string][]string{}
         binariesByEnv := map[string][]string{}
         for _, env := range envs {
+            // objects
             var objs []string
             for _, e := range ws.Packages {
                 glob := filepath.Join(dir, "build", env, "obj", e.Package.Name, "*.o")
@@ -672,58 +719,56 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         if len(objectsByEnv) == 0 { objectsByEnv = nil }
         if len(objIndexByEnv) == 0 { objIndexByEnv = nil }
         if len(binariesByEnv) == 0 { binariesByEnv = nil }
-        // Emit a simple success summary for consistency with machine parsing.
-        data := map[string]any{
-            "targets":       envs,
-            "targetDir":     absTarget,
-            "objIndex":      objIdx,
-            "buildManifest": filepath.Join("build", "ami.manifest"),
-        }
-        if len(bins) > 0 { data["binaries"] = bins }
-        if binariesByEnv != nil { data["binariesByEnv"] = binariesByEnv }
-        if objectsByEnv != nil { data["objectsByEnv"] = objectsByEnv }
-        if objIndexByEnv != nil { data["objIndexByEnv"] = objIndexByEnv }
         rec := diag.Record{
             Timestamp: time.Now().UTC(),
             Level:     diag.Info,
             Code:      "BUILD_OK",
             Message:   "workspace valid; build planning deferred",
             File:      "ami.workspace",
-            Data:      data,
+            Data: map[string]any{
+                "targets":       envs,
+                "targetDir":     absTarget,
+                "objIndex":      objIdx,
+                "buildManifest": filepath.Join("build", "ami.manifest"),
+                "binaries":      bins,
+                "objectsByEnv":  objectsByEnv,
+                "objIndexByEnv": objIndexByEnv,
+                "binariesByEnv": binariesByEnv,
+            },
         }
         return json.NewEncoder(out).Encode(rec)
-    }
-    // Human output: provide a concise summary when artifacts exist; otherwise validation line.
-    // Count objects under build/obj and binaries under build/ (excluding debug/ and obj/).
-    objCount := 0
-    for _, e := range ws.Packages {
-        glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
-        if matches, _ := filepath.Glob(glob); len(matches) > 0 { objCount += len(matches) }
-    }
-    binCount := 0
-    var firstBin string
-    _ = filepath.WalkDir(filepath.Join(dir, "build"), func(path string, d os.DirEntry, err error) error {
-        if err != nil { return nil }
-        if d.IsDir() {
-            b := filepath.Base(path)
-            if b == "debug" || b == "obj" { return filepath.SkipDir }
-            return nil
+    } else {
+        // Human summary
+        objCount := 0
+        for _, e := range ws.Packages {
+            glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
+            if matches, _ := filepath.Glob(glob); len(matches) > 0 { objCount += len(matches) }
         }
-        if info, e := d.Info(); e == nil {
-            mode := info.Mode()
-            if mode.IsRegular() && (mode&0o111 != 0) {
-                if rel, rerr := filepath.Rel(dir, path); rerr == nil {
-                    binCount++
-                    if firstBin == "" { firstBin = rel }
+        binCount := 0
+        var firstBin string
+        _ = filepath.WalkDir(filepath.Join(dir, "build"), func(path string, d os.DirEntry, err error) error {
+            if err != nil { return nil }
+            if d.IsDir() {
+                b := filepath.Base(path)
+                if b == "debug" || b == "obj" { return filepath.SkipDir }
+                return nil
+            }
+            if info, e := d.Info(); e == nil {
+                mode := info.Mode()
+                if mode.IsRegular() && (mode&0o111 != 0) {
+                    if rel, rerr := filepath.Rel(dir, path); rerr == nil {
+                        binCount++
+                        if firstBin == "" { firstBin = rel }
+                    }
                 }
             }
+            return nil
+        })
+        if binCount > 0 {
+            fmt.Fprintf(out, "built %d object(s); linked %d binary → %s\n", objCount, binCount, firstBin)
+            return nil
         }
-        return nil
-    })
-    if binCount > 0 {
-        fmt.Fprintf(out, "built %d object(s); linked %d binary → %s\n", objCount, binCount, firstBin)
+        fmt.Fprintf(out, "workspace valid: target=%s envs=%d\n", absTarget, len(envs))
         return nil
     }
-    fmt.Fprintf(out, "workspace valid: target=%s envs=%d\n", absTarget, len(envs))
-    return nil
 }

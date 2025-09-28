@@ -88,6 +88,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         var pkgCollects []collectEntry
         var bmPkgs []bmPackage
         var irUnits []irIndexUnit
+        var typesUnits []irTypesIndexUnit
+        var symbolsUnits []irSymbolsIndexUnit
         for _, u := range units {
             if opts.Log != nil { opts.Log("unit.start", map[string]any{"pkg": p.Name, "unit": u.unit}) }
             af := u.ast
@@ -176,6 +178,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 var fnames []string
                 for _, fn := range m.Functions { fnames = append(fnames, fn.Name) }
                 irUnits = append(irUnits, irIndexUnit{Unit: unit, Functions: fnames})
+                typesUnits = append(typesUnits, irTypesIndexUnit{Unit: unit, Types: collectTypes(m)})
+                symbolsUnits = append(symbolsUnits, irSymbolsIndexUnit{Unit: unit, Exports: collectExports(m)})
             // LLVM textual emission (debug only)
             if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
                 ldir := filepath.Join("build", "debug", "llvm", p.Name)
@@ -246,7 +250,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             }
             if opts.Log != nil { opts.Log("unit.end", map[string]any{"pkg": p.Name, "unit": unit}) }
         }
-        if opts.Debug && (len(pkgEdges) > 0 || len(pkgCollects) > 0) {
+        if opts.Debug && (len(pkgEdges) > 0 || len(pkgCollects) > 0 || len(irUnits) > 0) {
             if ei, err := writeEdgesIndex(p.Name, pkgEdges, pkgCollects); err == nil {
                 for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].EdgesIndex = ei } }
             }
@@ -255,6 +259,12 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             }
             if ii, err := writeIRIndex(p.Name, irUnits); err == nil {
                 for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].IRIndex = ii } }
+            }
+            if ti, err := writeIRTypesIndex(p.Name, typesUnits); err == nil {
+                for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].IRTypesIndex = ti } }
+            }
+            if si, err := writeIRSymbolsIndex(p.Name, symbolsUnits); err == nil {
+                for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].IRSymbolsIndex = si } }
             }
         }
         // Build object index for package under build/obj/<pkg> (always)

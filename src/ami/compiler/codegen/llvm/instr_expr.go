@@ -80,30 +80,50 @@ func lowerExpr(e ir.Expr) string {
         }
     case "and", "or":
         if len(e.Args) >= 2 {
-            // Support boolean and integer bitwise forms. Disallow floating point.
-            ty := "i64"
+            // Only boolean logical forms here; bitwise handled via band/bor.
+            ty := "i1"
             if e.Result != nil {
                 mt := mapType(e.Result.Type)
-                switch mt {
-                case "double":
-                    return "  ; expr andor-float\n"
-                case "i1":
-                    ty = "i1"
-                case "ptr":
-                    ty = "i64"
-                default:
-                    ty = mt
-                }
-            } else if len(e.Args) > 0 {
-                mt := mapType(e.Args[0].Type)
-                if mt == "double" { return "  ; expr andor-float\n" }
-                if mt != "ptr" && mt != "" { ty = mt }
+                if mt != "i1" { return "  ; expr logic-nonbool\n" }
             }
             mnem := op // "and" or "or"
             if e.Result != nil && e.Result.ID != "" {
                 return fmt.Sprintf("  %%%s = %s %s %%%s, %%%s\n", e.Result.ID, mnem, ty, e.Args[0].ID, e.Args[1].ID)
             }
             return fmt.Sprintf("  %s %s %%%s, %%%s\n", mnem, ty, e.Args[0].ID, e.Args[1].ID)
+        }
+    case "band":
+        if len(e.Args) >= 2 {
+            // Integer bitwise and (never float/ptr)
+            ty := "i64"
+            if e.Result != nil {
+                mt := mapType(e.Result.Type)
+                if mt == "double" { return "  ; expr band-float\n" }
+                if mt != "ptr" && mt != "" { ty = mt }
+            } else if len(e.Args) > 0 {
+                mt := mapType(e.Args[0].Type)
+                if mt != "ptr" && mt != "double" && mt != "" { ty = mt }
+            }
+            if e.Result != nil && e.Result.ID != "" {
+                return fmt.Sprintf("  %%%s = and %s %%%s, %%%s\n", e.Result.ID, ty, e.Args[0].ID, e.Args[1].ID)
+            }
+            return fmt.Sprintf("  and %s %%%s, %%%s\n", ty, e.Args[0].ID, e.Args[1].ID)
+        }
+    case "bor":
+        if len(e.Args) >= 2 {
+            ty := "i64"
+            if e.Result != nil {
+                mt := mapType(e.Result.Type)
+                if mt == "double" { return "  ; expr bor-float\n" }
+                if mt != "ptr" && mt != "" { ty = mt }
+            } else if len(e.Args) > 0 {
+                mt := mapType(e.Args[0].Type)
+                if mt != "ptr" && mt != "double" && mt != "" { ty = mt }
+            }
+            if e.Result != nil && e.Result.ID != "" {
+                return fmt.Sprintf("  %%%s = or %s %%%s, %%%s\n", e.Result.ID, ty, e.Args[0].ID, e.Args[1].ID)
+            }
+            return fmt.Sprintf("  or %s %%%s, %%%s\n", ty, e.Args[0].ID, e.Args[1].ID)
         }
     case "not":
         if len(e.Args) >= 1 && e.Result != nil && e.Result.ID != "" {

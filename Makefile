@@ -1,6 +1,10 @@
-.PHONY: all clean lint test build examples e2e-build e2e-test \
+.PHONY: all clean lint test build bench examples e2e-build e2e-test \
         e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update \
         test-hotspots
+
+# Benchmark configuration (override via: make bench BENCH=... BENCHTIME=...)
+BENCH ?= BenchmarkAMI_Subcommands
+BENCHTIME ?= 1x
 
 all: build
 
@@ -16,6 +20,11 @@ test:
 
 build: clean
 	go build -o build/ami ./src/cmd/ami
+
+# Run CLI microbenchmarks for ami subcommands in isolated sandboxes.
+bench:
+	@echo "Running CLI benchmarks: $(BENCH) (benchtime=$(BENCHTIME))"
+	go test -run ^$$ -bench $(BENCH) -benchtime=$(BENCHTIME) ./src/cmd/ami
 
 e2e-build:
 	@echo "Building ami CLI for E2E..."

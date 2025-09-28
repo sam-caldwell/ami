@@ -33,7 +33,9 @@ func (e Event) MarshalJSON() ([]byte, error) {
     if !e.Timestamp.IsZero() {
         buf.WriteByte(',')
         buf.WriteString("\"timestamp\":")
-        tb, _ := json.Marshal(e.Timestamp.UTC().Format("2006-01-02T15:04:05.000Z"))
+        // Normalize to second precision; always emit .000Z for determinism
+        t := e.Timestamp.UTC().Truncate(time.Second)
+        tb, _ := json.Marshal(t.Format("2006-01-02T15:04:05.000Z"))
         buf.Write(tb)
     }
     // attempt
@@ -60,4 +62,3 @@ func (e Event) MarshalJSON() ([]byte, error) {
     buf.WriteByte('}')
     return buf.Bytes(), nil
 }
-

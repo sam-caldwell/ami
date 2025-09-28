@@ -387,15 +387,22 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             "toolchain": map[string]any{"targetDir": absTarget, "targets": envs},
             "objIndex":  objIdx,
         }
-        // Include objects when present for visibility
+        // Include objects when present for visibility + structured artifacts with kind:"obj"
         var objects []string
+        var artifacts []map[string]any
         for _, e := range ws.Packages {
             glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
             if matches, _ := filepath.Glob(glob); len(matches) > 0 {
-                for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { objects = append(objects, rel) } }
+                for _, m := range matches {
+                    if rel, err := filepath.Rel(dir, m); err == nil {
+                        objects = append(objects, rel)
+                        artifacts = append(artifacts, map[string]any{"kind": "obj", "path": rel})
+                    }
+                }
             }
         }
         if len(objects) > 0 { sort.Strings(objects); outObj["objects"] = objects }
+        if len(artifacts) > 0 { outObj["artifacts"] = artifacts }
         // integrity evidence from ami.sum vs cache
         if len(sum.Packages) > 0 {
             if v, m, mm, err := sum.Validate(); err == nil {

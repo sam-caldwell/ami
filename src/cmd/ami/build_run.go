@@ -12,6 +12,7 @@ import (
 
     "github.com/sam-caldwell/ami/src/ami/exit"
     "github.com/sam-caldwell/ami/src/ami/compiler/driver"
+    llvme "github.com/sam-caldwell/ami/src/ami/compiler/codegen/llvm"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     man "github.com/sam-caldwell/ami/src/ami/manifest"
     "github.com/sam-caldwell/ami/src/ami/workspace"
@@ -382,6 +383,49 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             _ = os.Chdir(dir)
             _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: false, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink})
             _ = os.Chdir(oldwd)
+        }
+    }
+
+    // Link stage (default env only for now) — produce an executable under build/ if toolchain available.
+    if !buildNoLink {
+        // Find all objects under build/obj/**.o
+        var objects []string
+        for _, e := range ws.Packages {
+            glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
+            if matches, _ := filepath.Glob(glob); len(matches) > 0 { objects = append(objects, matches...) }
+        }
+        // Only attempt when there are objects and clang is present
+        if len(objects) > 0 {
+            // Resolve binary name from main package
+            binName := "app"
+            if mp := ws.FindPackage("main"); mp != nil && mp.Name != "" { binName = mp.Name }
+            // Determine target triple (first env or default)
+            triple := llvme.DefaultTriple
+            if len(envs) > 0 { triple = llvme.TripleForEnv(envs[0]) }
+            // Generate a minimal runtime with main() and link
+            // (place runtime artifacts under build/runtime)
+            rtDir := filepath.Join(dir, "build", "runtime")
+            clang, ferr := llvme.FindClang()
+            if ferr == nil {
+                if llPath, werr := llvme.WriteRuntimeLL(rtDir, triple, true); werr == nil {
+                    rtObj := filepath.Join(rtDir, "runtime.o")
+                    if cerr := llvme.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
+                        objects = append(objects, rtObj)
+                        outBin := filepath.Join(dir, "build", binName)
+                        if lerr := llvme.LinkObjects(clang, objects, outBin, triple); lerr != nil {
+                            if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin}) }
+                        } else if lg := getRootLogger(); lg != nil {
+                            lg.Info("build.link.ok", map[string]any{"bin": outBin, "objects": len(objects)})
+                        }
+                    } else if lg := getRootLogger(); lg != nil {
+                        lg.Info("build.runtime.obj.fail", map[string]any{"error": cerr.Error()})
+                    }
+                } else if lg := getRootLogger(); lg != nil {
+                    lg.Info("build.runtime.ll.fail", map[string]any{"error": werr.Error()})
+                }
+            } else if lg := getRootLogger(); lg != nil {
+                lg.Info("build.toolchain.missing", map[string]any{"tool": "clang"})
+            }
         }
     }
 

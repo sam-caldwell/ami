@@ -15,6 +15,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
+    "encoding/json"
 )
 
 // Compile compiles the provided packages using the given workspace configuration.
@@ -232,6 +233,17 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         // Build object index for package under build/obj/<pkg> (always)
         objDir := filepath.Join("build", "obj", p.Name)
         if idx, err := codegen.BuildObjIndex(p.Name, objDir); err == nil { _ = codegen.WriteObjIndex(idx) }
+        // Build per-env object indexes under build/<env>/obj/<pkg>/ when present
+        for _, env := range ws.Toolchain.Compiler.Env {
+            envObjDir := filepath.Join("build", env, "obj", p.Name)
+            if st, err := os.Stat(envObjDir); err == nil && st.IsDir() {
+                if idx, err := codegen.BuildObjIndex(p.Name, envObjDir); err == nil {
+                    // Write index into the env-specific folder
+                    b, _ := json.MarshalIndent(idx, "", "  ")
+                    _ = os.WriteFile(filepath.Join(envObjDir, "index.json"), b, 0o644)
+                }
+            }
+        }
         if opts.Debug { manifestPkgs = append(manifestPkgs, bmPkgs...) }
         if opts.Log != nil { opts.Log("pkg.end", map[string]any{"pkg": p.Name}) }
     }

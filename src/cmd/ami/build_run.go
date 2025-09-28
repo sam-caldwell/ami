@@ -258,6 +258,10 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             var logcb func(string, map[string]any)
             if lg := getRootLogger(); lg != nil {
                 logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
+                // Record toolchain versions (clang) for visibility in verbose logs
+                if clang, err := llvme.FindClang(); err == nil {
+                    if ver, verr := llvme.Version(clang); verr == nil { lg.Info("toolchain.clang", map[string]any{"version": ver, "path": clang}) }
+                } else { lg.Info("toolchain.missing", map[string]any{"tool": "clang"}) }
             }
             _, _ = driver.Compile(ws, dbgPkgs, driver.Options{Debug: true, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink, Log: logcb})
             _ = os.Chdir(oldwd)
@@ -438,6 +442,11 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                         }
                         if lerr := llvme.LinkObjects(clang, objects, outBin, triple, extra...); lerr != nil {
                             if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin}) }
+                            if jsonOut {
+                                d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LINK_FAIL", Message: "linking failed", File: "clang"}
+                                if te, ok := lerr.(llvme.ToolError); ok { if d.Data == nil { d.Data = map[string]any{} }; d.Data["stderr"] = te.Stderr }
+                                _ = json.NewEncoder(out).Encode(d)
+                            }
                         } else if lg := getRootLogger(); lg != nil {
                             lg.Info("build.link.ok", map[string]any{"bin": outBin, "objects": len(objects)})
                         }

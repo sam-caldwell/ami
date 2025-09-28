@@ -412,7 +412,31 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                     if cerr := llvme.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
                         objects = append(objects, rtObj)
                         outBin := filepath.Join(dir, "build", binName)
-                        if lerr := llvme.LinkObjects(clang, objects, outBin, triple); lerr != nil {
+                        var extra []string
+                        // basic whole-program DCE flags by platform (darwin)
+                        if len(envs) > 0 && envs[0] != "" {
+                            if envs[0] == "darwin/arm64" || envs[0] == "darwin/amd64" || envs[0] == "darwin/x86_64" {
+                                extra = append(extra, "-Wl,-dead_strip")
+                            }
+                        }
+                        // workspace linker options -> flags
+                        for _, opt := range ws.Toolchain.Linker.Options {
+                            switch opt {
+                            case "PIE", "pie":
+                                // macOS: PIE generally default; pass anyway for clarity
+                                if len(envs) > 0 && (envs[0] == "darwin/arm64" || envs[0] == "darwin/amd64" || envs[0] == "darwin/x86_64") {
+                                    extra = append(extra, "-Wl,-pie")
+                                } else {
+                                    extra = append(extra, "-pie")
+                                }
+                            case "static":
+                                // best effort on platforms supporting static
+                                extra = append(extra, "-static")
+                            case "dead_strip", "dce":
+                                extra = append(extra, "-Wl,-dead_strip")
+                            }
+                        }
+                        if lerr := llvme.LinkObjects(clang, objects, outBin, triple, extra...); lerr != nil {
                             if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin}) }
                         } else if lg := getRootLogger(); lg != nil {
                             lg.Info("build.link.ok", map[string]any{"bin": outBin, "objects": len(objects)})

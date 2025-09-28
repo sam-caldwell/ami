@@ -414,10 +414,10 @@ packages:
           (callee + arg types) and container literals explicitly.
     - [X] Emit object stubs (scaffold) and per‑package object index in `build/obj/<pkg>/index.json`; build plan includes `objIndex` (verbose).
 #### 1.1.9.3. Code generation / Linking:
-- [D] Instruction selection, register allocation, scheduling;
-- [D] emit object w/ relocations,
-- [D] export data, and tables (e.g., pclntab).
-- [D] Linking:
+- [X] Instruction selection, register allocation, scheduling;
+- [X] emit object w/ relocations,
+- [X] export data, and tables (e.g., pclntab).
+- [X] Linking:
     - cmd/link resolves symbols,
     - does whole-program dead-code elim,
     - applies relocations (randomized layout for security,

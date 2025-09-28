@@ -32,4 +32,3 @@ func TestRuntime_CompileAndLink_ProducesExecutable(t *testing.T) {
     cmd := exec.Command(bin)
     if err := cmd.Run(); err != nil { t.Fatalf("run binary: %v", err) }
 }
-

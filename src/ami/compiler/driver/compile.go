@@ -169,6 +169,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 if ssa, err := writeSSADebug(p.Name, unit, m); err == nil { _ = ssa }
                 if em, err := writeEventMetaDebug(p.Name, unit); err == nil { bmu.EventMeta = em }
                 if as, err := writeAsmDebug(p.Name, unit, af, m); err == nil { bmu.ASM = as }
+                if _, err := writeExportsDebug(p.Name, unit, m); err == nil { /* ok: optional debug */ }
             // LLVM textual emission (debug only)
             if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
                 ldir := filepath.Join("build", "debug", "llvm", p.Name)

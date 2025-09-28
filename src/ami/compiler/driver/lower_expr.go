@@ -212,7 +212,7 @@ func opName(k token.Kind) string {
     case token.BitXor: return "xor"
     case token.Shl: return "shl"
     case token.Shr: return "shr"
-    case token.BitAnd: return "and"
+    case token.BitAnd: return "band"
     default:
         return k.String()
     }

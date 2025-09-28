@@ -101,8 +101,8 @@
     - [ ] `compiler/types`: verified modular split by concept; added concise docs and unit tests for composites, basics, and function rendering
     - [ ] `manifest`: decomposed into `types.go`, `validate.go`, `sumcheck.go`, and `io.go`; existing tests left intact and passing
 - [X] Docs for user‑visible commands under `docs/` updated alongside features
-- [ ] `ami.sum` JSON summary file with package→version→sha256 mapping; 
-  - [x[ updated by `mod get/update`, verified by `build`
+- [X] `ami.sum` JSON summary file with package→version→sha256 mapping; 
+  - [x] updated by `mod get/update`, verified by `build`
 - [X] Examples. provide:
   - `examples/simple` and 
   - `examples/complex` 
@@ -308,9 +308,9 @@ packages:
     - [x] formatting markers
 - [x] Enforce package versioning and import rules consistent with Chapter 3.0 (e.g., valid SemVer in package 
       declarations/imports, allowed characters in package names)
-    - [X] Validate package declarations use valid SemVer (W_PKG_VERSION_INVALID)
-    - [X] Validate local import constraints against local packages (E_IMPORT_CONSTRAINT; warn in non‑strict)
-    - [X] Validate identifier naming rules beyond package names (scanner‑backed)
+  - [X] Validate package declarations use valid SemVer (W_PKG_VERSION_INVALID)
+  - [X] Validate local import constraints against local packages (E_IMPORT_CONSTRAINT; warn in non‑strict)
+  - [X] Validate identifier naming rules beyond package names (scanner‑backed)
 - [X] Output formats for lint:
     - [x] human summary to stdout
     - [x] `diag.v1` JSON lines with a final summary record; when `--verbose`, also stream per‑record NDJSON to `build/debug/lint.ndjson`
@@ -1986,7 +1986,7 @@ Validation:
   - [ ] Tool detection: locate `clang` (preferred) and optionally `llc`; record versions in verbose logs.
   - [ ] Compile `.ll` to `.o` for `darwin/arm64` via `clang -target arm64-apple-macosx -c` into `build/obj/<pkg>/<unit>.o`.
   - [ ] Update object index to include real `.o` entries (retain `.s` only as debug when verbose).
-  - [ ] Tests: conditional E2E (skip if toolchain missing) that compiles a trivial unit to `.o` and updates `objindex.v1` deterministically.
+  - [X] Tests: conditional E2E (skip if toolchain missing) that compiles a trivial unit to `.o` and updates `objindex.v1` deterministically.
   - [ ] Diagnostics: `E_TOOLCHAIN_MISSING` (no clang), `E_OBJ_COMPILE_FAIL` with captured stderr in JSON.
 
 - [ ] Runtime ABI (minimal) for codegen

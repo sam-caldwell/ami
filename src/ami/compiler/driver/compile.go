@@ -179,7 +179,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 for _, fn := range m.Functions { fnames = append(fnames, fn.Name) }
                 irUnits = append(irUnits, irIndexUnit{Unit: unit, Functions: fnames})
                 typesUnits = append(typesUnits, irTypesIndexUnit{Unit: unit, Types: collectTypes(m)})
-                symbolsUnits = append(symbolsUnits, irSymbolsIndexUnit{Unit: unit, Exports: collectExports(m)})
+                symbolsUnits = append(symbolsUnits, irSymbolsIndexUnit{Unit: unit, Exports: collectExports(m), Externs: collectExterns(m)})
             // LLVM textual emission (debug only)
             if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
                 ldir := filepath.Join("build", "debug", "llvm", p.Name)

@@ -306,6 +306,9 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             Objects   []string  `json:"objects,omitempty"`
             ObjectsByEnv map[string][]string `json:"objectsByEnv,omitempty"`
             ObjIndexByEnv map[string][]string `json:"objIndexByEnv,omitempty"`
+            IRIndex   []string  `json:"irIndex,omitempty"`
+            IRTypesIndex []string `json:"irTypesIndex,omitempty"`
+            IRSymbolsIndex []string `json:"irSymbolsIndex,omitempty"`
         }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
         for _, e := range ws.Packages {
             // detect any object files for this package
@@ -322,6 +325,19 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
             if matches, _ := filepath.Glob(glob); len(matches) > 0 {
                 for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { plan.Objects = append(plan.Objects, rel) } }
+            }
+            // Include IR indices when present under build/debug/ir/<pkg>
+            irIdx := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.index.json")
+            if st, err := os.Stat(irIdx); err == nil && !st.IsDir() {
+                if rel, err := filepath.Rel(dir, irIdx); err == nil { plan.IRIndex = append(plan.IRIndex, rel) }
+            }
+            irTypes := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.types.index.json")
+            if st, err := os.Stat(irTypes); err == nil && !st.IsDir() {
+                if rel, err := filepath.Rel(dir, irTypes); err == nil { plan.IRTypesIndex = append(plan.IRTypesIndex, rel) }
+            }
+            irSyms := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.symbols.index.json")
+            if st, err := os.Stat(irSyms); err == nil && !st.IsDir() {
+                if rel, err := filepath.Rel(dir, irSyms); err == nil { plan.IRSymbolsIndex = append(plan.IRSymbolsIndex, rel) }
             }
         }
         // Include per-env objects if present under build/<env>/obj/**

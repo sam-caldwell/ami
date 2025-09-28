@@ -11,3 +11,52 @@ Kinds:
 
 These stubs are intentionally minimal to limit blast radius. They enable downstream phases to share a common structure for edges without embedding parser/semantics details.
 
+## edges.v1 (Debug Index)
+
+When compiling with debug enabled, the compiler writes a per‑package edges index at:
+
+`build/debug/asm/<pkg>/edges.json`
+
+Schema:
+
+- `schema`: fixed string `edges.v1`
+- `package`: package name
+- `edges`: array of edge entries with fields:
+  - `unit`: compilation unit (basename without extension)
+  - `from`, `to`: step names
+  - `bounded`: bool derived from buffering attributes
+  - `delivery`: `atLeastOnce` or `bestEffort` derived from backpressure policy
+  - `type`: optional step type (from `type("T")` attribute)
+  - `tinyBuffer`: bool hint when capacity is very small with drop policy
+- `collect` (optional): array of `edge.MultiPath` snapshots for `Collect` steps:
+  - `unit`: unit name
+  - `step`: step name where the multipath appears
+  - `multipath`:
+    - `args`: normalized argument list (e.g., input streams)
+    - `merge`: list of merge attributes `{ name, args }`
+
+Example:
+
+```
+{
+  "schema": "edges.v1",
+  "package": "app",
+  "edges": [
+    {"unit":"u","from":"ingress","to":"work","bounded":false,"delivery":"atLeastOnce"},
+    {"unit":"u","from":"work","to":"egress","bounded":true,"delivery":"bestEffort","type":"X","tinyBuffer":true}
+  ],
+  "collect": [
+    {
+      "unit": "u",
+      "step": "work",
+      "multipath": {
+        "args": ["inputA", "inputB"],
+        "merge": [
+          {"name":"merge.Sort", "args":["ts", "asc"]},
+          {"name":"merge.Dedup", "args":["id"]}
+        ]
+      }
+    }
+  ]
+}
+```

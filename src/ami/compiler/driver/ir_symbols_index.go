@@ -27,6 +27,29 @@ func collectExports(m ir.Module) []string {
     return names
 }
 
+// collectExterns scans IR for operations that imply runtime extern usage and
+// returns a deterministic list of extern symbol names (not full LLVM decls).
+// This mirrors the minimal extern collection in the LLVM emitter.
+func collectExterns(m ir.Module) []string {
+    seen := map[string]bool{}
+    add := func(s string) { if s != "" { seen[s] = true } }
+    for _, f := range m.Functions {
+        for _, b := range f.Blocks {
+            for _, ins := range b.Instr {
+                if ex, ok := ins.(ir.Expr); ok {
+                    op := ex.Op
+                    if op == "panic" { add("ami_rt_panic") }
+                    if op == "alloc" || ex.Callee == "ami_rt_alloc" { add("ami_rt_alloc") }
+                }
+            }
+        }
+    }
+    var out []string
+    for k := range seen { out = append(out, k) }
+    sortStrings(out)
+    return out
+}
+
 // writeIRSymbolsIndex writes ir.symbols.index.json for a package.
 func writeIRSymbolsIndex(pkg string, units []irSymbolsIndexUnit) (string, error) {
     idx := irSymbolsIndex{Schema: "ir.symbols.index.v1", Package: pkg, Units: units}
@@ -38,4 +61,3 @@ func writeIRSymbolsIndex(pkg string, units []irSymbolsIndexUnit) (string, error)
     if err := os.WriteFile(out, b, 0o644); err != nil { return "", err }
     return out, nil
 }
-

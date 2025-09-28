@@ -126,7 +126,7 @@
 - Coverage: raise `src/cmd/ami` package test coverage to ≥80% (currently ~78–79%).
 - [X] Scaffold src/ami/compiler/{token,scanner,parser,ast,source} with minimal types and tests (Phase 2 starter).
 - [X] Add a test that checks rule mapping elevation (e.g., set W_IMPORT_ORDER=error makes non-zero exit in JSON mode).
-- [ ] Stdlib logger pipeline: expose redaction/filters via CLI when pipeline mode replaces current logger. Wire `ami/stdlib/logger` pipeline config (JSONRedactKeys/Prefixes; future allow/deny) and add tests for batch/interval/backpressure, counters, and safety‑net redaction of `log.v1` lines.
+- [X] Stdlib logger pipeline: expose redaction/filters via CLI when pipeline mode replaces current logger. Wire `ami/stdlib/logger` pipeline config (JSONRedactKeys/Prefixes; future allow/deny) and add tests for batch/interval/backpressure, counters, and safety‑net redaction of `log.v1` lines.
 ---
 # Details
 ## 1.0.0.0. Features and Work Breakdown
@@ -639,7 +639,7 @@ packages:
 - [X] Lexical structure (2.1): UTF‑8, tokens, comments
 - [X] Pipeline grammar: nodes, edges, chaining, config
 - [X] Multiple entrypoints (multiple pipeline declarations)
-- [ ] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
+- [X] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
  - [X] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
  - [ ] Compiler directives: 
    - [X] Backpressure collected via `#pragma backpressure` and mapped into IR (config) and pipelines.v1 default delivery
@@ -911,7 +911,8 @@ packages:
   - [X] `E_MERGE_ATTR_REQUIRED`: missing required attributes (e.g., `merge.Sort` without a field).
 - [ ] IR & Tooling (scaffold)
   - [X] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args).
-  - [ ] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
+  - [X] `ir.index.v1` and `ir.types.index.v1`/`ir.symbols.index.v1` written under `build/debug/ir/<pkg>/` (per‑unit functions/types/exports); referenced in debug build manifest.
+  - [X] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
 - [ ] Lint & Smells
   - [X] `W_MERGE_SORT_NO_FIELD`: `merge.Sort` specified without a field.
 - [X] `W_MERGE_TINY_BUFFER`: `merge.Buffer` set to very small capacity (<=1) with `dropOldest`/`dropNewest` policy.
@@ -925,7 +926,7 @@ packages:
   - [ ] Merge attribute normalization and per‑attribute validation (deferred).
 - [ ] Documentation
   - [X] Add `docs/merge.md` describing attribute semantics, precedence, examples.
-  - [ ] Update `docs/edges.md` to include `edge.MultiPath` and cross-reference `merge`.
+  - [X] Update `docs/edges.md` to include `edge.MultiPath` and cross-reference `merge`.
   - [X] Add examples under `examples/` demonstrating `Collect` with `edge.MultiPath` and various `merge.*` settings.
 - [ ] Runtime/Planner
   - [ ] Plan how `merge` attributes map to runtime merge operator configuration; leave unimplemented until runtime integration phase.

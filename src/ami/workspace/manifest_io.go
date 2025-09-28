@@ -5,17 +5,8 @@ import (
     "encoding/json"
     "fmt"
     "os"
-    "path/filepath"
     "sort"
 )
-
-// Manifest represents the ami.sum file in memory.
-// It normalizes both supported shapes into a nested map:
-//   Packages[packageName][version] = sha256
-type Manifest struct {
-    Schema   string
-    Packages map[string]map[string]string
-}
 
 // Load reads ami.sum from path and populates the manifest, accepting either:
 // - object form: packages: { "name": {"version": "v1.2.3", "sha256": "...", "source":"..."} }
@@ -109,59 +100,5 @@ func (m *Manifest) Save(path string) error {
     _, _ = w.WriteString("\n}\n")
     if err := w.Flush(); err != nil { _ = f.Close(); return err }
     return f.Close()
-}
-
-// Validate checks AMI_PACKAGE_CACHE to ensure that every package@version exists and matches the recorded sha256.
-// Returns slices of keys ("name@version") for verified, missing, and mismatched.
-func (m *Manifest) Validate() (verified, missing, mismatched []string, err error) {
-    cache := os.Getenv("AMI_PACKAGE_CACHE")
-    if cache == "" {
-        home, herr := os.UserHomeDir()
-        if herr != nil { return nil, nil, nil, fmt.Errorf("resolve cache: %v", herr) }
-        cache = filepath.Join(home, ".ami", "pkg")
-    }
-    for name, versions := range m.Packages {
-        for ver, sha := range versions {
-            p := filepath.Join(cache, name, ver)
-            st, statErr := os.Stat(p)
-            if statErr != nil || !st.IsDir() {
-                missing = append(missing, name+"@"+ver)
-                continue
-            }
-            got, hErr := HashDir(p)
-            if hErr != nil { mismatched = append(mismatched, name+"@"+ver); continue }
-            if got == sha { verified = append(verified, name+"@"+ver) } else { mismatched = append(mismatched, name+"@"+ver) }
-        }
-    }
-    sort.Strings(verified)
-    sort.Strings(missing)
-    sort.Strings(mismatched)
-    return verified, missing, mismatched, nil
-}
-
-// Has reports whether name@version exists in the manifest with any sha.
-func (m *Manifest) Has(name, version string) bool {
-    if m.Packages == nil { return false }
-    v, ok := m.Packages[name]
-    if !ok { return false }
-    _, ok = v[version]
-    return ok
-}
-
-// Set records name@version=sha in the manifest, creating maps as needed.
-func (m *Manifest) Set(name, version, sha string) {
-    if m.Packages == nil { m.Packages = map[string]map[string]string{} }
-    if m.Packages[name] == nil { m.Packages[name] = map[string]string{} }
-    m.Packages[name][version] = sha
-}
-
-// Versions returns a sorted list of versions for a package name.
-func (m *Manifest) Versions(name string) []string {
-    mm := m.Packages[name]
-    if mm == nil { return nil }
-    out := make([]string, 0, len(mm))
-    for ver := range mm { out = append(out, ver) }
-    sort.Strings(out)
-    return out
 }
 

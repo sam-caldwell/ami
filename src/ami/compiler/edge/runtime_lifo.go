@@ -7,6 +7,10 @@ type LIFOStack struct {
     spec LIFO
     mu   sync.Mutex
     buf  []any
+    pushN int
+    popN  int
+    dropN int
+    fullN int
 }
 
 func NewLIFO(spec LIFO) (*LIFOStack, error) {
@@ -17,19 +21,24 @@ func NewLIFO(spec LIFO) (*LIFOStack, error) {
 // Push pushes v honoring backpressure when bounded and full.
 func (s *LIFOStack) Push(v any) error {
     s.mu.Lock(); defer s.mu.Unlock()
+    s.pushN++
     cap := s.spec.MaxCapacity
     if cap > 0 && len(s.buf) >= cap {
         switch s.spec.Backpressure {
         case "block":
+            s.fullN++
             return ErrFull
         case "dropOldest", "shuntOldest":
             // drop bottom element (oldest) to make room
             copy(s.buf[0:], s.buf[1:])
             s.buf = s.buf[:len(s.buf)-1]
+            s.dropN++
         case "dropNewest", "shuntNewest":
             // drop incoming element
+            s.dropN++
             return nil
         default:
+            s.dropN++
             return nil
         }
     }
@@ -44,8 +53,14 @@ func (s *LIFOStack) Pop() (v any, ok bool) {
     i := len(s.buf) - 1
     v = s.buf[i]
     s.buf = s.buf[:i]
+    s.popN++
     return v, true
 }
 
 func (s *LIFOStack) Len() int { s.mu.Lock(); defer s.mu.Unlock(); return len(s.buf) }
 
+// Counters returns push, pop, drop, and full counts.
+func (s *LIFOStack) Counters() (push, pop, drop, full int) {
+    s.mu.Lock(); defer s.mu.Unlock()
+    return s.pushN, s.popN, s.dropN, s.fullN
+}

@@ -420,7 +420,7 @@ packages:
     - and produces the binary (PIE/static as configured).
 - [ ] Invoke compiler driver to compile workspace packages into `toolchain.target/toolchain.env[]`
   directory (e.g. `./build/${env}`) (deterministic file layout).
-- [ ] Compiler can generate final LLVM object code as object artifacts
+- [X] Compiler can generate final LLVM object code as object artifacts
 - [ ] Compiler can generate the LLVM runtime artifacts needed to produce the AMI binary.
 - [ ] Compiler can link the generated LLVM runtime and object code into an executable on darwin/arm64.
 - [ ] Failure modes:
@@ -448,7 +448,7 @@ packages:
     - [X] Contains evidence of all imported artifacts with build‑time integrity validation of `ami.sum` vs cache (verified/missing/mismatched)
     - [X] Contains cross references to ./build/debug artifacts when verbose
     - [X] Contains list of binaries produced in ./build/**/*
-- [ ] Tests:
+- [X] Tests:
     - [X] With `--verbose`, expected files exist and validate against schemas (AST/IR JSON), assembly is non‑empty.
     - [X] Without `--verbose`, no `build/debug/` directory is created.
     - [X] Contents are deterministic (AST/IR/ASM debug artifacts stable across runs).
@@ -468,7 +468,7 @@ packages:
           - [X] using stable field ordering and positions for nodes (imports, funcs, pipelines, steps, pragmas).
       - [X] Artifacts under `./build/debug/` to aid compiler debugging (not produced otherwise)
       - [X] Full timestamped activity logs for the compiler in `./build/debug/activity.log`
-  - [ ] Intermediate Representation (IR)
+  - [X] Intermediate Representation (IR)
         - [X] Pipelines IR (debug): `build/debug/ir/<package>/<unit>.pipelines.json`
             - Captures pipeline steps and referenced workers, including generic payloads for inputs/outputs (T/U/E) to enable future type-compatibility checks.
         - [X] Final stage IR stored as `build/debug/ir/<package>/<unit>.ir.json`

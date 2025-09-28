@@ -4,6 +4,7 @@ import (
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+    "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
@@ -52,18 +53,18 @@ func AnalyzeRAII(f *ast.File) []diag.Record {
 
 // releaseTargetFromExpr inspects an expression and returns the released variable name if the
 // expression matches release(x) or mutate(release(x)). It also returns the position of the call.
-func releaseTargetFromExpr(e ast.Expr) (string, ast.Position) {
+func releaseTargetFromExpr(e ast.Expr) (string, source.Position) {
     switch v := e.(type) {
     case *ast.CallExpr:
         return releaseTargetFromCall(v)
     default:
-        return "", ast.Position{}
+        return "", source.Position{}
     }
 }
 
 // releaseTargetFromCall inspects a call expression for release(x) or mutate(release(x)).
-func releaseTargetFromCall(c *ast.CallExpr) (string, ast.Position) {
-    if c == nil { return "", ast.Position{} }
+func releaseTargetFromCall(c *ast.CallExpr) (string, source.Position) {
+    if c == nil { return "", source.Position{} }
     if c.Name == "release" {
         if len(c.Args) >= 1 {
             if id, ok := c.Args[0].(*ast.IdentExpr); ok { return id.Name, c.NamePos }
@@ -79,4 +80,3 @@ func releaseTargetFromCall(c *ast.CallExpr) (string, ast.Position) {
     }
     return "", c.NamePos
 }
-

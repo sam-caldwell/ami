@@ -10,7 +10,7 @@ import (
 func TestRAII_DeferRelease_NoDouble(t *testing.T) {
     code := "package app\nfunc F(){ var x int; defer release(x) }\n"
     var fs source.FileSet
-    f := fs.Add("f.ami", code)
+    f := fs.AddFile("f.ami", code)
     p := parser.New(f)
     af, errs := p.ParseFileCollect()
     if af == nil || len(errs) != 0 { t.Fatalf("parse: errs=%v", errs) }
@@ -21,7 +21,7 @@ func TestRAII_DeferRelease_NoDouble(t *testing.T) {
 func TestRAII_DoubleRelease_ImmediateThenDefer(t *testing.T) {
     code := "package app\nfunc F(){ var y int; release(y); defer release(y) }\n"
     var fs source.FileSet
-    f := fs.Add("f.ami", code)
+    f := fs.AddFile("f.ami", code)
     p := parser.New(f)
     af, errs := p.ParseFileCollect()
     if af == nil || len(errs) != 0 { t.Fatalf("parse: errs=%v", errs) }
@@ -34,7 +34,7 @@ func TestRAII_DoubleRelease_ImmediateThenDefer(t *testing.T) {
 func TestRAII_DoubleRelease_TwoDefers(t *testing.T) {
     code := "package app\nfunc F(){ var z int; defer release(z); defer release(z) }\n"
     var fs source.FileSet
-    f := fs.Add("f.ami", code)
+    f := fs.AddFile("f.ami", code)
     p := parser.New(f)
     af, errs := p.ParseFileCollect()
     if af == nil || len(errs) != 0 { t.Fatalf("parse: errs=%v", errs) }
@@ -47,7 +47,7 @@ func TestRAII_DoubleRelease_TwoDefers(t *testing.T) {
 func TestRAII_MutateRelease_DeferMix(t *testing.T) {
     code := "package app\nfunc F(){ var a int; mutate(release(a)); defer mutate(release(a)) }\n"
     var fs source.FileSet
-    f := fs.Add("f.ami", code)
+    f := fs.AddFile("f.ami", code)
     p := parser.New(f)
     af, errs := p.ParseFileCollect()
     if af == nil || len(errs) != 0 { t.Fatalf("parse: errs=%v", errs) }
@@ -56,4 +56,3 @@ func TestRAII_MutateRelease_DeferMix(t *testing.T) {
     for _, d := range ds { if d.Code == "E_RAII_DOUBLE_RELEASE" { saw = true } }
     if !saw { t.Fatalf("expected E_RAII_DOUBLE_RELEASE, got: %+v", ds) }
 }
-

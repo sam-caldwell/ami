@@ -1179,7 +1179,7 @@ Types & Semantics (incremental)
 - [X] Import symbol scope: insert alias or last path segment into top‑level scope (kind `ObjType`, type `package`).
 - [X] Tests: verify type mapping and inferred function signatures; scope contains imported package symbol.
 - [X] Owned<T>: added to the type mapper; string rendering `Owned<…>`.
-- [ ] RAII + Defer: semantic analyzer recognizes `defer`-scheduled releases/transfers and counts them toward required Owned<T> cleanup at function end; flags double-release when mixed with immediate release.
+- [X] RAII + Defer: semantic analyzer recognizes `defer`-scheduled releases/transfers and counts them toward Owned<T> cleanup. Flags double-release when mixed with immediate release.
  - [X] Worker resolution across imports: dotted references like `pkg.Func()` accepted when `pkg` is imported; undefined worker diagnostics suppressed (signature checks across packages deferred).
 - [ ] Type inference/unification across expressions and generic instantiation inside bodies (future)
   - Goals

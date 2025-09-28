@@ -227,7 +227,7 @@
   - Does not run by default; invoke with `go test -bench . ./src/cmd/ami`.
 
 ### 1.0.1.5. Milestone M14 — RAII + Generic Inference (Scope & Dependencies)
-- This milestone brings full RAII accounting and richer local generic inference into scope.
+- This milestone brings full RAII accounting and richer local generic inference into scope. [X]
 - Dependencies (must be complete before starting M14):
   - M5 Frontend (Source→AST) with positions/comments and stable JSON
   - M6 Semantics (initial): memory safety, pipeline invariants, worker signature/resolution
@@ -237,17 +237,17 @@
   - M12 Test Runner (directive/runtime harness; JSON lines)
 
 Scope (Deliverables):
-- Full RAII ownership accounting for `Owned<T>` within function bodies:
-  - Track acquire/transfer/release (including `defer release(x)`); report leaks and misuse
-  - Diagnostics: `E_RAII_LEAK`, `E_RAII_DOUBLE_RELEASE`, `E_RAII_USE_AFTER_RELEASE`, `E_RAII_RELEASE_UNOWNED`, `E_RAII_TRANSFER_UNOWNED`
-  - New semantics pass `sem.AnalyzeRAII(f *ast.File) []diag.Record` (position-rich, deterministic)
-  - Optional IR debug markers for RAII events (no behavior change)
+- [X] Full RAII ownership accounting for `Owned<T>` within function bodies:
+  - [X] Track acquire/transfer/release (including `defer release(x)`); report leaks and misuse
+  - [X] Diagnostics: `E_RAII_LEAK`, `E_RAII_DOUBLE_RELEASE`, `E_RAII_USE_AFTER_RELEASE`, `E_RAII_RELEASE_UNOWNED`, `E_RAII_TRANSFER_UNOWNED`
+  - [X] Semantics pass `sem.AnalyzeRAII(f *ast.File) []diag.Record` (position-rich, deterministic)
+  - [X] IR debug markers for RAII events (no behavior change)
 - Richer generic inference (local, deterministic):
   - Call-site instantiation/unification for single-letter generics; apply substitutions to results
   - Tuple return arity/type propagation; container inference for `slice<T>`, `set<T>`, `map<K,V>`
   - Propagation for `Event<T>` / `Error<E>` across local scopes (conservative when unknown)
   - Diagnostics: `E_TYPE_UNINFERRED`, extended `E_TYPE_MISMATCH`, `E_TYPE_AMBIGUOUS`
-- Linter Stage B integration surfaces RAII errors and respects `#pragma lint:disable`.
+- [X] Linter Stage B integration surfaces RAII errors and respects `#pragma lint:disable`.
 
 Acceptance Criteria:
 - `go vet ./...`, `go test -v ./...` pass; ≥80% coverage for changed packages

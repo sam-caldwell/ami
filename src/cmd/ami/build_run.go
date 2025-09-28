@@ -275,6 +275,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             ObjIndex  []string  `json:"objIndex,omitempty"`
             Objects   []string  `json:"objects,omitempty"`
             ObjectsByEnv map[string][]string `json:"objectsByEnv,omitempty"`
+            ObjIndexByEnv map[string][]string `json:"objIndexByEnv,omitempty"`
         }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
         for _, e := range ws.Packages {
             // detect any object files for this package
@@ -296,6 +297,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         // Include per-env objects if present under build/<env>/obj/**
         if len(envs) > 0 {
             plan.ObjectsByEnv = map[string][]string{}
+            plan.ObjIndexByEnv = map[string][]string{}
             for _, env := range envs {
                 var list []string
                 for _, e := range ws.Packages {
@@ -303,10 +305,16 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                     if matches, _ := filepath.Glob(glob); len(matches) > 0 {
                         for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { list = append(list, rel) } }
                     }
+                    // per-env obj index file
+                    idx := filepath.Join(dir, "build", env, "obj", e.Package.Name, "index.json")
+                    if st, err := os.Stat(idx); err == nil && !st.IsDir() {
+                        if rel, rerr := filepath.Rel(dir, idx); rerr == nil { plan.ObjIndexByEnv[env] = append(plan.ObjIndexByEnv[env], rel) }
+                    }
                 }
                 if len(list) > 0 { sort.Strings(list); plan.ObjectsByEnv[env] = list }
             }
             if len(plan.ObjectsByEnv) == 0 { plan.ObjectsByEnv = nil }
+            if len(plan.ObjIndexByEnv) == 0 { plan.ObjIndexByEnv = nil }
         }
         if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
             _ = json.NewEncoder(f).Encode(plan)

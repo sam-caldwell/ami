@@ -86,7 +86,7 @@
       - [X] `--verbose` writes `build/test/test.log` and `build/test/test.manifest` with `<package> <test>` entries in run order.
       - [X] Native AMI directive‑based assertions (parser/sem) integrated into harness: support `#pragma test:case <name>` and `#pragma test:assert parse_ok|parse_fail` with manifest entries and failures affecting exit code.
       - [X] Package‑level concurrency flag (`--packages`) and explicit per‑package summaries in human mode.
-      - Notes: runtime execution of AMI code deferred; current scope wraps Go tests per roadmap M12.
+      - [ ] runtime execution of AMI code; current scope wraps Go tests per roadmap M12.
     - [X] `ami build` is completely implemented with >=80% test coverage and all tests passing.
   - [X] Deterministic behaviors (no prompts, stable outputs)
   - [X] CLI/toolchain tests run from `./build/test/` (per-test subdirs)
@@ -611,12 +611,15 @@ packages:
 - [X] Lexical structure (2.1): UTF‑8, tokens, comments
 - [X] Pipeline grammar: nodes, edges, chaining, config
 - [X] Multiple entrypoints (multiple pipeline declarations)
-- [X] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
+- [ ] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
  - [X] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
- - [X] Compiler directives: 
+ - [ ] Compiler directives: 
    - [X] Backpressure collected via `#pragma backpressure` and mapped into IR (config) and pipelines.v1 default delivery
-   - [ ] Capabilities/trust (deferred)
-     - Deferred to a future milestone. No runtime semantics or enforcement yet; no tests. Scope will include trust boundaries, IO/capability annotations, and IR/codegen surface once enabled.
+   - [ ] Capabilities/trust
+     - runtime semantics or enforcement yet;
+     - Scope will include trust boundaries, 
+     - IO/capability annotations, and 
+     - IR/codegen surface.
  - [X] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
 - [X] Parser/semantics diagnostics for package identifiers and import paths (happy/sad tests)
 - [X] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
@@ -629,7 +632,8 @@ packages:
   - Docs: see `docs/events.md` for beginner-friendly overview and plan.
 - [X] Worker function signatures and factories (2.2.6, 2.2.13)
  - [ ] Node‑state tables and access (2.2.14, 2.3.5)
-   - Deferred. No implementation yet in runtime/IR. Work will introduce a keyed ephemeral state store per node with scoped read/write APIs, deterministic serialization, and tests for visibility, lifetime, and isolation across nodes/pipelines.
+   - Work will introduce a keyed ephemeral state store per node with scoped read/write APIs, 
+     deterministic serialization, and tests for visibility, lifetime, and isolation across nodes/pipelines.
  - [ ] Memory model: ownership & RAII (2.4)
 - [ ] Observability: event IDs, telemetry hooks (1.6)
 #### 1.2.1 Lexical Structure (Chapter 2.1)
@@ -841,9 +845,11 @@ packages:
   - [X] Error pipeline must end with `egress` (`E_ERRPIPE_END_EGRESS`).
   - [X] Error pipeline cannot start with `ingress` (`E_ERRPIPE_START_INVALID`).
   - [X] Unknown nodes in error path flagged as `E_UNKNOWN_NODE`.
-- [X] Event lifecycle and metadata (1.1.6–1.1.7): id, timestamp, attempt, trace context; immutable payload
+- [ ] Event lifecycle and metadata (1.1.6–1.1.7): id, timestamp, attempt, trace context; immutable payload
   - [X] Debug contract emitted per unit as `build/debug/ir/<package>/<unit>.eventmeta.json` (`eventmeta.v1`) with fields: `id`, `timestamp` (ISO‑8601 UTC), `attempt` (int), and structured `trace` context (`trace.traceparent`, `trace.tracestate`); plus `immutablePayload: true`.
-  - Runtime semantics are deferred; compiler enforces immutable event parameter shape (no pointers) and records generics; body‑level immutability checks are deferred until the imperative subset lands.
+  - [ ] Runtime semantics; 
+    - compiler enforces immutable event parameter shape (no pointers) and records generics; 
+    - body‑level immutability checks (imperative subset lands must be completed first).
 ### 1.2.3.0. Worker Functions (Ch. 1.5, 2.2.6, 2.2.13)
 - [X] Canonical signature parsed and enforced for worker references (ambient state, no raw pointers):
   `func(ev Event<T>) (Event<U>, error)`
@@ -1194,8 +1200,8 @@ Types & Semantics (incremental)
       - [ ] Instantiate return type from call-site constraints for single-result functions (used in return/assignment checks).
       - [ ] Tuple returns: instantiate callee multi-result types at return sites when returning a call expression.
     - [ ] Container/generic propagation: infer element/key types for `slice<T>`, `set<T>`, and `map<K,V>` based on construction and assignment sites.
-      - [ ] Literal-based inference for `slice{...}`, `set{...}`, `map{...}` without explicit type args; unify with assignment/return types.
-      - [ ] Assignment unification for containers (element/key/value type checks).
+      - [X] Literal-based inference for `slice{...}`, `set{...}`, `map{...}` without explicit type args; unify with assignment/return types.
+      - [X] Assignment unification for containers (element/key/value type checks).
     - [ ] Event/Error propagation: infer payload types for `Event<T>` / `Error<E>` flows through transforms and pipeline steps (within the file/local scope as a start).
     - [ ] Exclusions (initial): no overloading, no implicit conversions beyond documented numeric/string literal rules, no cross‑package global inference.
   - Diagnostics

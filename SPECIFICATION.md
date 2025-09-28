@@ -1278,7 +1278,7 @@ Edges Runtime Scaffolding (for harness/tests)
  - [X] Ensure stable ordering of listings/output (sorted)
  - [X] Ensure locale‑agnostic formatting (timestamps ISO‑8601 UTC)
 - [X] Tests: verify no TTY prompts, stable outputs in golden tests
- - [ ] Ensure reproducibility: fixed ordering for maps/sets, stable timestamps in logs (ISO‑8601 UTC), stable file layouts; golden tests for AST/IR serializers
+ - [X] Ensure reproducibility: fixed ordering for maps/sets, stable timestamps in logs (ISO‑8601 UTC), stable file layouts; golden tests for AST/IR serializers
 
 ### 10) Documentation and Help
 

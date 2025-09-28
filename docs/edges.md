@@ -7,7 +7,7 @@ Kinds:
 - FIFO: queue with optional bounds and backpressure. Backpressure in {block, dropOldest, dropNewest, shuntNewest, shuntOldest}. Derived debug fields: bounded (Max>0), delivery (block=>atLeastOnce, else bestEffort).
 - LIFO: stack with the same backpressure/bounds semantics as FIFO.
 - Pipeline: reference to another pipeline by name and an optional textual payload type. Future phases will enforce cross-pipeline type matching.
-- MultiPath: merge behavior configuration for Collect nodes. Supports simple k=v attributes and `merge.*(...)` attribute calls. Deeper semantics (unknown attrs, conflicts, arg checks) are validated in the sem package.
+ - MultiPath: merge behavior configuration for Collect nodes. Supports simple k=v attributes and `merge.*(...)` attribute calls. Deeper semantics (unknown attrs, conflicts, arg checks) are validated in the sem package. See normalized merge scaffold in `contracts.v1`/`pipelines.v1` (`mergeNorm`) for Buffer/Stable/Sort.
 
 These stubs are intentionally minimal to limit blast radius. They enable downstream phases to share a common structure for edges without embedding parser/semantics details.
 
@@ -28,7 +28,7 @@ Schema:
   - `delivery`: `atLeastOnce` or `bestEffort` derived from backpressure policy
   - `type`: optional step type (from `type("T")` attribute)
   - `tinyBuffer`: bool hint when capacity is very small with drop policy
-- `collect` (optional): array of `edge.MultiPath` snapshots for `Collect` steps:
+  - `collect` (optional): array of `edge.MultiPath` snapshots for `Collect` steps:
   - `unit`: unit name
   - `step`: step name where the multipath appears
   - `multipath`:
@@ -58,5 +58,23 @@ Example:
       }
     }
   ]
+}
+```
+
+Example (Collect with multiple upstreams)
+
+```
+pipeline P(){
+  A().Collect(merge.Buffer(4, dropOldest), merge.Stable(), merge.Sort(ts, asc)).B()
+}
+```
+
+The debug snapshot includes raw `merge` attributes and a normalized `mergeNorm`:
+
+```
+"mergeNorm": {
+  "buffer": {"capacity": 4, "policy": "dropOldest"},
+  "stable": true,
+  "sort": [{"field": "ts", "order": "asc"}]
 }
 ```

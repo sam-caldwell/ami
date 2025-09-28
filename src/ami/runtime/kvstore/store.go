@@ -1,6 +1,7 @@
 package kvstore
 
 import (
+    "container/list"
     "sync"
     "time"
 )
@@ -11,10 +12,49 @@ type Store struct {
     mu      sync.RWMutex
     items   map[string]*entry
     metrics Metrics
+    cap     int
+    lru     *list.List            // most-recently used at back
+    order   map[string]*list.Element
 }
 
 // New creates a new empty Store.
-func New() *Store { return &Store{items: make(map[string]*entry)} }
+func New() *Store { return &Store{items: make(map[string]*entry), lru: list.New(), order: map[string]*list.Element{}} }
+
+// SetCapacity sets a maximum number of entries; 0 disables eviction.
+func (s *Store) SetCapacity(n int) {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    if n < 0 { n = 0 }
+    s.cap = n
+    s.enforceCapacityLocked()
+}
+
+func (s *Store) touchLocked(key string) {
+    if el, ok := s.order[key]; ok {
+        s.lru.MoveToBack(el)
+    } else {
+        s.order[key] = s.lru.PushBack(key)
+    }
+}
+
+func (s *Store) removeKeyLocked(key string) {
+    if el, ok := s.order[key]; ok { s.lru.Remove(el); delete(s.order, key) }
+    delete(s.items, key)
+}
+
+func (s *Store) enforceCapacityLocked() {
+    if s.cap <= 0 { return }
+    for len(s.items) > s.cap {
+        // evict least-recently used (front)
+        el := s.lru.Front()
+        if el == nil { break }
+        k := el.Value.(string)
+        s.lru.Remove(el)
+        delete(s.order, k)
+        delete(s.items, k)
+        s.metrics.Evictions++
+    }
+}
 
 // Put stores a value with optional TTL and maxReads (delete-on-read after N gets).
 func (s *Store) Put(key string, val any, opts ...PutOption) {
@@ -22,9 +62,11 @@ func (s *Store) Put(key string, val any, opts ...PutOption) {
     s.mu.Lock()
     defer s.mu.Unlock()
     e := &entry{val: val}
-    if o.ttl > 0 { e.expireAt = time.Now().Add(o.ttl) }
+    if o.ttl > 0 { e.expireAt = time.Now().Add(o.ttl); e.ttlDur = o.ttl; e.sliding = o.sliding }
     if o.maxReads > 0 { e.remainingReads = o.maxReads }
     s.items[key] = e
+    s.touchLocked(key)
+    s.enforceCapacityLocked()
 }
 
 // Get returns a value if present and not expired. It decrements remainingReads
@@ -38,8 +80,13 @@ func (s *Store) Get(key string) (any, bool) {
     v := e.val
     if e.remainingReads > 0 {
         e.remainingReads--
-        if e.remainingReads == 0 { delete(s.items, key) }
+        if e.remainingReads == 0 { s.removeKeyLocked(key) }
     }
+    // Sliding TTL refresh
+    if e.sliding && e.ttlDur > 0 {
+        e.expireAt = time.Now().Add(e.ttlDur)
+    }
+    s.touchLocked(key)
     s.metrics.Hits++
     return v, true
 }
@@ -48,7 +95,7 @@ func (s *Store) Get(key string) (any, bool) {
 func (s *Store) Del(key string) bool {
     s.mu.Lock()
     defer s.mu.Unlock()
-    if _, ok := s.items[key]; ok { delete(s.items, key); return true }
+    if _, ok := s.items[key]; ok { s.removeKeyLocked(key); return true }
     return false
 }
 
@@ -81,4 +128,3 @@ func (s *Store) Metrics() Metrics {
     m.CurrentSize = len(s.items)
     return m
 }
-

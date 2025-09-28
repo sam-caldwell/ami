@@ -7,6 +7,8 @@ type entry struct {
     val            any
     expireAt       time.Time
     remainingReads int
+    ttlDur         time.Duration
+    sliding        bool
 }
 
 func (e *entry) isExpiredAt(t time.Time) bool {
@@ -16,4 +18,3 @@ func (e *entry) isExpiredAt(t time.Time) bool {
 func (e *entry) expired() bool { return e.isExpiredAt(time.Now()) }
 
 func (e *entry) expiredLocked() bool { return e.expired() }
-

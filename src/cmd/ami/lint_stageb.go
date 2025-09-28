@@ -1,6 +1,8 @@
 package main
 
 import (
+    "bufio"
+    "bytes"
     "os"
     "path/filepath"
     "strings"
@@ -200,6 +202,58 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
 
             // Pipeline buffer/backpressure smells, capability (I/O) checks, and reachability
             if t.StageB {
+                // Gather declared capabilities and trust level from pragmas (parser + raw scan fallback)
+                declCaps := map[string]bool{}
+                trustLevel := ""
+                for _, pr := range af.Pragmas {
+                    switch strings.ToLower(pr.Domain) {
+                    case "capabilities":
+                        if pr.Params != nil {
+                            if lst, ok := pr.Params["list"]; ok && lst != "" {
+                                for _, p := range strings.Split(lst, ",") {
+                                    p = strings.TrimSpace(p)
+                                    if p != "" { declCaps[strings.ToLower(p)] = true }
+                                }
+                            }
+                        }
+                        for _, a := range pr.Args { declCaps[strings.ToLower(a)] = true }
+                    case "trust":
+                        if pr.Params != nil {
+                            if lv, ok := pr.Params["level"]; ok { trustLevel = strings.ToLower(lv) }
+                        }
+                    }
+                }
+                // Fallback: scan raw source pragmas if parser did not attach them
+                if len(declCaps) == 0 || trustLevel == "" {
+                    scanner := bufio.NewScanner(bytes.NewReader(b))
+                    for scanner.Scan() {
+                        ln := strings.TrimSpace(scanner.Text())
+                        if !strings.HasPrefix(ln, "#pragma ") { continue }
+                        body := strings.TrimSpace(strings.TrimPrefix(ln, "#pragma "))
+                        if strings.HasPrefix(body, "capabilities ") {
+                            rest := strings.TrimSpace(strings.TrimPrefix(body, "capabilities "))
+                            if strings.HasPrefix(rest, "list=") {
+                                kv := parseKV(rest)
+                                if lst := kv["list"]; lst != "" {
+                                    for _, p := range strings.Split(lst, ",") {
+                                        p = strings.TrimSpace(p)
+                                        if p != "" { declCaps[strings.ToLower(p)] = true }
+                                    }
+                                }
+                            } else {
+                                // treat remaining tokens as args
+                                for _, tok := range strings.Fields(rest) {
+                                    t := strings.Trim(tok, "\"'")
+                                    if t != "" { declCaps[strings.ToLower(t)] = true }
+                                }
+                            }
+                        } else if strings.HasPrefix(body, "trust ") {
+                            rest := strings.TrimSpace(strings.TrimPrefix(body, "trust "))
+                            kv := parseKV(rest)
+                            if lv := kv["level"]; lv != "" { trustLevel = strings.ToLower(lv) }
+                        }
+                    }
+                }
                 for _, dcl := range af.Decls {
                     pd, ok := dcl.(*ast.PipelineDecl); if !ok || pd == nil { continue }
                     var stmts []ast.Stmt
@@ -212,6 +266,26 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                         if strings.HasPrefix(lname, "io.") && lname != "ingress" && lname != "egress" {
                             d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
                             if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                        // Capability declaration required for io.* even when positionally allowed
+                        if strings.HasPrefix(lname, "io.") {
+                            // derive specific capability
+                            cap := "io"
+                            // map common io verbs
+                            if strings.HasPrefix(lname, "io.read") || strings.HasPrefix(lname, "io.recv") { cap = "io.read" }
+                            if strings.HasPrefix(lname, "io.write") || strings.HasPrefix(lname, "io.send") { cap = "io.write" }
+                            if strings.HasPrefix(lname, "io.connect") || strings.HasPrefix(lname, "io.listen") || strings.HasPrefix(lname, "io.dial") { cap = "network" }
+                            // allow generic io capability for read/write specifics
+                            allowed := declCaps[cap] || declCaps["io"]
+                            if !allowed {
+                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_CAPABILITY_REQUIRED", Message: "io.* operation requires declared capability: " + cap, File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"cap": cap}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
+                            // trust enforcement: forbid network for untrusted
+                            if (trustLevel == "untrusted" || trustLevel == "low") && cap == "network" {
+                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_FORBIDDEN", Message: "trust level forbids network operations", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"trust": trustLevel}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
                         }
                         // Step-call form: merge.Buffer(capacity, policy)
                         if strings.HasSuffix(lname, ".buffer") {
@@ -242,6 +316,21 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                                 }
                                 if capVal <= 1 && (policy == "dropoldest" || policy == "dropnewest") {
                                     d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_POLICY_SMELL", Message: "buffer policy with capacity<=1 is likely ineffective", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"capacity": capVal, "policy": policy}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                }
+                            }
+                            if strings.HasPrefix(name, "io.") {
+                                cap := "io"
+                                if strings.HasPrefix(name, "io.read") || strings.HasPrefix(name, "io.recv") { cap = "io.read" }
+                                if strings.HasPrefix(name, "io.write") || strings.HasPrefix(name, "io.send") { cap = "io.write" }
+                                if strings.HasPrefix(name, "io.connect") || strings.HasPrefix(name, "io.listen") || strings.HasPrefix(name, "io.dial") { cap = "network" }
+                                allowed := declCaps[cap] || declCaps["io"]
+                                if !allowed {
+                                    d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_CAPABILITY_REQUIRED", Message: "io.* operation requires declared capability: " + cap, File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"cap": cap}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                }
+                                if (trustLevel == "untrusted" || trustLevel == "low") && cap == "network" {
+                                    d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_FORBIDDEN", Message: "trust level forbids network operations", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"trust": trustLevel}}
                                     if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                                 }
                             }

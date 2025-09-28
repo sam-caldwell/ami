@@ -183,6 +183,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                     if opts.Log != nil { opts.Log("unit.ir.write", map[string]any{"pkg": p.Name, "unit": unit, "path": out}) }
                 }
                 if pp, err := writePipelinesDebug(p.Name, unit, af); err == nil { bmu.Pipelines = pp }
+                if ct, err := writeContractsDebug(p.Name, unit, af); err == nil { bmu.Contracts = ct }
                 if ssa, err := writeSSADebug(p.Name, unit, m); err == nil { _ = ssa }
                 if em, err := writeEventMetaDebug(p.Name, unit); err == nil { bmu.EventMeta = em }
                 if as, err := writeAsmDebug(p.Name, unit, af, m); err == nil { bmu.ASM = as }

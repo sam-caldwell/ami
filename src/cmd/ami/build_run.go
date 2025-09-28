@@ -18,6 +18,8 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
     "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
+    "crypto/sha256"
+    "encoding/hex"
 )
 
 func containsEnv(list []string, env string) bool {
@@ -206,6 +208,34 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             return exit.New(exit.Integrity, "manifest mismatch")
         }
     }
+    // Optional signature verification: if ami.sum.sig or ami.manifest.sig exists, verify sha256 digest
+    verifySig := func(file, sigFile string) error {
+        b, err := os.ReadFile(file); if err != nil { return err }
+        sum := sha256.Sum256(b)
+        wantHex := hex.EncodeToString(sum[:])
+        sigb, err := os.ReadFile(sigFile); if err != nil { return err }
+        got := strings.TrimSpace(string(sigb))
+        if !strings.EqualFold(got, wantHex) {
+            if jsonOut {
+                _ = json.NewEncoder(out).Encode(diag.Record{
+                    Timestamp: time.Now().UTC(),
+                    Level:     diag.Error,
+                    Code:      "E_INTEGRITY_SIGNATURE",
+                    Message:   fmt.Sprintf("signature mismatch for %s", filepath.Base(file)),
+                    File:      filepath.Base(sigFile),
+                    Data:      map[string]any{"expected": wantHex, "got": got},
+                })
+            }
+            return exit.New(exit.Integrity, "signature mismatch: %s", filepath.Base(file))
+        }
+        return nil
+    }
+    if _, err := os.Stat(filepath.Join(dir, "ami.sum.sig")); err == nil {
+        if err := verifySig(filepath.Join(dir, "ami.sum"), filepath.Join(dir, "ami.sum.sig")); err != nil { return err }
+    }
+    if _, err := os.Stat(filepath.Join(dir, "ami.manifest.sig")); err == nil {
+        if err := verifySig(filepath.Join(dir, "ami.manifest"), filepath.Join(dir, "ami.manifest.sig")); err != nil { return err }
+    }
     // Consider issues when ami.sum missing or any lists are non-empty as violations for this phase.
     if len(rep.Requirements) > 0 && (!rep.SumFound || len(rep.MissingInSum) > 0 || len(rep.Unsatisfied) > 0 || len(rep.MissingInCache) > 0 || len(rep.Mismatched) > 0 || len(rep.ParseErrors) > 0) {
         if jsonOut {
@@ -313,6 +343,7 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             "hits":        mts.Hits,
             "misses":      mts.Misses,
             "expirations": mts.Expirations,
+            "evictions":   mts.Evictions,
             "currentSize": mts.CurrentSize,
         }
         _ = writeJSONFile(filepath.Join(kvDir, "metrics.json"), mobj)

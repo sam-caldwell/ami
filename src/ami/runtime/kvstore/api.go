@@ -18,3 +18,5 @@ func Keys() []string { return defaultStore.Keys() }
 // Stats returns default store metrics snapshot.
 func Stats() Metrics { return defaultStore.Metrics() }
 
+// SetCapacity sets default store capacity (0 disables eviction).
+func SetCapacity(n int) { defaultStore.SetCapacity(n) }

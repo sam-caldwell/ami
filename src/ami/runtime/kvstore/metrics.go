@@ -5,6 +5,6 @@ type Metrics struct {
     Hits        int
     Misses      int
     Expirations int
+    Evictions   int
     CurrentSize int
 }
-

@@ -97,7 +97,13 @@ func newRootCmd() *cobra.Command {
     // events commands (hidden)
     events := newEventsCmd()
     events.AddCommand(newEventsSchemaCmd())
+    events.AddCommand(newEventsValidateCmd())
     cmd.AddCommand(events)
+    // errors commands (hidden)
+    errorsCmd := newErrorsCmd()
+    errorsCmd.AddCommand(newErrorsSchemaCmd())
+    errorsCmd.AddCommand(newErrorsValidateCmd())
+    cmd.AddCommand(errorsCmd)
     return cmd
 }
 

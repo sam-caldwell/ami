@@ -24,6 +24,7 @@ type pipelineOp struct {
     Args []string `json:"args,omitempty"`
     Edge *edgeAttrs `json:"edge,omitempty"`
     Merge []pipeMergeAttr `json:"merge,omitempty"`
+    MergeNorm *pipeMergeNorm `json:"mergeNorm,omitempty"`
     MultiPath *pipeMultiPath `json:"multipath,omitempty"`
     Attrs []pipeAttr `json:"attrs,omitempty"`
 }
@@ -37,6 +38,19 @@ type edgeAttrs struct {
 type pipeMergeAttr struct {
     Name string   `json:"name"`
     Args []string `json:"args"`
+}
+
+// Normalized merge config (scaffold)
+type pipeMergeNorm struct {
+    Buffer *struct{
+        Capacity int    `json:"capacity"`
+        Policy   string `json:"policy,omitempty"`
+    } `json:"buffer,omitempty"`
+    Stable bool `json:"stable,omitempty"`
+    Sort   []struct{
+        Field string `json:"field"`
+        Order string `json:"order"`
+    } `json:"sort,omitempty"`
 }
 
 type pipeMultiPath struct {
@@ -81,6 +95,7 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                 op.Edge = &edgeAttrs{Bounded: false, Delivery: defaultDelivery}
                 // attributes
                 var rawAttrs []pipeAttr
+                var norm pipeMergeNorm
                 for _, at := range st.Attrs {
                     // generic list
                     var aargs []string
@@ -102,6 +117,29 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                                 if pol == "dropOldest" || pol == "dropNewest" { op.Edge.Delivery = "bestEffort" }
                                 if pol == "block" { op.Edge.Delivery = "atLeastOnce" }
                             }
+                            // normalized buffer
+                            cap := 0
+                            if len(margs) > 0 {
+                                // simple atoi
+                                for i := 0; i < len(margs[0]); i++ {
+                                    if margs[0][i] >= '0' && margs[0][i] <= '9' { cap = cap*10 + int(margs[0][i]-'0') } else { cap = 0; break }
+                                }
+                            }
+                            nb := struct{ Capacity int `json:"capacity"`; Policy string `json:"policy,omitempty"` }{Capacity: cap}
+                            if len(margs) > 1 { nb.Policy = margs[1] }
+                            norm.Buffer = &nb
+                        }
+                        if at.Name == "merge.Stable" {
+                            norm.Stable = true
+                        }
+                        if at.Name == "merge.Sort" {
+                            var field, order string
+                            if len(margs) > 0 { field = margs[0] }
+                            if len(margs) > 1 { order = margs[1] } else { order = "asc" }
+                            norm.Sort = append(norm.Sort, struct{
+                                Field string `json:"field"`
+                                Order string `json:"order"`
+                            }{Field: field, Order: order})
                         }
                     }
                     if (at.Name == "edge.MultiPath" || at.Name == "MultiPath") && st.Name == "Collect" {
@@ -119,6 +157,7 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                     }
                 }
                 op.Attrs = rawAttrs
+                if norm.Buffer != nil || norm.Stable || len(norm.Sort) > 0 { op.MergeNorm = &norm }
                 steps = append(steps, op)
             }
         }

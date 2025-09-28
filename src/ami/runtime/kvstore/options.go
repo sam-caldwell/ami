@@ -8,6 +8,7 @@ type PutOption func(*putOptions)
 type putOptions struct {
     ttl      time.Duration
     maxReads int
+    sliding  bool
 }
 
 func applyOptions(opts []PutOption) putOptions {
@@ -22,3 +23,5 @@ func WithTTL(d time.Duration) PutOption { return func(o *putOptions) { o.ttl = d
 // WithMaxReads sets delete-on-read after N successful reads.
 func WithMaxReads(n int) PutOption { return func(o *putOptions) { if n > 0 { o.maxReads = n } } }
 
+// WithSlidingTTL refreshes expiration to now+ttl on each successful Get.
+func WithSlidingTTL() PutOption { return func(o *putOptions) { o.sliding = true } }

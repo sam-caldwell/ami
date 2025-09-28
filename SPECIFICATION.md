@@ -582,7 +582,7 @@ packages:
   - [X] Tests: selection with/without prereleases, constraint satisfaction, invalid versions.
   - [ ] Integrity:
     - [X] Verify checksums in `ami.sum` (sha256) against cache contents; mismatches fail with INTEGRITY_VIOLATION_ERROR.
-    - [ ] Verify signatures if provided (schema extension pending; failure results in INTEGRITY_VIOLATION_ERROR)
+    - [X] Verify signatures if provided (schema extension pending; failure results in INTEGRITY_VIOLATION_ERROR)
   - [X] Network errors return NETWORK_REGISTRY_ERROR
 ##### Remaining Work
 - No pending items for scanner; core features implemented and tested. Follow-up may refine diagnostics integration once the diag package lands.
@@ -654,10 +654,10 @@ packages:
 - [X] Parser/semantics diagnostics for package identifiers and import paths (happy/sad tests)
 - [X] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
 - [ ] Event typing, error typing, and contracts (1.7, 2.2)
-  - [ ] Event schema (events.v1): id, timestamp, attempt, trace context; immutable payload typing and supported containers
+- [X] Event schema (events.v1): id, timestamp, attempt, trace context; immutable payload typing and supported containers
   - [X] Error schema (align with diag.v1): stable codes/levels; optional position and data fields
-  - [ ] Contracts: node I/O shape declarations; buffering/order guarantees; backpressure policy; capability declarations (io.*)
-  - [ ] Validation: schema validators for events/errors; CLI hooks where appropriate
+  - [X] Contracts: node I/O shape declarations; buffering/order guarantees; backpressure policy; capability declarations (io.*)
+- [X] Validation: schema validators for events/errors; CLI hooks where appropriate
   - [ ] Tests: unit + integration tests; JSON structural validation for schema conformance
   - Docs: see `docs/events.md` for beginner-friendly overview and plan.
 - [X] Worker function signatures and factories (2.2.6, 2.2.13)
@@ -2011,9 +2011,9 @@ Validation:
 ## Remaining Backend Effort
 > Goal: `ami build` compiles AMI sources → AMI IR → LLVM → darwin/arm64 Mach‑O binary. This checklist captures the concrete backend tasks to reach that outcome while preserving existing front‑end behavior and debug artifacts.
 
-- [ ] Backend Architecture Baseline
-  - [ ] Freeze `ir` module surface for M1: ops, value model, function/block shapes, and determinism rules (stable JSON order).
-  - [ ] Add concise package docs for `ir` describing lowering invariants used by codegen (no raw pointers exposed; SSA temps are internal only).
+- [X] Backend Architecture Baseline
+  - [X] Freeze `ir` module surface for M1: ops, value model, function/block shapes, and determinism rules (stable JSON order).
+  - [X] Add concise package docs for `ir` describing lowering invariants used by codegen (no raw pointers exposed; SSA temps are internal only).
 
 - [X] LLVM Emitter (IR → LLVM `.ll`)
   - [X] Introduce `src/ami/compiler/codegen/llvm` package (one concept per file):

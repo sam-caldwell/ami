@@ -72,6 +72,7 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                 "hits":        mts.Hits,
                 "misses":      mts.Misses,
                 "expirations": mts.Expirations,
+                "evictions":   mts.Evictions,
                 "currentSize": mts.CurrentSize,
             }
             _ = writeJSONFile(filepath.Join(kvDir, "metrics.json"), mobj)

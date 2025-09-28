@@ -197,11 +197,13 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                         llPath := filepath.Join(objDir, unit+".ll")
                         _ = os.WriteFile(llPath, []byte(llvmText), 0o644)
                         if opts.Log != nil { opts.Log("unit.ll.emit", map[string]any{"pkg": p.Name, "unit": unit, "path": llPath}) }
-                        oPath := filepath.Join(objDir, unit+".o")
-                        if err := llvme.CompileLLToObject(clang, llPath, oPath, defTriple); err != nil {
-                            outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile LLVM to object", File: llPath})
-                        } else if opts.Log != nil {
-                            opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})
+                        if !opts.EmitLLVMOnly {
+                            oPath := filepath.Join(objDir, unit+".o")
+                            if err := llvme.CompileLLToObject(clang, llPath, oPath, defTriple); err != nil {
+                                outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile LLVM to object", File: llPath})
+                            } else if opts.Log != nil {
+                                opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})
+                            }
                         }
                     }
                     // Emit per-env objects under build/<env>/obj/<pkg>/unit.o
@@ -212,9 +214,11 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                             _ = os.MkdirAll(envObjDir, 0o755)
                             llPathEnv := filepath.Join(envObjDir, unit+".ll")
                             _ = os.WriteFile(llPathEnv, []byte(llvmText), 0o644)
-                            oPathEnv := filepath.Join(envObjDir, unit+".o")
-                            if err := llvme.CompileLLToObject(clang, llPathEnv, oPathEnv, triple); err == nil {
-                                if opts.Log != nil { opts.Log("unit.obj.env.write", map[string]any{"pkg": p.Name, "unit": unit, "env": env, "path": oPathEnv}) }
+                            if !opts.EmitLLVMOnly {
+                                oPathEnv := filepath.Join(envObjDir, unit+".o")
+                                if err := llvme.CompileLLToObject(clang, llPathEnv, oPathEnv, triple); err == nil {
+                                    if opts.Log != nil { opts.Log("unit.obj.env.write", map[string]any{"pkg": p.Name, "unit": unit, "env": env, "path": oPathEnv}) }
+                                }
                             }
                         }
                     }

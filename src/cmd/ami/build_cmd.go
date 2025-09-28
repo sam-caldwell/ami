@@ -8,6 +8,8 @@ import (
 // newBuildCmd returns the `ami build` subcommand.
 func newBuildCmd() *cobra.Command {
     var jsonOut bool
+    var emitLLVMOnly bool
+    var noLink bool
     cmd := &cobra.Command{
         Use:   "build",
         Short: "Validate workspace and build (phase: validation)",
@@ -17,9 +19,11 @@ func newBuildCmd() *cobra.Command {
             wd, err := os.Getwd()
             if err != nil { return err }
             verbose, _ := cmd.Flags().GetBool("verbose")
-            return runBuild(cmd.OutOrStdout(), wd, jsonOut, verbose)
+            return runBuild(cmd.OutOrStdout(), wd, jsonOut, verbose, emitLLVMOnly, noLink)
         },
     }
     cmd.Flags().BoolVar(&jsonOut, "json", false, "emit JSON diagnostics and results")
+    cmd.Flags().BoolVar(&emitLLVMOnly, "emit-llvm-only", false, "emit .ll only; skip object compilation")
+    cmd.Flags().BoolVar(&noLink, "no-link", false, "skip linking stage (future; reserved)")
     return cmd
 }

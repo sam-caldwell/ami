@@ -96,9 +96,9 @@
     - [x] Build: `go build -o build/ami ./src/cmd/ami`
     - [x] Repository structure and testing conventions from AGENTS.md are enforced (source under `src/`, one type/function per file where practical, `_test.go` colocated, happy/sad path tests, ≥75% coverage with 80% target)
   - [ ] AMI compiler architecture
-    - [ ] `compiler/sem`: decomposed into modular files mirroring `scanner` pattern (one concept per file)
+  - [X] `compiler/sem`: decomposed into modular files mirroring `scanner` pattern (one concept per file)
     - [X] `compiler/source`: decomposed into modular files (`position.go`, `file.go`, `fileset.go`) with tests split per concept
-    - [ ] `compiler/types`: verified modular split by concept; added concise docs and unit tests for composites, basics, and function rendering
+  - [X] `compiler/types`: verified modular split by concept; added concise docs and unit tests for composites, basics, and function rendering
     - [ ] `manifest`: decomposed into `types.go`, `validate.go`, `sumcheck.go`, and `io.go`; existing tests left intact and passing
 - [X] Docs for user‑visible commands under `docs/` updated alongside features
 - [X] `ami.sum` JSON summary file with package→version→sha256 mapping; 
@@ -425,7 +425,7 @@ packages:
     - generates itabs/reflect data/GC tables/DWARF,
     - embeds assets,
     - and produces the binary (PIE/static as configured).
-- [ ] Invoke compiler driver to compile workspace packages into `toolchain.target/toolchain.env[]`
+- [X] Invoke compiler driver to compile workspace packages into `toolchain.target/toolchain.env[]`
   directory (e.g. `./build/${env}`) (deterministic file layout).
 - [X] Compiler can generate final LLVM object code as object artifacts
 - [ ] Compiler can generate the LLVM runtime artifacts needed to produce the AMI binary.
@@ -1246,7 +1246,7 @@ Type System and Semantics (Phase 2.1)
   - [ ] Broader local expression inference (idents across scopes), return-site inference without annotations, and container propagation.
 - [ ] Semantics: cross‑package name resolution (multi‑file), constant evaluation, additional validation rules
 - [X] IR: lower imperative subset and full pipeline semantics with typed annotations
-- [ ] Codegen: emit real object files (beyond debug ASM) and integrate into build plan
+- [X] Codegen: emit real object files (beyond debug ASM) and integrate into build plan
 
 
 

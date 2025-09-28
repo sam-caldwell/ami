@@ -258,7 +258,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             if lg := getRootLogger(); lg != nil {
                 logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
             }
-            _, _ = driver.Compile(ws, dbgPkgs, driver.Options{Debug: true, Log: logcb})
+            _, _ = driver.Compile(ws, dbgPkgs, driver.Options{Debug: true, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink, Log: logcb})
             _ = os.Chdir(oldwd)
         }
         // Build plan after emitting artifacts; include object index paths when present
@@ -348,7 +348,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             }
             oldwd, _ := os.Getwd()
             _ = os.Chdir(dir)
-            _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false, Log: logcb})
+            _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink, Log: logcb})
             _ = os.Chdir(oldwd)
             if len(diags) > 0 {
                 enc := json.NewEncoder(out)

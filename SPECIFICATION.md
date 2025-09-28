@@ -590,16 +590,12 @@ packages:
   - [ ] SHA‑256 recorded from raw commit object for annotated and lightweight tags; deterministic digest.
   - [X] Detect and error on digest mismatch (cache tamper) with exit code 3 (build integrity test).
   - [X] `ami.sum` is not removed by `ami clean` and persists across builds.
-
-CLI & Output
-
+##### CLI & Output
 - [X] Flags: `--strict`, `--rules=<pattern>`, `--max-warn=<n>` (regex `/.../` and `re:<expr>`, glob `*?[]`, and substring supported). `--json` and `--color` are global flags.
 - [ ] JSON: `diag.v1` codes use `LINT_*` namespace; include `file`, `pos`, and `data` fields where relevant
   - Note: current JSON uses existing rule codes (e.g., `W_*`, `E_*`). A compatibility alias `LINT_*` is available under `data.compatCode` when `--compat-codes` is set. Full code namespace migration remains pending.
 - [X] Human: severity prefixes; counts summary; non‑zero exit on errors (and on warnings when `--strict`)
-
-Tests & Docs
-
+##### Tests & Docs
 - [X] Unit tests for suppression and severity configuration; tests for import alias duplication and order; position assertions
 - [X] Integration tests for cross‑package constraint checks using temporary multi‑package workspaces
 - [X] Docs: `docs/lint.md` updated with rules list, severities/suppression, and CLI flags (`--strict`, `--rules`, `--max-warn`) with examples

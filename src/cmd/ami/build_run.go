@@ -274,6 +274,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             Packages  []planPkg `json:"packages"`
             ObjIndex  []string  `json:"objIndex,omitempty"`
             Objects   []string  `json:"objects,omitempty"`
+            ObjectsByEnv map[string][]string `json:"objectsByEnv,omitempty"`
         }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
         for _, e := range ws.Packages {
             // detect any object files for this package
@@ -291,6 +292,21 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             if matches, _ := filepath.Glob(glob); len(matches) > 0 {
                 for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { plan.Objects = append(plan.Objects, rel) } }
             }
+        }
+        // Include per-env objects if present under build/<env>/obj/**
+        if len(envs) > 0 {
+            plan.ObjectsByEnv = map[string][]string{}
+            for _, env := range envs {
+                var list []string
+                for _, e := range ws.Packages {
+                    glob := filepath.Join(dir, "build", env, "obj", e.Package.Name, "*.o")
+                    if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                        for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { list = append(list, rel) } }
+                    }
+                }
+                if len(list) > 0 { sort.Strings(list); plan.ObjectsByEnv[env] = list }
+            }
+            if len(plan.ObjectsByEnv) == 0 { plan.ObjectsByEnv = nil }
         }
         if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
             _ = json.NewEncoder(f).Encode(plan)

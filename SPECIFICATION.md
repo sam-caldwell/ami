@@ -1274,10 +1274,10 @@ Edges Runtime Scaffolding (for harness/tests)
 
 ### 9) Determinism and Non‑Interactive Operation
 
-- [ ] All subcommands avoid prompts (use flags for destructive actions)
- - [D] Ensure stable ordering of listings/output (sorted)
+- [X] All subcommands avoid prompts (use flags for destructive actions)
+ - [X] Ensure stable ordering of listings/output (sorted)
 - [ ] Ensure locale‑agnostic formatting (timestamps ISO‑8601 UTC)
-- [ ] Tests: verify no TTY prompts, stable outputs in golden tests
+- [X] Tests: verify no TTY prompts, stable outputs in golden tests
  - [ ] Ensure reproducibility: fixed ordering for maps/sets, stable timestamps in logs (ISO‑8601 UTC), stable file layouts; golden tests for AST/IR serializers
 
 ### 10) Documentation and Help

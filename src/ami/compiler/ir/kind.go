@@ -9,6 +9,12 @@ const (
     OpReturn
     OpDefer
     OpExpr
+    OpLoop
+    OpGoto
+    OpSetPC
+    OpDispatch
+    OpPushFrame
+    OpPopFrame
 )
 
 func (k Kind) String() string {
@@ -23,8 +29,19 @@ func (k Kind) String() string {
         return "DEFER"
     case OpExpr:
         return "EXPR"
+    case OpLoop:
+        return "LOOP"
+    case OpGoto:
+        return "GOTO"
+    case OpSetPC:
+        return "SET_PC"
+    case OpDispatch:
+        return "DISPATCH"
+    case OpPushFrame:
+        return "PUSH_FRAME"
+    case OpPopFrame:
+        return "POP_FRAME"
     default:
         return "?"
     }
 }
-

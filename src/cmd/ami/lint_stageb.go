@@ -82,6 +82,16 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                 }
             }
 
+            // Unused detection: variables and functions (file-local)
+            if t.StageB || t.Unused {
+                for _, ud := range sem.AnalyzeUnused(af) {
+                    d := ud
+                    if d.File == "" { d.File = path }
+                    if m := disables[path]; m != nil && m[d.Code] { continue }
+                    out = append(out, d)
+                }
+            }
+
             // Collect used identifiers (first segment of selector/call names) for unused import checks.
             used := collectUsedIdents(af)
 

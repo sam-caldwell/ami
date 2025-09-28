@@ -268,6 +268,7 @@ Dependencies:
 - M5 Frontend (Source→AST) and M6 Semantics (initial) complete (symbol tables, const evaluation scaffold)
 - M9 IR + Artifacts complete (deterministic IR)
 - M10 Codegen & Linking baseline complete (so optimizer changes are observable and testable)
+- M14 — RAII + Generic Inference
 
 Deliverables:
 - Dead Code Elimination (DCE):

@@ -101,6 +101,18 @@ func instrsToJSON(ins []Instruction) []any {
             out = append(out, map[string]any{"op": OpDefer.String(), "expr": exprToJSON(v.Expr)})
         case Expr:
             out = append(out, map[string]any{"op": OpExpr.String(), "expr": exprToJSON(v)})
+        case Loop:
+            out = append(out, map[string]any{"op": OpLoop.String(), "name": v.Name})
+        case Goto:
+            out = append(out, map[string]any{"op": OpGoto.String(), "label": v.Label})
+        case SetPC:
+            out = append(out, map[string]any{"op": OpSetPC.String(), "pc": v.PC})
+        case Dispatch:
+            out = append(out, map[string]any{"op": OpDispatch.String(), "label": v.Label})
+        case PushFrame:
+            out = append(out, map[string]any{"op": OpPushFrame.String(), "fn": v.Fn})
+        case PopFrame:
+            out = append(out, map[string]any{"op": OpPopFrame.String()})
         default:
             // ignore unknown
         }

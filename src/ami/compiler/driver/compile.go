@@ -153,6 +153,18 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeContainerTypes(af))
             // lower
             m := lowerFile(p.Name, af, paramSigs, resultSigs, paramNames)
+            // Optimizer M18 (DCE): remove unreferenced functions per file
+            // Only apply when a 'main' root exists; otherwise keep all functions for tooling/tests.
+            hasMain := false
+            for _, d := range af.Decls { if fn, ok := d.(*ast.FuncDecl); ok && fn.Name == "main" { hasMain = true; break } }
+            if hasMain {
+                reach := sem.ReachableFunctions(af)
+                if len(reach) > 0 {
+                    var kept []ir.Function
+                    for _, fn := range m.Functions { if reach[fn.Name] { kept = append(kept, fn) } }
+                    if len(kept) > 0 { m.Functions = kept }
+                }
+            }
             if opts.Debug {
                 if s, err := writeSourcesDebug(p.Name, unit, af); err == nil { bmu.Sources = s }
                 // accumulate resolved sources payload for top-level summary

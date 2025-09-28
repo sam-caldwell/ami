@@ -25,6 +25,19 @@ func lowerFuncDecl(fn *ast.FuncDecl, funcResMap, funcParamMap map[string][]strin
         for _, e := range d.Args { args = append(args, debugExprText(e)) }
         decos = append(decos, ir.Decorator{Name: d.Name, Args: args})
     }
+    // Tail-call elimination (self) M19: if last return is preceded by a self-call expr, mark loop/goto
+    if len(instrs) >= 2 {
+        if ret, ok := instrs[len(instrs)-1].(ir.Return); ok {
+            if ex, ok2 := instrs[len(instrs)-2].(ir.Expr); ok2 && ex.Op == "call" && ex.Callee == fn.Name {
+                // Replace the call+return with loop markers
+                instrs = instrs[:len(instrs)-2]
+                instrs = append(instrs, ir.Loop{Name: fn.Name})
+                instrs = append(instrs, ir.Goto{Label: "entry"})
+                // Synthesize a default return to keep emitter happy
+                instrs = append(instrs, ret)
+            }
+        }
+    }
     blk := ir.Block{Name: "entry", Instr: instrs}
     return ir.Function{Name: fn.Name, Params: params, Results: outResults, Blocks: []ir.Block{blk}, Decorators: decos}
 }

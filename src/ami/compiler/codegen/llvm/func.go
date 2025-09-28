@@ -51,6 +51,18 @@ func lowerFunction(fn ir.Function) (string, error) {
                 s, err := lowerReturn(v)
                 if err != nil { return "", err }
                 b.WriteString(s)
+            case ir.Loop:
+                fmt.Fprintf(&b, "  ; loop %s\n", v.Name)
+            case ir.Goto:
+                fmt.Fprintf(&b, "  ; goto %s\n", v.Label)
+            case ir.SetPC:
+                fmt.Fprintf(&b, "  ; setpc %d\n", v.PC)
+            case ir.Dispatch:
+                fmt.Fprintf(&b, "  ; dispatch %s\n", v.Label)
+            case ir.PushFrame:
+                fmt.Fprintf(&b, "  ; push_frame %s\n", v.Fn)
+            case ir.PopFrame:
+                fmt.Fprintf(&b, "  ; pop_frame\n")
             default:
                 // Unknown instruction (future): keep deterministic comment
                 b.WriteString("  ; instr\n")

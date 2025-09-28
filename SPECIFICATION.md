@@ -1237,7 +1237,7 @@ Type System and Semantics (Phase 2.1)
   - [X] Insert imported package symbols into scope (alias or last path segment) as `ObjType` of `types.TPackage` (scaffold via helper + tests)
   - [X] Tests: verify inferred signature and import symbol resolution
 - [ ] Types: unification/inference across expressions and generics within bodies
-  - [ ] Call-argument type checking + unification for single-letter generics (e.g., `Event<T>`, `Owned<T>`), intra-function only.
+  - [X] Call-argument type checking + unification for single-letter generics (e.g., `Event<T>`, `Owned<T>`), intra-function only.
   - [ ] Assignment unification for generics within bodies.
   - [ ] Arithmetic/comparison operand checks with `E_TYPE_MISMATCH` diagnostics.
   - [X] Return-site checks: `return` expressions unified against declared results; emits `E_RETURN_TYPE_MISMATCH` (scaffold).

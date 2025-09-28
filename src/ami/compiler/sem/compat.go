@@ -10,7 +10,7 @@ import (
 func typesCompatible(expected, actual string) bool {
     if expected == "" || expected == "any" || actual == "" || actual == "any" { return true }
     if expected == actual { return true }
-    // Event/Error generic compatibility
+    // Event/Error/Owned generic compatibility
     if strings.HasPrefix(expected, "Event<") && strings.HasPrefix(actual, "Event<") {
         pe := innerGeneric(expected)
         pa := innerGeneric(actual)
@@ -18,6 +18,12 @@ func typesCompatible(expected, actual string) bool {
         return pe == pa
     }
     if strings.HasPrefix(expected, "Error<") && strings.HasPrefix(actual, "Error<") {
+        pe := innerGeneric(expected)
+        pa := innerGeneric(actual)
+        if isTypeVar(pe) || isTypeVar(pa) { return true }
+        return pe == pa
+    }
+    if strings.HasPrefix(expected, "Owned<") && strings.HasPrefix(actual, "Owned<") {
         pe := innerGeneric(expected)
         pa := innerGeneric(actual)
         if isTypeVar(pe) || isTypeVar(pa) { return true }

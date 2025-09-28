@@ -2,6 +2,7 @@ package sem
 
 import (
     "time"
+    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/token"
@@ -27,6 +28,20 @@ func AnalyzeContainerTypes(f *ast.File) []diag.Record {
             case *ast.AssignStmt:
                 if v.Value == nil { continue }
                 out = append(out, checkContainerExpr(now, v.Value)...)
+            case *ast.ReturnStmt:
+                // Compare container literal element/key/value bases against declared result types when available.
+                for i, e := range v.Results {
+                    if i >= len(fn.Results) { break }
+                    exp := fn.Results[i].Type
+                    if exp == "" { continue }
+                    switch e.(type) {
+                    case *ast.SliceLit, *ast.SetLit, *ast.MapLit:
+                        if !containerCompatibleWith(exp, e) {
+                            p := epos(e)
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
+                        }
+                    }
+                }
             }
         }
     }
@@ -88,6 +103,41 @@ func checkContainerExpr(now time.Time, e ast.Expr) []diag.Record {
         }
     }
     return out
+}
+
+// containerCompatibleWith compares a declared container type string against a literal expression's
+// inferred element/key/value base types.
+func containerCompatibleWith(expected string, e ast.Expr) bool {
+    switch v := e.(type) {
+    case *ast.SliceLit:
+        // Determine element base type from elements when present; fall back to declared literal type name.
+        base := ""
+        for _, el := range v.Elems { t := deduceType(el); if t != "any" { base = t; break } }
+        if base == "" { base = v.TypeName }
+        if base == "" { base = "any" }
+        // expected should be slice<...>
+        if !strings.HasPrefix(expected, "slice<") { return true }
+        return typesCompatible(expected, "slice<"+base+">")
+    case *ast.SetLit:
+        base := ""
+        for _, el := range v.Elems { t := deduceType(el); if t != "any" { base = t; break } }
+        if base == "" { base = v.TypeName }
+        if base == "" { base = "any" }
+        if !strings.HasPrefix(expected, "set<") { return true }
+        return typesCompatible(expected, "set<"+base+">")
+    case *ast.MapLit:
+        kbase := ""; vbase := ""
+        for _, kv := range v.Elems {
+            if kbase == "" { kt := deduceType(kv.Key); if kt != "any" { kbase = kt } }
+            if vbase == "" { vt := deduceType(kv.Val); if vt != "any" { vbase = vt } }
+            if kbase != "" && vbase != "" { break }
+        }
+        if kbase == "" { kbase = v.KeyType; if kbase == "" { kbase = "any" } }
+        if vbase == "" { vbase = v.ValType; if vbase == "" { vbase = "any" } }
+        if !strings.HasPrefix(expected, "map<") { return true }
+        return typesCompatible(expected, "map<"+kbase+","+vbase+">")
+    }
+    return true
 }
 
 func prim(t string) bool {

@@ -216,6 +216,13 @@
     - (exit `USER_ERROR` with plain‑text message)
 - [x] Module setup:
     - add `spf13/cobra` (and `spf13/pflag` via Cobra) to `go.mod`
+
+### 1.0.1.4. CLI Benchmarks
+- [X] Add microbenchmarks to measure core subcommand runtimes
+  - Location: `src/cmd/ami/bench_subcommands_test.go`
+  - Measures: `ami help`, `ami version`, `ami clean`, `ami lint`, `ami test`, `ami mod {update,list,sum,get,clean}`, `ami pipeline visualize`
+  - Benchmarks run in isolated sandboxes with a temp workspace and cache (`AMI_PACKAGE_CACHE`), avoiding side effects.
+  - Does not run by default; invoke with `go test -bench . ./src/cmd/ami`.
 ## 1.1.0.0. AMI Toolchain Command Details
 ### 1.1.1.0. Workspace Management (`ami init`)
 - [X] `ami init` subcommand features complete:
@@ -1257,10 +1264,10 @@ Type System and Semantics (Phase 2.1)
 
 Edges Runtime Scaffolding (for harness/tests)
 
-- [C] Provide `push(e Event)` and `pop() Event` methods for `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline` with bounded capacity and backpressure semantics:
+- [ ] Provide `push(e Event)` and `pop() Event` methods for `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline` with bounded capacity and backpressure semantics:
   - [X] FIFO/LIFO runtime buffers with `Push/Pop` and policies: `block` → `ErrFull`; `dropOldest`/`dropNewest` implemented (shunt treated as drop).
   - [X] Pipeline runtime buffer (scaffold analogous to FIFO) with `Push/Pop`.
-- [C] Thread‑safe counters and tests for order (FIFO/LIFO), backpressure handling, and simple concurrency.
+- [ ] Thread‑safe counters and tests for order (FIFO/LIFO), backpressure handling, and simple concurrency.
   - [X] Order/backpressure tests for FIFO/LIFO.
   - [X] Simple concurrency tests (single producer/consumer) for FIFO/LIFO.
 

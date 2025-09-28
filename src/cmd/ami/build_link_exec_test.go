@@ -22,11 +22,11 @@ func TestRunBuild_LinksExecutable_WhenToolchainPresent(t *testing.T) {
     // minimal AMI source for the main package
     if err := os.WriteFile(filepath.Join(dir, "src", "u.ami"), []byte("package newProject\nfunc F(){}\n"), 0o644); err != nil { t.Fatalf("write: %v", err) }
     if err := runBuild(os.Stdout, dir, false, false); err != nil { t.Fatalf("runBuild: %v", err) }
-    bin := filepath.Join(dir, "build", "newProject")
+    env := runtime.GOOS + "/" + runtime.GOARCH
+    bin := filepath.Join(dir, "build", env, "newProject")
     if runtime.GOOS == "windows" { bin += ".exe" }
     if st, err := os.Stat(bin); err != nil || st.IsDir() { t.Fatalf("binary missing: %v st=%v", err, st) }
     // execute binary; should exit 0
     cmd := exec.Command(bin)
     if err := cmd.Run(); err != nil { t.Fatalf("run bin: %v", err) }
 }
-

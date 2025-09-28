@@ -415,7 +415,11 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                     rtObj := filepath.Join(rtDir, "runtime.o")
                     if cerr := llvme.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
                         objects = append(objects, rtObj)
-                        outBin := filepath.Join(dir, "build", binName)
+                        // Output binary under build/<env>/ per toolchain env
+                        outDir := filepath.Join(dir, "build")
+                        if len(envs) > 0 && envs[0] != "" { outDir = filepath.Join(outDir, envs[0]) }
+                        _ = os.MkdirAll(outDir, 0o755)
+                        outBin := filepath.Join(outDir, binName)
                         var extra []string
                         // basic whole-program DCE flags by platform (darwin)
                         if len(envs) > 0 && envs[0] != "" {

@@ -62,10 +62,10 @@ Example (with `Verbose=true`, `Color=true`):
 
 Verbose CLI logs flow through the stdlib logger Pipeline and are written to `build/debug/activity.log` via a file sink. Primary command outputs (stdout/stderr) remain unchanged.
 
-Defaults chosen to preserve current behavior:
+Defaults:
 - `capacity`: 256
 - `batchMax`: 1 (line-by-line)
-- `flushInterval`: 0 (disabled)
+- `flushInterval`: 250ms (time-based flush enabled)
 - `backpressure`: `block`
 
 Backpressure policies supported:
@@ -84,6 +84,17 @@ Redaction safety-net (JSON):
 Counters (observability):
 - `enqueued`, `written`, `dropped`, `batches`, `flushes` (via `Stats()`)
 - Deterministic and test-friendly; no random IDs; timestamps remain only inside log records.
+
+### Configuration (Options and Environment)
+
+You can override pipeline defaults via `logging.Options` or environment variables. Precedence is: Options > Environment > Defaults.
+
+- `Options.PipelineCapacity` (env: `AMI_LOG_PIPE_CAPACITY`, int)
+- `Options.PipelineBatchMax` (env: `AMI_LOG_PIPE_BATCH_MAX`, int)
+- `Options.PipelineFlushInterval` (env: `AMI_LOG_PIPE_FLUSH_INTERVAL`, time duration like `200ms`, `1s`)
+- `Options.PipelinePolicy` (env: `AMI_LOG_PIPE_POLICY`, one of `block`, `dropNewest`, `dropOldest`)
+
+Only verbose mode (`--verbose`) wires the pipeline to `build/debug/activity.log`; primary stdout/stderr remain unchanged.
 
 ## Notes
 - Avoid writing logs to stdout when CLI commands emit JSON payloads (tests expect clean JSON). Prefer writing to `build/debug/activity.log` in verbose mode for debugging.

@@ -1,6 +1,9 @@
 package logging
 
-import "io"
+import (
+    "io"
+    "time"
+)
 
 // Options configures the Logger behavior.
 type Options struct {
@@ -25,4 +28,17 @@ type Options struct {
     FilterAllowKeys []string
     // FilterDenyKeys: drop these keys from fields.
     FilterDenyKeys []string
+
+    // PipelineCapacity controls the debug pipeline channel capacity (lines).
+    // If zero, environment or defaults are used.
+    PipelineCapacity int
+    // PipelineBatchMax controls batch size before a flush.
+    // If zero, environment or defaults are used.
+    PipelineBatchMax int
+    // PipelineFlushInterval controls time-based flush cadence.
+    // If zero, environment or defaults are used.
+    PipelineFlushInterval time.Duration
+    // PipelinePolicy selects backpressure behavior: "block", "dropNewest", or "dropOldest".
+    // If empty, environment or defaults are used.
+    PipelinePolicy string
 }

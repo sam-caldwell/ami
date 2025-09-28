@@ -4,6 +4,8 @@ import (
     "io"
     "os"
     "path/filepath"
+    "strconv"
+    "strings"
     "time"
 
     stdlogger "github.com/sam-caldwell/ami/src/ami/stdlib/logger"
@@ -49,12 +51,72 @@ func New(opts Options) (*Logger, error) {
         if err := os.MkdirAll(debugDir, 0o755); err == nil {
             // Wire stdlib logger pipeline to file sink for verbose debug logs.
             sink := stdlogger.NewFileSink(filepath.Join(debugDir, "activity.log"), 0o644)
+            // Resolve pipeline defaults with env and Options overrides.
+            // Precedence: Options > Environment > Defaults.
+            const (
+                defCap  = 256
+                defBatch = 1
+                // enable time-based flush by default for smoother async writes
+                defFlush = 250 * time.Millisecond
+            )
+            // helpers
+            getenvInt := func(key string) (int, bool) {
+                if v, ok := os.LookupEnv(key); ok {
+                    if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil { return n, true }
+                }
+                return 0, false
+            }
+            getenvDur := func(key string) (time.Duration, bool) {
+                if v, ok := os.LookupEnv(key); ok {
+                    if d, err := time.ParseDuration(strings.TrimSpace(v)); err == nil { return d, true }
+                }
+                return 0, false
+            }
+            getenvPolicy := func(key string) (stdlogger.BackpressurePolicy, bool) {
+                if v, ok := os.LookupEnv(key); ok {
+                    switch strings.ToLower(strings.TrimSpace(v)) {
+                    case string(stdlogger.Block):
+                        return stdlogger.Block, true
+                    case strings.ToLower(string(stdlogger.DropNewest)):
+                        return stdlogger.DropNewest, true
+                    case strings.ToLower(string(stdlogger.DropOldest)):
+                        return stdlogger.DropOldest, true
+                    }
+                }
+                return "", false
+            }
+            // capacity
+            capVal := defCap
+            if n, ok := getenvInt("AMI_LOG_PIPE_CAPACITY"); ok { capVal = n }
+            if opts.PipelineCapacity > 0 { capVal = opts.PipelineCapacity }
+            // batchMax
+            batchVal := defBatch
+            if n, ok := getenvInt("AMI_LOG_PIPE_BATCH_MAX"); ok { batchVal = n }
+            if opts.PipelineBatchMax > 0 { batchVal = opts.PipelineBatchMax }
+            // flush interval
+            flushVal := defFlush
+            if d, ok := getenvDur("AMI_LOG_PIPE_FLUSH_INTERVAL"); ok { flushVal = d }
+            if opts.PipelineFlushInterval > 0 { flushVal = opts.PipelineFlushInterval }
+            // policy
+            polVal := stdlogger.Block
+            if p, ok := getenvPolicy("AMI_LOG_PIPE_POLICY"); ok { polVal = p }
+            if opts.PipelinePolicy != "" {
+                switch strings.ToLower(strings.TrimSpace(opts.PipelinePolicy)) {
+                case string(stdlogger.Block):
+                    polVal = stdlogger.Block
+                case strings.ToLower(string(stdlogger.DropNewest)):
+                    polVal = stdlogger.DropNewest
+                case strings.ToLower(string(stdlogger.DropOldest)):
+                    polVal = stdlogger.DropOldest
+                }
+            }
+
             cfg := stdlogger.Config{
-                Capacity:         256,
-                BatchMax:         1,             // preserve line-by-line behavior by default
-                FlushInterval:    0,              // no timer by default
-                Policy:           stdlogger.Block, // preserve current behavior
-                Sink:             sink,
+                Capacity:           capVal,
+                BatchMax:           batchVal,
+                FlushInterval:      flushVal,
+                Policy:             polVal,
+                Sink:               sink,
                 JSONRedactKeys:     opts.RedactKeys,
                 JSONRedactPrefixes: opts.RedactPrefixes,
                 JSONAllowKeys:      opts.FilterAllowKeys,

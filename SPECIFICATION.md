@@ -1212,10 +1212,10 @@ Types & Semantics (incremental)
 - [X] Surface import version constraints into `sources.v1` (`importsDetailed`) during build planning/output.
 
 - [ ] Grammar extensions: unary/binary operators (tracking for backend ops already supported)
-  - [ ] Add tokens and precedence for bitwise (`&`, `|`, `^`), shifts (`<<`, `>>`), and unary logical `!`.
-  - [ ] Introduce `ast.UnaryExpr` and extend binary expression parsing for precedence/associativity.
-  - [ ] Lowering: map tokens to IR ops (`not`, `xor`, `shl`, `shr`, `band`, `bor`) and extend tests.
-  - [ ] LLVM emission already supports: `not`, `xor`, `shl`, `shr`, `and`, `or`, `mod`, `neg`; wire once grammar lands.
+  - [ ] Add tokens and precedence for bitwise (`&`, `|`, `^`), shifts (`<<`, `>>`).
+  - [X] Introduce `ast.UnaryExpr` and extend parsing to support unary logical `!`.
+  - [X] Lowering: map unary `!` to IR op `not`; tests added.
+  - [X] LLVM emission already supports `not`; wired for unary logical not. (`xor`, `shl`, `shr`, `and`, `or`, `mod`, `neg` remain pending.)
 
  
 

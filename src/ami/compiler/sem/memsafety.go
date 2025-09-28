@@ -53,8 +53,15 @@ func AnalyzeMemorySafety(f *source.File) []diag.Record {
     for i := 0; i < len(toks); i++ {
         t := toks[i]
         switch t.Kind {
-        case token.Symbol:
-            if t.Lexeme == "&" {
+        case token.Symbol, token.BitAnd:
+            // Ban unary address-of '&' but allow binary bitwise-and.
+            if t.Kind == token.Symbol && t.Lexeme != "&" { break }
+            pi := prevNonComment(i)
+            unary := true
+            if pi >= 0 {
+                if toks[pi].Pos.Line == t.Pos.Line && isOperand(toks[pi].Kind) { unary = false }
+            }
+            if unary {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PTR_UNSUPPORTED_SYNTAX", Message: "address-of operator '&' is not allowed in AMI", File: f.Name, Pos: &diag.Position{Line: t.Pos.Line, Column: t.Pos.Column, Offset: t.Pos.Offset}})
             }
         case token.Star:

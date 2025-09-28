@@ -181,7 +181,9 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 bmp.Units = append(bmp.Units, bmu)
             }
             // emit object stub and per-unit asm under build/obj in all modes
-            _, _ = writeObjectStub(p.Name, unit, m)
+            if !opts.EmitLLVMOnly {
+                _, _ = writeObjectStub(p.Name, unit, m)
+            }
             _, _ = writeAsmObject(p.Name, unit, m)
             // Attempt non-debug LLVM -> .o compilation (guarded)
             // Emit .ll under build/obj and attempt to compile to .o via clang.

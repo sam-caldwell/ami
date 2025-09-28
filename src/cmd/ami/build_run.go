@@ -380,7 +380,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             // Run compile with CWD set to workspace dir so outputs land under dir/build
             oldwd, _ := os.Getwd()
             _ = os.Chdir(dir)
-            _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: false})
+            _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: false, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink})
             _ = os.Chdir(oldwd)
         }
     }
@@ -499,14 +499,60 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             }
         }
         sort.Strings(objIdx)
+        // Discover binaries under build/ (exclude debug/ and obj/)
+        var bins []string
+        _ = filepath.WalkDir(filepath.Join(dir, "build"), func(path string, d os.DirEntry, err error) error {
+            if err != nil { return nil }
+            if d.IsDir() {
+                b := filepath.Base(path)
+                if b == "debug" || b == "obj" { return filepath.SkipDir }
+                return nil
+            }
+            if info, e := d.Info(); e == nil {
+                mode := info.Mode()
+                if mode.IsRegular() && (mode&0o111 != 0) {
+                    if rel, rerr := filepath.Rel(dir, path); rerr == nil { bins = append(bins, rel) }
+                }
+            }
+            return nil
+        })
+        if len(bins) > 0 { sort.Strings(bins) }
+        // Include per-env summaries if present
+        objectsByEnv := map[string][]string{}
+        objIndexByEnv := map[string][]string{}
+        for _, env := range envs {
+            var objs []string
+            for _, e := range ws.Packages {
+                glob := filepath.Join(dir, "build", env, "obj", e.Package.Name, "*.o")
+                if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                    for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { objs = append(objs, rel) } }
+                }
+                idx := filepath.Join(dir, "build", env, "obj", e.Package.Name, "index.json")
+                if st, err := os.Stat(idx); err == nil && !st.IsDir() {
+                    if rel, rerr := filepath.Rel(dir, idx); rerr == nil { objIndexByEnv[env] = append(objIndexByEnv[env], rel) }
+                }
+            }
+            if len(objs) > 0 { sort.Strings(objs); objectsByEnv[env] = objs }
+        }
+        if len(objectsByEnv) == 0 { objectsByEnv = nil }
+        if len(objIndexByEnv) == 0 { objIndexByEnv = nil }
         // Emit a simple success summary for consistency with machine parsing.
+        data := map[string]any{
+            "targets":       envs,
+            "targetDir":     absTarget,
+            "objIndex":      objIdx,
+            "buildManifest": filepath.Join("build", "ami.manifest"),
+        }
+        if len(bins) > 0 { data["binaries"] = bins }
+        if objectsByEnv != nil { data["objectsByEnv"] = objectsByEnv }
+        if objIndexByEnv != nil { data["objIndexByEnv"] = objIndexByEnv }
         rec := diag.Record{
             Timestamp: time.Now().UTC(),
             Level:     diag.Info,
             Code:      "BUILD_OK",
             Message:   "workspace valid; build planning deferred",
             File:      "ami.workspace",
-            Data:      map[string]any{"targets": envs, "targetDir": absTarget, "objIndex": objIdx, "buildManifest": filepath.Join("build", "ami.manifest")},
+            Data:      data,
         }
         return json.NewEncoder(out).Encode(rec)
     }

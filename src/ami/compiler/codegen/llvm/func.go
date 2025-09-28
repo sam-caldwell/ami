@@ -15,14 +15,21 @@ func lowerFunction(fn ir.Function) (string, error) {
     case 0:
         ret = "void"
     case 1:
-        ret = mapType(fn.Results[0].Type)
+        // Enforce backend memory safety: no raw pointers in public ABI.
+        if isUnsafePointerType(fn.Results[0].Type) {
+            return "", fmt.Errorf("unsafe pointer type in result: %s", fn.Results[0].Type)
+        }
+        ret = abiType(fn.Results[0].Type)
     default:
         return "", fmt.Errorf("multi-result functions not supported in LLVM emitter scaffold")
     }
     // Params
     var params []string
     for _, p := range fn.Params {
-        params = append(params, fmt.Sprintf("%s %%%s", mapType(p.Type), p.ID))
+        if isUnsafePointerType(p.Type) {
+            return "", fmt.Errorf("unsafe pointer type in param: %s", p.Type)
+        }
+        params = append(params, fmt.Sprintf("%s %%%s", abiType(p.Type), p.ID))
     }
     // Body
     var b strings.Builder

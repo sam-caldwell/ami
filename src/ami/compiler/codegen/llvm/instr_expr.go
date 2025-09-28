@@ -18,9 +18,18 @@ func lowerExpr(e ir.Expr) string {
         }
     }
     if strings.EqualFold(e.Op, "call") {
-        // Return type (if any)
+        // Return type (if any). For runtime calls keep ptr returns; for user functions use ABI-safe mapping.
         ret := "void"
-        if e.Result != nil { ret = mapType(e.Result.Type) }
+        if e.Result != nil {
+            if strings.HasPrefix(e.Callee, "ami_rt_") {
+                ret = mapType(e.Result.Type)
+            } else {
+                // Avoid exposing raw pointers at the language ABI boundary.
+                rt := mapType(e.Result.Type)
+                if rt == "ptr" { rt = "i64" }
+                ret = rt
+            }
+        }
         // Args
         var args []string
         for _, a := range e.Args {

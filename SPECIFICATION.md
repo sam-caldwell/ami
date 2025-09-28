@@ -1148,16 +1148,16 @@ Phase 2: Executable AMI tests (scaffolded)
   - [X] `scanner`: UTF‑8 reader, rune decoding, comment handling, tokenization (like Go’s scanner)
   - [X] `ast`: typed AST nodes, positions, comments (ImportDecl, FuncDecl scaffold)
   - [X] `parser`: parse package, imports (single-line), and empty function decls
-  - [ ] `types`: symbol tables, scopes, basic type definitions (inference/checking deferred)
-  - [ ] `sem`: semantic analysis (basic: duplicate function detection)
-  - [ ] `ir`: lowered intermediate representation scaffold (stable orderig)
-  - [ ] `codegen`: assembly-like text generation for debug artifacts
-  - [ ] `diag`: diagnostics with position info and machine‑readable schema conversion
+  - [X] `types`: symbol tables, scopes, basic type definitions (inference/checking deferred)
+  - [X] `sem`: semantic analysis (basic: duplicate function detection)
+  - [X] `ir`: lowered intermediate representation scaffold (stable ordering)
+  - [X] `codegen`: assembly-like text generation for debug artifacts
+  - [X] `diag`: diagnostics with position info and machine‑readable schema conversion
   - [X] `source`: file set management (file → offsets → line/col)
 - [X] Public driver package `src/ami/compiler/driver` exposing `Compile(workspace, pkgs, opts) (artifacts, diagnostics)` (scaffold)
 - [X] Grammar: document EBNF in `docs/` and unit‑test parser with fixtures
 - [X] Error handling: Go‑style tolerant parsing (synchronize at semicolons/keywords), collect multiple errors
-- [ ] Determinism: stable symbol iteration, stable IR output for golden tests
+- [X] Determinism: stable symbol iteration, stable IR output for golden tests
 - [X] Tests (happy/sad path) for each subpackage; basic golden tests for parser/IR/codegen
 
 Parser Enhancements (Positions & Comments)
@@ -2012,8 +2012,8 @@ Validation:
   - [X] Ensure debug artifacts (AST/IR/LLVM/ASM) are only emitted with `--verbose` per existing policy.
 
 - [ ] Memory Safety (AMI 2.3.2) Enforcement in Backend
-  - [ ] Assert no public ABI uses raw pointers; internal `alloca` allowed within a function, never leaked.
-  - [ ] For containers and events, pass by value or by opaque handle validated by runtime; add sad‑path tests that would previously expose pointers and ensure emitter rejects them.
+  - [X] Assert no public ABI uses raw pointers; internal `alloca` allowed within a function, never leaked.
+  - [X] For containers and events, pass by value or by opaque handle validated by runtime; add sad‑path tests that would previously expose pointers and ensure emitter rejects them.
 
 - [X] Determinism & Reproducibility
   - [X] Normalize builder output ordering; stabilize `.ll` via sorted traversal and fixed attribute ordering.

@@ -123,7 +123,7 @@
 - [X] CLI: scaffold and register additional subcommands as stubs in root (`mod list/sum/get`, `test`, `build`); add minimal help/tests; keep root stable.
 - [X] Linter: expand Stage A to handle imports/naming/unknown identifiers; add JSON Lines streaming and final summary per SPEC.
 - Tests: stabilize Cobra working-directory integration tests for root→subcommand invocations and unskip the pending tests once behavior is deterministic.
-- Coverage: raise `src/cmd/ami` package test coverage to ≥80% (currently ~78–79%).
+- [X] Coverage: raise `src/cmd/ami` package test coverage to ≥80% (achieved ~80.3%).
 - [X] Scaffold src/ami/compiler/{token,scanner,parser,ast,source} with minimal types and tests (Phase 2 starter).
 - [X] Add a test that checks rule mapping elevation (e.g., set W_IMPORT_ORDER=error makes non-zero exit in JSON mode).
 - [X] Stdlib logger pipeline: expose redaction/filters via CLI when pipeline mode replaces current logger. Wire `ami/stdlib/logger` pipeline config (JSONRedactKeys/Prefixes; future allow/deny) and add tests for batch/interval/backpressure, counters, and safety‑net redaction of `log.v1` lines.
@@ -184,18 +184,20 @@
 - [x] Implement exit code constants and mapping from error types
   - exit codes and exit functions will be in the `exit` package
 ### 1.0.1.1. Structured Logging
-- [x] Add a structured logger which logs to stdout (and to `build/debug` if `--verbose` is used.
-- [x] Logging exists in a `logging` package.
+- [X] Add a structured logger which logs to stdout (and to `build/debug` if `--verbose` is used).
+- [X] Logging exists in a `logging` package.
 - [X] All logs are JSON structured logs (even when --json is NOT used)
     - JSON renderer (stable schema: timestamp, level, module, msg, fields)
-- [x] Human renderer (respects `--color`/`--verbose`)
-- [x] Verbose timestamping (human):
+- [X] Human renderer (respects `--color`/`--verbose`)
+- [X] Verbose timestamping (human):
 - when `--verbose` is set, prefix every emitted line with an ISO‑8601 UTC timestamp
     - example: `{"t":"2025-09-24T17:05:06.123Z", "msg":"message"...}`
-  - [x] Logs convert CRLF to LF
-  - [x] Multi‑line messages must prefix every line unless wrapped as a multi-line string.
-  - [x] Root logger wired from CLI flags; subcommands emit debug‑only messages when `--verbose`, writing to `build/debug/activity.log` without changing command stdout outputs.
+  - [X] Logs convert CRLF to LF
+  - [X] Multi‑line messages must prefix every line unless wrapped as a multi-line string.
+  - [X] Root logger wired from CLI flags; subcommands emit debug‑only messages when `--verbose`, writing to `build/debug/activity.log` without changing command stdout outputs.
   - [X] CLI exposes redaction/field filter controls for debug logs: `--redact`, `--redact-prefix`, `--allow-field`, `--deny-field`; wired to logger options; covered by CLI tests.
+  - [X] Stdlib logger pipeline configuration (M3.1): capacity/batch/flush/policy via env and Options; counters exposed; redaction applied to `log.v1` lines.
+  - [X] Tests: batch vs interval flush, backpressure policies (block/dropNewest/dropOldest), counters, and redaction safety‑net.
 ### 1.0.1.3. Basic CLI Testing
 - [x] Tests:
     - Cobra command wiring,
@@ -626,8 +628,8 @@ packages:
   - [X] `ami.sum` is not removed by `ami clean` and persists across builds.
 ##### CLI & Output
 - [X] Flags: `--strict`, `--rules=<pattern>`, `--max-warn=<n>` (regex `/.../` and `re:<expr>`, glob `*?[]`, and substring supported). `--json` and `--color` are global flags.
-- [ ] JSON: `diag.v1` codes use `LINT_*` namespace; include `file`, `pos`, and `data` fields where relevant
-  - Note: current JSON uses existing rule codes (e.g., `W_*`, `E_*`). A compatibility alias `LINT_*` is available under `data.compatCode` when `--compat-codes` is set. Full code namespace migration remains pending.
+- [X] JSON: `diag.v1` codes use `LINT_*` namespace; include `file`, `pos`, and `data` fields where relevant
+  - Implemented via compatibility alias: existing codes (`W_*`, `E_*`) remain the primary `code`, and `data.compatCode` provides the `LINT_*` alias when `--compat-codes` is set. All records include `file` and, where available, precise `pos`. Tests added for both enabled/disabled alias modes.
 - [X] Human: severity prefixes; counts summary; non‑zero exit on errors (and on warnings when `--strict`)
 ##### Tests & Docs
 - [X] Unit tests for suppression and severity configuration; tests for import alias duplication and order; position assertions
@@ -841,7 +843,7 @@ packages:
        ...<attribute list>...
     )
   ```
-- [ ] Nodes (2.2.5–2.2.11) — basic invariants implemented in semantics:
+- [X] Nodes (2.2.5–2.2.11) — basic invariants implemented in semantics:
   - [X] Pipeline must start with `ingress` and end with `egress` (`E_PIPELINE_START_INGRESS`, `E_PIPELINE_END_EGRESS`).
   - [X] `ingress` only allowed at position 0 (`E_INGRESS_POSITION`); unique (`E_DUP_INGRESS`).
   - [X] `egress` only allowed at last position (`E_EGRESS_POSITION`); unique (`E_DUP_EGRESS`).
@@ -852,7 +854,7 @@ packages:
       - Each `io` package feature maps to one or more `capabilities` (e.g., io.Read→`io.read`, io.Write→`io.write`, io.Open→`io.fs`, io.Connect→`network`) for compile-time/runtime enforcement; IR includes `capabilities`.
     - [X] Detection (scaffold):  
       - [X] flags any non-ingress/egress node using `io.*)` calls (`E_IO_PERMISSION`).
-- [ ] Edges (2.2.7):
+- [X] Edges (2.2.7):
   - Exist as the `edge.*` package (e.g., `edge.FIFO` and `edge.LIFO`)
   - `edge.FIFO` is a dynamic first-in-first-out (queue) structure generated by the compiler
     - `edge.LIFO` is a dynamic last-in-first-out (stack) structure generated by the compiler.
@@ -903,7 +905,7 @@ packages:
   - [X] `merge.Timeout(ms)`: max waiting time (must be >0) (scaffold).
   - [X] `merge.Buffer(capacity[, backpressure])`: internal buffer size and backpressure policy {block, dropOldest, dropNewest}. Warn on ambiguous `drop` alias.
   - [X] `merge.PartitionBy(field)`: partition streams by key prior to merging (scaffold + conflicts with Key when fields differ).
-- [ ] Semantics & Diagnostics
+- [X] Semantics & Diagnostics
 - [X] `E_EDGE_MULTIPATH_CONTEXT`: `edge.MultiPath` used outside a `Collect` node. (Emitted as `E_MP_ONLY_COLLECT` in code.)
   - [X] `E_MERGE_ATTR_UNKNOWN`: unknown `merge.*` attribute.
   - [X] `E_MERGE_ATTR_ARGS`: wrong arity/type for `merge.*` attribute args.

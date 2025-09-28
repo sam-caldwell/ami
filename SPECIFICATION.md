@@ -2021,7 +2021,7 @@ Validation:
   - [ ] Ensure indexes/manifests avoid embedding variable timestamps; tests compare across runs.
 
 - [ ] CLI/UX and Diagnostics
-  - [ ] Human summary: `built <n> objects; linked 1 binary → build/darwin/arm64/<name>`; JSON success record includes `binaries` and `objIndex`.
+  - [X] Human summary: `built <n> objects; linked 1 binary → build/darwin/arm64/<name>`; JSON success record includes `binaries` and `objIndex`.
   - [ ] Stream diagnostics as `diag.v1` for tool errors; map to exit codes: emit (1), io (2), integrity (3), toolchain (2), link (2).
 
 - [ ] Documentation

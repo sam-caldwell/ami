@@ -624,7 +624,37 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         }
         return json.NewEncoder(out).Encode(rec)
     }
-    // Human output kept minimal per SPEC I/O rules.
+    // Human output: provide a concise summary when artifacts exist; otherwise validation line.
+    // Count objects under build/obj and binaries under build/ (excluding debug/ and obj/).
+    objCount := 0
+    for _, e := range ws.Packages {
+        glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
+        if matches, _ := filepath.Glob(glob); len(matches) > 0 { objCount += len(matches) }
+    }
+    binCount := 0
+    var firstBin string
+    _ = filepath.WalkDir(filepath.Join(dir, "build"), func(path string, d os.DirEntry, err error) error {
+        if err != nil { return nil }
+        if d.IsDir() {
+            b := filepath.Base(path)
+            if b == "debug" || b == "obj" { return filepath.SkipDir }
+            return nil
+        }
+        if info, e := d.Info(); e == nil {
+            mode := info.Mode()
+            if mode.IsRegular() && (mode&0o111 != 0) {
+                if rel, rerr := filepath.Rel(dir, path); rerr == nil {
+                    binCount++
+                    if firstBin == "" { firstBin = rel }
+                }
+            }
+        }
+        return nil
+    })
+    if binCount > 0 {
+        fmt.Fprintf(out, "built %d object(s); linked %d binary → %s\n", objCount, binCount, firstBin)
+        return nil
+    }
     fmt.Fprintf(out, "workspace valid: target=%s envs=%d\n", absTarget, len(envs))
     return nil
 }

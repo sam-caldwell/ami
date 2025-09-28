@@ -94,7 +94,7 @@ func inferLocalExprType(env map[string]string, e ast.Expr) string {
         case token.Plus:
             if xt == "string" && yt == "string" { return "string" }
             if xt == "int" && yt == "int" { return "int" }
-        case token.Minus, token.Star, token.Slash:
+        case token.Minus, token.Star, token.Slash, token.Percent:
             if xt == "int" && yt == "int" { return "int" }
         case token.Eq, token.Ne, token.Lt, token.Le, token.Gt, token.Ge:
             // comparisons yield bool regardless of operand type (when comparable)

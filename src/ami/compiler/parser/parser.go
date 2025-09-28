@@ -494,7 +494,8 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
 
 func (p *Parser) isExprStart(k token.Kind) bool {
     switch k {
-    case token.Ident, token.Number, token.String, token.KwSlice, token.KwSet, token.KwMap:
+    case token.Ident, token.Number, token.String, token.KwSlice, token.KwSet, token.KwMap,
+        token.Bang:
         return true
     default:
         return false
@@ -507,6 +508,19 @@ func (p *Parser) parseExpr() (ast.Expr, bool) {
 
 func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
     switch p.cur.Kind {
+    case token.LParenSym:
+        // parenthesized expression for grouping
+        p.next()
+        inner, ok := p.parseExprPrec(1)
+        if !ok {
+            return nil, false
+        }
+        if p.cur.Kind != token.RParenSym {
+            // tolerate missing ')'
+        } else {
+            p.next()
+        }
+        return p.parseBinaryRHS(inner, minPrec), true
     case token.Bang:
         // unary logical not
         pos := p.cur.Pos

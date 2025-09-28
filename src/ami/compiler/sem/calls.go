@@ -81,7 +81,7 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
         at := inferExprTypeWithVars(a, vars)
         pt := s.params[i]
         if pt == "" || pt == "any" || at == "any" { continue }
-        if pt != at {
+        if !typesCompatible(pt, at) {
             p := epos(a)
             msg := fmt.Sprintf("call argument type mismatch: arg %d expected %s, got %s", i, pt, at)
             data := map[string]any{"argIndex": i, "expected": pt, "actual": at, "callee": c.Name}

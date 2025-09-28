@@ -143,6 +143,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeNameResolution(af))
             attachFile(sem.AnalyzeWorkers(af))
             attachFile(sem.AnalyzeReturnTypes(af))
+            // Include return-type inference for functions without annotations (M8 scope)
+            attachFile(sem.AnalyzeReturnInference(af))
             attachFile(sem.AnalyzeReturnTypesWithSigs(af, resultSigs))
             attachFile(sem.AnalyzeRAII(af))
             attachFile(sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs))

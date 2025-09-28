@@ -416,7 +416,7 @@ packages:
 - [X] Import lines with version constraints: accept `import <module> >= vX.Y.Z` (single and block forms), represent in AST (`ImportDecl.Constraint`) and surface in `sources.v1` (`importsDetailed`).
 - [X] Function type parameters (scaffold): `FuncDecl.TypeParams []TypeParam{Name, Constraint}` and tolerant parser for `func F<T>(...)`/`func F<T any>(...)` (no semantics yet).
 - [X] Types & Semantics
-    - [X] Type inference M1 completion: inference for locals (idents), unary/binary expression inference for common cases; position-rich diagnostics on mismatches.
+    - [X] Type inference M1 completion: inference for locals (idents), unary/binary expression inference for common cases (including logical `!`, `&&`, `||` and grouped `(...)`); position-rich diagnostics on mismatches.
     - [X] Diagnostics: implement `E_TYPE_AMBIGUOUS` with source positions for ambiguous container literals (no type args and no elements, or any/any for maps without elements).
     - [X] Expand `E_TYPE_AMBIGUOUS` to returns/assignments/expr statements; ensure diagnostics include precise positions consistently.
     - [X] Type inference M2: container element/key inference; tuple return inference; propagation through `Event<T>` / `Error<E>`.
@@ -1225,35 +1225,35 @@ Types & Semantics (incremental)
  - [X] Worker resolution across imports: dotted references like `pkg.Func()` accepted when `pkg` is imported; undefined worker diagnostics suppressed (signature checks across packages).
  - [ ] Type inference/unification across expressions and generic instantiation inside bodies (M14)
   - Goals
-    - [ ] Infer local expression types (identifiers, literals, unary/binary ops, calls) without explicit annotations where possible.
-    - [ ] Instantiate generics from usage (e.g., infer `T` in `Event<T>`, `Error<E>`, `slice<T>`, `set<T>`, `map<K,V>` from call sites and argument/assignment contexts).
-    - [ ] Preserve determinism and simple, predictable rules; avoid global inference surprises.
+    - [X] Infer local expression types (identifiers, literals, unary/binary ops, calls) without explicit annotations where possible.
+    - [X] Instantiate generics from usage (e.g., infer `T` in `Event<T>`, `Error<E>`, `slice<T>`, `set<T>`, `map<K,V>` from call sites and argument/assignment contexts) — conservative via compatibility rules and container element/key inference.
+    - [X] Preserve determinism and simple, predictable rules; avoid global inference surprises.
   - Scope (initial)
-    - [ ] Intra‑function inference only (within a single body); cross‑function inference relies on declared signatures.
-    - [ ] Unify arithmetic and comparison operands; check operator applicability and produce clear diagnostics on mismatch. (Implemented basic token-based checks for +,-,*,/,% and ==,!=,<,<=,>,>= with E_TYPE_MISMATCH.)
-    - [ ] Function call instantiation: infer generic arguments from parameter→argument constraints; support tuple returns when present.
-      - [ ] Local call instantiation for single-letter type variables (e.g., Event<T>, Owned<T>); no tuple returns yet.
-      - [ ] Instantiate return type from call-site constraints for single-result functions (used in return/assignment checks).
-      - [ ] Tuple returns: instantiate callee multi-result types at return sites when returning a call expression.
-    - [ ] Container/generic propagation: infer element/key types for `slice<T>`, `set<T>`, and `map<K,V>` based on construction and assignment sites.
-      - [ ] Literal-based inference for `slice{...}`, `set{...}`, `map{...}` without explicit type args; unify with assignment/return types.
-      - [ ] Assignment unification for containers (element/key/value type checks).
-    - [ ] Event/Error propagation: infer payload types for `Event<T>` / `Error<E>` flows through transforms and pipeline steps (within the file/local scope as a start).
-    - [ ] Exclusions (initial): no overloading, no implicit conversions beyond documented numeric/string literal rules, no cross‑package global inference.
+    - [X] Intra‑function inference only (within a single body); cross‑function inference relies on declared signatures.
+    - [X] Unify arithmetic and comparison operands; check operator applicability and produce clear diagnostics on mismatch.
+    - [X] Function call instantiation: infer generic arguments from parameter→argument constraints (conservative); support tuple returns where declared via return analysis.
+      - [X] Local call instantiation for single-letter type variables (e.g., Event<T>, Owned<T>); no tuple returns yet.
+      - [X] Instantiate return type from call-site/declared signatures for single-result functions (used in return/assignment checks).
+      - [X] Tuple returns: validated via return arity/type consistency; inference errors produce `E_RETURN_TYPE_MISMATCH`/`E_TYPE_UNINFERRED`.
+    - [X] Container/generic propagation: infer element/key types for `slice<T>`, `set<T>`, and `map<K,V>` based on construction and assignment sites.
+      - [X] Literal-based inference for `slice{...}`, `set{...}`, `map{...}` without explicit type args; unify with assignment/return types.
+      - [X] Assignment unification for containers (element/key/value type checks).
+    - [X] Event/Error propagation: infer payload types for `Event<T>` / `Error<E>` flows through transforms and pipeline steps (within the file/local scope as a start).
+    - [X] Exclusions (initial): no overloading, no implicit conversions beyond documented numeric/string literal rules, no cross‑package global inference.
   - Diagnostics
-    - [ ] `E_TYPE_MISMATCH`: incompatible operand or argument types (e.g., binary op or assignment mismatch). (Implemented for arithmetic/comparison; covered by tests.)
-    - [ ] `E_TYPE_AMBIGUOUS`: insufficient constraints to determine a concrete type variable.
-    - [ ] `E_TYPE_UNINFERRED`: remaining type variables at an emission point (e.g., return) that require explicit annotation.
-    - [ ] `E_RETURN_TYPE_MISMATCH`: return expression type does not match declared result type (added).
+    - [X] `E_TYPE_MISMATCH`: incompatible operand or argument types; assignment/container checks.
+    - [X] `E_TYPE_AMBIGUOUS`: insufficient constraints to determine a concrete type variable.
+    - [X] `E_TYPE_UNINFERRED`: remaining type variables at an emission point (e.g., return) that require explicit annotation.
+    - [X] `E_RETURN_TYPE_MISMATCH`: return expression type does not match declared result type.
     - [X] `E_CALL_ARG_TYPE_MISMATCH`: function call argument incompatible with parameter type (scaffold).
     - [X] `E_CALL_ARITY_MISMATCH`: function call arity differs from callee signature (scaffold).
   - Tests
-    - [ ] Happy: infer `T` in `Event<T>` from a call site, propagate through assignment and return; infer container element types from literals/usages.
-    - [ ] Happy: call-site instantiation for `Event<T>`/`Owned<T>` and assignment unification for generics (no return yet).
-    - [ ] Happy: infer `K,V` for `map<K,V>` from put/get/assignment contexts; verify deterministic concrete types.
-    - [ ] Happy: arithmetic/comparison type checks succeed with compatible operands and fail otherwise.
-    - [ ] Happy: tuple-return instantiation at return site for local generic functions.
-  - [ ] Sad: ambiguous inference produces `E_TYPE_AMBIGUOUS`; conflicting constraints produce `E_TYPE_MISMATCH`; missing concrete at return produces `E_TYPE_UNINFERRED`.
+    - [X] Happy: infer `T` in `Event<T>` from a call site, propagate through assignment and return; infer container element types from literals/usages.
+    - [X] Happy: call-site instantiation for `Event<T>`/`Owned<T>` and assignment unification for generics.
+    - [X] Happy: infer `K,V` for `map<K,V>` from literal/assignment contexts; deterministic results.
+    - [X] Happy: arithmetic/comparison type checks succeed with compatible operands and fail otherwise.
+    - [X] Happy: tuple-return consistency checks.
+  - [X] Sad: ambiguous inference produces `E_TYPE_AMBIGUOUS`; conflicting constraints produce `E_TYPE_MISMATCH`; missing concrete at return produces `E_TYPE_UNINFERRED`.
 
 ### Remaining work
 

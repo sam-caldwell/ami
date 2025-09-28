@@ -120,7 +120,7 @@ func deduceType(e ast.Expr) string {
         x := deduceType(v.X)
         y := deduceType(v.Y)
         switch v.Op {
-        case token.Plus, token.Minus, token.Star, token.Slash:
+        case token.Plus, token.Minus, token.Star, token.Slash, token.Percent:
             if x == "int" && y == "int" { return "int" }
         }
         return "any"

@@ -219,8 +219,11 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     // When verbose, emit front-end debug artifacts (AST/IR/etc.) and build plan including obj index.
     if verbose {
         _ = os.MkdirAll(filepath.Join(dir, "build", "debug"), 0o755)
-        // Front-end debug artifacts: parse main package .ami files and compile with Debug=true
-        if p := ws.FindPackage("main"); p != nil && p.Root != "" {
+        // Front-end debug artifacts: parse all workspace packages and compile with Debug=true
+        var dbgPkgs []driver.Package
+        for _, entry := range ws.Packages {
+            p := entry.Package
+            if p.Root == "" { continue }
             root := filepath.Clean(filepath.Join(dir, p.Root))
             // check for missing package root
             if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
@@ -237,24 +240,26 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 if filepath.Ext(path) == ".ami" { files = append(files, path) }
                 return nil
             })
-            if len(files) > 0 {
-                var fs source.FileSet
-                for _, f := range files {
-                    b, err := os.ReadFile(f); if err != nil { continue }
-                    fs.AddFile(f, string(b))
-                }
-                // Run compile with CWD set to workspace dir so relative debug paths land under dir/build/debug
-                oldwd, _ := os.Getwd()
-                _ = os.Chdir(dir)
-                pkgs := []driver.Package{{Name: p.Name, Files: &fs}}
-                // hook logger for full timestamped compiler activity under build/debug/activity.log
-                var logcb func(string, map[string]any)
-                if lg := getRootLogger(); lg != nil {
-                    logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
-                }
-                _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: true, Log: logcb})
-                _ = os.Chdir(oldwd)
+            if len(files) == 0 { continue }
+            var fs source.FileSet
+            for _, f := range files {
+                b, err := os.ReadFile(f)
+                if err != nil { continue }
+                fs.AddFile(f, string(b))
             }
+            dbgPkgs = append(dbgPkgs, driver.Package{Name: p.Name, Files: &fs})
+        }
+        if len(dbgPkgs) > 0 {
+            // Run compile with CWD set to workspace dir so relative debug paths land under dir/build/debug
+            oldwd, _ := os.Getwd()
+            _ = os.Chdir(dir)
+            // hook logger for full timestamped compiler activity under build/debug/activity.log
+            var logcb func(string, map[string]any)
+            if lg := getRootLogger(); lg != nil {
+                logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
+            }
+            _, _ = driver.Compile(ws, dbgPkgs, driver.Options{Debug: true, Log: logcb})
+            _ = os.Chdir(oldwd)
         }
         // Build plan after emitting artifacts; include object index paths when present
         planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
@@ -295,7 +300,11 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
 
     // In JSON mode, run a non-debug compile to surface parser/semantic diagnostics as a stream.
     if jsonOut {
-        if p := ws.FindPackage("main"); p != nil && p.Root != "" {
+        // Compile all packages (non-debug) to surface diagnostics as a stream
+        var pkgs []driver.Package
+        for _, entry := range ws.Packages {
+            p := entry.Package
+            if p.Root == "" { continue }
             root := filepath.Clean(filepath.Join(dir, p.Root))
             var files []string
             _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
@@ -303,47 +312,52 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 if filepath.Ext(path) == ".ami" { files = append(files, path) }
                 return nil
             })
-            if len(files) > 0 {
-                var fs source.FileSet
-                for _, f := range files { b, err := os.ReadFile(f); if err == nil { fs.AddFile(f, string(b)) } }
-                pkgs := []driver.Package{{Name: p.Name, Files: &fs}}
-                var logcb func(string, map[string]any)
-                if lg := getRootLogger(); lg != nil {
-                    logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
-                }
-                _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false, Log: logcb})
-                if len(diags) > 0 {
-                    enc := json.NewEncoder(out)
-                    for i := range diags { _ = enc.Encode(diags[i]) }
-                    return exit.New(exit.User, "compiler reported diagnostics")
-                }
-            }
-        }
-    }
-
-    // Always perform a non-debug compile pass to emit object stubs + object index under build/obj
-    if p := ws.FindPackage("main"); p != nil && p.Root != "" {
-        root := filepath.Clean(filepath.Join(dir, p.Root))
-        var files []string
-        _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-            if err != nil || d.IsDir() { return nil }
-            if filepath.Ext(path) == ".ami" { files = append(files, path) }
-            return nil
-        })
-        if len(files) > 0 {
+            if len(files) == 0 { continue }
             var fs source.FileSet
             for _, f := range files { b, err := os.ReadFile(f); if err == nil { fs.AddFile(f, string(b)) } }
-            // Run compile with CWD set to workspace dir so outputs land under dir/build
+            pkgs = append(pkgs, driver.Package{Name: p.Name, Files: &fs})
+        }
+        if len(pkgs) > 0 {
+            var logcb func(string, map[string]any)
+            if lg := getRootLogger(); lg != nil {
+                logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
+            }
             oldwd, _ := os.Getwd()
             _ = os.Chdir(dir)
-            pkgs := []driver.Package{{Name: p.Name, Files: &fs}}
-            _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false})
+            _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false, Log: logcb})
             _ = os.Chdir(oldwd)
-            if jsonOut && len(diags) > 0 {
+            if len(diags) > 0 {
                 enc := json.NewEncoder(out)
                 for i := range diags { _ = enc.Encode(diags[i]) }
                 return exit.New(exit.User, "compiler reported diagnostics")
             }
+        }
+    }
+
+    // Always perform a non-debug compile pass to emit object stubs + object index under build/obj for all packages
+    {
+        var pkgs []driver.Package
+        for _, entry := range ws.Packages {
+            p := entry.Package
+            if p.Root == "" { continue }
+            root := filepath.Clean(filepath.Join(dir, p.Root))
+            var files []string
+            _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+                if err != nil || d.IsDir() { return nil }
+                if filepath.Ext(path) == ".ami" { files = append(files, path) }
+                return nil
+            })
+            if len(files) == 0 { continue }
+            var fs source.FileSet
+            for _, f := range files { b, err := os.ReadFile(f); if err == nil { fs.AddFile(f, string(b)) } }
+            pkgs = append(pkgs, driver.Package{Name: p.Name, Files: &fs})
+        }
+        if len(pkgs) > 0 {
+            // Run compile with CWD set to workspace dir so outputs land under dir/build
+            oldwd, _ := os.Getwd()
+            _ = os.Chdir(dir)
+            _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: false})
+            _ = os.Chdir(oldwd)
         }
     }
 

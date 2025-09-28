@@ -4,7 +4,6 @@ import (
     "encoding/json"
     "os"
     "path/filepath"
-    "runtime"
     "testing"
 
     llvme "github.com/sam-caldwell/ami/src/ami/compiler/codegen/llvm"
@@ -46,19 +45,4 @@ func TestRunBuild_NoLinkEnv_SkipsPerEnvLinking(t *testing.T) {
     }
 }
 
-// duplicate hostEnv for local file to avoid cross-file dependency in tests
-func hostEnv() string {
-    switch runtime.GOOS + "/" + runtime.GOARCH {
-    case "darwin/arm64":
-        return "darwin/arm64"
-    case "darwin/amd64":
-        return "darwin/amd64"
-    case "linux/amd64":
-        return "linux/amd64"
-    case "linux/arm64":
-        return "linux/arm64"
-    default:
-        return ""
-    }
-}
-
+// hostEnv is defined in build_link_per_env_test.go

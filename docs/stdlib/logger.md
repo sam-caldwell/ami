@@ -58,9 +58,36 @@ Example (with `Verbose=true`, `Color=true`):
 2025-09-24T17:05:06.124Z [WARN] example/app: second line
 ```
 
+## Pipeline
+
+Verbose CLI logs flow through the stdlib logger Pipeline and are written to `build/debug/activity.log` via a file sink. Primary command outputs (stdout/stderr) remain unchanged.
+
+Defaults chosen to preserve current behavior:
+- `capacity`: 256
+- `batchMax`: 1 (line-by-line)
+- `flushInterval`: 0 (disabled)
+- `backpressure`: `block`
+
+Backpressure policies supported:
+- `block`: producer blocks until there is capacity
+- `dropNewest`: drop the new item when full
+- `dropOldest`: drop one oldest queued item to make room
+
+Flushing:
+- Batches flush when `batchMax` items are buffered or when `flushInterval` elapses.
+- On `Close()`, the pipeline drains the queue and flushes a final batch.
+
+Redaction safety-net (JSON):
+- Pipeline applies an additional redaction pass when configured, even for preformatted `log.v1` lines.
+- Order: allowlist → denylist → redact exact keys → redact by prefix.
+
+Counters (observability):
+- `enqueued`, `written`, `dropped`, `batches`, `flushes` (via `Stats()`)
+- Deterministic and test-friendly; no random IDs; timestamps remain only inside log records.
+
 ## Notes
 - Avoid writing logs to stdout when CLI commands emit JSON payloads (tests expect clean JSON). Prefer writing to `build/debug/activity.log` in verbose mode for debugging.
-- The logger API here is a skeleton toward the richer pipeline-based `ami/stdlib/logger` described in SPEC (sinks, batching, retries). Those will be added incrementally.
+- M3 milestone wires CLI debug logs to the stdlib pipeline; remote or async sinks are out of scope for M3.
 
 ### Redaction and Field Filters
 

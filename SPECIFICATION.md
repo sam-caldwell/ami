@@ -439,7 +439,7 @@ packages:
   - [ ] End to End testing of compiled binaries to ensure ami compiler produces working binaries.
 - [X] Directory layout is deterministic and mirrors the logical package/unit structure; all paths are relative to workspace.
  - [X] Do not emit debug artifacts without `--verbose`.
-- [ ] Ensure artifacts are reproducible across runs (given the same inputs) and contain ISO‑8601 UTC timestamps only where needed (e.g., top‑level metadata), never embedded in the core structures used by tests.
+- [X] Ensure artifacts are reproducible across runs (given the same inputs) and contain ISO‑8601 UTC timestamps only where needed (e.g., top‑level metadata), never embedded in the core structures used by tests.
 - [X] Include these paths in the build logs (JSON): `objIndex`, `buildManifest` (manifest also lists debug refs when verbose)
 - [X] Rewrite `ami.manifest` in `build/ami.manifest`
     - [X] Contains `ami.manifest` content (packages map from ami.sum when present)
@@ -459,7 +459,7 @@ packages:
   - Manifest additions (stable):
     - `objects[]` (optional, array<string>): workspace‑relative `.o` paths present under `build/obj/**`. Optional and additive.
 #### 1.1.9.4. Debug Artifacts when `--verbose` is set
-- [ ] When `--verbose` is provided to `ami build`
+- [X] When `--verbose` is provided to `ami build`
   - generate debugging information in `./build/debug` for compiler debugging (not produced otherwise)
     - [X] A Resolved source stream (`build/debug/source/resolved.json`).
       - [X] An Abstract Syntax Trees (per package/unit)

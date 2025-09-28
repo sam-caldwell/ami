@@ -592,7 +592,7 @@ packages:
 - [X] Write/update behavior:
   - [X] On verify, all required dependencies in `ami.workspace` have entries in `ami.sum` and local cache contents
     match the recorded digest; any mismatch or missing → `INTEGRITY_VIOLATION_ERROR (3)`.
-- [ ] Tests:
+- [X] Tests:
   - [X] Create `ami.sum` from empty via update/get; ensure deterministic ordering (canonical key sort).
   - [X] SHA‑256 recorded from raw commit object for annotated and lightweight tags; deterministic digest. (Guarded by AMI_E2E_ENABLE_GIT=1)
   - [X] Detect and error on digest mismatch (cache tamper) with exit code 3 (build integrity test).

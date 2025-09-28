@@ -1276,13 +1276,13 @@ Edges Runtime Scaffolding (for harness/tests)
 
 - [X] All subcommands avoid prompts (use flags for destructive actions)
  - [X] Ensure stable ordering of listings/output (sorted)
-- [ ] Ensure locale‑agnostic formatting (timestamps ISO‑8601 UTC)
+ - [D] Ensure locale‑agnostic formatting (timestamps ISO‑8601 UTC)
 - [X] Tests: verify no TTY prompts, stable outputs in golden tests
  - [ ] Ensure reproducibility: fixed ordering for maps/sets, stable timestamps in logs (ISO‑8601 UTC), stable file layouts; golden tests for AST/IR serializers
 
 ### 10) Documentation and Help
 
-- [ ] `ami help` and per‑command help with examples
+- [X] `ami help` and per‑command help with examples
  - [X] Examples README documents how to build/run sample workspaces and use `make examples`.
 - [ ] Manpage/Markdown docs generated to `./build/docs` (optional)
 - [ ] Reference Chapter 3.0 commands and flags in docs

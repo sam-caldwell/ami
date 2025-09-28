@@ -210,6 +210,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                                 opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})
                             }
                         }
+                    } else {
+                        outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LLVM_EMIT", Message: err.Error(), File: unit + ".ll"})
                     }
                     // Emit per-env objects under build/<env>/obj/<pkg>/unit.o
                     for _, env := range ws.Toolchain.Compiler.Env {
@@ -225,6 +227,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                                     if opts.Log != nil { opts.Log("unit.obj.env.write", map[string]any{"pkg": p.Name, "unit": unit, "env": env, "path": oPathEnv}) }
                                 }
                             }
+                        } else {
+                            outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LLVM_EMIT", Message: err.Error(), File: unit + ".ll"})
                         }
                     }
                 }

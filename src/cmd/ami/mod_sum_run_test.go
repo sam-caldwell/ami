@@ -91,6 +91,13 @@ func TestModSum_IntegrityMatch(t *testing.T) {
 }
 
 func TestModSum_FetchesMissing_FromFileGit_AndUpdatesSum(t *testing.T) {
+    if os.Getenv("AMI_E2E_ENABLE_GIT") != "1" { t.Skip("git tests disabled; set AMI_E2E_ENABLE_GIT=1 to enable") }
+    if _, err := exec.LookPath("git"); err != nil { t.Skip("git not found") }
+    {
+        ctx, cancel := context.WithTimeout(context.Background(), 5_000_000_000)
+        defer cancel()
+        if err := exec.CommandContext(ctx, "git", "--version").Run(); err != nil || ctx.Err() != nil { t.Skip("git --version failed; skipping") }
+    }
     base := filepath.Join("build", "test", "mod_sum", "fetch_git")
     repo := filepath.Join(base, "repo")
     wsdir := filepath.Join(base, "ws")
@@ -99,7 +106,9 @@ func TestModSum_FetchesMissing_FromFileGit_AndUpdatesSum(t *testing.T) {
     _ = os.RemoveAll(base)
     if err := os.MkdirAll(repo, 0o755); err != nil { t.Fatalf("mkdir repo: %v", err) }
     run := func(dir string, name string, args ...string) {
-        cmd := exec.Command(name, args...)
+        ctx, cancel := context.WithTimeout(context.Background(), 30_000_000_000)
+        defer cancel()
+        cmd := exec.CommandContext(ctx, name, args...)
         cmd.Dir = dir
         cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
         if out, err := cmd.CombinedOutput(); err != nil { t.Fatalf("%s %v: %v\n%s", name, args, err, out) }

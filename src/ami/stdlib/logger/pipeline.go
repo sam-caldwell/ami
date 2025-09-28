@@ -12,6 +12,7 @@ type BackpressurePolicy string
 const (
     Block      BackpressurePolicy = "block"
     DropNewest BackpressurePolicy = "dropNewest"
+    DropOldest BackpressurePolicy = "dropOldest"
 )
 
 var ErrDropped = errors.New("dropped due to backpressure policy")
@@ -26,6 +27,8 @@ type Config struct {
     // Optional redaction for JSON log.v1 lines
     JSONRedactKeys     []string
     JSONRedactPrefixes []string
+    JSONAllowKeys      []string
+    JSONDenyKeys       []string
 }
 
 // Pipeline provides buffered, batched writes to a sink with backpressure policy.
@@ -36,6 +39,12 @@ type Pipeline struct {
     wg     sync.WaitGroup
     mu     sync.Mutex
     buffer [][]byte
+    // counters (protected by mu for determinism in tests)
+    enqueued int64
+    written  int64
+    dropped  int64
+    batches  int64
+    flushes  int64
 }
 
 // NewPipeline creates an unstarted pipeline with the given config.
@@ -137,14 +146,17 @@ func (p *Pipeline) flush() {
     if len(p.buffer) == 0 { p.mu.Unlock(); return }
     batch := p.buffer
     p.buffer = nil
+    p.batches++
+    p.flushes++
     p.mu.Unlock()
     for _, line := range batch {
-        if len(p.cfg.JSONRedactKeys) > 0 || len(p.cfg.JSONRedactPrefixes) > 0 {
-            if r, ok := redactLogV1Line(line, p.cfg.JSONRedactKeys, p.cfg.JSONRedactPrefixes); ok {
+        if len(p.cfg.JSONRedactKeys) > 0 || len(p.cfg.JSONRedactPrefixes) > 0 || len(p.cfg.JSONAllowKeys) > 0 || len(p.cfg.JSONDenyKeys) > 0 {
+            if r, ok := redactLogV1LineAdvanced(line, p.cfg.JSONAllowKeys, p.cfg.JSONDenyKeys, p.cfg.JSONRedactKeys, p.cfg.JSONRedactPrefixes); ok {
                 line = r
             }
         }
         _ = p.cfg.Sink.Write(line)
+        p.mu.Lock(); p.written++; p.mu.Unlock()
     }
 }
 
@@ -153,17 +165,39 @@ func (p *Pipeline) Enqueue(line []byte) error {
     switch p.cfg.Policy {
     case Block:
         p.ch <- line
+        p.mu.Lock(); p.enqueued++; p.mu.Unlock()
         return nil
     case DropNewest:
         select {
         case p.ch <- line:
+            p.mu.Lock(); p.enqueued++; p.mu.Unlock()
             return nil
         default:
-            return ErrDropped
+            p.mu.Lock(); p.dropped++; p.mu.Unlock(); return ErrDropped
+        }
+    case DropOldest:
+        select {
+        case p.ch <- line:
+            p.mu.Lock(); p.enqueued++; p.mu.Unlock(); return nil
+        default:
+            // drop one oldest if possible, then try enqueue
+            select {
+            case <-p.ch:
+                p.mu.Lock(); p.dropped++; p.mu.Unlock()
+            default:
+                // nothing to drop
+            }
+            select {
+            case p.ch <- line:
+                p.mu.Lock(); p.enqueued++; p.mu.Unlock(); return nil
+            default:
+                p.mu.Lock(); p.dropped++; p.mu.Unlock(); return ErrDropped
+            }
         }
     default:
         // default to block
         p.ch <- line
+        p.mu.Lock(); p.enqueued++; p.mu.Unlock()
         return nil
     }
 }
@@ -172,4 +206,12 @@ func (p *Pipeline) Enqueue(line []byte) error {
 func (p *Pipeline) Close() {
     close(p.stop)
     p.wg.Wait()
+}
+
+// Stats returns a snapshot of pipeline counters.
+type Stats struct{ Enqueued, Written, Dropped, Batches, Flushes int64 }
+
+func (p *Pipeline) Stats() Stats {
+    p.mu.Lock(); defer p.mu.Unlock()
+    return Stats{Enqueued: p.enqueued, Written: p.written, Dropped: p.dropped, Batches: p.batches, Flushes: p.flushes}
 }

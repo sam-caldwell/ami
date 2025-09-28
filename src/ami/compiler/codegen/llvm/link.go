@@ -17,5 +17,7 @@ func LinkObjects(clang string, objs []string, outBin, targetTriple string, extra
     args = append(args, objs...)
     args = append(args, "-o", outBin)
     cmd := exec.Command(clang, args...)
-    return cmd.Run()
+    out, err := cmd.CombinedOutput()
+    if err != nil { return ToolError{Tool: "clang", Stderr: string(out)} }
+    return nil
 }

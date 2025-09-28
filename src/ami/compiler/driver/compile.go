@@ -203,7 +203,9 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                         if !opts.EmitLLVMOnly {
                             oPath := filepath.Join(objDir, unit+".o")
                             if err := llvme.CompileLLToObject(clang, llPath, oPath, defTriple); err != nil {
-                                outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile LLVM to object", File: llPath})
+                                d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile LLVM to object", File: llPath}
+                                if te, ok := err.(llvme.ToolError); ok { if d.Data == nil { d.Data = map[string]any{} }; d.Data["stderr"] = te.Stderr }
+                                outDiags = append(outDiags, d)
                             } else if opts.Log != nil {
                                 opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})
                             }

@@ -12,5 +12,7 @@ func CompileLLToObject(clang, llPath, outObj, targetTriple string) error {
     if targetTriple == "" { targetTriple = DefaultTriple }
     // -x ir forces LLVM IR input; -target sets the triple; -c compiles to obj
     cmd := exec.Command(clang, "-x", "ir", "-target", targetTriple, "-c", llPath, "-o", outObj)
-    return cmd.Run()
+    out, err := cmd.CombinedOutput()
+    if err != nil { return ToolError{Tool: "clang", Stderr: string(out)} }
+    return nil
 }

@@ -414,10 +414,10 @@ packages:
           (callee + arg types) and container literals explicitly.
     - [X] Emit object stubs (scaffold) and per‑package object index in `build/obj/<pkg>/index.json`; build plan includes `objIndex` (verbose).
 #### 1.1.9.3. Code generation / Linking:
-- [ ] Instruction selection, register allocation, scheduling;
-- [ ] emit object w/ relocations,
-- [ ] export data, and tables (e.g., pclntab).
-- [ ] Linking:
+- [D] Instruction selection, register allocation, scheduling;
+- [D] emit object w/ relocations,
+- [D] export data, and tables (e.g., pclntab).
+- [D] Linking:
     - cmd/link resolves symbols,
     - does whole-program dead-code elim,
     - applies relocations (randomized layout for security,
@@ -428,9 +428,9 @@ packages:
 - [X] Invoke compiler driver to compile workspace packages into `toolchain.target/toolchain.env[]`
   directory (e.g. `./build/${env}`) (deterministic file layout).
 - [X] Compiler can generate final LLVM object code as object artifacts
-- [ ] Compiler can generate the LLVM runtime artifacts needed to produce the AMI binary.
-- [ ] Compiler can link the generated LLVM runtime and object code into an executable on darwin/arm64.
-- [ ] Failure modes:
+- [D] Compiler can generate the LLVM runtime artifacts needed to produce the AMI binary.
+- [D] Compiler can link the generated LLVM runtime and object code into an executable on darwin/arm64.
+- [D] Failure modes:
   - syntax/type errors → USER_ERROR;
   - missing files → SYSTEM_IO_ERROR
 - [X] JSON diagnostics (when `--json`):
@@ -443,7 +443,7 @@ packages:
   - [X] Multi‑package determinism for non‑debug obj indexes and asm
   - [X] Parser diagnostics stream multiple records in JSON; exit 1
   - [X] Missing file I/O emits `diag.v1` and exits 2 (JSON) and prints clear error (human)
-  - [ ] End to End testing of compiled binaries to ensure ami compiler produces working binaries.
+  - [D] End to End testing of compiled binaries to ensure ami compiler produces working binaries.
 - [X] Directory layout is deterministic and mirrors the logical package/unit structure; all paths are relative to workspace.
  - [X] Do not emit debug artifacts without `--verbose`.
 - [X] Ensure artifacts are reproducible across runs (given the same inputs) and contain ISO‑8601 UTC timestamps only where needed (e.g., top‑level metadata), never embedded in the core structures used by tests.

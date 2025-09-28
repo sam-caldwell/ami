@@ -8,6 +8,8 @@ type Options struct {
     EmitLLVMOnly bool
     // NoLink skips linking (reserved; backend pending)
     NoLink bool
+    // Linker is an optional back-end linker facade. When nil, linking is skipped.
+    Linker interface{ Link(any) (any, error) }
     // Log, if non-nil, receives activity events for timestamped logging by caller.
     // The event string should be a short dot-delimited identifier, and fields
     // is an optional map with structured context. The logger is expected to

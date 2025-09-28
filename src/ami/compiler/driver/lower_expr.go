@@ -209,6 +209,10 @@ func opName(k token.Kind) string {
     case token.Percent: return "mod"
     case token.And: return "and"
     case token.Or:  return "or"
+    case token.BitXor: return "xor"
+    case token.Shl: return "shl"
+    case token.Shr: return "shr"
+    case token.BitAnd: return "and"
     default:
         return k.String()
     }

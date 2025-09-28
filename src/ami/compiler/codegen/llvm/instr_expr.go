@@ -80,11 +80,24 @@ func lowerExpr(e ir.Expr) string {
         }
     case "and", "or":
         if len(e.Args) >= 2 {
-            // only defined for boolean (i1) in this scaffold
-            ty := "i1"
+            // Support boolean and integer bitwise forms. Disallow floating point.
+            ty := "i64"
             if e.Result != nil {
                 mt := mapType(e.Result.Type)
-                if mt != "i1" { return "  ; expr logic-nonbool\n" }
+                switch mt {
+                case "double":
+                    return "  ; expr andor-float\n"
+                case "i1":
+                    ty = "i1"
+                case "ptr":
+                    ty = "i64"
+                default:
+                    ty = mt
+                }
+            } else if len(e.Args) > 0 {
+                mt := mapType(e.Args[0].Type)
+                if mt == "double" { return "  ; expr andor-float\n" }
+                if mt != "ptr" && mt != "" { ty = mt }
             }
             mnem := op // "and" or "or"
             if e.Result != nil && e.Result.ID != "" {

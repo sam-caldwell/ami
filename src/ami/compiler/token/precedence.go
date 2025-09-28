@@ -24,8 +24,7 @@ func Precedence(k Kind) int {
         return precOr
     case And:
         return precAnd
-    case BitOr:
-        return precBitOr
+    // Bitwise OR '|' not enabled as operator (reserved for PipeSym)
     case BitXor:
         return precBitXor
     case BitAnd:

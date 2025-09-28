@@ -168,15 +168,15 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 if ssa, err := writeSSADebug(p.Name, unit, m); err == nil { _ = ssa }
                 if em, err := writeEventMetaDebug(p.Name, unit); err == nil { bmu.EventMeta = em }
                 if as, err := writeAsmDebug(p.Name, unit, af, m); err == nil { bmu.ASM = as }
-                // LLVM textual emission (debug only)
-                if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
-                    ldir := filepath.Join("build", "debug", "llvm", p.Name)
-                    _ = os.MkdirAll(ldir, 0o755)
-                    lpath := filepath.Join(ldir, unit+".ll")
-                    _ = os.WriteFile(lpath, []byte(llvmText), 0o644)
-                    bmu.LLVM = lpath
-                    if opts.Log != nil { opts.Log("unit.llvm.write", map[string]any{"pkg": p.Name, "unit": unit, "path": lpath}) }
-                }
+            // LLVM textual emission (debug only)
+            if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
+                ldir := filepath.Join("build", "debug", "llvm", p.Name)
+                _ = os.MkdirAll(ldir, 0o755)
+                lpath := filepath.Join(ldir, unit+".ll")
+                _ = os.WriteFile(lpath, []byte(llvmText), 0o644)
+                bmu.LLVM = lpath
+                if opts.Log != nil { opts.Log("unit.llvm.write", map[string]any{"pkg": p.Name, "unit": unit, "path": lpath}) }
+            }
                 bmp.Units = append(bmp.Units, bmu)
             }
             // emit object stub and per-unit asm under build/obj in all modes
@@ -185,7 +185,12 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             // Attempt non-debug LLVM -> .o compilation (guarded)
             // Emit .ll under build/obj and attempt to compile to .o via clang.
             if !opts.Debug {
-                if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
+                // Compute target triple from workspace env (first entry), else default
+                targetTriple := llvme.DefaultTriple
+                if len(ws.Toolchain.Compiler.Env) > 0 {
+                    targetTriple = llvme.TripleForEnv(ws.Toolchain.Compiler.Env[0])
+                }
+                if llvmText, err := llvme.EmitModuleLLVMForTarget(m, targetTriple); err == nil {
                     objDir := filepath.Join("build", "obj", p.Name)
                     _ = os.MkdirAll(objDir, 0o755)
                     llPath := filepath.Join(objDir, unit+".ll")
@@ -195,7 +200,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                         outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_TOOLCHAIN_MISSING", Message: "clang not found in PATH", File: "clang"})
                     } else {
                         oPath := filepath.Join(objDir, unit+".o")
-                        if err := llvme.CompileLLToObject(clang, llPath, oPath, llvme.DefaultTriple); err != nil {
+                        if err := llvme.CompileLLToObject(clang, llPath, oPath, targetTriple); err != nil {
                             outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile LLVM to object", File: llPath})
                         } else if opts.Log != nil {
                             opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})

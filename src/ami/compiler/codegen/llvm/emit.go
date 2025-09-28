@@ -31,3 +31,29 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
     }
     return e.Build(), nil
 }
+
+// EmitModuleLLVMForTarget lowers an IR module to LLVM IR using a specific target triple.
+func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
+    e := NewModuleEmitter(m.Package, "")
+    if triple != "" { e.SetTargetTriple(triple) }
+    // Collect externs based on usage (same as EmitModuleLLVM)
+    for _, f := range m.Functions {
+        for _, b := range f.Blocks {
+            for _, ins := range b.Instr {
+                if ex, ok := ins.(ir.Expr); ok {
+                    op := strings.ToLower(ex.Op)
+                    if op == "panic" {
+                        e.RequireExtern("declare void @ami_rt_panic(i32)")
+                    }
+                    if op == "alloc" || ex.Callee == "ami_rt_alloc" {
+                        e.RequireExtern("declare ptr @ami_rt_alloc(i64)")
+                    }
+                }
+            }
+        }
+    }
+    for _, f := range m.Functions {
+        if err := e.AddFunction(f); err != nil { return "", err }
+    }
+    return e.Build(), nil
+}

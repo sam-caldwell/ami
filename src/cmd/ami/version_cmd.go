@@ -1,6 +1,7 @@
 package main
 
 import (
+    "encoding/json"
     "fmt"
     "github.com/spf13/cobra"
 )
@@ -17,6 +18,15 @@ func newVersionCmd() *cobra.Command {
         Use:   "version",
         Short: "Print version information",
         RunE: func(cmd *cobra.Command, args []string) error {
+            // honor global --json flag
+            if f := cmd.Flags().Lookup("json"); f != nil {
+                useJSON := false
+                if v, err := cmd.Flags().GetBool("json"); err == nil { useJSON = v }
+                if useJSON {
+                    _ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"version": version})
+                    return nil
+                }
+            }
             _, _ = fmt.Fprintln(cmd.OutOrStdout(), "ami version "+version)
             return nil
         },

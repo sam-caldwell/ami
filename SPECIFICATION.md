@@ -1286,8 +1286,8 @@ Edges Runtime Scaffolding (for harness/tests)
  - [X] Examples README documents how to build/run sample workspaces and use `make examples`.
 - [ ] Manpage/Markdown docs generated to `./build/docs` (optional)
 - [ ] Reference Chapter 3.0 commands and flags in docs
-- [ ] Tests: help text includes flags, exit codes, examples
-- [ ] Add `version` command with semantically versioned CLI; `--json` returns `{ "version": "vX.Y.Z" }`
+- [X] Tests: help text includes flags, exit codes, examples
+- [X] Add `version` command with semantically versioned CLI; `--json` returns `{ "version": "vX.Y.Z" }`
 - [ ] Document output schemas in prose under `docs/` (reference only). Machine schemas are implemented as Go types in `src/schemas/` with unit tests (one struct per file with matching `_test.go`).
  - [ ] Language docs updated to canonical worker signature; removed legacy State‑parameter suggestions.
  - [ ] Defer examples updated to canonical return tuple `(Event<U>, error)`.

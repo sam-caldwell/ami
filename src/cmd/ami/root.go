@@ -16,6 +16,7 @@ func newRootCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:           "ami",
         Short:         "AMI toolchain CLI",
+        Long:          "AMI toolchain CLI\n\nExit Codes:\n  0 OK\n  1 Internal error (debug)\n  2 User error (invalid usage/input)\n  3 System I/O error\n  4 Integrity error",
         Example: "\n  # Initialize a new workspace\n  ami init\n\n  # Build with debug artifacts\n  ami build --verbose\n\n  # Lint strictly and emit JSON\n  ami lint --strict --json\n\n  # Run tests and write logs/manifest\n  ami test --verbose\n\n  # Manage modules\n  ami mod list --json\n  ami mod get ./vendor/alpha\n\n  # Visualize pipelines\n  ami pipeline visualize\n",
         SilenceUsage:  true,
         SilenceErrors: true,

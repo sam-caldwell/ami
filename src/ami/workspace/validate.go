@@ -52,6 +52,11 @@ func (w Workspace) Validate() []string {
             errs = append(errs, fmt.Sprintf("toolchain.compiler.env[%d] must be os/arch", i))
         }
     }
+    // toolchain.compiler.backend: optional; must be one of known backends (currently: llvm)
+    b := strings.TrimSpace(w.Toolchain.Compiler.Backend)
+    if b != "" && b != "llvm" {
+        errs = append(errs, "toolchain.compiler.backend must be one of: llvm")
+    }
     // packages: basic shape (name, version, root) and name format; version semver
     // main package is not strictly required at this stage; build may target other flows later.
     for _, p := range w.Packages {

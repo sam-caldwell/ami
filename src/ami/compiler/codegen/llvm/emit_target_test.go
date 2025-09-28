@@ -49,3 +49,20 @@ func TestEmitModuleLLVMForTarget_SetsTriple_And_CollectsExterns(t *testing.T) {
     }
 }
 
+func TestEmitModuleLLVMForTarget_LinuxArm64_Triple(t *testing.T) {
+    m := ir.Module{Package: "pkg"}
+    out, err := EmitModuleLLVMForTarget(m, "aarch64-unknown-linux-gnu")
+    if err != nil { t.Fatalf("emit: %v", err) }
+    if !strings.Contains(out, "target triple = \"aarch64-unknown-linux-gnu\"") {
+        t.Fatalf("missing linux/arm64 triple: %s", out)
+    }
+}
+
+func TestEmitModuleLLVMForTarget_DarwinAMD64_Triple(t *testing.T) {
+    m := ir.Module{Package: "pkg"}
+    out, err := EmitModuleLLVMForTarget(m, "x86_64-apple-macosx")
+    if err != nil { t.Fatalf("emit: %v", err) }
+    if !strings.Contains(out, "target triple = \"x86_64-apple-macosx\"") {
+        t.Fatalf("missing darwin/amd64 triple: %s", out)
+    }
+}

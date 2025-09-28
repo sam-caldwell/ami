@@ -12,6 +12,7 @@ func DefaultWorkspace() Workspace {
                 Concurrency: "NUM_CPU",
                 Target:      "./build",
                 Env:         []string{env},
+                Backend:     "llvm",
                 Options:     []string{"verbose"},
             },
             Linker: Linker{
@@ -31,4 +32,3 @@ func DefaultWorkspace() Workspace {
         },
     }
 }
-

@@ -29,8 +29,9 @@ func AnalyzeRAII(f *ast.File) []diag.Record {
         if !ok || fn.Body == nil { continue }
         // Collect local variables/params for simple ownership presence checks.
         locals := map[string]bool{}
-        owned := map[string]bool{}     // variables considered Owned-managed
-        consumed := map[string]bool{}  // variables released or transferred
+        owned := map[string]bool{}       // variables considered Owned-managed
+        consumed := map[string]bool{}    // variables released or transferred
+        transferred := map[string]bool{} // variables transferred out (moved)
         varPos := map[string]diag.Position{}
         for _, p := range fn.Params {
             if p.Name != "" {
@@ -68,11 +69,16 @@ func AnalyzeRAII(f *ast.File) []diag.Record {
                         out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_TRANSFER_UNOWNED", Message: "transfer of unowned variable", Pos: &diag.Position{Line: id.Pos.Line, Column: id.Pos.Column, Offset: id.Pos.Offset}})
                     }
                     consumed[name] = true
+                    transferred[name] = true
                 }
             }
         }
         // Scan statements
         for _, st := range fn.Body.Stmts {
+            // Strict use-after-transfer: if any transferred variable appears in this statement, flag it.
+            if name, pos := firstTransferredUseInStmt(st, transferred); name != "" {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_USE_AFTER_TRANSFER", Message: "use after transfer: " + name, Pos: &diag.Position{Line: pos.Line, Column: pos.Column, Offset: pos.Offset}})
+            }
             switch v := st.(type) {
             case *ast.DeferStmt:
                 if name, p := releaseTargetFromCall(v.Call); name != "" {
@@ -86,6 +92,9 @@ func AnalyzeRAII(f *ast.File) []diag.Record {
                 }
             case *ast.ExprStmt:
                 if name, p := releaseTargetFromExpr(v.X); name != "" {
+                    if transferred[name] {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_RELEASE_AFTER_TRANSFER", Message: "release after transfer: " + name, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
+                    }
                     if !locals[name] {
                         out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_RELEASE_UNOWNED", Message: "release of undeclared variable", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
                     }
@@ -113,6 +122,10 @@ func AnalyzeRAII(f *ast.File) []diag.Record {
                     }
                     // Also consider transfer through arguments
                     for i, a := range ce.Args { transferOwned(ce, a, i) }
+                }
+                // Strict: assignment to a transferred variable is disallowed
+                if transferred[v.Name] {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RAII_ASSIGN_AFTER_TRANSFER", Message: "assignment to variable after transfer: " + v.Name, Pos: &diag.Position{Line: v.Pos.Line, Column: v.Pos.Column, Offset: v.Pos.Offset}})
                 }
             }
         }
@@ -177,6 +190,52 @@ func firstIdentUseInExpr(e ast.Expr, released map[string]bool) string {
     default:
         return ""
     }
+}
+
+// firstTransferredUseInStmt scans a statement and returns the first identifier and position
+// whose name appears in the transferred set.
+func firstTransferredUseInStmt(s ast.Stmt, transferred map[string]bool) (string, source.Position) {
+    if s == nil { return "", source.Position{} }
+    var check func(e ast.Expr) (string, source.Position)
+    check = func(e ast.Expr) (string, source.Position) {
+        switch v := e.(type) {
+        case *ast.IdentExpr:
+            if transferred[v.Name] { return v.Name, v.Pos }
+            return "", source.Position{}
+        case *ast.CallExpr:
+            for _, a := range v.Args { if n, p := check(a); n != "" { return n, p } }
+            return "", source.Position{}
+        case *ast.UnaryExpr:
+            return check(v.X)
+        case *ast.BinaryExpr:
+            if n, p := check(v.X); n != "" { return n, p }
+            return check(v.Y)
+        case *ast.SliceLit:
+            for _, el := range v.Elems { if n, p := check(el); n != "" { return n, p } }
+            return "", source.Position{}
+        case *ast.SetLit:
+            for _, el := range v.Elems { if n, p := check(el); n != "" { return n, p } }
+            return "", source.Position{}
+        case *ast.MapLit:
+            for _, kv := range v.Elems { if n, p := check(kv.Key); n != "" { return n, p }; if n, p := check(kv.Val); n != "" { return n, p } }
+            return "", source.Position{}
+        default:
+            return "", source.Position{}
+        }
+    }
+    switch v := s.(type) {
+    case *ast.ExprStmt:
+        if v.X != nil { return check(v.X) }
+    case *ast.AssignStmt:
+        if v.Value != nil { return check(v.Value) }
+    case *ast.VarDecl:
+        if v.Init != nil { return check(v.Init) }
+    case *ast.DeferStmt:
+        if v.Call != nil { return check(v.Call) }
+    case *ast.ReturnStmt:
+        for _, e := range v.Results { if n, p := check(e); n != "" { return n, p } }
+    }
+    return "", source.Position{}
 }
 
 // collectFunctionParams builds a map of function name to declared parameter types (textual), for transfer checks.

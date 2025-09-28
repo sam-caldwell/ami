@@ -135,7 +135,7 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     if target == "" { target = "./build" }
     absTarget := filepath.Clean(filepath.Join(dir, target))
 
-    // - env matrix (default if empty per phase scope)
+    // - env matrix (default if empty per phase scope). When present, strictly honor envs.
     envs := ws.Toolchain.Compiler.Env
     if len(envs) == 0 {
         envs = []string{"darwin/arm64"}
@@ -143,6 +143,15 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             lg.Info("build.env.default", map[string]any{"env": envs[0]})
         }
     }
+    // Ensure downstream compile sees the resolved env matrix
+    ws.Toolchain.Compiler.Env = envs
+
+    // - backend selection: CLI flag overrides workspace value
+    backendName := ws.Toolchain.Compiler.Backend
+    if buildBackend != "" { backendName = buildBackend }
+    if backendName == "" { backendName = "llvm" }
+    // Apply backend selection globally
+    _ = codegen.SelectDefaultBackend(backendName)
 
     // For this phase, stop after validation.
     // Enforce dependency availability per workspace requirements (scaffold via audit).
@@ -482,9 +491,8 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 }
             }
 
-            // Fallback: link default objects under build/obj when no per-env objects exist for the primary env.
-            // This preserves existing behavior.
-            if len(envs) == 0 || !envWithObjects[envs[0]] {
+            // Fallback: only when no envs specified. Otherwise strictly honor env matrix.
+            if len(envs) == 0 {
                 if len(envs) > 0 && containsEnv(buildNoLinkEnvs, envs[0]) { /* skip fallback link */ } else {
                 var objects []string
                 for _, e := range ws.Packages {

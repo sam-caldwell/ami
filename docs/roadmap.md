@@ -262,6 +262,93 @@ Acceptance:
   - With mixed matrices (e.g., `[darwin/arm64, linux/arm64]`), per-env objects exist under their respective prefixes; plan/manifest capture deterministic paths
 - Tests verify triple mapping for `darwin/arm64`, presence of correct `target triple` in IR, and per-env object/index emission for `darwin/arm64`.
 
+### M18 — Optimizer (DCE, Unused Detection, Const Folding/Propagation)
+
+Dependencies:
+- M5 Frontend (Source→AST) and M6 Semantics (initial) complete (symbol tables, const evaluation scaffold)
+- M9 IR + Artifacts complete (deterministic IR)
+- M10 Codegen & Linking baseline complete (so optimizer changes are observable and testable)
+
+Deliverables:
+- Dead Code Elimination (DCE):
+  - IR pass eliminates unreachable functions and data starting from program roots (entrypoints/pipelines, exported/public, runtime-required symbols)
+  - Intra-function DCE removes unreachable basic blocks after constant branch resolution
+  - Whole-program DCE coordinated with linker: drop unreferenced objects/symbols; reflect in obj index and build manifest
+- Unused Detection (diagnostics):
+  - Detect and report unused local variables, constants, functions, structs, enums, and fields/types not referenced within compilation units
+  - Emit `diag.v1` warnings (or errors under strict) with precise positions; integrate with `ami lint` for parity
+- Constant Folding & Propagation:
+  - Fold constant expressions (arithmetic/logical), evaluate const `let/const` initializers, and propagate through SSA temporaries
+  - Simplify control flow (`if true/false`, constant `switch` selection), remove dead branches
+  - Replace map/set/slice literal sizes and simple len/cap on constants when determinable
+  - Ensure stable, deterministic IR after optimization with golden tests
+- Configuration:
+  - Optimizations enabled by default; flags for `--no-opt` (future) reserved
+  - Deterministic behavior across runs with identical inputs
+
+Acceptance:
+- Unit/golden tests show:
+  - IR before/after: unreachable blocks/functions removed; constant expressions folded; branch simplification present
+  - Unused symbol diagnostics emitted with correct positions; `strict` mode elevates to errors
+  - Linked binaries (when toolchain present) are smaller or equal compared to unoptimized builds; manifests reflect fewer objects when DCE applies
+- `go vet ./...`, `go test -v ./...` pass; ≥80% coverage in changed optimizer/semantics packages
+- No change to observable program behavior for non-dead code paths (semantics preserved)
+
+### M19 — Recursion Optimizer (Tail-Call Elimination & Trampolines)
+
+Dependencies:
+- M9 IR + Artifacts complete (stable, analyzable IR)
+- M10 Codegen & Linking baseline complete
+- M18 Optimizer baseline complete (so DCE/const-fold interact cleanly)
+
+Deliverables:
+- Call Graph & SCC Analysis:
+  - Build a per-package call graph; compute strongly connected components (SCCs) to identify recursive clusters (self/mutual).
+  - Determine tail-position calls: a call is in tail position if its result flows directly to the current return (no work after the call in the current path).
+- Tail-Call Elimination (TCE):
+  - For tail self-calls: rewrite as parameter updates + jump to function entry (loop) reusing the current frame.
+  - For tail mutual recursion within an SCC: lower to a dispatch loop that updates a selector and jumps to the next callee’s entry (single trampoline per SCC when profitable).
+- General Trampolining for Non-tail Recursion:
+  - For recursive functions where calls aren’t in tail position, synthesize an explicit frame machine:
+    - Frame type per recursive function capturing live locals, parameters, return slots, and a small program counter (`pc`).
+    - Replace recursive calls with a “push child frame” operation (child initialized with arguments and `pc=entry`).
+    - Compile the function as a trampoline: a loop that pops the top frame, `switch(pc)`, executes one small step, may push new child frames, and continues until the stack is empty.
+    - When a child returns, write its results back into the parent frame’s slots; advance parent `pc` accordingly.
+- CPS + Trampoline (when profitable):
+  - Where non-tail recursive structure blocks TCE, apply a local CPS transform to make continuation explicit.
+  - Represent continuations as continuation-frames (or closure-like frame variants) and execute under the same trampoline loop.
+  - Hoist small continuations to straight-line code when they collapse after constant propagation; otherwise keep as frames to avoid stack growth.
+- Structured Recursion Patterns (recognition & lowering):
+  - Recognize common recursive schemes and lower to iterative forms with explicit worklists:
+    - Accumulator/fold (tail recursion) → while-loop with accumulator updates
+    - Divide-and-conquer (binary recursion) → worklist/stack of tasks processed by a loop
+    - Tree traversal patterns → explicit stack/queue depending on DFS/BFS intent
+    - Map/filter over linear data → loop with fused operations where side-effect free
+  - Only apply transformations when side-effect and aliasing analysis allow; otherwise fall back to trampolining.
+- IR Extensions (scaffolded ops and lowering):
+  - Add IR forms for `PUSH_FRAME`, `POP_FRAME`, `SET_PC`, `DISPATCH`, and structured `GOTO`/`LOOP` as needed for deterministic lowering to LLVM.
+  - Ensure these forms lower to portable loops, stack (vector) operations, and `switch` in LLVM IR with the appropriate target triple.
+- Correctness & Determinism:
+  - Preserve observable semantics; restrict transforms when side effects or aliasing prevent safe TCE/trampolining.
+  - Deterministic IR output and stable codegen across runs.
+- Configuration:
+  - Enabled by default; guard under an internal flag for A/B testing (future); diagnostics when an attempted transform is skipped.
+  - Guardrails against stack exhaustion when transforms are not applicable:
+    - Insert conservative trampoline fallback for detected self/mutual recursion when analysis cannot prove safety for TCE/CPS rewrite.
+    - Optionally inject a depth counter with a deterministic threshold that switches execution to trampoline mode; emit a warning diagnostic (e.g., `W_RECURSION_GUARD`) when enabled by strict/profile builds.
+
+Acceptance:
+- Golden IR tests:
+  - Tail-recursive `fact`, mutual recursion (even/odd), and non-tail recursion (e.g., Fibonacci) show expected loop/trampoline forms.
+  - Frame structs contain the minimal live locals/params/pc slots; `switch(pc)` structure is stable and deterministic.
+- Behavioral tests:
+  - Deep recursion no longer overflows the host stack; results match unoptimized semantics.
+  - Works across supported targets (darwin/linux, arm64/amd64) with identical IR structure modulo target triples.
+  - Guardrails verified: when TCE/CPS/structured transforms are not applied, fallback trampoline prevents stack exhaustion under adversarial depths.
+- Integration:
+  - Plays well with DCE/const-folding (M18); dead frames/branches eliminated; const branches simplify trampoline `switch` arms where applicable.
+  - `go vet ./...`, `go test -v ./...` pass; ≥80% coverage on optimizer paths.
+
 ## Sprint 1 (Immediate Backlog)
 
 - Scaffold M0/M1: root CLI + flags/exit codes; tests for flag parsing, stderr/stdout behavior.

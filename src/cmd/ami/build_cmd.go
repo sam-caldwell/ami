@@ -10,6 +10,7 @@ var buildEmitLLVMOnly bool
 var buildNoLink bool
 var buildNoLinkEnvs []string
 var buildDebugStrict bool
+var buildBackend string
 
 // newBuildCmd returns the `ami build` subcommand.
 func newBuildCmd() *cobra.Command {
@@ -31,5 +32,6 @@ func newBuildCmd() *cobra.Command {
     cmd.Flags().BoolVar(&buildNoLink, "no-link", false, "skip linking stage (future; reserved)")
     cmd.Flags().StringSliceVar(&buildNoLinkEnvs, "no-link-env", nil, "skip linking for specific target envs (os/arch, comma-separated)")
     cmd.Flags().BoolVar(&buildDebugStrict, "debug-strict", false, "in verbose mode, surface object compile failures as diagnostics")
+    cmd.Flags().StringVar(&buildBackend, "backend", "", "codegen backend to use (overrides workspace); e.g., 'llvm'")
     return cmd
 }

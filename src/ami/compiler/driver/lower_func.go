@@ -6,7 +6,7 @@ import (
 )
 
 // lowerFuncDecl lowers a single function declaration into IR with a single entry block.
-func lowerFuncDecl(fn *ast.FuncDecl, funcResMap, funcParamMap map[string][]string, funcParamNames map[string][]string) ir.Function {
+func lowerFuncDeclWithSCC(fn *ast.FuncDecl, funcResMap, funcParamMap map[string][]string, funcParamNames map[string][]string, sccSet map[string]bool) ir.Function {
     var params []ir.Value
     var outResults []ir.Value
     st := &lowerState{varTypes: map[string]string{}, funcResults: funcResMap, funcParams: funcParamMap, funcParamNames: funcParamNames}
@@ -25,7 +25,7 @@ func lowerFuncDecl(fn *ast.FuncDecl, funcResMap, funcParamMap map[string][]strin
         for _, e := range d.Args { args = append(args, debugExprText(e)) }
         decos = append(decos, ir.Decorator{Name: d.Name, Args: args})
     }
-    // Tail-call elimination (self) M19: if last return is preceded by a self-call expr, mark loop/goto
+    // Tail-call elimination (self/mutual) M19: if last return is preceded by a call expr
     if len(instrs) >= 2 {
         if ret, ok := instrs[len(instrs)-1].(ir.Return); ok {
             if ex, ok2 := instrs[len(instrs)-2].(ir.Expr); ok2 && ex.Op == "call" && ex.Callee == fn.Name {
@@ -34,6 +34,13 @@ func lowerFuncDecl(fn *ast.FuncDecl, funcResMap, funcParamMap map[string][]strin
                 instrs = append(instrs, ir.Loop{Name: fn.Name})
                 instrs = append(instrs, ir.Goto{Label: "entry"})
                 // Synthesize a default return to keep emitter happy
+                instrs = append(instrs, ret)
+            } else if ok2 && ex.Op == "call" && sccSet != nil && sccSet[ex.Callee] {
+                // Mutual recursion tail-call: mark dispatch and goto
+                instrs = instrs[:len(instrs)-2]
+                instrs = append(instrs, ir.Loop{Name: fn.Name})
+                instrs = append(instrs, ir.Dispatch{Label: ex.Callee})
+                instrs = append(instrs, ir.Goto{Label: "entry"})
                 instrs = append(instrs, ret)
             }
         }

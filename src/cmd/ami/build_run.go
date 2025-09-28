@@ -17,6 +17,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
+    "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
 )
 
 func containsEnv(list []string, env string) bool {
@@ -301,6 +302,30 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             _, _ = driver.Compile(ws, dbgPkgs, driver.Options{Debug: true, DebugStrict: buildDebugStrict, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink, Log: logcb})
             _ = os.Chdir(oldwd)
         }
+        // Emit kvstore metrics and dump under build/debug/kv/
+        kvDir := filepath.Join(dir, "build", "debug", "kv")
+        _ = os.MkdirAll(kvDir, 0o755)
+        // Metrics
+        mts := kvstore.Default().Metrics()
+        mobj := map[string]any{
+            "schema":      "kv.metrics.v1",
+            "timestamp":   time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+            "hits":        mts.Hits,
+            "misses":      mts.Misses,
+            "expirations": mts.Expirations,
+            "currentSize": mts.CurrentSize,
+        }
+        _ = writeJSONFile(filepath.Join(kvDir, "metrics.json"), mobj)
+        // Dump (guarded, minimal): emit current keys only
+        keys := kvstore.Default().Keys()
+        sort.Strings(keys)
+        dobj := map[string]any{
+            "schema":    "kv.dump.v1",
+            "timestamp": time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+            "keys":      keys,
+            "size":      len(keys),
+        }
+        _ = writeJSONFile(filepath.Join(kvDir, "dump.json"), dobj)
         // Build plan after emitting artifacts; include object index paths when present
         planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
         type planPkg struct{

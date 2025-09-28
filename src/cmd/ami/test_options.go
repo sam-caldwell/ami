@@ -6,9 +6,10 @@ type TestOptions struct {
     Parallel    int
     Failfast    bool
     RunPattern  string
+    KvMetrics   bool
+    KvDump      bool
 }
 
 var currentTestOptions TestOptions
 
 func setTestOptions(o TestOptions) { currentTestOptions = o }
-

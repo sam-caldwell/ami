@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/ami/errors.v1.schema.json",
+  "title": "AMI Error (errors.v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "errors.v1" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "level": { "type": "string", "minLength": 1 },
+    "code": { "type": "string", "minLength": 1 },
+    "message": { "type": "string", "minLength": 1 },
+    "file": { "type": "string" },
+    "pos": {
+      "type": "object",
+      "properties": {
+        "line": { "type": "integer", "minimum": 0 },
+        "column": { "type": "integer", "minimum": 0 },
+        "offset": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["line", "column", "offset"],
+      "additionalProperties": false
+    },
+    "data": { "type": "object", "additionalProperties": true }
+  },
+  "required": ["schema", "level", "code", "message"],
+  "unevaluatedProperties": true
+}
+

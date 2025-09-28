@@ -4,6 +4,7 @@ import (
     "strings"
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
+    "github.com/sam-caldwell/ami/src/ami/compiler/sem"
 )
 
 // lowerFile lowers functions found in an AST file into a single IR module.
@@ -15,9 +16,13 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
     var telemetry bool
     var capabilities []string
     var trustLevel string
+    // Compute SCCs for recursion analysis
+    scc := sem.ComputeSCC(f)
     for _, d := range f.Decls {
         if fn, ok := d.(*ast.FuncDecl); ok {
-            fns = append(fns, lowerFuncDecl(fn, results, params, paramNames))
+            var same map[string]bool
+            if set, ok := scc[fn.Name]; ok { same = set }
+            fns = append(fns, lowerFuncDeclWithSCC(fn, results, params, paramNames, same))
         }
     }
     // collect directives from pragmas

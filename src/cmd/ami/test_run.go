@@ -12,9 +12,11 @@ import (
     "sort"
     "strings"
     "strconv"
+    "time"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
+    "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
 )
 
 // runTest executes `go test ./...` in dir. When verbose, writes:
@@ -55,6 +57,36 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
     // If verbose, write test.log
     if verbose {
         _ = os.WriteFile(filepath.Join(buildDir, "test.log"), stdout.Bytes(), 0o644)
+    }
+
+    // Emit kvstore metrics/dump when requested (or in verbose mode for convenience)
+    if verbose || currentTestOptions.KvMetrics || currentTestOptions.KvDump {
+        kvDir := filepath.Join(buildDir, "kv")
+        _ = os.MkdirAll(kvDir, 0o755)
+        now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+        if verbose || currentTestOptions.KvMetrics {
+            mts := kvstore.Default().Metrics()
+            mobj := map[string]any{
+                "schema":      "kv.metrics.v1",
+                "timestamp":   now,
+                "hits":        mts.Hits,
+                "misses":      mts.Misses,
+                "expirations": mts.Expirations,
+                "currentSize": mts.CurrentSize,
+            }
+            _ = writeJSONFile(filepath.Join(kvDir, "metrics.json"), mobj)
+        }
+        if verbose || currentTestOptions.KvDump {
+            keys := kvstore.Default().Keys()
+            sort.Strings(keys)
+            dobj := map[string]any{
+                "schema":    "kv.dump.v1",
+                "timestamp": now,
+                "keys":      keys,
+                "size":      len(keys),
+            }
+            _ = writeJSONFile(filepath.Join(kvDir, "dump.json"), dobj)
+        }
     }
 
     // Build counts by scanning the go test JSON stream we captured in stdout buffer.
@@ -170,7 +202,21 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                     }
                 }
             }
-            if len(caseNames) == 0 { return nil }
+            // If no explicit cases, create a default case asserting parse_ok
+            if len(caseNames) == 0 {
+                // If the raw source contains any test pragmas, do not invent a default; tolerate parser failure.
+                if bytes.Contains(b, []byte("#pragma test:")) { return nil }
+                // Determine result based on default expectation (parse_ok)
+                ok := len(errs) == 0
+                rel := path
+                if rp, rerr := filepath.Rel(root, path); rerr == nil { rel = rp }
+                name := "default"
+                amiTests++
+                if !ok { amiFailures++ }
+                amiManifest = append(amiManifest, fmt.Sprintf("ami:%s %s", rel, name))
+                amiEvents = append(amiEvents, amiResult{name: name, file: rel, ok: ok, expect: "parse_ok", count: 0, msgSub: "", gotErrs: len(errs)})
+                return nil
+            }
             // Determine result based on expectation vs error
             ok := (len(errs) == 0) == expectParseOK
             // Count assertion

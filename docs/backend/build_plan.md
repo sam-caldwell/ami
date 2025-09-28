@@ -17,6 +17,11 @@ produced by the front-end and early backend stages.
   (`build/obj/<pkg>/index.json`) when present.
 - `objects` (optional): array of relative paths to discovered object files
   (`build/obj/<pkg>/*.o`) when present.
+- `objectsByEnv` (optional): map of `env -> []string` listing per‑environment object files when cross‑env builds emit objects under `build/<env>/obj/...`.
+- `objIndexByEnv` (optional): map of `env -> []string` listing per‑environment object index files under `build/<env>/obj/<pkg>/index.json`.
+- `irIndex` (optional): array of relative paths to per‑package IR indices under `build/debug/ir/<pkg>/ir.index.json`.
+- `irTypesIndex` (optional): array of relative paths to per‑package IR types indices under `build/debug/ir/<pkg>/ir.types.index.json`.
+- `irSymbolsIndex` (optional): array of relative paths to per‑package IR symbols indices under `build/debug/ir/<pkg>/ir.symbols.index.json`.
 
 Example:
 
@@ -39,6 +44,22 @@ Example:
   ],
   "objects": [
     "build/obj/app/u.o"
+  ],
+  "objectsByEnv": {
+    "darwin/arm64": ["build/darwin/arm64/obj/app/u.o"],
+    "linux/arm64": ["build/linux/arm64/obj/app/u.o"]
+  },
+  "objIndexByEnv": {
+    "darwin/arm64": ["build/darwin/arm64/obj/app/index.json"]
+  },
+  "irIndex": [
+    "build/debug/ir/app/ir.index.json"
+  ],
+  "irTypesIndex": [
+    "build/debug/ir/app/ir.types.index.json"
+  ],
+  "irSymbolsIndex": [
+    "build/debug/ir/app/ir.symbols.index.json"
   ]
 }
 ```
@@ -55,15 +76,12 @@ Each entry summarizes a logical package from `ami.workspace`.
 
 ## Semantics
 
-- Paths under `objIndex` and `objects` are workspace‑relative.
-- `hasObjects` is conservative and true when either real or stub `.o` files have
-  been emitted. During early backend phases, stub `.o` files may exist even when
-  the host toolchain is missing; when the toolchain is available, compiled
-  objects will be preferred in indexes.
+- Paths under `objIndex`, `objects`, `objectsByEnv`, and IR index arrays are workspace‑relative.
+- `hasObjects` is conservative and true when either real or stub `.o` files have been emitted. During early
+  backend phases, stub `.o` files may exist even when the host toolchain is missing; when the toolchain is
+  available, compiled objects will be preferred in indexes.
 
 ## Compatibility
 
-- This schema is versioned via the `schema` field and may evolve. New optional
-  fields will be added to preserve backward compatibility for existing
-  consumers.
-
+- This schema is versioned via the `schema` field and may evolve. New optional fields may be added to preserve
+  backward compatibility for existing consumers. Unknown optional fields should be ignored by readers.

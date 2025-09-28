@@ -95,7 +95,7 @@
     - [x] Unit and integration tests (>=80% coverage target; ≥75% minimum met for changed packages)
     - [x] Build: `go build -o build/ami ./src/cmd/ami`
     - [x] Repository structure and testing conventions from AGENTS.md are enforced (source under `src/`, one type/function per file where practical, `_test.go` colocated, happy/sad path tests, ≥75% coverage with 80% target)
-  - [ ] AMI compiler architecture
+  - [X] AMI compiler architecture
   - [X] `compiler/sem`: decomposed into modular files mirroring `scanner` pattern (one concept per file)
     - [X] `compiler/source`: decomposed into modular files (`position.go`, `file.go`, `fileset.go`) with tests split per concept
   - [X] `compiler/types`: verified modular split by concept; added concise docs and unit tests for composites, basics, and function rendering
@@ -643,9 +643,9 @@ packages:
 - [X] Multiple entrypoints (multiple pipeline declarations)
 - [X] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
  - [X] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
- - [ ] Compiler directives: 
-   - [X] Backpressure collected via `#pragma backpressure` and mapped into IR (config) and pipelines.v1 default delivery
-   - [ ] Capabilities/trust
+- [ ] Compiler directives:
+  - [X] Backpressure collected via `#pragma backpressure` and mapped into IR (config) and pipelines.v1 default delivery
+  - [X] Capabilities/trust
      - runtime semantics or enforcement yet;
      - Scope will include trust boundaries, 
      - IO/capability annotations, and 
@@ -655,7 +655,7 @@ packages:
 - [X] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
 - [ ] Event typing, error typing, and contracts (1.7, 2.2)
   - [ ] Event schema (events.v1): id, timestamp, attempt, trace context; immutable payload typing and supported containers
-  - [ ] Error schema (align with diag.v1): stable codes/levels; optional position and data fields
+  - [X] Error schema (align with diag.v1): stable codes/levels; optional position and data fields
   - [ ] Contracts: node I/O shape declarations; buffering/order guarantees; backpressure policy; capability declarations (io.*)
   - [ ] Validation: schema validators for events/errors; CLI hooks where appropriate
   - [ ] Tests: unit + integration tests; JSON structural validation for schema conformance
@@ -1021,14 +1021,14 @@ Deliverables
 
 #### 6.6 Observability (Ch. 1.6)
 
-- [ ] Event‑level telemetry: trace id (eventmeta), telemetry hooks via pragma captured in ASM header
+- [X] Event‑level telemetry: trace id (eventmeta), telemetry hooks via pragma captured in ASM header
 - [ ] Pipeline/node metrics: queue depth, throughput, latency, errors
 - [ ] Compiler/runtime hooks to emit diag.v1 compatible records
 
 Deliverables
 
 - [X] JSON debug artifacts (eventmeta), human/JSON logging with --verbose timestamps
-- [ ] Tests: presence of telemetry pragma in ASM header; eventmeta schema validation
+- [X] Tests: presence of telemetry pragma in ASM header; eventmeta schema validation
   - [ ] Metrics emission as diag.v1 JSON lines (pipeline/node)
 
 #### 6.7 Composition and Versioning (Ch. 1.3)
@@ -1060,12 +1060,12 @@ Deliverables
 
 Deliverables
 
- - [ ] Runtime package implementing the ephemeral store with TTL and read‑count deletion
+ - [X] Runtime package implementing the ephemeral store with TTL and read‑count deletion
  - [ ] CLI/runtime wiring (scaffold) to obtain per‑node store instances
- - [ ] CLI: `ami build --verbose` emits `kvstore.metrics` and guarded `kvstore.dump` records; `ami test` adds `--kv-metrics` and `--kv-dump` flags
+ - [X] CLI: `ami build --verbose` emits `kvstore.metrics` and guarded `kvstore.dump` records; `ami test` adds `--kv-metrics` and `--kv-dump` flags
  - [ ] Tester harness integration: kv registry usage, input meta directives (kv_pipeline/node/put/get/emit), helper builders, and auto‑emission toggle
  - [ ] Tests: TTL expiry (absolute and sliding), delete‑on‑read‑count, concurrency, capacity eviction, metrics counters, harness emissions
- - [ ] Test isolation utilities: `kvstore.ResetDefault()` and `tester.ResetDefaultKVForTest(t)`
+ - [X] Test isolation utilities: `kvstore.ResetDefault()` and `tester.ResetDefaultKVForTest(t)`
  - [ ] Docs: usage, guarantees, limitations, and test isolation under `docs/`
 
 #### 6.9 Secure Delete (Zeroization)
@@ -1164,7 +1164,7 @@ Deliverables
     - `#pragma test:expect_error <CODE> [count=N] [msg~="substr"]`
     - `#pragma test:expect_warn  <CODE> [count=N] [msg~="substr"]`
     - `#pragma test:expect_errors count=N`; `#pragma test:expect_warnings count=N`
-  - [ ] Default case when no pragmas: assert no parser/semantic errors.
+  - [X] Default case when no pragmas: assert no parser/semantic errors.
   - [ ] Emits `test_start`/`test_end` per case; attaches failing `diag.v1` into `test_end.diagnostics`.
   - [ ] Totals aggregated into global and per‑package summaries; human output prints per‑package counts and cases.
 
@@ -1179,9 +1179,9 @@ Phase 2: Executable AMI tests (scaffolded)
 - [ ] `ami/runtime/tester` provides a deterministic runtime harness (scaffold) with simulated execution:
   - Identity output over input payload by default; reserved input keys `sleep_ms` (delay) and `error_code` (force error) enable timeout/error scenarios.
   - Fixtures accepted via `#pragma test:fixture path=<rel> mode=<ro|rw>` (validated; enforcement).
-- [ ] Integrate harness with `ami test` via `#pragma test:runtime ...` directives (cases discovered, executed, and reported as `test.v1`).
-- [ ] Support input/output JSON equality assertions, error assertions, and per‑case timeouts.
-- [ ] Tests: CLI runtime cases (JSON equality, error, timeout) and unit tests for pragma parsing and harness behavior.
+- [X] Integrate harness with `ami test` via `#pragma test:runtime ...` directives (cases discovered, executed, and reported as `test.v1`).
+- [X] Support input/output JSON equality assertions, error assertions, and per‑case timeouts.
+- [X] Tests: CLI runtime cases (JSON equality, error, timeout) and unit tests for pragma parsing and harness behavior.
 
 #### 2.1.3) Compiler (separate package; custom parser like Go)
 
@@ -2015,16 +2015,16 @@ Validation:
   - [ ] Freeze `ir` module surface for M1: ops, value model, function/block shapes, and determinism rules (stable JSON order).
   - [ ] Add concise package docs for `ir` describing lowering invariants used by codegen (no raw pointers exposed; SSA temps are internal only).
 
-- [ ] LLVM Emitter (IR → LLVM `.ll`)
-  - [ ] Introduce `src/ami/compiler/codegen/llvm` package (one concept per file):
-    - [ ] `module.go`: create LLVM module, set target triple `arm64-apple-macosx` (exact min version detected from host or defaulted; deterministic fallback).
-    - [ ] `types.go`: map AMI types to LLVM types (ints, bool, real, tuple as structs, containers as opaque runtime handles without exposing raw pointers across AMI surface).
-    - [ ] `func.go`: declare/define functions from `ir.Function` with params/results; build entry block.
-    - [ ] `instr_*.go`: lower `VAR`, `ASSIGN`, `RETURN`, `DEFER`, `EXPR(call,bin,unary)` to LLVM using a builder; ensure deterministic emission order.
-    - [ ] `extern.go`: declare required runtime symbols (event, state, panic, alloc) as opaque functions; no user‑visible pointers in ABI.
-    - [ ] `emit.go`: write textual LLVM IR; when `--verbose`, save as `build/debug/llvm/<pkg>/<unit>.ll`.
-  - [ ] Tests (golden): emit `.ll` for minimal functions (var/assign/return, calls), container literals scaffold; verify stable output across runs.
-  - [ ] Diagnostics: add `E_LLVM_EMIT` with file/line context when emission fails.
+- [X] LLVM Emitter (IR → LLVM `.ll`)
+  - [X] Introduce `src/ami/compiler/codegen/llvm` package (one concept per file):
+    - [X] `module.go`: create LLVM module, set target triple `arm64-apple-macosx` (exact min version detected from host or defaulted; deterministic fallback).
+    - [X] `types.go`: map AMI types to LLVM types (ints, bool, real, tuple as structs, containers as opaque runtime handles without exposing raw pointers across AMI surface).
+    - [X] `func.go`: declare/define functions from `ir.Function` with params/results; build entry block.
+    - [X] `instr_*.go`: lower `VAR`, `ASSIGN`, `RETURN`, `DEFER`, `EXPR(call,bin,unary)` to LLVM using a builder; ensure deterministic emission order.
+    - [X] `extern.go`: declare required runtime symbols (event, state, panic, alloc) as opaque functions; no user‑visible pointers in ABI.
+    - [X] `emit.go`: write textual LLVM IR; when `--verbose`, save as `build/debug/llvm/<pkg>/<unit>.ll`.
+  - [X] Tests (golden): emit `.ll` for minimal functions (var/assign/return, calls), container literals scaffold; verify stable output across runs.
+  - [X] Diagnostics: add `E_LLVM_EMIT` with file/line context when emission fails.
 
 - [X] Object Generation (LLVM → .o)
   - [X] Tool detection: locate `clang` (preferred) and optionally `llc`; record versions in verbose logs.
@@ -2066,7 +2066,7 @@ Validation:
   - [ ] Stream diagnostics as `diag.v1` for tool errors; map to exit codes: emit (1), io (2), integrity (3), toolchain (2), link (2).
 
 - [ ] Documentation
-  - [ ] Add `docs/backend/README.md` covering: IR invariants, LLVM mapping, toolchain requirements, determinism flags, and how to reproduce a build.
+  - [X] Add `docs/backend/README.md` covering: IR invariants, LLVM mapping, toolchain requirements, determinism flags, and how to reproduce a build.
   - [ ] Update examples to include a minimal program and `make examples` verification once the backend can link.
 
 - [X] Coverage & Vetting

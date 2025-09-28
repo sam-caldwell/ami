@@ -1257,7 +1257,7 @@ Type System and Semantics (Phase 2.1)
 
 - [X] Emit per‑unit assembly under `build/obj/<package>/<unit>.s` for normal builds (no `--verbose`).
 - [X] Per‑package index `build/obj/<package>/index.json` (`objindex.v1`) lists `{ unit, path, size, sha256 }`.
-- [ ] Determinism: indexes and obj asm are stable across runs; tests cover single and multi‑package scenarios (timestamp normalized in tests).
+- [X] Determinism: indexes and obj asm are stable across runs; tests cover single and multi‑package scenarios (timestamp normalized in tests).
 - [ ] `ami.manifest` includes these entries as `kind:"obj"` when present.
 
 Edges Runtime Scaffolding (for harness/tests)

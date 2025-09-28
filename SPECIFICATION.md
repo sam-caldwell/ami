@@ -87,7 +87,7 @@
       - [X] Native AMI directive‑based assertions (parser/sem) integrated into harness: support `#pragma test:case <name>` and `#pragma test:assert parse_ok|parse_fail` with manifest entries and failures affecting exit code.
       - [X] Package‑level concurrency flag (`--packages`) and explicit per‑package summaries in human mode.
       - Notes: runtime execution of AMI code deferred; current scope wraps Go tests per roadmap M12.
-    - [ ] `ami build` is completely implemented with >=80% test coverage and all tests passing.
+    - [X] `ami build` is completely implemented with >=80% test coverage and all tests passing.
   - [X] Deterministic behaviors (no prompts, stable outputs)
   - [X] CLI/toolchain tests run from `./build/test/` (per-test subdirs)
   - [x] Code quality guarantee
@@ -2027,6 +2027,6 @@ Validation:
   - [ ] Add `docs/backend/README.md` covering: IR invariants, LLVM mapping, toolchain requirements, determinism flags, and how to reproduce a build.
   - [ ] Update examples to include a minimal program and `make examples` verification once the backend can link.
 
-- [ ] Coverage & Vetting
-  - [ ] ≥80% coverage for `codegen/llvm` and driver additions; include happy/sad tests.
-  - [ ] `go vet ./...` clean; build checks updated to ensure `ami build` passes on hosts with/without LLVM (graceful skip with clear diagnostics).
+- [X] Coverage & Vetting
+  - [X] ≥80% coverage for `codegen/llvm` and driver additions; include happy/sad tests.
+  - [X] `go vet ./...` clean; build checks updated to ensure `ami build` passes on hosts with/without LLVM (graceful skip with clear diagnostics).

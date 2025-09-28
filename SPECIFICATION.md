@@ -99,7 +99,7 @@
   - [X] `compiler/sem`: decomposed into modular files mirroring `scanner` pattern (one concept per file)
     - [X] `compiler/source`: decomposed into modular files (`position.go`, `file.go`, `fileset.go`) with tests split per concept
   - [X] `compiler/types`: verified modular split by concept; added concise docs and unit tests for composites, basics, and function rendering
-    - [ ] `manifest`: decomposed into `types.go`, `validate.go`, `sumcheck.go`, and `io.go`; existing tests left intact and passing
+    - [X] `manifest`: decomposed into `types.go`, `validate.go`, `sumcheck.go`, and `io.go`; existing tests left intact and passing
 - [X] Docs for user‑visible commands under `docs/` updated alongside features
 - [X] `ami.sum` JSON summary file with package→version→sha256 mapping; 
   - [x] updated by `mod get/update`, verified by `build`
@@ -1000,9 +1000,9 @@ Deliverables
 
 - [ ] Compiler checks and errors for cross‑package composition mismatches
 - [ ] Tests: version conflict, trust boundary enforcement, explicit transforms for type bridging
-- [ ] Config via `ami.workspace` (enable/disable rules, severity)
+- [X] Config via `ami.workspace` (enable/disable rules, severity)
 - [X] Output: human summary and `--json` with file/line/rule/message
-- [ ] Exit codes: any error → USER_ERROR; IO issues → SYSTEM_IO_ERROR
+- [X] Exit codes: any error → USER_ERROR; IO issues → SYSTEM_IO_ERROR
 - [X] Tests: rule triggers, suppression config, JSON schema, path globs
 
 #### 6.8 Node‑State Table (Ephemeral Key Store)

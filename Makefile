@@ -1,42 +1,46 @@
-.PHONY: all clean lint test build bench examples e2e-build e2e-test \
+.PHONY: help all clean lint test build bench examples e2e-build e2e-test \
         e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update \
         test-hotspots
+
+# Print Makefile target help by scanning for lines with '##' descriptions.
+help: ## Show this help with targets and descriptions
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "%-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # Benchmark configuration (override via: make bench BENCH=... BENCHTIME=...)
 BENCH ?= BenchmarkAMI_Subcommands
 BENCHTIME ?= 1x
 
-all: build
+all: build ## Default: build the ami CLI
 
-clean:
+clean: ## Remove and recreate the build/ directory
 	rm -rf ./build
 	mkdir -p ./build
 
-lint:
+lint: ## Run go vet across all packages
 	go vet -v ./...
 
-test:
+test: ## Run all tests (go test -v ./...)
 	go test -v ./...
 
-build: clean
+build: clean ## Build the ami CLI binary to build/ami
 	go build -o build/ami ./src/cmd/ami
 
 # Run CLI microbenchmarks for ami subcommands in isolated sandboxes.
-bench:
+bench: ## Run CLI microbenchmarks (vars: BENCH, BENCHTIME)
 	@echo "Running CLI benchmarks: $(BENCH) (benchtime=$(BENCHTIME))"
 	go test -run ^$$ -bench $(BENCH) -benchtime=$(BENCHTIME) ./src/cmd/ami
 
-e2e-build:
+e2e-build: ## Build CLI for end-to-end tests
 	@echo "Building ami CLI for E2E..."
 	go build -o build/ami ./src/cmd/ami
 
-e2e-test: e2e-build
+e2e-test: e2e-build ## Run all E2E CLI tests (tests/e2e)
 	@echo "Running E2E CLI tests (tests/e2e)..."
 	go test -v ./tests/e2e
 
 # Run a subset of E2E tests by regex name. Usage:
 #   make e2e-one NAME=AmiModGet
-e2e-one: e2e-build
+e2e-one: e2e-build ## Run E2E tests matching NAME=Pattern (e.g., NAME=AmiModGet)
 	@if [ -z "$(NAME)" ]; then \
 	  echo "NAME required, e.g., make e2e-one NAME=AmiModGet"; \
 	  exit 1; \
@@ -45,28 +49,28 @@ e2e-one: e2e-build
 	go test -v ./tests/e2e -run "$(NAME)"
 
 # Convenience targets per mod subcommand
-e2e-mod-audit: e2e-build
+e2e-mod-audit: e2e-build ## Run only E2E tests for 'ami mod audit'
 	go test -v ./tests/e2e -run AmiModAudit
 
-e2e-mod-clean: e2e-build
+e2e-mod-clean: e2e-build ## Run only E2E tests for 'ami mod clean'
 	go test -v ./tests/e2e -run AmiModClean
 
-e2e-mod-list: e2e-build
+e2e-mod-list: e2e-build ## Run only E2E tests for 'ami mod list'
 	go test -v ./tests/e2e -run AmiModList
 
-e2e-mod-get: e2e-build
+e2e-mod-get: e2e-build ## Run only E2E tests for 'ami mod get'
 	go test -v ./tests/e2e -run AmiModGet
 
-e2e-mod-sum: e2e-build
+e2e-mod-sum: e2e-build ## Run only E2E tests for 'ami mod sum'
 	go test -v ./tests/e2e -run AmiModSum
 
-e2e-mod-update: e2e-build
+e2e-mod-update: e2e-build ## Run only E2E tests for 'ami mod update'
 	go test -v ./tests/e2e -run AmiModUpdate
 
 # List packages and files under src/ missing test coverage patterns.
 # - Reports packages with zero *_test.go files.
 # - Reports .go files without a matching *_test.go sibling (same basename).
-test-hotspots:
+test-hotspots: ## Report packages/files missing test coverage pairs
 	@echo "Scanning src/ for test coverage hotspots..." >&2
 	@# Packages with no tests
 	@find src -type d | while read d; do \
@@ -85,7 +89,7 @@ test-hotspots:
 	  fi; \
 	 done | sed 's#//.*$$##'
 
-examples:
+examples: ## Build example workspaces and stage outputs under build/examples/
 	# Build all example workspaces and stage their outputs under build/examples/
 	rm -rf build/examples
 	mkdir -p build/examples

@@ -1218,12 +1218,12 @@ Types & Semantics (incremental)
 
 - [X] Surface import version constraints into `sources.v1` (`importsDetailed`) during build planning/output.
 
-- [ ] Grammar extensions: unary/binary operators (tracking for backend ops already supported)
-  - [X] Add tokens and precedence for bitwise (`&`, `^`), shifts (`<<`, `>>`). (Reserved `|` kept as pipe symbol; defer bitwise `|`.)
+-- [ ] Grammar extensions: unary/binary operators (tracking for backend ops already supported)
+  - [X] Add tokens and precedence for bitwise (`&`, `|`, `^`), shifts (`<<`, `>>`).
   - [X] Introduce `ast.UnaryExpr` and extend parsing to support unary logical `!`.
   - [X] Lowering: map unary `!` to IR op `not`; tests added.
-  - [X] Lowering: map `&`→`band`, `^`→`xor`, `<<`→`shl`, `>>`→`shr`; tests added.
-  - [X] LLVM emission: handle `band` (→ `and` iN) and `xor`, `shl`, `shr` for integers; keep logical `and`/`or` for booleans only.
+  - [X] Lowering: map `|`→`bor`, `&`→`band`, `^`→`xor`, `<<`→`shl`, `>>`→`shr`; tests added.
+  - [X] LLVM emission: handle `bor` (→ `or` iN), `band` (→ `and` iN), and `xor`, `shl`, `shr` for integers; keep logical `and`/`or` for booleans only.
 
  
 

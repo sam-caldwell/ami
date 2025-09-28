@@ -179,7 +179,12 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 _ = os.WriteFile(lpath, []byte(llvmText), 0o644)
                 bmu.LLVM = lpath
                 if opts.Log != nil { opts.Log("unit.llvm.write", map[string]any{"pkg": p.Name, "unit": unit, "path": lpath}) }
+            } else {
+                // surface emission errors in debug as diagnostics too
+                outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LLVM_EMIT", Message: err.Error(), File: unit + ".ll"})
             }
+                // Optional: RAII trace debug for this unit
+                if rpath, err := writeIRRAIIDebug(p.Name, unit, af); err == nil { bmu.RAII = rpath }
                 bmp.Units = append(bmp.Units, bmu)
             }
             // emit object stub and per-unit asm under build/obj in all modes

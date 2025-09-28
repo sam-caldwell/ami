@@ -10,6 +10,7 @@ type bmUnit struct {
     Unit      string `json:"unit"`
     IR        string `json:"ir,omitempty"`
     LLVM      string `json:"llvm,omitempty"`
+    RAII      string `json:"raii,omitempty"`
     Pipelines string `json:"pipelines,omitempty"`
     EventMeta string `json:"eventmeta,omitempty"`
     ASM       string `json:"asm,omitempty"`

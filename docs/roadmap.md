@@ -163,6 +163,35 @@ Deliverables:
 Acceptance:
 - Tests for each subcommand; integrity and error paths; no interactive prompts.
 
+### M14 — RAII + Generic Inference
+
+Dependencies:
+- M5 Frontend (Source→AST) complete
+- M6 Semantics (initial) complete (memory safety, pipeline invariants, worker signature/resolution)
+- M7 Linter Stage B complete (parser-backed rules + pragma suppression)
+- M8 Type Inference (M1–M3) baseline in place
+- M9 IR + Artifacts scaffold complete (deterministic IR/obj index)
+- M12 Test Runner available (directive/runtime harness; JSON lines)
+
+Deliverables:
+- Full RAII ownership accounting for `Owned<T>` (intraprocedural, defer-aware):
+  - States: acquire/transfer/release; defer-scheduled release counting to function exit
+  - Diagnostics: `E_RAII_LEAK`, `E_RAII_DOUBLE_RELEASE`, `E_RAII_USE_AFTER_RELEASE`, `E_RAII_RELEASE_UNOWNED`, `E_RAII_TRANSFER_UNOWNED`
+  - Semantics pass `sem.AnalyzeRAII` + position-rich diag.v1
+  - Optional IR debug markers for RAII events (acquire/release/defer/transfer)
+- Richer generic inference (local, deterministic):
+  - Call-site instantiation/unification for single-letter generics
+  - Tuple return propagation and arity checks
+  - Container inference for `slice<T>`, `set<T>`, `map<K,V>` via literals/assign/return
+  - Propagation for `Event<T>` / `Error<E>` across local scopes
+  - Diagnostics: `E_TYPE_UNINFERRED`, extended `E_TYPE_MISMATCH`/`E_TYPE_AMBIGUOUS`
+- Linter Stage B integration surfaces RAII errors; respects `#pragma lint:disable`.
+
+Acceptance:
+- `go vet ./...`, `go test -v ./...` pass; ≥80% coverage in changed packages
+- Deterministic diagnostics with precise positions (golden tests for inference/RAII)
+- No regressions across earlier milestones; stable JSON/human outputs
+
 ## Sprint 1 (Immediate Backlog)
 
 - Scaffold M0/M1: root CLI + flags/exit codes; tests for flag parsing, stderr/stdout behavior.

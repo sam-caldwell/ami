@@ -25,15 +25,38 @@ func AnalyzeTypeInference(f *ast.File) []diag.Record {
         }
         // collect local function result signatures for call propagation
         sigs := collectFunctionResults(f)
-        // one pass to seed types from var decls with explicit types
+        // seed from var decls
         for _, st := range fn.Body.Stmts {
             if vd, ok := st.(*ast.VarDecl); ok {
                 if vd.Name != "" {
-                    if vd.Type != "" { env[vd.Name] = vd.Type } else if vd.Init != nil { env[vd.Name] = inferLocalExprTypeWithSigs(env, sigs, vd.Init) }
+                    if vd.Type != "" {
+                        env[vd.Name] = vd.Type
+                    } else if vd.Init != nil {
+                        env[vd.Name] = inferLocalExprTypeWithSigs(env, sigs, vd.Init)
+                    }
                 }
             }
         }
-        // second pass: assignments and mismatches
+        // conservative multi-pass propagation over assignments to reach a fixed point quickly
+        for pass := 0; pass < 3; pass++ {
+            changed := false
+            for _, st := range fn.Body.Stmts {
+                as, ok := st.(*ast.AssignStmt)
+                if !ok { continue }
+                vt := inferLocalExprTypeWithSigs(env, sigs, as.Value)
+                if vt == "" || vt == "any" { continue }
+                old := env[as.Name]
+                if old == "" || old == "any" {
+                    env[as.Name] = vt
+                    changed = true
+                    continue
+                }
+                // if both known but container generics unify, keep the old to avoid churn
+                // otherwise leave as-is; mismatch will be reported below
+            }
+            if !changed { break }
+        }
+        // diagnostics: type mismatches and ambiguous returns
         for _, st := range fn.Body.Stmts {
             switch v := st.(type) {
             case *ast.AssignStmt:
@@ -43,17 +66,8 @@ func AnalyzeTypeInference(f *ast.File) []diag.Record {
                         out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TYPE_MISMATCH", Message: "assignment type mismatch: expected " + old + ", got " + vt, Pos: &diag.Position{Line: v.NamePos.Line, Column: v.NamePos.Column, Offset: v.NamePos.Offset}})
                     }
                 }
-                // propagate concrete type when known
-                if vt != "" && vt != "any" {
-                    if old, ok := env[v.Name]; ok && old != "" && old != "any" { env[v.Name] = old } else { env[v.Name] = vt }
-                }
             case *ast.ReturnStmt:
-                // ensure returns match declared results when both sides are known (delegated to other analyzer);
-                // here, we only try to detect ambiguous return literals.
-                for _, e := range v.Results {
-                    // bubble-up ambiguity
-                    out = append(out, ambiguousInExpr(now, e)...)
-                }
+                for _, e := range v.Results { out = append(out, ambiguousInExpr(now, e)...)}
             }
         }
     }
@@ -69,6 +83,10 @@ func inferLocalExprType(env map[string]string, e ast.Expr) string {
         return "int"
     case *ast.StringLit:
         return "string"
+    case *ast.UnaryExpr:
+        // logical not yields bool (i1)
+        if v.Op == token.Bang { return "bool" }
+        return "any"
     case *ast.BinaryExpr:
         xt := inferLocalExprType(env, v.X)
         yt := inferLocalExprType(env, v.Y)
@@ -78,6 +96,12 @@ func inferLocalExprType(env map[string]string, e ast.Expr) string {
             if xt == "int" && yt == "int" { return "int" }
         case token.Minus, token.Star, token.Slash:
             if xt == "int" && yt == "int" { return "int" }
+        case token.Eq, token.Ne, token.Lt, token.Le, token.Gt, token.Ge:
+            // comparisons yield bool regardless of operand type (when comparable)
+            return "bool"
+        case token.And, token.Or:
+            // logical ops yield bool
+            return "bool"
         default:
             if xt == yt && xt != "any" { return xt }
         }

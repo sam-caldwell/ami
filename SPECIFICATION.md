@@ -223,6 +223,34 @@
   - Measures: `ami help`, `ami version`, `ami clean`, `ami lint`, `ami test`, `ami mod {update,list,sum,get,clean}`, `ami pipeline visualize`
   - Benchmarks run in isolated sandboxes with a temp workspace and cache (`AMI_PACKAGE_CACHE`), avoiding side effects.
   - Does not run by default; invoke with `go test -bench . ./src/cmd/ami`.
+
+### 1.0.1.5. Milestone M14 — RAII + Generic Inference (Scope & Dependencies)
+- This milestone brings full RAII accounting and richer local generic inference into scope.
+- Dependencies (must be complete before starting M14):
+  - M5 Frontend (Source→AST) with positions/comments and stable JSON
+  - M6 Semantics (initial): memory safety, pipeline invariants, worker signature/resolution
+  - M7 Linter Stage B: parser-backed rules and pragma suppression
+  - M8 Type Inference (M1–M3) baseline
+  - M9 IR + Artifacts scaffold (deterministic IR and obj index)
+  - M12 Test Runner (directive/runtime harness; JSON lines)
+
+Scope (Deliverables):
+- Full RAII ownership accounting for `Owned<T>` within function bodies:
+  - Track acquire/transfer/release (including `defer release(x)`); report leaks and misuse
+  - Diagnostics: `E_RAII_LEAK`, `E_RAII_DOUBLE_RELEASE`, `E_RAII_USE_AFTER_RELEASE`, `E_RAII_RELEASE_UNOWNED`, `E_RAII_TRANSFER_UNOWNED`
+  - New semantics pass `sem.AnalyzeRAII(f *ast.File) []diag.Record` (position-rich, deterministic)
+  - Optional IR debug markers for RAII events (no behavior change)
+- Richer generic inference (local, deterministic):
+  - Call-site instantiation/unification for single-letter generics; apply substitutions to results
+  - Tuple return arity/type propagation; container inference for `slice<T>`, `set<T>`, `map<K,V>`
+  - Propagation for `Event<T>` / `Error<E>` across local scopes (conservative when unknown)
+  - Diagnostics: `E_TYPE_UNINFERRED`, extended `E_TYPE_MISMATCH`, `E_TYPE_AMBIGUOUS`
+- Linter Stage B integration surfaces RAII errors and respects `#pragma lint:disable`.
+
+Acceptance Criteria:
+- `go vet ./...`, `go test -v ./...` pass; ≥80% coverage for changed packages
+- Deterministic diagnostics with precise positions (golden tests for inference/RAII)
+- No regressions to earlier milestones; JSON/human outputs remain stable
 ## 1.1.0.0. AMI Toolchain Command Details
 ### 1.1.1.0. Workspace Management (`ami init`)
 - [X] `ami init` subcommand features complete:
@@ -1192,7 +1220,7 @@ Types & Semantics (incremental)
 - [X] Owned<T>: added to the type mapper; string rendering `Owned<…>`.
 - [X] RAII + Defer: semantic analyzer recognizes `defer`-scheduled releases/transfers and counts them toward Owned<T> cleanup. Flags double-release when mixed with immediate release.
  - [X] Worker resolution across imports: dotted references like `pkg.Func()` accepted when `pkg` is imported; undefined worker diagnostics suppressed (signature checks across packages).
-- [ ] Type inference/unification across expressions and generic instantiation inside bodies (future)
+ - [ ] Type inference/unification across expressions and generic instantiation inside bodies (M14)
   - Goals
     - [ ] Infer local expression types (identifiers, literals, unary/binary ops, calls) without explicit annotations where possible.
     - [ ] Instantiate generics from usage (e.g., infer `T` in `Event<T>`, `Error<E>`, `slice<T>`, `set<T>`, `map<K,V>` from call sites and argument/assignment contexts).

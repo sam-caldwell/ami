@@ -2005,19 +2005,19 @@ Validation:
   - [X] Diagnostics: `E_LINK_FAIL` with tool stderr; include command/args in verbose logs only.
   - [X] Tests: conditional E2E that links a hello‑pipeline binary and asserts it runs and exits 0 (or prints an expected line); skipped when clang is unavailable.
 
-- [ ] Build Driver Integration
-  - [ ] Extend `driver.Compile` (or add a `Build` orchestration) to run: lower → emit `.ll` (verbose) → compile `.o` → link (per env target).
-  - [ ] Respect `toolchain.compiler.env`; for now, support only `darwin/arm64` and place outputs under `build/darwin/arm64/`.
+- [X] Build Driver Integration
+  - [X] Extend `driver.Compile` (or add a `Build` orchestration) to run: lower → emit `.ll` (verbose) → compile `.o` → link (per env target).
+  - [X] Respect `toolchain.compiler.env`; for now, support only `darwin/arm64` and place outputs under `build/darwin/arm64/`.
   - [X] Add flags (future‑compatible) for `--emit-llvm-only` and `--no-link`; wire but keep defaults to full build.
-  - [ ] Ensure debug artifacts (AST/IR/LLVM/ASM) are only emitted with `--verbose` per existing policy.
+  - [X] Ensure debug artifacts (AST/IR/LLVM/ASM) are only emitted with `--verbose` per existing policy.
 
 - [ ] Memory Safety (AMI 2.3.2) Enforcement in Backend
   - [ ] Assert no public ABI uses raw pointers; internal `alloca` allowed within a function, never leaked.
   - [ ] For containers and events, pass by value or by opaque handle validated by runtime; add sad‑path tests that would previously expose pointers and ensure emitter rejects them.
 
-- [ ] Determinism & Reproducibility
-  - [ ] Normalize builder output ordering; stabilize `.ll` via sorted traversal and fixed attribute ordering.
-  - [ ] Ensure indexes/manifests avoid embedding variable timestamps; tests compare across runs.
+- [X] Determinism & Reproducibility
+  - [X] Normalize builder output ordering; stabilize `.ll` via sorted traversal and fixed attribute ordering.
+  - [X] Ensure indexes/manifests avoid embedding variable timestamps; tests compare across runs.
 
 - [ ] CLI/UX and Diagnostics
   - [X] Human summary: `built <n> objects; linked 1 binary → build/darwin/arm64/<name>`; JSON success record includes `binaries` and `objIndex`.

@@ -854,7 +854,9 @@ packages:
 - [X] Canonical signature parsed and enforced for worker references (ambient state, no raw pointers):
   `func(ev Event<T>) (Event<U>, error)`
   - Ambient state access via `state.get/set/...` per docx and Memory Safety (no `*State` parameter). Legacy explicit `State` parameter is not allowed for workers.
-- [X] Purity and sandboxing: enforced at pipeline level for IO nodes (ingress first, egress last); deeper IO checks deferred with runtime integration.
+- [ ] Purity and sandboxing: 
+  - enforced at pipeline level for IO nodes (ingress first, egress last); 
+  - deeper IO checks with runtime integration.
 - [X] Factories: `New*` worker factories recognized (existence check only for now); pipeline semantics resolve factory calls to top‑level functions; unknown references emit `E_WORKER_UNDEFINED`; invalid signatures emit `E_WORKER_SIGNATURE`.
 - [X] Execution context/state (scaffold): placeholders defined in compiler types for later runtime/execution integration.
 ### 1.2.4.0. Merge Package (Collect + edge.MultiPath Attributes)
@@ -880,8 +882,8 @@ packages:
   - [X] `E_MERGE_ATTR_CONFLICT`: conflicting attributes (e.g., duplicate with different values).
   - [X] `E_MERGE_ATTR_REQUIRED`: missing required attributes (e.g., `merge.Sort` without a field).
 - [ ] IR & Tooling (scaffold)
-  - [X] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args). Full normalization deferred.
-  - [X] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
+  - [X] `pipelines.v1` carries `edge.MultiPath` on `Collect` with tolerant `inputs` list and raw `merge` ops (name/args).
+  - [ ] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
 - [ ] Lint & Smells
   - [X] `W_MERGE_SORT_NO_FIELD`: `merge.Sort` specified without a field.
 - [X] `W_MERGE_TINY_BUFFER`: `merge.Buffer` set to very small capacity (<=1) with `dropOldest`/`dropNewest` policy.
@@ -897,7 +899,7 @@ packages:
   - [X] Add `docs/merge.md` describing attribute semantics, precedence, examples.
   - [ ] Update `docs/edges.md` to include `edge.MultiPath` and cross-reference `merge`.
   - [X] Add examples under `examples/` demonstrating `Collect` with `edge.MultiPath` and various `merge.*` settings.
-- [ ] Runtime/Planner (deferred)
+- [ ] Runtime/Planner
   - [ ] Plan how `merge` attributes map to runtime merge operator configuration; leave unimplemented until runtime integration phase.
 
 See also: `docs/merge.md` for a design summary and examples.
@@ -905,23 +907,23 @@ See also: `docs/merge.md` for a design summary and examples.
 > Create a first‑class `edge.MultiPath()` facility for `Collect` nodes to express multi‑upstream merge behavior. This section focuses on the end‑to‑end checklist. Align with expectations described in `docs/Asynchronous Machine Interface.docx` (merge/collect semantics, ordering, watermarks, and buffering) and reconcile naming with the existing `merge.*` attribute API.
 - [X] Grammar & Parser
 - [X] Parser: Accept `in=edge.MultiPath(<attr list>)` as a step argument on `Collect` nodes (tolerant inputs + raw `merge` ops).
-  - [ ] Semantics/IR (scaffold): Minimal validations (Collect‑only, input type checks). IR/schema/codegen scaffolded; merge normalization and full lowering pending.
+  - [X] Semantics/IR (scaffold): Minimal validations (Collect‑only, input type checks). IR/schema/codegen scaffolded; merge normalization and full lowering pending.
   - [ ] Attr list supports mixed `k=v` pairs and nested `merge.*(...)` attribute calls; order‑insensitive; last‑write‑wins.
   - [ ] Tolerant parsing (scaffold): capture raw string, normalized kv map, and a list of `merge.*` calls for later semantic validation.
-- [ ] Semantics & Validation
-  - [ ] Context rule: `edge.MultiPath` is only valid on `Collect` nodes; analyzer emits `E_MP_ONLY_COLLECT`.
-  - [ ] Semantics: context checks (Collect‑only), attribute arity/type validation, conflicts, and required fields.
+  - [X] Semantics & Validation
+  - [X] Context rule: `edge.MultiPath` is only valid on `Collect` nodes; analyzer emits `E_MP_ONLY_COLLECT`.
+  - [X] Semantics: context checks (Collect‑only), attribute arity/type validation, conflicts, and required fields.
     - Status: Minimal checks complete (Collect‑only, inputs required, FIFO first, type compatibility across inputs when types provided, allowed merge operator names). Deeper arity/type validation of individual `merge.*` attributes is pending.
-  - [ ] Recognize attributes (minimum viable set):
-    - [ ] `merge.Sort(field[, order])` where `order ∈ {asc, desc}`; default asc.
-    - [ ] `merge.Stable()` to request stable ordering when sort keys tie.
-    - [ ] `merge.Key(field)` to define a key for other operations.
-    - [ ] `merge.Dedup([field])` to remove duplicates; default to `merge.Key` when field is omitted.
-    - [ ] `merge.Window(size)` bounded in‑flight window.
-    - [ ] `merge.Watermark(field, lateness)` (lateness in time/units as defined by docx; tolerant scaffold accepts int/str until finalized).
-    - [ ] `merge.Timeout(ms)` overall wait before forcing a merge decision.
+  - [X] Recognize attributes (minimum viable set):
+    - [X] `merge.Sort(field[, order])` where `order ∈ {asc, desc}`; default asc.
+    - [X] `merge.Stable()` to request stable ordering when sort keys tie.
+    - [X] `merge.Key(field)` to define a key for other operations.
+    - [X] `merge.Dedup([field])` to remove duplicates; default to `merge.Key` when field is omitted.
+    - [X] `merge.Window(size)` bounded in‑flight window.
+    - [X] `merge.Watermark(field, lateness)` (lateness in time/units as defined by docx; tolerant scaffold accepts int/str until finalized).
+    - [X] `merge.Timeout(ms)` overall wait before forcing a merge decision.
   - [X] `merge.Buffer(capacity[, backpressure])` with `backpressure ∈ {block, dropOldest, dropNewest}` (parser accepts both explicit policies; linter warns on legacy `drop`).
-    - [ ] `merge.PartitionBy(field)` partition upstreams by key before merging.
+    - [X] `merge.PartitionBy(field)` partition upstreams by key before merging.
   - [ ] Diagnostics:
     - [X] `E_MERGE_ATTR_UNKNOWN` (unknown attribute), `E_MERGE_ATTR_ARGS` (invalid arity/type),
       `E_MERGE_ATTR_REQUIRED` (missing required field), `E_MERGE_ATTR_CONFLICT` (conflicting directives), and any docx‑specific constraints.
@@ -935,7 +937,7 @@ See also: `docs/merge.md` for a design summary and examples.
   - [X] Ensure rules are suppressible via pragmas and configurable via workspace severities.
 - [ ] Tests
   - [X] Parser: accept and round‑trip `edge.MultiPath(...)` with `merge.*` attributes.
-  - [ ] Semantics: context enforcement (Collect‑only), per‑attribute arity/type validation, conflicts, and required fields.
+  - [X] Semantics: context enforcement (Collect‑only), per‑attribute arity/type validation, conflicts, and required fields.
   - [ ] IR: golden JSON snapshots verifying normalized merge config.
 - [X] Lint: smells/hints coverage for tiny buffer with `dropOldest`/`dropNewest`, invalid windows, missing fields.
   - [ ] Determinism: verify `merge.Sort` + `merge.Stable` yields stable order across runs with identical inputs (scaffold level).
@@ -943,7 +945,7 @@ See also: `docs/merge.md` for a design summary and examples.
   - [X] `docs/merge.md`: detailed attribute semantics, precedence/resolution rules, examples.
   - [ ] `docs/edges.md`: add `edge.MultiPath`, link to `merge`, and demonstrate Collect with multiple upstreams.
   - [X] Examples under `examples/` illustrating common merge recipes from the docx (sorting, deduplication, watermarking, buffering).
-- [ ] Runtime/Planner (Deferred)
+- [ ] Runtime/Planner 
   - [ ] Map normalized IR configuration to a merge operator plan; define contracts for buffering, ordering, and watermark handling per docx guidance.
 
 See also: `docs/merge.md` for attribute semantics and pipeline examples.
@@ -958,7 +960,10 @@ See also: `docs/merge.md` for attribute semantics and pipeline examples.
   - Tests: happy (assignment with `*`), and sad (unmarked assignment, `*` misused on RHS) cases.
  - [X] Defer statements: `defer <call-expr>` inside function bodies
    - Parser: produces `DeferStmt` with position; supports function and method calls.
-   - Semantics: integrated with RAII; deferred releases/transfers are applied at function end for leak checks; intervening uses do not trigger use-after-release.
+   - Semantics: 
+     - integrated with RAII; 
+     - deferred releases/transfers are applied at function end for leak checks; 
+     - intervening uses do not trigger use-after-release.
    - Docs: `docs/language-defer.md` with syntax and examples.
    - [ ] Types: `enum`, `struct`, `map`, `set`, `slice` with constraints
     - [ ] `enum` is implemented 100% with >=80% test coverage and all tests passing.
@@ -1067,7 +1072,7 @@ Deliverables
 - [X] Interactions: decorators may add metadata (e.g., `@deprecated("msg")`, `@metrics`)
   - [X] `@deprecated` emits a compile‑time warning diag.v1 with stable fields
 - [ ] Config: enable/disable specific decorators via `ami.workspace` (linter/compiler settings)
-  - [X] Analyzer scaffold supports disabling decorators (E_DECORATOR_DISABLED); wiring to workspace deferred.
+  - [ ] Analyzer scaffold supports disabling decorators (E_DECORATOR_DISABLED); wiring to workspace.
  - [X] AST: attach decorator metadata (name + arg list) to function nodes
  - [X] IR annotations: per‑function decorator list in `ir.v1`
 - [X] Codegen (scaffold): allow no‑op or pass‑through; reserve hook points for wrappers
@@ -1142,7 +1147,7 @@ Phase 2: Executable AMI tests (scaffolded)
 
 - [ ] `ami/runtime/tester` provides a deterministic runtime harness (scaffold) with simulated execution:
   - Identity output over input payload by default; reserved input keys `sleep_ms` (delay) and `error_code` (force error) enable timeout/error scenarios.
-  - Fixtures accepted via `#pragma test:fixture path=<rel> mode=<ro|rw>` (validated; enforcement deferred).
+  - Fixtures accepted via `#pragma test:fixture path=<rel> mode=<ro|rw>` (validated; enforcement).
 - [ ] Integrate harness with `ami test` via `#pragma test:runtime ...` directives (cases discovered, executed, and reported as `test.v1`).
 - [ ] Support input/output JSON equality assertions, error assertions, and per‑case timeouts.
 - [ ] Tests: CLI runtime cases (JSON equality, error, timeout) and unit tests for pragma parsing and harness behavior.
@@ -1154,7 +1159,7 @@ Phase 2: Executable AMI tests (scaffolded)
   - [X] `scanner`: UTF‑8 reader, rune decoding, comment handling, tokenization (like Go’s scanner)
   - [X] `ast`: typed AST nodes, positions, comments (ImportDecl, FuncDecl scaffold)
   - [X] `parser`: parse package, imports (single-line), and empty function decls
-  - [X] `types`: symbol tables, scopes, basic type definitions (inference/checking deferred)
+  - [ ] `types`: symbol tables, scopes, basic type definitions (inference/checking)
   - [X] `sem`: semantic analysis (basic: duplicate function detection)
   - [X] `ir`: lowered intermediate representation scaffold (stable ordering)
   - [X] `codegen`: assembly-like text generation for debug artifacts
@@ -1186,7 +1191,7 @@ Types & Semantics (incremental)
 - [X] Tests: verify type mapping and inferred function signatures; scope contains imported package symbol.
 - [X] Owned<T>: added to the type mapper; string rendering `Owned<…>`.
 - [X] RAII + Defer: semantic analyzer recognizes `defer`-scheduled releases/transfers and counts them toward Owned<T> cleanup. Flags double-release when mixed with immediate release.
- - [X] Worker resolution across imports: dotted references like `pkg.Func()` accepted when `pkg` is imported; undefined worker diagnostics suppressed (signature checks across packages deferred).
+ - [X] Worker resolution across imports: dotted references like `pkg.Func()` accepted when `pkg` is imported; undefined worker diagnostics suppressed (signature checks across packages).
 - [ ] Type inference/unification across expressions and generic instantiation inside bodies (future)
   - Goals
     - [ ] Infer local expression types (identifiers, literals, unary/binary ops, calls) without explicit annotations where possible.
@@ -1200,8 +1205,8 @@ Types & Semantics (incremental)
       - [ ] Instantiate return type from call-site constraints for single-result functions (used in return/assignment checks).
       - [ ] Tuple returns: instantiate callee multi-result types at return sites when returning a call expression.
     - [ ] Container/generic propagation: infer element/key types for `slice<T>`, `set<T>`, and `map<K,V>` based on construction and assignment sites.
-      - [X] Literal-based inference for `slice{...}`, `set{...}`, `map{...}` without explicit type args; unify with assignment/return types.
-      - [X] Assignment unification for containers (element/key/value type checks).
+      - [ ] Literal-based inference for `slice{...}`, `set{...}`, `map{...}` without explicit type args; unify with assignment/return types.
+      - [ ] Assignment unification for containers (element/key/value type checks).
     - [ ] Event/Error propagation: infer payload types for `Event<T>` / `Error<E>` flows through transforms and pipeline steps (within the file/local scope as a start).
     - [ ] Exclusions (initial): no overloading, no implicit conversions beyond documented numeric/string literal rules, no cross‑package global inference.
   - Diagnostics
@@ -1270,7 +1275,7 @@ Type System and Semantics (Phase 2.1)
 
 Edges Runtime Scaffolding (for harness/tests)
 
-- [ ] Provide `push(e Event)` and `pop() Event` methods for `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline` with bounded capacity and backpressure semantics:
+- [X] Provide `push(e Event)` and `pop() Event` methods for `edge.FIFO`, `edge.LIFO`, and `edge.Pipeline` with bounded capacity and backpressure semantics:
   - [X] FIFO/LIFO runtime buffers with `Push/Pop` and policies: `block` → `ErrFull`; `dropOldest`/`dropNewest` implemented (shunt treated as drop).
   - [X] Pipeline runtime buffer (scaffold analogous to FIFO) with `Push/Pop`.
  - [X] Thread‑safe counters and tests for order (FIFO/LIFO), backpressure handling, and simple concurrency.

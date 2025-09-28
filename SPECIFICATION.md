@@ -1261,7 +1261,7 @@ Type System and Semantics (Phase 2.1)
 - [X] Emit per‑unit assembly under `build/obj/<package>/<unit>.s` for normal builds (no `--verbose`).
 - [X] Per‑package index `build/obj/<package>/index.json` (`objindex.v1`) lists `{ unit, path, size, sha256 }`.
 - [X] Determinism: indexes and obj asm are stable across runs; tests cover single and multi‑package scenarios (timestamp normalized in tests).
-- [ ] `ami.manifest` includes these entries as `kind:"obj"` when present.
+- [X] `ami.manifest` includes these entries as `kind:"obj"` when present.
 
 Edges Runtime Scaffolding (for harness/tests)
 
@@ -2009,7 +2009,7 @@ Validation:
 - [ ] Build Driver Integration
   - [ ] Extend `driver.Compile` (or add a `Build` orchestration) to run: lower → emit `.ll` (verbose) → compile `.o` → link (per env target).
   - [ ] Respect `toolchain.compiler.env`; for now, support only `darwin/arm64` and place outputs under `build/darwin/arm64/`.
-  - [ ] Add flags (future‑compatible) for `--emit-llvm-only` and `--no-link`; wire but keep defaults to full build.
+  - [X] Add flags (future‑compatible) for `--emit-llvm-only` and `--no-link`; wire but keep defaults to full build.
   - [ ] Ensure debug artifacts (AST/IR/LLVM/ASM) are only emitted with `--verbose` per existing policy.
 
 - [ ] Memory Safety (AMI 2.3.2) Enforcement in Backend

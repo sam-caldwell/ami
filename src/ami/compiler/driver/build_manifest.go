@@ -23,6 +23,7 @@ type bmPackage struct {
     Units      []bmUnit `json:"units"`
     EdgesIndex string   `json:"edgesIndex,omitempty"`
     AsmIndex   string   `json:"asmIndex,omitempty"`
+    IRIndex    string   `json:"irIndex,omitempty"`
 }
 
 type BuildManifest struct {

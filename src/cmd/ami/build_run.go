@@ -8,6 +8,7 @@ import (
     "os"
     "path/filepath"
     "sort"
+    "strings"
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/exit"
@@ -18,6 +19,39 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
+
+func containsEnv(list []string, env string) bool {
+    for _, e := range list { if e == env { return true } }
+    return false
+}
+
+// linkExtraFlags returns a set of linker flags adjusted for the target env
+// and workspace linker options.
+func linkExtraFlags(env string, opts []string) []string {
+    var extra []string
+    // Default: on Darwin, prefer dead strip
+    if env == "darwin/arm64" || env == "darwin/amd64" || env == "darwin/x86_64" {
+        extra = append(extra, "-Wl,-dead_strip")
+    }
+    // Options mapping
+    for _, opt := range opts {
+        switch opt {
+        case "PIE", "pie":
+            if env == "darwin/arm64" || env == "darwin/amd64" || env == "darwin/x86_64" {
+                extra = append(extra, "-Wl,-pie")
+            } else {
+                extra = append(extra, "-pie")
+            }
+        case "static":
+            // Best effort: static commonly supported on Linux
+            if strings.HasPrefix(env, "linux/") { extra = append(extra, "-static") }
+        case "dead_strip", "dce":
+            if strings.HasPrefix(env, "darwin/") { extra = append(extra, "-Wl,-dead_strip") }
+            if strings.HasPrefix(env, "linux/") { extra = append(extra, "-Wl,--gc-sections") }
+        }
+    }
+    return extra
+}
 
 // runBuild validates the workspace and prepares build configuration.
 // For this phase, it enforces toolchain.* constraints and emits diagnostics.
@@ -170,7 +204,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 }
             }
         }
-    }
+    // Consider issues when ami.sum missing or any lists are non-empty as violations for this phase.
     // Consider issues when ami.sum missing or any lists are non-empty as violations for this phase.
     if len(rep.Requirements) > 0 && (!rep.SumFound || len(rep.MissingInSum) > 0 || len(rep.Unsatisfied) > 0 || len(rep.MissingInCache) > 0 || len(rep.Mismatched) > 0 || len(rep.ParseErrors) > 0) {
         if jsonOut {
@@ -390,78 +424,97 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         }
     }
 
-    // Link stage (default env only for now) — produce an executable under build/ if toolchain available.
+    // Link stage — produce executables per-env when possible, and fall back to default objects when no per-env objects are present.
     if !buildNoLink {
-        // Find all objects under build/obj/**.o
-        var objects []string
-        for _, e := range ws.Packages {
-            glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
-            if matches, _ := filepath.Glob(glob); len(matches) > 0 { objects = append(objects, matches...) }
-        }
-        // Only attempt when there are objects and clang is present
-        if len(objects) > 0 {
+        clang, ferr := llvme.FindClang()
+        if ferr != nil {
+            if lg := getRootLogger(); lg != nil { lg.Info("build.toolchain.missing", map[string]any{"tool": "clang"}) }
+        } else {
             // Resolve binary name from main package
             binName := "app"
             if mp := ws.FindPackage("main"); mp != nil && mp.Name != "" { binName = mp.Name }
-            // Determine target triple (first env or default)
-            triple := llvme.DefaultTriple
-            if len(envs) > 0 { triple = llvme.TripleForEnv(envs[0]) }
-            // Generate a minimal runtime with main() and link
-            // (place runtime artifacts under build/runtime)
-            rtDir := filepath.Join(dir, "build", "runtime")
-            clang, ferr := llvme.FindClang()
-            if ferr == nil {
+
+            // First, attempt per-env linking where env-specific objects exist.
+            envWithObjects := map[string]bool{}
+            for _, env := range envs {
+                if containsEnv(buildNoLinkEnvs, env) { continue }
+                // collect per-env objects
+                var objs []string
+                for _, e := range ws.Packages {
+                    glob := filepath.Join(dir, "build", env, "obj", e.Package.Name, "*.o")
+                    if matches, _ := filepath.Glob(glob); len(matches) > 0 { objs = append(objs, matches...) }
+                }
+                if len(objs) == 0 { continue }
+                envWithObjects[env] = true
+                triple := llvme.TripleForEnv(env)
+                rtDir := filepath.Join(dir, "build", "runtime")
                 if llPath, werr := llvme.WriteRuntimeLL(rtDir, triple, true); werr == nil {
                     rtObj := filepath.Join(rtDir, "runtime.o")
                     if cerr := llvme.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
-                        objects = append(objects, rtObj)
-                        // Output binary under build/<env>/ per toolchain env
-                        outDir := filepath.Join(dir, "build")
-                        if len(envs) > 0 && envs[0] != "" { outDir = filepath.Join(outDir, envs[0]) }
+                        objs = append(objs, rtObj)
+                        outDir := filepath.Join(dir, "build", env)
                         _ = os.MkdirAll(outDir, 0o755)
                         outBin := filepath.Join(outDir, binName)
-                        var extra []string
-                        // basic whole-program DCE flags by platform (darwin)
-                        if len(envs) > 0 && envs[0] != "" {
-                            if envs[0] == "darwin/arm64" || envs[0] == "darwin/amd64" || envs[0] == "darwin/x86_64" {
-                                extra = append(extra, "-Wl,-dead_strip")
-                            }
-                        }
-                        // workspace linker options -> flags
-                        for _, opt := range ws.Toolchain.Linker.Options {
-                            switch opt {
-                            case "PIE", "pie":
-                                // macOS: PIE generally default; pass anyway for clarity
-                                if len(envs) > 0 && (envs[0] == "darwin/arm64" || envs[0] == "darwin/amd64" || envs[0] == "darwin/x86_64") {
-                                    extra = append(extra, "-Wl,-pie")
-                                } else {
-                                    extra = append(extra, "-pie")
-                                }
-                            case "static":
-                                // best effort on platforms supporting static
-                                extra = append(extra, "-static")
-                            case "dead_strip", "dce":
-                                extra = append(extra, "-Wl,-dead_strip")
-                            }
-                        }
-                        if lerr := llvme.LinkObjects(clang, objects, outBin, triple, extra...); lerr != nil {
-                            if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin}) }
+                        extra := linkExtraFlags(env, ws.Toolchain.Linker.Options)
+                        if lerr := llvme.LinkObjects(clang, objs, outBin, triple, extra...); lerr != nil {
+                            if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin, "env": env}) }
                             if jsonOut {
-                                d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LINK_FAIL", Message: "linking failed", File: "clang"}
-                                if te, ok := lerr.(llvme.ToolError); ok { if d.Data == nil { d.Data = map[string]any{} }; d.Data["stderr"] = te.Stderr }
+                                d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LINK_FAIL", Message: "linking failed", File: "clang", Data: map[string]any{"env": env}}
+                                if te, ok := lerr.(llvme.ToolError); ok { d.Data["stderr"] = te.Stderr }
                                 _ = json.NewEncoder(out).Encode(d)
                             }
                         } else if lg := getRootLogger(); lg != nil {
-                            lg.Info("build.link.ok", map[string]any{"bin": outBin, "objects": len(objects)})
+                            lg.Info("build.link.ok", map[string]any{"bin": outBin, "objects": len(objs), "env": env})
                         }
                     } else if lg := getRootLogger(); lg != nil {
-                        lg.Info("build.runtime.obj.fail", map[string]any{"error": cerr.Error()})
+                        lg.Info("build.runtime.obj.fail", map[string]any{"error": cerr.Error(), "env": env})
                     }
                 } else if lg := getRootLogger(); lg != nil {
-                    lg.Info("build.runtime.ll.fail", map[string]any{"error": werr.Error()})
+                    lg.Info("build.runtime.ll.fail", map[string]any{"error": werr.Error(), "env": env})
                 }
-            } else if lg := getRootLogger(); lg != nil {
-                lg.Info("build.toolchain.missing", map[string]any{"tool": "clang"})
+            }
+
+            // Fallback: link default objects under build/obj when no per-env objects exist for the primary env.
+            // This preserves existing behavior.
+            if len(envs) == 0 || !envWithObjects[envs[0]] {
+                if len(envs) > 0 && containsEnv(buildNoLinkEnvs, envs[0]) { /* skip fallback link */ } else {
+                var objects []string
+                for _, e := range ws.Packages {
+                    glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
+                    if matches, _ := filepath.Glob(glob); len(matches) > 0 { objects = append(objects, matches...) }
+                }
+                if len(objects) > 0 {
+                    triple := llvme.DefaultTriple
+                    if len(envs) > 0 { triple = llvme.TripleForEnv(envs[0]) }
+                    rtDir := filepath.Join(dir, "build", "runtime")
+                    if llPath, werr := llvme.WriteRuntimeLL(rtDir, triple, true); werr == nil {
+                        rtObj := filepath.Join(rtDir, "runtime.o")
+                        if cerr := llvme.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
+                            objects = append(objects, rtObj)
+                            outDir := filepath.Join(dir, "build")
+                            if len(envs) > 0 && envs[0] != "" { outDir = filepath.Join(outDir, envs[0]) }
+                            _ = os.MkdirAll(outDir, 0o755)
+                            outBin := filepath.Join(outDir, binName)
+                            env0 := ""
+                            if len(envs) > 0 { env0 = envs[0] }
+                            extra := linkExtraFlags(env0, ws.Toolchain.Linker.Options)
+                            if lerr := llvme.LinkObjects(clang, objects, outBin, triple, extra...); lerr != nil {
+                                if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin}) }
+                                if jsonOut {
+                                    d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LINK_FAIL", Message: "linking failed", File: "clang"}
+                                    if te, ok := lerr.(llvme.ToolError); ok { if d.Data == nil { d.Data = map[string]any{} }; d.Data["stderr"] = te.Stderr }
+                                    _ = json.NewEncoder(out).Encode(d)
+                                }
+                            } else if lg := getRootLogger(); lg != nil {
+                                lg.Info("build.link.ok", map[string]any{"bin": outBin, "objects": len(objects)})
+                            }
+                        } else if lg := getRootLogger(); lg != nil {
+                            lg.Info("build.runtime.obj.fail", map[string]any{"error": cerr.Error()})
+                        }
+                    } else if lg := getRootLogger(); lg != nil {
+                        lg.Info("build.runtime.ll.fail", map[string]any{"error": werr.Error()})
+                    }
+                }
             }
         }
     }
@@ -537,6 +590,25 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             sort.Strings(bins)
             outObj["binaries"] = bins
         }
+        // Per-env binaries
+        binsByEnv := map[string][]string{}
+        for _, env := range envs {
+            envDir := filepath.Join(buildDir, env)
+            var list []string
+            _ = filepath.WalkDir(envDir, func(path string, d os.DirEntry, err error) error {
+                if err != nil { return nil }
+                if d.IsDir() { return nil }
+                if info, e := d.Info(); e == nil {
+                    mode := info.Mode()
+                    if mode.IsRegular() && (mode&0o111 != 0) {
+                        if rel, rerr := filepath.Rel(dir, path); rerr == nil { list = append(list, rel) }
+                    }
+                }
+                return nil
+            })
+            if len(list) > 0 { sort.Strings(list); binsByEnv[env] = list }
+        }
+        if len(binsByEnv) > 0 { outObj["binariesByEnv"] = binsByEnv }
         // Include per-env summaries if present
         objectsByEnv := map[string][]string{}
         objIndexByEnv := map[string][]string{}
@@ -620,6 +692,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         // Include per-env summaries if present
         objectsByEnv := map[string][]string{}
         objIndexByEnv := map[string][]string{}
+        binariesByEnv := map[string][]string{}
         for _, env := range envs {
             var objs []string
             for _, e := range ws.Packages {
@@ -633,9 +706,25 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 }
             }
             if len(objs) > 0 { sort.Strings(objs); objectsByEnv[env] = objs }
+            // binaries
+            envDir := filepath.Join(dir, "build", env)
+            var blist []string
+            _ = filepath.WalkDir(envDir, func(path string, d os.DirEntry, err error) error {
+                if err != nil { return nil }
+                if d.IsDir() { return nil }
+                if info, e := d.Info(); e == nil {
+                    mode := info.Mode()
+                    if mode.IsRegular() && (mode&0o111 != 0) {
+                        if rel, rerr := filepath.Rel(dir, path); rerr == nil { blist = append(blist, rel) }
+                    }
+                }
+                return nil
+            })
+            if len(blist) > 0 { sort.Strings(blist); binariesByEnv[env] = blist }
         }
         if len(objectsByEnv) == 0 { objectsByEnv = nil }
         if len(objIndexByEnv) == 0 { objIndexByEnv = nil }
+        if len(binariesByEnv) == 0 { binariesByEnv = nil }
         // Emit a simple success summary for consistency with machine parsing.
         data := map[string]any{
             "targets":       envs,
@@ -644,6 +733,7 @@ func runBuild(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             "buildManifest": filepath.Join("build", "ami.manifest"),
         }
         if len(bins) > 0 { data["binaries"] = bins }
+        if binariesByEnv != nil { data["binariesByEnv"] = binariesByEnv }
         if objectsByEnv != nil { data["objectsByEnv"] = objectsByEnv }
         if objIndexByEnv != nil { data["objIndexByEnv"] = objIndexByEnv }
         rec := diag.Record{

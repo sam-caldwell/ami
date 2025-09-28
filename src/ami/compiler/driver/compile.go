@@ -87,6 +87,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         var pkgEdges []edgeEntry
         var pkgCollects []collectEntry
         var bmPkgs []bmPackage
+        var irUnits []irIndexUnit
         for _, u := range units {
             if opts.Log != nil { opts.Log("unit.start", map[string]any{"pkg": p.Name, "unit": u.unit}) }
             af := u.ast
@@ -171,6 +172,10 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 if em, err := writeEventMetaDebug(p.Name, unit); err == nil { bmu.EventMeta = em }
                 if as, err := writeAsmDebug(p.Name, unit, af, m); err == nil { bmu.ASM = as }
                 if _, err := writeExportsDebug(p.Name, unit, m); err == nil { /* ok: optional debug */ }
+                // accumulate IR index info for this unit
+                var fnames []string
+                for _, fn := range m.Functions { fnames = append(fnames, fn.Name) }
+                irUnits = append(irUnits, irIndexUnit{Unit: unit, Functions: fnames})
             // LLVM textual emission (debug only)
             if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
                 ldir := filepath.Join("build", "debug", "llvm", p.Name)
@@ -247,6 +252,9 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             }
             if ai, err := writeAsmIndex(p.Name, pkgEdges); err == nil {
                 for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].AsmIndex = ai } }
+            }
+            if ii, err := writeIRIndex(p.Name, irUnits); err == nil {
+                for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].IRIndex = ii } }
             }
         }
         // Build object index for package under build/obj/<pkg> (always)

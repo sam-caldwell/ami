@@ -8,6 +8,7 @@ import (
 // package-level flags for build options
 var buildEmitLLVMOnly bool
 var buildNoLink bool
+var buildNoLinkEnvs []string
 
 // newBuildCmd returns the `ami build` subcommand.
 func newBuildCmd() *cobra.Command {
@@ -27,5 +28,6 @@ func newBuildCmd() *cobra.Command {
     cmd.Flags().BoolVar(&jsonOut, "json", false, "emit JSON diagnostics and results")
     cmd.Flags().BoolVar(&buildEmitLLVMOnly, "emit-llvm-only", false, "emit .ll only; skip object compilation")
     cmd.Flags().BoolVar(&buildNoLink, "no-link", false, "skip linking stage (future; reserved)")
+    cmd.Flags().StringSliceVar(&buildNoLinkEnvs, "no-link-env", nil, "skip linking for specific target envs (os/arch, comma-separated)")
     return cmd
 }

@@ -11,6 +11,7 @@ var Operators = map[string]Kind{
     "!":  Bang,
     "&":  BitAnd,
     "^":  BitXor,
+    "|":  BitOr,
     "<<": Shl,
     ">>": Shr,
 

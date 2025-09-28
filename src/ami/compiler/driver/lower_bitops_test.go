@@ -24,4 +24,8 @@ func TestLowerExpr_Bitwise_Shifts_And_Xor(t *testing.T) {
     be = &ast.BinaryExpr{Op: token.BitAnd, X: &ast.IdentExpr{Name: "x"}, Y: &ast.IdentExpr{Name: "y"}}
     ex, ok = lowerExpr(st, be)
     if !ok || ex.Op != "band" { t.Fatalf("band(bit): %+v", ex) }
+    // x | y
+    be = &ast.BinaryExpr{Op: token.BitOr, X: &ast.IdentExpr{Name: "x"}, Y: &ast.IdentExpr{Name: "y"}}
+    ex, ok = lowerExpr(st, be)
+    if !ok || ex.Op != "bor" { t.Fatalf("bor(bit): %+v", ex) }
 }

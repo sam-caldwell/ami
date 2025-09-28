@@ -38,6 +38,7 @@ const (
     // Bitwise and shift operators
     BitAnd // &
     BitXor // ^
+    BitOr  // |
     Shl    // <<
     Shr    // >>
 

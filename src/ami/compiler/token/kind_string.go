@@ -49,6 +49,8 @@ func (k Kind) String() string {
         return "BitAnd"
     case BitXor:
         return "BitXor"
+    case BitOr:
+        return "BitOr"
     case Shl:
         return "Shl"
     case Shr:

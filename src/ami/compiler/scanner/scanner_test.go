@@ -69,10 +69,10 @@ func TestScanner_CommentsAndSymbols(t *testing.T) {
 	if t4.Kind != token.SemiSym || t4.Lexeme != token.Semi {
 		t.Fatalf("want semicolon sym, got %+v", t4)
 	}
-	// pipe
-	if tok := s.Next(); tok.Kind != token.PipeSym || tok.Lexeme != token.Pipe {
-		t.Fatalf("want pipe sym, got %+v", tok)
-	}
+    // '|' is now a bitwise operator
+    if tok := s.Next(); tok.Kind != token.BitOr || tok.Lexeme != "|" {
+        t.Fatalf("want bitwise '|' operator, got %+v", tok)
+    }
 	// pound
 	if tok := s.Next(); tok.Kind != token.PoundSym || tok.Lexeme != "#" {
 		t.Fatalf("want pound sym, got %+v", tok)

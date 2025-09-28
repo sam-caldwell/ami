@@ -124,6 +124,7 @@ func TestEmitLLVM_Shifts_Neg_Xor_Bnot(t *testing.T) {
             ir.Expr{Op: "shl", Args: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}}, Result: &ir.Value{ID: "t1", Type: "int"}},
             ir.Expr{Op: "shr", Args: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}}, Result: &ir.Value{ID: "t2", Type: "int"}},
             ir.Expr{Op: "xor", Args: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}}, Result: &ir.Value{ID: "t3", Type: "int"}},
+            ir.Expr{Op: "bor", Args: []ir.Value{{ID: "x", Type: "int"}, {ID: "y", Type: "int"}}, Result: &ir.Value{ID: "t6", Type: "int"}},
             ir.Expr{Op: "neg", Args: []ir.Value{{ID: "x", Type: "int"}}, Result: &ir.Value{ID: "t4", Type: "int"}},
             ir.Expr{Op: "bnot", Args: []ir.Value{{ID: "x", Type: "int"}}, Result: &ir.Value{ID: "t5", Type: "int"}},
             ir.Return{},
@@ -136,6 +137,7 @@ func TestEmitLLVM_Shifts_Neg_Xor_Bnot(t *testing.T) {
     if !strings.Contains(out, "%t3 = xor i64 %x, %y") { t.Fatalf("xor not lowered: %s", out) }
     if !strings.Contains(out, "%t4 = sub i64 0, %x") { t.Fatalf("neg not lowered: %s", out) }
     if !strings.Contains(out, "%t5 = xor i64 %x, -1") { t.Fatalf("bnot not lowered: %s", out) }
+    if !strings.Contains(out, "%t6 = or i64 %x, %y") { t.Fatalf("bor not lowered: %s", out) }
 }
 
 func TestEmitLLVM_NotBool(t *testing.T) {

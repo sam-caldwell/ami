@@ -242,6 +242,26 @@ Acceptance:
   - LLVM IR contains the correct `target triple`
   - Per-env object emission and index writing for amd64 envs
 
+### M17 — darwin/arm64 Codegen (Baseline Hardening)
+
+Dependencies:
+- M10 Codegen & Linking complete (baseline)
+- M11 Build Command complete (env matrix and per-env artifacts)
+
+Deliverables:
+- Confirm and harden first-class support for `darwin/arm64` (baseline target):
+  - Ensure LLVM IR sets `target triple = "arm64-apple-macosx"`
+  - Compile `.ll` → `.o` and link binaries via clang on darwin/arm64 hosts
+  - Emit per-env objects under `build/darwin/arm64/obj/**` and write `index.json`
+  - Include darwin/arm64 env objects/indices in build plan and `build/ami.manifest`
+- Ensure env-matrix builds mixing darwin/arm64 with other envs remain deterministic and correctly isolated under `build/<env>`.
+
+Acceptance:
+- On a darwin/arm64 host with clang toolchain:
+  - `ami build` with `toolchain.compiler.env: [darwin/arm64]` produces a linked binary; manifest lists binary and env-specific objects/indices
+  - With mixed matrices (e.g., `[darwin/arm64, linux/arm64]`), per-env objects exist under their respective prefixes; plan/manifest capture deterministic paths
+- Tests verify triple mapping for `darwin/arm64`, presence of correct `target triple` in IR, and per-env object/index emission for `darwin/arm64`.
+
 ## Sprint 1 (Immediate Backlog)
 
 - Scaffold M0/M1: root CLI + flags/exit codes; tests for flag parsing, stderr/stdout behavior.

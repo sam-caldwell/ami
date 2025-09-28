@@ -13,7 +13,7 @@ import (
 
     "github.com/sam-caldwell/ami/src/ami/exit"
     "github.com/sam-caldwell/ami/src/ami/compiler/driver"
-    llvme "github.com/sam-caldwell/ami/src/ami/compiler/codegen/llvm"
+    "github.com/sam-caldwell/ami/src/ami/compiler/codegen"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -283,12 +283,13 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             var logcb func(string, map[string]any)
             if lg := getRootLogger(); lg != nil {
                 logcb = func(event string, fields map[string]any) { lg.Info("compiler."+event, fields) }
-                // Record toolchain versions (clang) for visibility in verbose logs
-                if clang, err := llvme.FindClang(); err == nil {
-                    if ver, verr := llvme.Version(clang); verr == nil { lg.Info("toolchain.clang", map[string]any{"version": ver, "path": clang}) }
+                // Record backend toolchain version (e.g., clang) in verbose logs
+                be := codegen.DefaultBackend()
+                if tool, err := be.FindToolchain(); err == nil {
+                    if ver, verr := be.ToolVersion(tool); verr == nil { lg.Info("toolchain.clang", map[string]any{"version": ver, "path": tool}) }
                 } else { lg.Info("toolchain.missing", map[string]any{"tool": "clang"}) }
             }
-            _, _ = driver.Compile(ws, dbgPkgs, driver.Options{Debug: true, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink, Log: logcb})
+            _, _ = driver.Compile(ws, dbgPkgs, driver.Options{Debug: true, DebugStrict: buildDebugStrict, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink, Log: logcb})
             _ = os.Chdir(oldwd)
         }
         // Build plan after emitting artifacts; include object index paths when present
@@ -433,7 +434,8 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
 
     // Link stage — produce executables per-env when possible, and fall back to default objects when no per-env objects are present.
     if !buildNoLink {
-        clang, ferr := llvme.FindClang()
+        be := codegen.DefaultBackend()
+        clang, ferr := be.FindToolchain()
         if ferr != nil {
             if lg := getRootLogger(); lg != nil { lg.Info("build.toolchain.missing", map[string]any{"tool": "clang"}) }
         } else {
@@ -453,21 +455,20 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 }
                 if len(objs) == 0 { continue }
                 envWithObjects[env] = true
-                triple := llvme.TripleForEnv(env)
+                triple := be.TripleForEnv(env)
                 rtDir := filepath.Join(dir, "build", "runtime")
-                if llPath, werr := llvme.WriteRuntimeLL(rtDir, triple, true); werr == nil {
+                if llPath, werr := be.WriteRuntimeLL(rtDir, triple, true); werr == nil {
                     rtObj := filepath.Join(rtDir, "runtime.o")
-                    if cerr := llvme.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
+                    if cerr := be.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
                         objs = append(objs, rtObj)
                         outDir := filepath.Join(dir, "build", env)
                         _ = os.MkdirAll(outDir, 0o755)
                         outBin := filepath.Join(outDir, binName)
                         extra := linkExtraFlags(env, ws.Toolchain.Linker.Options)
-                        if lerr := llvme.LinkObjects(clang, objs, outBin, triple, extra...); lerr != nil {
+                        if lerr := be.LinkObjects(clang, objs, outBin, triple, extra...); lerr != nil {
                             if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin, "env": env}) }
                             if jsonOut {
                                 d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LINK_FAIL", Message: "linking failed", File: "clang", Data: map[string]any{"env": env}}
-                                if te, ok := lerr.(llvme.ToolError); ok { d.Data["stderr"] = te.Stderr }
                                 _ = json.NewEncoder(out).Encode(d)
                             }
                         } else if lg := getRootLogger(); lg != nil {
@@ -491,12 +492,12 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                     if matches, _ := filepath.Glob(glob); len(matches) > 0 { objects = append(objects, matches...) }
                 }
                 if len(objects) > 0 {
-                    triple := llvme.DefaultTriple
-                    if len(envs) > 0 { triple = llvme.TripleForEnv(envs[0]) }
+                triple := be.TripleForEnv("")
+                    if len(envs) > 0 { triple = be.TripleForEnv(envs[0]) }
                     rtDir := filepath.Join(dir, "build", "runtime")
-                    if llPath, werr := llvme.WriteRuntimeLL(rtDir, triple, true); werr == nil {
+                    if llPath, werr := be.WriteRuntimeLL(rtDir, triple, true); werr == nil {
                         rtObj := filepath.Join(rtDir, "runtime.o")
-                        if cerr := llvme.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
+                        if cerr := be.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
                             objects = append(objects, rtObj)
                             outDir := filepath.Join(dir, "build")
                             if len(envs) > 0 && envs[0] != "" { outDir = filepath.Join(outDir, envs[0]) }
@@ -505,11 +506,10 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                             env0 := ""
                             if len(envs) > 0 { env0 = envs[0] }
                             extra := linkExtraFlags(env0, ws.Toolchain.Linker.Options)
-                            if lerr := llvme.LinkObjects(clang, objects, outBin, triple, extra...); lerr != nil {
+                            if lerr := be.LinkObjects(clang, objects, outBin, triple, extra...); lerr != nil {
                                 if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin}) }
                                 if jsonOut {
                                     d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LINK_FAIL", Message: "linking failed", File: "clang"}
-                                    if te, ok := lerr.(llvme.ToolError); ok { if d.Data == nil { d.Data = map[string]any{} }; d.Data["stderr"] = te.Stderr }
                                     _ = json.NewEncoder(out).Encode(d)
                                 }
                             } else if lg := getRootLogger(); lg != nil {

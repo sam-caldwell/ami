@@ -8,7 +8,6 @@ import (
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/codegen"
-    llvme "github.com/sam-caldwell/ami/src/ami/compiler/codegen/llvm"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     "github.com/sam-caldwell/ami/src/ami/compiler/sem"
@@ -182,14 +181,44 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 irUnits = append(irUnits, irIndexUnit{Unit: unit, Functions: fnames})
                 typesUnits = append(typesUnits, irTypesIndexUnit{Unit: unit, Types: collectTypes(m)})
                 symbolsUnits = append(symbolsUnits, irSymbolsIndexUnit{Unit: unit, Exports: collectExports(m), Externs: collectExterns(m)})
-            // LLVM textual emission (debug only)
-            if llvmText, err := llvme.EmitModuleLLVM(m); err == nil {
+            // IR textual emission (backend; debug only)
+            be := codegen.DefaultBackend()
+            if llvmText, err := be.EmitModule(m); err == nil {
                 ldir := filepath.Join("build", "debug", "llvm", p.Name)
                 _ = os.MkdirAll(ldir, 0o755)
                 lpath := filepath.Join(ldir, unit+".ll")
                 _ = os.WriteFile(lpath, []byte(llvmText), 0o644)
                 bmu.LLVM = lpath
                 if opts.Log != nil { opts.Log("unit.llvm.write", map[string]any{"pkg": p.Name, "unit": unit, "path": lpath}) }
+                // Attempt to compile to an object even in debug builds so objindex lists real .o when toolchain is present.
+                if !opts.EmitLLVMOnly {
+                    if clang, err := be.FindToolchain(); err != nil {
+                        outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_TOOLCHAIN_MISSING", Message: "clang not found in PATH", File: "clang"})
+                    } else {
+                        objDir := filepath.Join("build", "obj", p.Name)
+                        _ = os.MkdirAll(objDir, 0o755)
+                        oPath := filepath.Join(objDir, unit+".o")
+                        if err := be.CompileLLToObject(clang, lpath, oPath, ""); err != nil {
+                            if opts.DebugStrict {
+                                d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile LLVM to object", File: lpath}
+                                if te, ok := err.(interface{ Error() string; String() string }); ok {
+                                    _ = te // placeholder to avoid unused; below we'll use ToolError detection
+                                }
+                                // Best effort: if backend exposes stderr via known type
+                                type toolErr interface{ Stderr() string }
+                                if te, ok := any(err).(toolErr); ok {
+                                    if d.Data == nil { d.Data = map[string]any{} }
+                                    d.Data["stderr"] = te.Stderr()
+                                }
+                                outDiags = append(outDiags, d)
+                            } else if opts.Log != nil {
+                                opts.Log("unit.obj.debug.compile.fail", map[string]any{"pkg": p.Name, "unit": unit, "error": err.Error()})
+                            }
+                        } else if opts.Log != nil {
+                            opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})
+                        }
+                    }
+                }
             } else {
                 // surface emission errors in debug as diagnostics too
                 outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LLVM_EMIT", Message: err.Error(), File: unit + ".ll"})
@@ -203,15 +232,16 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 _, _ = writeObjectStub(p.Name, unit, m)
             }
             _, _ = writeAsmObject(p.Name, unit, m)
-            // Attempt non-debug LLVM -> .o compilation (guarded)
+            // Attempt non-debug IR -> .o compilation (guarded)
             // Emit .ll under build/obj and attempt to compile to .o via clang.
             if !opts.Debug {
-                if clang, err := llvme.FindClang(); err != nil {
+                be := codegen.DefaultBackend()
+                if clang, err := be.FindToolchain(); err != nil {
                     outDiags = append(outDiags, diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_TOOLCHAIN_MISSING", Message: "clang not found in PATH", File: "clang"})
                 } else {
                     // Always emit default target object under build/obj/<pkg>/
-                    defTriple := llvme.DefaultTriple
-                    if llvmText, err := llvme.EmitModuleLLVMForTarget(m, defTriple); err == nil {
+                    defTriple := ""
+                    if llvmText, err := be.EmitModuleForTarget(m, defTriple); err == nil {
                         objDir := filepath.Join("build", "obj", p.Name)
                         _ = os.MkdirAll(objDir, 0o755)
                         llPath := filepath.Join(objDir, unit+".ll")
@@ -219,9 +249,9 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                         if opts.Log != nil { opts.Log("unit.ll.emit", map[string]any{"pkg": p.Name, "unit": unit, "path": llPath}) }
                         if !opts.EmitLLVMOnly {
                             oPath := filepath.Join(objDir, unit+".o")
-                            if err := llvme.CompileLLToObject(clang, llPath, oPath, defTriple); err != nil {
+                            if err := be.CompileLLToObject(clang, llPath, oPath, defTriple); err != nil {
                                 d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile LLVM to object", File: llPath}
-                                if te, ok := err.(llvme.ToolError); ok { if d.Data == nil { d.Data = map[string]any{} }; d.Data["stderr"] = te.Stderr }
+                                if d.Data == nil { d.Data = map[string]any{} }
                                 outDiags = append(outDiags, d)
                             } else if opts.Log != nil {
                                 opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})
@@ -232,15 +262,15 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                     }
                     // Emit per-env objects under build/<env>/obj/<pkg>/unit.o
                     for _, env := range ws.Toolchain.Compiler.Env {
-                        triple := llvme.TripleForEnv(env)
-                        if llvmText, err := llvme.EmitModuleLLVMForTarget(m, triple); err == nil {
+                        triple := be.TripleForEnv(env)
+                        if llvmText, err := be.EmitModuleForTarget(m, triple); err == nil {
                             envObjDir := filepath.Join("build", env, "obj", p.Name)
                             _ = os.MkdirAll(envObjDir, 0o755)
                             llPathEnv := filepath.Join(envObjDir, unit+".ll")
                             _ = os.WriteFile(llPathEnv, []byte(llvmText), 0o644)
                             if !opts.EmitLLVMOnly {
                                 oPathEnv := filepath.Join(envObjDir, unit+".o")
-                                if err := llvme.CompileLLToObject(clang, llPathEnv, oPathEnv, triple); err == nil {
+                                if err := be.CompileLLToObject(clang, llPathEnv, oPathEnv, triple); err == nil {
                                     if opts.Log != nil { opts.Log("unit.obj.env.write", map[string]any{"pkg": p.Name, "unit": unit, "env": env, "path": oPathEnv}) }
                                 }
                             }

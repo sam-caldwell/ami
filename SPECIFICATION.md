@@ -233,7 +233,7 @@
   - M6 Semantics (initial): memory safety, pipeline invariants, worker signature/resolution
   - M7 Linter Stage B: parser-backed rules and pragma suppression
   - M8 Type Inference (M1–M3) baseline
-  - M9 IR + Artifacts scaffold (deterministic IR and obj index)
+  - M9 IR + Artifacts complete (deterministic IR and obj index)
   - M12 Test Runner (directive/runtime harness; JSON lines)
 
 Scope (Deliverables):
@@ -427,7 +427,7 @@ packages:
     - [X] Propagation of inferred container types across assignments, function calls, and returns.
     - [X] Cross‑package name resolution (multi‑file), constant evaluation, and additional validation rules per Phase 2.1 scope.
 -  [ ] IR & Codegen
-  - [X] IR (SSA) Construction (scaffold): emit `ssa.v1` debug per unit with straight-line SSA versioning of defs
+  - [X] IR (SSA) Construction: emit `ssa.v1` debug per unit with straight-line SSA versioning of defs
   - [ ] Optimization and Analyses:
     - [ ] inlining
     - [ ] escape analysis
@@ -442,7 +442,7 @@ packages:
           RETURN, DEFER, EXPR).
     - [X] Enrich typed IR lowering: add SSA‑like temporaries and typed results; lower function calls 
           (callee + arg types) and container literals explicitly.
-    - [X] Emit object stubs (scaffold) and per‑package object index in `build/obj/<pkg>/index.json`; build plan includes `objIndex` (verbose).
+    - [X] Emit real `.o` objects when toolchain present (in both debug and non‑debug builds); fall back to `.s` only when unavailable. Per‑package object index in `build/obj/<pkg>/index.json`; build plan includes `objIndex` (verbose).
 #### 1.1.9.3. Code generation / Linking:
 - [X] Instruction selection, register allocation, scheduling;
 - [X] emit object w/ relocations,

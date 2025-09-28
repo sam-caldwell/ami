@@ -9,6 +9,7 @@ import (
 var buildEmitLLVMOnly bool
 var buildNoLink bool
 var buildNoLinkEnvs []string
+var buildDebugStrict bool
 
 // newBuildCmd returns the `ami build` subcommand.
 func newBuildCmd() *cobra.Command {
@@ -29,5 +30,6 @@ func newBuildCmd() *cobra.Command {
     cmd.Flags().BoolVar(&buildEmitLLVMOnly, "emit-llvm-only", false, "emit .ll only; skip object compilation")
     cmd.Flags().BoolVar(&buildNoLink, "no-link", false, "skip linking stage (future; reserved)")
     cmd.Flags().StringSliceVar(&buildNoLinkEnvs, "no-link-env", nil, "skip linking for specific target envs (os/arch, comma-separated)")
+    cmd.Flags().BoolVar(&buildDebugStrict, "debug-strict", false, "in verbose mode, surface object compile failures as diagnostics")
     return cmd
 }

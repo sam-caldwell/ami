@@ -4,6 +4,8 @@ package driver
 type Options struct {
     // Debug enables emission of debug artifacts under build/debug.
     Debug bool
+    // DebugStrict when true surfaces object compile failures as diagnostics in debug mode.
+    DebugStrict bool
     // EmitLLVMOnly emits .ll but skips compiling to .o
     EmitLLVMOnly bool
     // NoLink skips linking (reserved; backend pending)

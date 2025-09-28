@@ -9,6 +9,10 @@ var Operators = map[string]Kind{
     "/":  Slash,
     "%":  Percent,
     "!":  Bang,
+    "&":  BitAnd,
+    "^":  BitXor,
+    "<<": Shl,
+    ">>": Shr,
 
     "==": Eq,
     "!=": Ne,

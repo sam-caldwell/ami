@@ -35,6 +35,12 @@ const (
     And // &&
     Or  // ||
 
+    // Bitwise and shift operators
+    BitAnd // &
+    BitXor // ^
+    Shl    // <<
+    Shr    // >>
+
     Arrow // ->
 
     // Keywords (reserved)

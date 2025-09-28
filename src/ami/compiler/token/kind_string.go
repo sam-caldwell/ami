@@ -45,6 +45,14 @@ func (k Kind) String() string {
         return "And"
     case Or:
         return "Or"
+    case BitAnd:
+        return "BitAnd"
+    case BitXor:
+        return "BitXor"
+    case Shl:
+        return "Shl"
+    case Shr:
+        return "Shr"
     case Arrow:
         return "Arrow"
     case KwPackage:

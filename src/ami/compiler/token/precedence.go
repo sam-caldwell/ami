@@ -5,10 +5,16 @@ const (
     precNone = 0
     precOr   = 1
     precAnd  = 2
-    precEq   = 3
-    precRel  = 4
-    precAdd  = 5
-    precMul  = 6
+    // Bitwise levels (tighter than logical, looser than arithmetic/rel/eq per simplified model)
+    precBitOr  = 3
+    precBitXor = 4
+    precBitAnd = 5
+    precEq   = 6
+    precRel  = 7
+    // Shift placed near arithmetic; matches simplified left-associative grammar
+    precAdd  = 8
+    precMul  = 9
+    precShift = 8
 )
 
 // Precedence returns the binding power for the given operator token kind.
@@ -18,10 +24,18 @@ func Precedence(k Kind) int {
         return precOr
     case And:
         return precAnd
+    case BitOr:
+        return precBitOr
+    case BitXor:
+        return precBitXor
+    case BitAnd:
+        return precBitAnd
     case Eq, Ne:
         return precEq
     case Lt, Gt, Le, Ge:
         return precRel
+    case Shl, Shr:
+        return precShift
     case Plus, Minus:
         return precAdd
     case Star, Slash, Percent:
@@ -30,4 +44,3 @@ func Precedence(k Kind) int {
         return precNone
     }
 }
-

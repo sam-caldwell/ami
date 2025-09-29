@@ -34,6 +34,8 @@ func lowerFunction(fn ir.Function) (string, error) {
     // Body
     var b strings.Builder
     fmt.Fprintf(&b, "define %s @%s(%s) {\n", ret, fn.Name, strings.Join(params, ", "))
+    // Collect defers to emit before any return (simulate run-at-exit semantics)
+    var defers []ir.Expr
     for i, blk := range fn.Blocks {
         // label
         name := blk.Name
@@ -47,7 +49,12 @@ func lowerFunction(fn ir.Function) (string, error) {
                 b.WriteString(lowerAssign(v))
             case ir.Expr:
                 b.WriteString(lowerExpr(v))
+            case ir.Defer:
+                // Schedule defer for emission before returns (LIFO order)
+                defers = append(defers, v.Expr)
             case ir.Return:
+                // Emit deferred expressions in reverse (LIFO) before return
+                for i := len(defers)-1; i >= 0; i-- { b.WriteString(lowerExpr(defers[i])) }
                 s, err := lowerReturn(v)
                 if err != nil { return "", err }
                 b.WriteString(s)
@@ -71,6 +78,8 @@ func lowerFunction(fn ir.Function) (string, error) {
     }
     // Ensure a terminator exists: synthesize a default return when missing
     if !strings.Contains(b.String(), "\n  ret ") {
+        // Emit deferred expressions in reverse order at function end
+        for i := len(defers)-1; i >= 0; i-- { b.WriteString(lowerExpr(defers[i])) }
         if ret == "void" {
             b.WriteString("  ret void\n")
         } else {

@@ -26,8 +26,31 @@ func TestLower_Release_EmitsZeroizeCall_InLLVM(t *testing.T) {
     if !strings.Contains(s, "declare void @ami_rt_zeroize(ptr, i64)") {
         t.Fatalf("missing zeroize extern in LLVM: %s", s)
     }
+    if !strings.Contains(s, "declare i64 @ami_rt_owned_len(ptr)") {
+        t.Fatalf("missing owned_len extern in LLVM: %s", s)
+    }
+    if !strings.Contains(s, "call i64 @ami_rt_owned_len(") {
+        t.Fatalf("missing owned_len call in LLVM: %s", s)
+    }
     if !strings.Contains(s, "call void @ami_rt_zeroize(") {
         t.Fatalf("missing zeroize call in LLVM: %s", s)
     }
 }
 
+// If Owned has a known length from a literal, release(a) uses that length (non-zero literal lowered).
+func TestLower_Release_UsesOwnedLenABI(t *testing.T) {
+    ws := workspace.Workspace{}
+    fs := &source.FileSet{}
+    code := "package app\nfunc F(){ var a Owned = \"test\"; release(a) }\n"
+    fs.AddFile("u2.ami", code)
+    pkgs := []Package{{Name: "app", Files: fs}}
+    _, _ = Compile(ws, pkgs, Options{Debug: true})
+    ll := filepath.Join("build", "debug", "llvm", "app", "u2.ll")
+    b, err := os.ReadFile(ll)
+    if err != nil { t.Fatalf("read llvm: %v", err) }
+    s := string(b)
+    if !strings.Contains(s, "declare void @ami_rt_zeroize(ptr, i64)") { t.Fatalf("missing zeroize extern: %s", s) }
+    if !strings.Contains(s, "declare i64 @ami_rt_owned_len(ptr)") { t.Fatalf("missing owned_len extern: %s", s) }
+    if !strings.Contains(s, "call i64 @ami_rt_owned_len(") { t.Fatalf("missing owned_len call: %s", s) }
+    if !strings.Contains(s, "call void @ami_rt_zeroize(") { t.Fatalf("missing zeroize call: %s", s) }
+}

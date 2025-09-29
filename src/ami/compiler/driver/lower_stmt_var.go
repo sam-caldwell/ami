@@ -19,6 +19,7 @@ func lowerStmtVar(st *lowerState, vd *ast.VarDecl) ir.Instruction {
                 vtype = v.Type
             }
         }
+        // No-op: Owned length is obtained via runtime ABI (ami_rt_owned_len) during release.
     }
     // create a symbolic variable value id equal to the variable name
     res := ir.Value{ID: vd.Name, Type: vtype}

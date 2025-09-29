@@ -41,6 +41,26 @@ func Parse(s string) (Type, error) {
             return Generic{Name: base, Args: []Type{a}}, nil
         }
     }
+    // Struct{field:type,...}
+    if strings.HasPrefix(s, "Struct{") && strings.HasSuffix(s, "}") {
+        body := s[len("Struct{") : len(s)-1]
+        fields := map[string]Type{}
+        if strings.TrimSpace(body) != "" {
+            parts := splitAllTop(body)
+            for _, p := range parts {
+                if i := strings.IndexByte(p, ':'); i > 0 {
+                    name := strings.TrimSpace(p[:i])
+                    tystr := strings.TrimSpace(p[i+1:])
+                    ty, err := Parse(tystr)
+                    if err != nil { return nil, err }
+                    if name != "" { fields[name] = ty }
+                } else {
+                    return nil, fmt.Errorf("invalid struct field: %s", p)
+                }
+            }
+        }
+        return Struct{Fields: fields}, nil
+    }
     // default: named type without args
     return Generic{Name: s}, nil
 }

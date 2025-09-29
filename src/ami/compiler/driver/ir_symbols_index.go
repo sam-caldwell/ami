@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "os"
     "path/filepath"
+    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
@@ -40,6 +41,40 @@ func collectExterns(m ir.Module) []string {
                     op := ex.Op
                     if op == "panic" { add("ami_rt_panic") }
                     if op == "alloc" || ex.Callee == "ami_rt_alloc" { add("ami_rt_alloc") }
+                    // Owned/zeroize helpers surfaced as calls
+                    switch ex.Callee {
+                    case "ami_rt_zeroize":
+                        add("ami_rt_zeroize")
+                    case "ami_rt_owned_len":
+                        add("ami_rt_owned_len")
+                    case "ami_rt_owned_ptr":
+                        add("ami_rt_owned_ptr")
+                    case "ami_rt_owned_new":
+                        add("ami_rt_owned_new")
+                    case "ami_rt_zeroize_owned":
+                        add("ami_rt_zeroize_owned")
+                    }
+                } else if d, ok := ins.(ir.Defer); ok {
+                    // Include deferred calls in extern set
+                    ex := d.Expr
+                    if strings.ToLower(ex.Op) == "call" {
+                        switch ex.Callee {
+                        case "ami_rt_panic":
+                            add("ami_rt_panic")
+                        case "ami_rt_alloc":
+                            add("ami_rt_alloc")
+                        case "ami_rt_zeroize":
+                            add("ami_rt_zeroize")
+                        case "ami_rt_owned_len":
+                            add("ami_rt_owned_len")
+                        case "ami_rt_owned_ptr":
+                            add("ami_rt_owned_ptr")
+                        case "ami_rt_owned_new":
+                            add("ami_rt_owned_new")
+                        case "ami_rt_zeroize_owned":
+                            add("ami_rt_zeroize_owned")
+                        }
+                    }
                 }
             }
         }

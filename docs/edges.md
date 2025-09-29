@@ -112,6 +112,43 @@ Example source:
 pipeline P(){ ingress; work(); egress }
 ```
 
+## Collect Instances and Edge IDs in pipelines.v1
+
+When a pipeline contains multiple steps with the same name (e.g., multiple `Collect` steps), `pipelines.v1` disambiguates
+instances and edges:
+
+- Each step entry includes an `id` field (1‑based per step name in order of appearance).
+- Each edge includes `fromId` and `toId` to reference specific step instances.
+- For `Collect` steps, `multipath.inputs` lists upstream step names assigned to that specific instance.
+
+Example excerpt:
+
+```
+{
+  "pipelines": [
+    {
+      "name": "P",
+      "steps": [
+        {"name":"A","id":1},
+        {"name":"Collect","id":1,"multipath":{"inputs":["A"]}},
+        {"name":"B","id":1},
+        {"name":"Collect","id":2,"multipath":{"inputs":["B"]}},
+        {"name":"egress","id":1}
+      ],
+      "edges": [
+        {"from":"A","fromId":1,"to":"Collect","toId":1},
+        {"from":"B","fromId":1,"to":"Collect","toId":2}
+      ]
+    }
+  ]
+}
+```
+
+Connectivity metadata also includes occurrence‑level lists:
+
+- `unreachableFromIngressIds`: array of `{name,id}` nodes not reachable from `ingress`.
+- `cannotReachEgressIds`: array of `{name,id}` nodes that cannot reach `egress`.
+
 pipelines.v1 header excerpt:
 
 ```

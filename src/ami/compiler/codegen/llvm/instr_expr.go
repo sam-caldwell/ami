@@ -18,17 +18,27 @@ func lowerExpr(e ir.Expr) string {
         }
     }
     if strings.EqualFold(e.Op, "call") {
-        // Return type (if any). For runtime calls keep ptr returns; for user functions use ABI-safe mapping.
+        // Return type resolution
+        // - Runtime helpers: use their true ABI regardless of whether result captured
+        // - User functions: map via ABI, avoid raw ptr exposure when captured
         ret := "void"
-        if e.Result != nil {
-            if strings.HasPrefix(e.Callee, "ami_rt_") {
-                ret = mapType(e.Result.Type)
-            } else {
-                // Avoid exposing raw pointers at the language ABI boundary.
-                rt := mapType(e.Result.Type)
-                if rt == "ptr" { rt = "i64" }
-                ret = rt
+        if strings.HasPrefix(e.Callee, "ami_rt_") {
+            switch e.Callee {
+            case "ami_rt_panic", "ami_rt_zeroize", "ami_rt_zeroize_owned":
+                ret = "void"
+            case "ami_rt_owned_len":
+                ret = "i64"
+            case "ami_rt_alloc", "ami_rt_owned_ptr", "ami_rt_owned_new":
+                ret = "ptr"
+            default:
+                // fall back to result type when provided
+                if e.Result != nil { ret = mapType(e.Result.Type) } else { ret = "void" }
             }
+        } else if e.Result != nil {
+            // Avoid exposing raw pointers at the language ABI boundary for user functions
+            rt := mapType(e.Result.Type)
+            if rt == "ptr" { rt = "i64" }
+            ret = rt
         }
         // Args
         var args []string
@@ -43,6 +53,30 @@ func lowerExpr(e ir.Expr) string {
     // Basic arithmetic scaffold
     op := strings.ToLower(e.Op)
     switch op {
+    case "load":
+        // load <ty>, ptr %p
+        if e.Result != nil && e.Result.ID != "" && len(e.Args) >= 1 {
+            ty := mapType(e.Result.Type)
+            if ty == "" || ty == "void" { ty = "i64" }
+            return fmt.Sprintf("  %%%s = load %s, ptr %%%s\n", e.Result.ID, ty, e.Args[0].ID)
+        }
+        return "  ; expr load\n"
+    case "store":
+        // store <ty> %v, ptr %p
+        if len(e.Args) >= 2 {
+            ty := mapType(e.Args[0].Type)
+            if ty == "" || ty == "void" { ty = "i64" }
+            return fmt.Sprintf("  store %s %%%s, ptr %%%s\n", ty, e.Args[0].ID, e.Args[1].ID)
+        }
+        return "  ; expr store\n"
+    case "gep":
+        // getelementptr i8, ptr %base, i64 %idx, ... (byte addressing for scaffold)
+        if e.Result != nil && e.Result.ID != "" && len(e.Args) >= 2 {
+            var idxs []string
+            for i := 1; i < len(e.Args); i++ { idxs = append(idxs, fmt.Sprintf("i64 %%%s", e.Args[i].ID)) }
+            return fmt.Sprintf("  %%%s = getelementptr i8, ptr %%%s, %s\n", e.Result.ID, e.Args[0].ID, strings.Join(idxs, ", "))
+        }
+        return "  ; expr gep\n"
     case "add", "sub", "mul", "div", "mod":
         // choose operation mnemonic by type (double → f*, else integer)
         ty := "i64"

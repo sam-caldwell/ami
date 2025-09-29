@@ -96,7 +96,18 @@ type pipeConn struct {
     Disconnected     []string `json:"disconnected,omitempty"`
     UnreachableFromIngress []string `json:"unreachableFromIngress,omitempty"`
     CannotReachEgress      []string `json:"cannotReachEgress,omitempty"`
+    // occurrence-level diagnostics
+    UnreachableFromIngressIDs []pipeNodeRef `json:"unreachableFromIngressIDs,omitempty"`
+    CannotReachEgressIDs      []pipeNodeRef `json:"cannotReachEgressIDs,omitempty"`
 }
+
+type pipeNodeRef struct {
+    Name string `json:"name"`
+    ID   int    `json:"id"`
+}
+
+// occurrence of a step name within a pipeline body
+type occ struct{ id int; stmtIdx int }
 
 func getInt(s string) int {
     n := 0
@@ -111,7 +122,7 @@ func indexOfStmt(stmts []ast.Stmt, target ast.Stmt) int {
     return -1
 }
 
-func nearestOccBefore(arr []struct{ id int; stmtIdx int }, idx int) int {
+func nearestOccBeforeOcc(arr []occ, idx int) int {
     best := 0
     bestIdx := -1
     for _, o := range arr {
@@ -120,7 +131,7 @@ func nearestOccBefore(arr []struct{ id int; stmtIdx int }, idx int) int {
     return best
 }
 
-func nearestOccAfter(arr []struct{ id int; stmtIdx int }, idx int) int {
+func nearestOccAfterOcc(arr []occ, idx int) int {
     best := 0
     bestIdx := 1<<30
     for _, o := range arr {
@@ -178,7 +189,6 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
         var steps []pipelineOp
         var edges []pipeEdge
         // Track occurrences per step name with their statement index in pd.Stmts
-        type occ struct{ id int; stmtIdx int }
         occs := map[string][]occ{}
         // Pre-scan to assign IDs per occurrence in order
         nameCount := map[string]int{}
@@ -318,8 +328,10 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                 // Resolve fromId as the nearest occurrence at or before this edge stmt index
                 // Resolve toId as the nearest occurrence at or after this edge stmt index
                 esIdx := indexOfStmt(pd.Stmts, s)
-                fromID := nearestOccBefore(occs[e.From], esIdx)
-                toID := nearestOccAfter(occs[e.To], esIdx)
+                fromArr := occs[e.From]
+                toArr := occs[e.To]
+                fromID := nearestOccBeforeOcc(fromArr, esIdx)
+                toID := nearestOccAfterOcc(toArr, esIdx)
                 edges = append(edges, pipeEdge{From: e.From, To: e.To, FromID: fromID, ToID: toID})
             }
         }
@@ -393,7 +405,56 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
             }
             sort.Strings(notFromIngress)
             sort.Strings(cannotToEgress)
-            conn = &pipeConn{HasEdges: true, IngressToEgress: reach["egress"], Disconnected: disc, UnreachableFromIngress: notFromIngress, CannotReachEgress: cannotToEgress}
+            // Build occurrence-level connectivity by IDs
+            // Node occurrences
+            occNodes := map[pipeNodeRef]struct{}{}
+            for _, st := range steps { if st.ID > 0 { occNodes[pipeNodeRef{Name: st.Name, ID: st.ID}] = struct{}{} } }
+            oadj := map[pipeNodeRef][]pipeNodeRef{}
+            oradj := map[pipeNodeRef][]pipeNodeRef{}
+            for _, e := range edges {
+                if e.FromID > 0 && e.ToID > 0 {
+                    a := pipeNodeRef{Name: e.From, ID: e.FromID}
+                    b := pipeNodeRef{Name: e.To, ID: e.ToID}
+                    oadj[a] = append(oadj[a], b)
+                    oradj[b] = append(oradj[b], a)
+                }
+            }
+            // Ingress/egress occs
+            var ingressOcc *pipeNodeRef
+            var egressOccs []pipeNodeRef
+            for n := range occNodes {
+                if strings.ToLower(n.Name) == "ingress" { x := n; ingressOcc = &x }
+                if strings.ToLower(n.Name) == "egress" { egressOccs = append(egressOccs, n) }
+            }
+            var notFromIngressIDs []pipeNodeRef
+            var cannotToEgressIDs []pipeNodeRef
+            if ingressOcc != nil {
+                vis := map[pipeNodeRef]bool{}
+                st := []pipeNodeRef{*ingressOcc}
+                for len(st) > 0 {
+                    n := st[len(st)-1]
+                    st = st[:len(st)-1]
+                    if vis[n] { continue }
+                    vis[n] = true
+                    for _, m := range oadj[n] { if !vis[m] { st = append(st, m) } }
+                }
+                for n := range occNodes { if !vis[n] { notFromIngressIDs = append(notFromIngressIDs, n) } }
+            }
+            if len(egressOccs) > 0 {
+                vis := map[pipeNodeRef]bool{}
+                st := append([]pipeNodeRef(nil), egressOccs...)
+                for len(st) > 0 {
+                    n := st[len(st)-1]
+                    st = st[:len(st)-1]
+                    if vis[n] { continue }
+                    vis[n] = true
+                    for _, m := range oradj[n] { if !vis[m] { st = append(st, m) } }
+                }
+                for n := range occNodes { if !vis[n] { cannotToEgressIDs = append(cannotToEgressIDs, n) } }
+            }
+            sort.SliceStable(notFromIngressIDs, func(i, j int) bool { if notFromIngressIDs[i].Name == notFromIngressIDs[j].Name { return notFromIngressIDs[i].ID < notFromIngressIDs[j].ID }; return notFromIngressIDs[i].Name < notFromIngressIDs[j].Name })
+            sort.SliceStable(cannotToEgressIDs, func(i, j int) bool { if cannotToEgressIDs[i].Name == cannotToEgressIDs[j].Name { return cannotToEgressIDs[i].ID < cannotToEgressIDs[j].ID }; return cannotToEgressIDs[i].Name < cannotToEgressIDs[j].Name })
+            conn = &pipeConn{HasEdges: true, IngressToEgress: reach["egress"], Disconnected: disc, UnreachableFromIngress: notFromIngress, CannotReachEgress: cannotToEgress, UnreachableFromIngressIDs: notFromIngressIDs, CannotReachEgressIDs: cannotToEgressIDs}
         }
         // deterministic ordering of edges for stability
         if len(edges) > 0 {

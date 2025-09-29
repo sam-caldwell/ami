@@ -59,7 +59,7 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
                     }
                     // call owned_new(ptr,len)
                     hid := st.newTemp()
-                    hres := &ir.Value{ID: hid, Type: "ptr"}
+                    hres := &ir.Value{ID: hid, Type: "Owned"}
                     out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, lenVal}, Result: hres})
                     // emit var using the owned handle
                     res := ir.Value{ID: v.Name, Type: v.Type}
@@ -114,7 +114,7 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
                             }
                         }
                         // call owned_new and assign
-                        hid := st.newTemp(); hres := &ir.Value{ID: hid, Type: "ptr"}
+                        hid := st.newTemp(); hres := &ir.Value{ID: hid, Type: "Owned"}
                         out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, lenVal}, Result: hres})
                         out = append(out, ir.Assign{DestID: v.Name, Src: *hres})
                         break
@@ -164,7 +164,7 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
                                     }
                                 }
                                 if lenVal.ID != "" {
-                                    hid := st.newTemp(); hres := &ir.Value{ID: hid, Type: "ptr"}
+                                    hid := st.newTemp(); hres := &ir.Value{ID: hid, Type: "Owned"}
                                     out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, lenVal}, Result: hres})
                                     vals = append(vals, *hres)
                                     continue

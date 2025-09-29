@@ -23,7 +23,7 @@ func RuntimeLL(triple string, withMain bool) string {
     // zeroization helper: overwrites n bytes at p with 0x00 deterministically
     s += "define void @ami_rt_zeroize(ptr %p, i64 %n) {\n" +
         "entry:\n  br label %loop\n" +
-        "loop:\n  %i = phi i64 [ 0, %entry ], [ %next, %loop ]\n  %done = icmp uge i64 %i, %n\n  br i1 %done, label %exit, label %body\n" +
+        "loop:\n  %i = phi i64 [ 0, %entry ], [ %next, %body ]\n  %done = icmp uge i64 %i, %n\n  br i1 %done, label %exit, label %body\n" +
         "body:\n  %addr = getelementptr i8, ptr %p, i64 %i\n  store i8 0, ptr %addr, align 1\n  %next = add i64 %i, 1\n  br label %loop\n" +
         "exit:\n  ret void\n}\n\n"
     // Owned ABI using heap-allocated handle { i8* data; i64 len }

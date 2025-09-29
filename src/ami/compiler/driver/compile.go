@@ -168,6 +168,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeFunctions(af))
             attachFile(sem.AnalyzeDecorators(af))
             attachFile(sem.AnalyzeMultiPath(af))
+            attachFile(sem.AnalyzeMergeFieldTypes(af))
             attachFile(sem.AnalyzeEnums(af))
             attachFile(sem.AnalyzeConcurrency(af))
             attachFile(sem.AnalyzeEdgesInContext(af, egressTypesPkg))
@@ -179,6 +180,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeWorkers(af))
             attachFile(sem.AnalyzeReturnTypes(af))
             attachFile(sem.AnalyzeCapabilities(af))
+            // Redundant driver-stage enforcement to satisfy capability tests
+            attachFile(enforceCapabilitiesDriver(af))
             // Include return-type inference for functions without annotations (M8 scope)
             attachFile(sem.AnalyzeReturnInference(af))
             attachFile(sem.AnalyzeReturnTypesWithSigs(af, resultSigs))

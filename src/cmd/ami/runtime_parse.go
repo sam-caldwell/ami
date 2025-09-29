@@ -48,6 +48,29 @@ func parseRuntimeCases(root string) ([]runtimeCase, error) {
                 if v := kv["output"]; v != "" { spec.ExpectJSON = v }
                 if v := kv["expect_error"]; v != "" { spec.ExpectError = v }
                 if v := kv["timeout"]; v != "" { if n, e := strconv.Atoi(v); e == nil { spec.TimeoutMs = n } }
+            } else if strings.HasPrefix(body, "kv ") {
+                rest := strings.TrimSpace(strings.TrimPrefix(body, "kv "))
+                kv := parseKV(rest)
+                if v := kv["ns"]; v != "" { spec.KvNS = v }
+                if v := kv["put"]; v != "" {
+                    if spec.KvPut == nil { spec.KvPut = map[string]string{} }
+                    for _, pair := range strings.Split(v, ";") {
+                        pair = strings.TrimSpace(pair)
+                        if pair == "" { continue }
+                        if i := strings.IndexByte(pair, '='); i > 0 {
+                            k := strings.TrimSpace(pair[:i])
+                            val := strings.TrimSpace(pair[i+1:])
+                            if k != "" { spec.KvPut[k] = val }
+                        }
+                    }
+                }
+                if v := kv["get"]; v != "" {
+                    for _, k := range strings.Split(v, ",") {
+                        k = strings.TrimSpace(k)
+                        if k != "" { spec.KvGet = append(spec.KvGet, k) }
+                    }
+                }
+                if v := kv["emit"]; v == "true" || v == "1" { spec.KvEmit = true }
             }
         }
         if len(names) == 0 { return nil }

@@ -14,6 +14,7 @@ func newTestCmd() *cobra.Command {
     var runPattern string
     var kvMetrics bool
     var kvDump bool
+    var kvEvents bool
     cmd := &cobra.Command{
         Use:   "test [path]",
         Short: "Run project tests and write logs/manifests",
@@ -22,7 +23,7 @@ func newTestCmd() *cobra.Command {
             dir := "."
             if len(args) > 0 { dir = args[0] }
             if checkEvents { return runCheckEvents(cmd.OutOrStdout()) }
-            setTestOptions(TestOptions{TimeoutMs: timeoutMs, Parallel: parallel, Failfast: failfast, RunPattern: runPattern, KvMetrics: kvMetrics, KvDump: kvDump})
+            setTestOptions(TestOptions{TimeoutMs: timeoutMs, Parallel: parallel, Failfast: failfast, RunPattern: runPattern, KvMetrics: kvMetrics, KvDump: kvDump, KvEvents: kvEvents})
             return runTest(cmd.OutOrStdout(), dir, jsonOut, verbose, pkgs)
         },
     }
@@ -37,6 +38,7 @@ func newTestCmd() *cobra.Command {
     cmd.Flags().StringVar(&runPattern, "run", "", "regexp to select runtime tests by name")
     cmd.Flags().BoolVar(&kvMetrics, "kv-metrics", false, "emit kvstore metrics under build/test/kv/")
     cmd.Flags().BoolVar(&kvDump, "kv-dump", false, "emit kvstore dump (keys only) under build/test/kv/")
+    cmd.Flags().BoolVar(&kvEvents, "kv-events", false, "stream kv metrics/dump as diag.v1 JSON events in --json mode")
     // alias: pkg-parallel maps to go test -p (same as --packages)
     cmd.Flags().IntVar(&pkgs, "pkg-parallel", 0, "alias for --packages: go test package concurrency (-p)")
     _ = cmd.Flags().MarkHidden("pkg-parallel")

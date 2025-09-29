@@ -334,6 +334,20 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                                     if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                                 }
                             }
+                            // merge.Sort(field[,order]) validation
+                            if strings.HasSuffix(name, ".sort") {
+                                if len(a.Args) == 0 || a.Args[0].Text == "" {
+                                    d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field argument", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                }
+                                if len(a.Args) >= 2 {
+                                    ord := strings.ToLower(a.Args[1].Text)
+                                    if ord != "asc" && ord != "desc" {
+                                        d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_SORT_ORDER_INVALID", Message: "merge.Sort order must be 'asc' or 'desc'", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"order": a.Args[1].Text}}
+                                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                    }
+                                }
+                            }
                         }
                     }
                     // Reachability: simple graph over edge stmts from 'ingress'

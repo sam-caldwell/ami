@@ -8,6 +8,7 @@ type TestOptions struct {
     RunPattern  string
     KvMetrics   bool
     KvDump      bool
+    KvEvents    bool
 }
 
 var currentTestOptions TestOptions

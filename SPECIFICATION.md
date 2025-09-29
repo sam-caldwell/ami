@@ -1048,25 +1048,25 @@ Deliverables
 
 #### 6.8 Node‑State Table (Ephemeral Key Store)
 
-- [ ] Ephemeral per‑node key/value store (in‑memory; cleared on restart)
-- [ ] Namespacing: isolated per pipeline and per node instance
-- [ ] API: `put(key,val[,ttl,maxReads])`, `get(key)`, `del(key)`, `has(key)`, `keys()`
-- [ ] TTL policies: absolute expiration (duration), optional sliding refresh on access
-- [ ] Delete‑on‑read‑count policies: remove after N reads (supports one‑time reads)
-- [ ] Concurrency: atomic ops; consistent behavior under concurrent gets/puts
-- [ ] Capacity limits: configurable memory cap and eviction policy (LRU when over limit)
+- [X] Ephemeral per‑node key/value store (in‑memory; cleared on restart)
+- [X] Namespacing: isolated per pipeline and per node instance
+- [X] API: `put(key,val[,ttl,maxReads])`, `get(key)`, `del(key)`, `has(key)`, `keys()`
+- [X] TTL policies: absolute expiration (duration), optional sliding refresh on access
+- [X] Delete‑on‑read‑count policies: remove after N reads (supports one‑time reads)
+- [X] Concurrency: atomic ops; consistent behavior under concurrent gets/puts
+- [X] Capacity limits: configurable memory cap and eviction policy (LRU when over limit)
  - [ ] Metrics: hits, misses, expirations, evictions, current size; diag.v1 emission hooks
- - [ ] Observability: debug dump guarded by `--verbose` in debug builds; optional emission during `ami test` via flags
+ - [X] Observability: debug dump guarded by `--verbose` in debug builds; optional emission during `ami test` via flags
 
 Deliverables
 
  - [X] Runtime package implementing the ephemeral store with TTL and read‑count deletion
  - [ ] CLI/runtime wiring (scaffold) to obtain per‑node store instances
  - [X] CLI: `ami build --verbose` emits `kvstore.metrics` and guarded `kvstore.dump` records; `ami test` adds `--kv-metrics` and `--kv-dump` flags
- - [ ] Tester harness integration: kv registry usage, input meta directives (kv_pipeline/node/put/get/emit), helper builders, and auto‑emission toggle
- - [ ] Tests: TTL expiry (absolute and sliding), delete‑on‑read‑count, concurrency, capacity eviction, metrics counters, harness emissions
+ - [X] Tester harness integration: kv registry usage, input meta directives (ns/put/get/emit), helper builders, and auto‑emission toggle
+ - [X] Tests: TTL expiry (absolute and sliding), delete‑on‑read‑count, concurrency, capacity eviction, metrics counters, harness emissions
  - [X] Test isolation utilities: `kvstore.ResetDefault()` and `tester.ResetDefaultKVForTest(t)`
- - [ ] Docs: usage, guarantees, limitations, and test isolation under `docs/`
+ - [X] Docs: usage, guarantees, limitations, and test isolation under `docs/` (see `docs/runtime-tests.md`)
 
 #### 6.9 Secure Delete (Zeroization)
 

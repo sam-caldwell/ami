@@ -285,12 +285,12 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                             // allow generic io capability for read/write specifics
                             allowed := declCaps[cap] || declCaps["io"]
                             if !allowed {
-                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_CAPABILITY_REQUIRED", Message: "io.* operation requires declared capability: " + cap, File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"cap": cap}}
+                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CAPABILITY_REQUIRED", Message: "operation requires capability '" + cap + "'", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"cap": cap}}
                                 if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                             }
                             // trust enforcement: forbid network for untrusted
                             if (trustLevel == "untrusted" || trustLevel == "low") && cap == "network" {
-                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_FORBIDDEN", Message: "trust level forbids network operations", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"trust": trustLevel}}
+                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_VIOLATION", Message: "operation not allowed under trust level '" + trustLevel + "'", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"trust": trustLevel}}
                                 if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                             }
                         }
@@ -357,14 +357,14 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                                 if strings.HasPrefix(name, "io.write") || strings.HasPrefix(name, "io.send") { cap = "io.write" }
                                 if strings.HasPrefix(name, "io.connect") || strings.HasPrefix(name, "io.listen") || strings.HasPrefix(name, "io.dial") { cap = "network" }
                                 allowed := declCaps[cap] || declCaps["io"]
-                                if !allowed {
-                                    d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_CAPABILITY_REQUIRED", Message: "io.* operation requires declared capability: " + cap, File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"cap": cap}}
-                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                }
-                                if (trustLevel == "untrusted" || trustLevel == "low") && cap == "network" {
-                                    d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_FORBIDDEN", Message: "trust level forbids network operations", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"trust": trustLevel}}
-                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                }
+                            if !allowed {
+                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CAPABILITY_REQUIRED", Message: "operation requires capability '" + cap + "'", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"cap": cap}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
+                            if (trustLevel == "untrusted" || trustLevel == "low") && cap == "network" {
+                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_VIOLATION", Message: "operation not allowed under trust level '" + trustLevel + "'", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"trust": trustLevel}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
                             }
                             // merge.Sort(field[,order]) validation (attribute form)
                             if strings.HasSuffix(name, ".sort") {

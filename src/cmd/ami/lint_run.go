@@ -76,6 +76,8 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
             srcDiags = append(srcDiags, scanSourceLangNotGo(dir, root)...)
             srcDiags = append(srcDiags, scanSourceTodos(dir, root)...)
             srcDiags = append(srcDiags, scanSourceFormatting(dir, root)...)
+            // Merge attribute hints (text scan, parser-independent)
+            srcDiags = append(srcDiags, scanSourceMergeSort(dir, root)...)
             filtered := srcDiags[:0]
             for _, d := range srcDiags {
                 if d.File != "" {

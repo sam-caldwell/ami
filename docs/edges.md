@@ -61,6 +61,10 @@ Example:
 }
 ```
 
+## See Also
+- `docs/backend/build_plan.md` — build plan may summarize debug artifact paths, including edges and IR indices.
+- `docs/ir-indices.md` — IR indices emitted under `build/debug/ir/<pkg>/...` during verbose builds.
+
 Example (Collect with multiple upstreams)
 
 ```

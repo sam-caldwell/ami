@@ -5,6 +5,7 @@ import (
     "os"
     "path/filepath"
     "sort"
+    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
 )
@@ -51,6 +52,15 @@ type pipeMergeNorm struct {
         Field string `json:"field"`
         Order string `json:"order"`
     } `json:"sort,omitempty"`
+    Key         string `json:"key,omitempty"`
+    PartitionBy string `json:"partitionBy,omitempty"`
+    TimeoutMs   int    `json:"timeoutMs,omitempty"`
+    Window      int    `json:"window,omitempty"`
+    Watermark   *struct{
+        Field    string `json:"field"`
+        Lateness string `json:"lateness"`
+    } `json:"watermark,omitempty"`
+    Dedup       string `json:"dedup,omitempty"`
 }
 
 type pipeMultiPath struct {
@@ -110,23 +120,29 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                         for _, aa := range at.Args { margs = append(margs, aa.Text) }
                         op.Merge = append(op.Merge, pipeMergeAttr{Name: at.Name, Args: margs})
                         if at.Name == "merge.Buffer" {
-                            // derive edge attrs from buffer policy
-                            if len(margs) > 0 && margs[0] != "0" && margs[0] != "" { op.Edge.Bounded = true }
-                            if len(margs) > 1 {
-                                pol := margs[1]
-                                if pol == "dropOldest" || pol == "dropNewest" { op.Edge.Delivery = "bestEffort" }
-                                if pol == "block" { op.Edge.Delivery = "atLeastOnce" }
-                            }
-                            // normalized buffer
-                            cap := 0
-                            if len(margs) > 0 {
-                                // simple atoi
-                                for i := 0; i < len(margs[0]); i++ {
-                                    if margs[0][i] >= '0' && margs[0][i] <= '9' { cap = cap*10 + int(margs[0][i]-'0') } else { cap = 0; break }
+                            // Support keyed args (capacity=, policy=) with last-write-wins.
+                            kv := map[string]string{}
+                            for _, a := range margs {
+                                if eq := strings.IndexByte(a, '='); eq > 0 {
+                                    kv[strings.ToLower(strings.TrimSpace(a[:eq]))] = strings.TrimSpace(a[eq+1:])
                                 }
                             }
-                            nb := struct{ Capacity int `json:"capacity"`; Policy string `json:"policy,omitempty"` }{Capacity: cap}
-                            if len(margs) > 1 { nb.Policy = margs[1] }
+                            getInt := func(s string) int {
+                                n := 0
+                                for i := 0; i < len(s); i++ {
+                                    if s[i] >= '0' && s[i] <= '9' { n = n*10 + int(s[i]-'0') } else { return 0 }
+                                }
+                                return n
+                            }
+                            capVal := 0
+                            pol := ""
+                            if v := kv["capacity"]; v != "" { capVal = getInt(v) } else if len(margs) > 0 { capVal = getInt(margs[0]) }
+                            if v := kv["policy"]; v != "" { pol = v } else if len(margs) > 1 { pol = margs[1] }
+                            // derive edge attrs
+                            if capVal > 0 { op.Edge.Bounded = true }
+                            if pol == "dropOldest" || pol == "dropNewest" { op.Edge.Delivery = "bestEffort" }
+                            if pol == "block" { op.Edge.Delivery = "atLeastOnce" }
+                            nb := struct{ Capacity int `json:"capacity"`; Policy string `json:"policy,omitempty"` }{Capacity: capVal, Policy: pol}
                             norm.Buffer = &nb
                         }
                         if at.Name == "merge.Stable" {
@@ -140,6 +156,42 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                                 Field string `json:"field"`
                                 Order string `json:"order"`
                             }{Field: field, Order: order})
+                        }
+                        if at.Name == "merge.Key" {
+                            if len(margs) > 0 { norm.Key = margs[0] }
+                        }
+                        if at.Name == "merge.PartitionBy" {
+                            if len(margs) > 0 { norm.PartitionBy = margs[0] }
+                        }
+                        if at.Name == "merge.Timeout" {
+                            kv := map[string]string{}
+                            for _, a := range margs { if eq := strings.IndexByte(a, '='); eq > 0 { kv[strings.ToLower(strings.TrimSpace(a[:eq]))] = strings.TrimSpace(a[eq+1:]) } }
+                            v := ""
+                            if kv["ms"] != "" { v = kv["ms"] } else if len(margs) > 0 { v = margs[0] }
+                            to := 0
+                            for i := 0; i < len(v); i++ { if v[i] >= '0' && v[i] <= '9' { to = to*10 + int(v[i]-'0') } else { to = 0; break } }
+                            norm.TimeoutMs = to
+                        }
+                        if at.Name == "merge.Window" {
+                            kv := map[string]string{}
+                            for _, a := range margs { if eq := strings.IndexByte(a, '='); eq > 0 { kv[strings.ToLower(strings.TrimSpace(a[:eq]))] = strings.TrimSpace(a[eq+1:]) } }
+                            v := ""
+                            if kv["size"] != "" { v = kv["size"] } else if len(margs) > 0 { v = margs[0] }
+                            w := 0
+                            for i := 0; i < len(v); i++ { if v[i] >= '0' && v[i] <= '9' { w = w*10 + int(v[i]-'0') } else { w = 0; break } }
+                            norm.Window = w
+                        }
+                        if at.Name == "merge.Watermark" {
+                            kv := map[string]string{}
+                            for _, a := range margs { if eq := strings.IndexByte(a, '='); eq > 0 { kv[strings.ToLower(strings.TrimSpace(a[:eq]))] = strings.TrimSpace(a[eq+1:]) } }
+                            var field, late string
+                            if kv["field"] != "" { field = kv["field"] } else if len(margs) > 0 { field = margs[0] }
+                            if kv["lateness"] != "" { late = kv["lateness"] } else if len(margs) > 1 { late = margs[1] }
+                            wm := struct{ Field string `json:"field"`; Lateness string `json:"lateness"` }{Field: field, Lateness: late}
+                            norm.Watermark = &wm
+                        }
+                        if at.Name == "merge.Dedup" {
+                            if len(margs) > 0 { norm.Dedup = margs[0] } else { norm.Dedup = "" }
                         }
                     }
                     if (at.Name == "edge.MultiPath" || at.Name == "MultiPath") && st.Name == "Collect" {
@@ -157,7 +209,11 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                     }
                 }
                 op.Attrs = rawAttrs
-                if norm.Buffer != nil || norm.Stable || len(norm.Sort) > 0 { op.MergeNorm = &norm }
+                if norm.Buffer != nil || norm.Stable || len(norm.Sort) > 0 ||
+                    norm.Key != "" || norm.PartitionBy != "" || norm.TimeoutMs != 0 ||
+                    norm.Window != 0 || norm.Watermark != nil || norm.Dedup != "" {
+                    op.MergeNorm = &norm
+                }
                 steps = append(steps, op)
             }
         }

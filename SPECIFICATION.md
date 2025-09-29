@@ -612,7 +612,7 @@ packages:
       }
     }
   - Implementation note: entries produced by `mod get`/`mod sum` in object form may include an optional `commit` field for traceability. This does not affect integrity checks (which continue to use directory `sha256`) and will be finalized alongside the Resolution rules.
-- [ ] Resolution rules:
+- [X] Resolution rules:
   - [X] `ami mod get <url>@<semver>` resolves the tag (e.g., `v1.2.3`) to a commit.
   - [X] If the remote repository supports Git SHA‑256 object format, record that commit OID directly.
   - [X] If the remote repository uses SHA‑1, derive a SHA‑256 identifier deterministically from the raw commit object content (Git‑canonical header `"commit <len>\0"` + body) and record the resulting SHA‑256 digest as `<sha256-commit-oid>`.
@@ -643,7 +643,7 @@ packages:
 - [X] Multiple entrypoints (multiple pipeline declarations)
 - [X] Error pipeline parsing: `pipeline P { ... } error { ... }` captured in AST
  - [X] Concurrency and scheduling declarations (1.4, 2.3.6): collected via `#pragma concurrency` and exposed through IR attributes
-- [ ] Compiler directives:
+- [X] Compiler directives:
   - [X] Backpressure collected via `#pragma backpressure` and mapped into IR (config) and pipelines.v1 default delivery
   - [X] Capabilities/trust
      - runtime semantics or enforcement yet;
@@ -917,6 +917,7 @@ packages:
   - [X] `edges.v1` summary includes per‑Collect MultiPath snapshots when present (debug parity with pipelines.v1).
 - [ ] Lint & Smells
   - [X] `W_MERGE_SORT_NO_FIELD`: `merge.Sort` specified without a field.
+  - [X] `E_MERGE_SORT_ORDER_INVALID`: invalid `merge.Sort` order (must be `asc` or `desc`).
 - [X] `W_MERGE_TINY_BUFFER`: `merge.Buffer` set to very small capacity (<=1) with `dropOldest`/`dropNewest` policy.
   - [X] `W_MERGE_WATERMARK_MISSING_FIELD`: `merge.Watermark` without a field.
   - [X] `W_MERGE_WINDOW_ZERO_OR_NEGATIVE`: invalid window size.
@@ -925,13 +926,13 @@ packages:
   - [X] Parser round‑trips `edge.MultiPath(...)` as raw attr on `Collect`.
   - [X] Semantics: context enforcement (Collect‑only) and basic merge‑op name/arity validation.
   - [X] IR/codegen: pipelines schema encodes MultiPath; ASM listings emit `mp_*` pseudo‑ops; edges.v1 includes MultiPath snapshot (build test added).
-  - [ ] Merge attribute normalization and per‑attribute validation (deferred).
+  - [X] Merge attribute normalization and per‑attribute validation (scaffold): Buffer, Stable, Sort, Key, PartitionBy, Timeout, Window, Watermark, Dedup normalized in pipelines debug; validations enforced in semantics.
 - [ ] Documentation
   - [X] Add `docs/merge.md` describing attribute semantics, precedence, examples.
   - [X] Update `docs/edges.md` to include `edge.MultiPath` and cross-reference `merge`.
   - [X] Add examples under `examples/` demonstrating `Collect` with `edge.MultiPath` and various `merge.*` settings.
-- [ ] Runtime/Planner
-  - [ ] Plan how `merge` attributes map to runtime merge operator configuration; leave unimplemented until runtime integration phase.
+- [X] Runtime/Planner
+  - [X] Plan how `merge` attributes map to runtime merge operator configuration; leave unimplemented until runtime integration phase (see `docs/merge-planner.md`).
 
 See also: `docs/merge.md` for a design summary and examples.
 ### 1.2.5.0. edge.MultiPath() Merge Facility (Collect)
@@ -939,8 +940,8 @@ See also: `docs/merge.md` for a design summary and examples.
 - [X] Grammar & Parser
 - [X] Parser: Accept `in=edge.MultiPath(<attr list>)` as a step argument on `Collect` nodes (tolerant inputs + raw `merge` ops).
   - [X] Semantics/IR (scaffold): Minimal validations (Collect‑only, input type checks). IR/schema/codegen scaffolded; merge normalization and full lowering pending.
-  - [ ] Attr list supports mixed `k=v` pairs and nested `merge.*(...)` attribute calls; order‑insensitive; last‑write‑wins.
-  - [ ] Tolerant parsing (scaffold): capture raw string, normalized kv map, and a list of `merge.*` calls for later semantic validation.
+  - [X] Attr list supports mixed `k=v` pairs and nested `merge.*(...)` attribute calls; order‑insensitive; last‑write‑wins (tolerant parsing via `parser.parseAttrArg` and normalization in pipelines debug; last occurrence wins).
+  - [X] Tolerant parsing (scaffold): attribute args capture raw `Text` including `k=v`; normalization builds kv where applicable; `merge.*` calls captured in debug and used by semantics.
   - [X] Semantics & Validation
   - [X] Context rule: `edge.MultiPath` is only valid on `Collect` nodes; analyzer emits `E_MP_ONLY_COLLECT`.
   - [X] Semantics: context checks (Collect‑only), attribute arity/type validation, conflicts, and required fields.
@@ -969,15 +970,15 @@ See also: `docs/merge.md` for a design summary and examples.
 - [ ] Tests
   - [X] Parser: accept and round‑trip `edge.MultiPath(...)` with `merge.*` attributes.
   - [X] Semantics: context enforcement (Collect‑only), per‑attribute arity/type validation, conflicts, and required fields.
-  - [ ] IR: golden JSON snapshots verifying normalized merge config.
+  - [X] IR: golden JSON snapshots verifying normalized merge config.
 - [X] Lint: smells/hints coverage for tiny buffer with `dropOldest`/`dropNewest`, invalid windows, missing fields.
-  - [ ] Determinism: verify `merge.Sort` + `merge.Stable` yields stable order across runs with identical inputs (scaffold level).
+  - [X] Determinism: verify `merge.Sort` + `merge.Stable` yields stable order across runs with identical inputs (scaffold level).
 - [ ] Documentation
   - [X] `docs/merge.md`: detailed attribute semantics, precedence/resolution rules, examples.
-  - [ ] `docs/edges.md`: add `edge.MultiPath`, link to `merge`, and demonstrate Collect with multiple upstreams.
+  - [X] `docs/edges.md`: add `edge.MultiPath`, link to `merge`, and demonstrate Collect with multiple upstreams.
   - [X] Examples under `examples/` illustrating common merge recipes from the docx (sorting, deduplication, watermarking, buffering).
-- [ ] Runtime/Planner 
-  - [ ] Map normalized IR configuration to a merge operator plan; define contracts for buffering, ordering, and watermark handling per docx guidance.
+- [X] Runtime/Planner 
+  - [X] Map normalized IR configuration to a merge operator plan; define contracts for buffering, ordering, and watermark handling per docx guidance (see `docs/merge-planner.md`).
 
 See also: `docs/merge.md` for attribute semantics and pipeline examples.
 ### 1.2.6.0. Imperative Subset (Ch. 2.3)
@@ -1143,7 +1144,7 @@ Deliverables
 - [ ] Runtime/stdlib helpers (or codegen) providing the above methods for enums
 - [ ] Compiler checks remain: unique members, valid literal values when assigned
 - [ ] Tests: string round‑trip, JSON/text round‑trip, parse errors, ordinal mapping, `Values()`/`Names()` ordering, `IsValid()` behavior
-- [ ] Docs: `docs/language-enum.md` with examples and guarantees
+- [X] Docs: `docs/language-enum.md` with examples and guarantees
 
 ####  2.1.1) Wrapper and Output
   - [ ] Wraps `go test -json` for provided packages (default `./...`).
@@ -1329,8 +1330,8 @@ Edges Runtime Scaffolding (for harness/tests)
 - [ ] Reference Chapter 3.0 commands and flags in docs
 - [X] Tests: help text includes flags, exit codes, examples
 - [X] Add `version` command with semantically versioned CLI; `--json` returns `{ "version": "vX.Y.Z" }`
-- [ ] Document output schemas in prose under `docs/` (reference only). Machine schemas are implemented as Go types in `src/schemas/` with unit tests (one struct per file with matching `_test.go`).
- - [ ] Language docs updated to canonical worker signature; removed legacy State‑parameter suggestions.
+- [X] Document output schemas in prose under `docs/` (reference only). See `docs/schemas/diag.md`, `docs/schemas/log.md`, `docs/schemas/graph.md`, and `docs/events.md`. Machine schemas are implemented as Go types in `src/schemas/` with unit tests.
+- [X] Language docs updated to canonical worker signature; removed legacy State‑parameter suggestions (see `docs/language-workers.md`).
  - [ ] Defer examples updated to canonical return tuple `(Event<U>, error)`.
  - [ ] Lint docs updated: legacy worker signatures emit `E_WORKER_SIGNATURE` (no ambient‑suggest info).
 ## 1.3.0.0. JSON Schemas (Stable Output Contracts)

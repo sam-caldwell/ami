@@ -14,3 +14,4 @@ The `examples` Makefile target iterates through `examples/*` and runs `ami build
 
 You can also build an individual example by changing into the example directory and running `../../build/ami build --verbose`.
 
+See also: `docs/make.md` for Make targets used by examples.

@@ -63,3 +63,5 @@ All new functionality includes happy and sad path tests under `src/ami/workspace
 - Deterministic output patterns preserved (sorted keys, stable JSON in existing code paths).
 - These helpers are intended for future CLI and build integrations while remaining library‑only for now.
 
+## See Also
+- `docs/cmd/mod.md` — user-facing module commands (`mod audit`, `mod update`, `mod sum`, etc.) that consume these helpers.

@@ -302,6 +302,31 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                                 if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                             }
                         }
+                        // Also inspect raw args for attribute-like calls (e.g., Collect(merge.Sort(...)))
+                        for _, a := range st.Args {
+                            txt := strings.TrimSpace(strings.ToLower(a.Text))
+                            // merge.Sort(field[,order]) in argument form
+                            if strings.HasPrefix(txt, "merge.sort(") {
+                                // extract inside parens
+                                inner := strings.TrimSuffix(strings.TrimPrefix(txt, "merge.sort("), ")")
+                                // split by comma into up to two parts
+                                parts := []string{}
+                                for _, p := range strings.Split(inner, ",") {
+                                    p = strings.TrimSpace(p)
+                                    if p != "" { parts = append(parts, p) }
+                                }
+                                if len(parts) == 0 {
+                                    d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field argument", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                } else if len(parts) >= 2 {
+                                    ord := parts[1]
+                                    if ord != "asc" && ord != "desc" {
+                                        d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_SORT_ORDER_INVALID", Message: "merge.Sort order must be 'asc' or 'desc'", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"order": parts[1]}}
+                                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                    }
+                                }
+                            }
+                        }
                         for _, a := range st.Attrs {
                             name := strings.ToLower(a.Name)
                             if name == "buffer" || strings.HasSuffix(name, ".buffer") {
@@ -334,7 +359,7 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                                     if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                                 }
                             }
-                            // merge.Sort(field[,order]) validation
+                            // merge.Sort(field[,order]) validation (attribute form)
                             if strings.HasSuffix(name, ".sort") {
                                 if len(a.Args) == 0 || a.Args[0].Text == "" {
                                     d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field argument", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}}

@@ -85,3 +85,8 @@ Each entry summarizes a logical package from `ami.workspace`.
 
 - This schema is versioned via the `schema` field and may evolve. New optional fields may be added to preserve
   backward compatibility for existing consumers. Unknown optional fields should be ignored by readers.
+
+## See Also
+- `docs/ir-indices.md` — IR indices written under `build/debug/ir/<pkg>/...` referenced by `irIndex`, `irTypesIndex`, and `irSymbolsIndex`.
+- `docs/edges.md` — edges index (`edges.v1`) emitted under `build/debug/asm/<pkg>/edges.json` during verbose builds.
+- `docs/Workspace/README.md` — workspace file that configures targets and packages summarized in the plan.

@@ -72,3 +72,7 @@ Troubleshooting:
 - "no packages to test": there may be no Go packages. This is OK; AMI directive tests still run.
 - Where are logs? With `--verbose`, check `build/test/test.log` and `build/test/test.manifest`.
 - Nothing printed? In success cases, human output ends with `test: OK`. Use `--json` for machine parsing.
+
+## See Also
+- `docs/test-patterns/README.md` — end-to-end CLI testing patterns used by the e2e suite.
+- `docs/events.md` — background on event and error schemas referenced by test outputs.

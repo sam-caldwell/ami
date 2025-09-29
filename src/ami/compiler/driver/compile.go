@@ -191,7 +191,42 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                     bmu.IR = out
                     if opts.Log != nil { opts.Log("unit.ir.write", map[string]any{"pkg": p.Name, "unit": unit, "path": out}) }
                 }
-                if pp, err := writePipelinesDebug(p.Name, unit, af); err == nil { bmu.Pipelines = pp }
+                if pp, err := writePipelinesDebug(p.Name, unit, af); err == nil {
+                    bmu.Pipelines = pp
+                    // In verbose mode, emit human-friendly connectivity summaries.
+                    if opts.Log != nil {
+                        // Parse the pipelines JSON to extract connectivity for logging.
+                        type pipeConn struct{
+                            HasEdges bool `json:"hasEdges"`
+                            IngressToEgress bool `json:"ingressToEgress"`
+                            Disconnected []string `json:"disconnected"`
+                            UnreachableFromIngress []string `json:"unreachableFromIngress"`
+                            CannotReachEgress []string `json:"cannotReachEgress"`
+                        }
+                        type pipeEntry struct{
+                            Name string `json:"name"`
+                            Edges []any `json:"edges"`
+                            Conn *pipeConn `json:"connectivity"`
+                        }
+                        var obj struct{ Pipelines []pipeEntry `json:"pipelines"` }
+                        if b, rerr := os.ReadFile(pp); rerr == nil {
+                            if jerr := json.Unmarshal(b, &obj); jerr == nil {
+                                for _, pe := range obj.Pipelines {
+                                    if pe.Conn != nil {
+                                        fields := map[string]any{
+                                            "pkg": p.Name, "unit": unit, "pipeline": pe.Name,
+                                            "edges": len(pe.Edges), "ingressToEgress": pe.Conn.IngressToEgress,
+                                        }
+                                        if len(pe.Conn.Disconnected) > 0 { fields["disconnected"] = pe.Conn.Disconnected }
+                                        if len(pe.Conn.UnreachableFromIngress) > 0 { fields["unreachableFromIngress"] = pe.Conn.UnreachableFromIngress }
+                                        if len(pe.Conn.CannotReachEgress) > 0 { fields["cannotReachEgress"] = pe.Conn.CannotReachEgress }
+                                        opts.Log("unit.pipelines.connectivity", fields)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 if ct, err := writeContractsDebug(p.Name, unit, af); err == nil { bmu.Contracts = ct }
                 if ssa, err := writeSSADebug(p.Name, unit, m); err == nil { _ = ssa }
                 if em, err := writeEventMetaDebug(p.Name, unit); err == nil { bmu.EventMeta = em }

@@ -75,7 +75,14 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
 
             // Bridge selected semantics diagnostics into lint when Stage B is enabled.
             if t.StageB {
+                // Apply decorator disables from workspace config
+                if names := ws.Toolchain.Linter.DecoratorsDisabled; len(names) > 0 {
+                    sem.SetDisabledDecorators(names...)
+                } else {
+                    sem.SetDisabledDecorators()
+                }
                 semDiags := append(sem.AnalyzePipelineSemantics(af), sem.AnalyzeErrorSemantics(af)...)
+                semDiags = append(semDiags, sem.AnalyzeDecorators(af)...)
                 for _, sd := range semDiags {
                     d := sd
                     if d.File == "" { d.File = path }

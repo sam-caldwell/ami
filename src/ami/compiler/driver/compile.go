@@ -32,6 +32,12 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     sort.SliceStable(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
     // collect resolved sources for debug summary
     var resolved []resolvedUnit
+    // Apply workspace-driven decorator disables (scaffold wiring for analyzers)
+    if len(ws.Toolchain.Linter.DecoratorsDisabled) > 0 {
+        sem.SetDisabledDecorators(ws.Toolchain.Linter.DecoratorsDisabled...)
+    } else {
+        sem.SetDisabledDecorators()
+    }
     for _, p := range pkgs {
         if opts.Log != nil { opts.Log("pkg.start", map[string]any{"pkg": p.Name}) }
         if p.Files == nil { continue }
@@ -134,7 +140,10 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             }
             attachFile(sem.AnalyzePipelineSemantics(af))
             attachFile(sem.AnalyzeFunctions(af))
+            attachFile(sem.AnalyzeDecorators(af))
             attachFile(sem.AnalyzeMultiPath(af))
+            attachFile(sem.AnalyzeEnums(af))
+            attachFile(sem.AnalyzeConcurrency(af))
             attachFile(sem.AnalyzeEventTypeFlow(af))
             attachFile(sem.AnalyzeContainerTypes(af))
             attachFile(sem.AnalyzeTypeInference(af))

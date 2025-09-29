@@ -10,4 +10,8 @@ type Linter struct {
     //   suppress:
     //     "./legacy": ["W_IDENT_UNDERSCORE", "W_IMPORT_ORDER"]
     Suppress map[string][]string `yaml:"suppress,omitempty"`
+    // DecoratorsDisabled lists decorator names that are disabled for analysis.
+    // Example:
+    //   decorators_disabled: ["metrics", "deprecated"]
+    DecoratorsDisabled []string `yaml:"decorators_disabled,omitempty"`
 }

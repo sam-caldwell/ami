@@ -1057,13 +1057,13 @@ Deliverables
 - [X] Delete‑on‑read‑count policies: remove after N reads (supports one‑time reads)
 - [X] Concurrency: atomic ops; consistent behavior under concurrent gets/puts
 - [X] Capacity limits: configurable memory cap and eviction policy (LRU when over limit)
- - [ ] Metrics: hits, misses, expirations, evictions, current size; diag.v1 emission hooks
+ - [X] Metrics: hits, misses, expirations, evictions, current size; diag.v1 emission hooks
  - [X] Observability: debug dump guarded by `--verbose` in debug builds; optional emission during `ami test` via flags
 
 Deliverables
 
  - [X] Runtime package implementing the ephemeral store with TTL and read‑count deletion
- - [ ] CLI/runtime wiring (scaffold) to obtain per‑node store instances
+ - [X] CLI/runtime wiring (scaffold) to obtain per‑node store instances
  - [X] CLI: `ami build --verbose` emits `kvstore.metrics` and guarded `kvstore.dump` records; `ami test` adds `--kv-metrics` and `--kv-dump` flags
  - [X] Tester harness integration: kv registry usage, input meta directives (ns/put/get/emit), helper builders, and auto‑emission toggle
  - [X] Tests: TTL expiry (absolute and sliding), delete‑on‑read‑count, concurrency, capacity eviction, metrics counters, harness emissions
@@ -1104,8 +1104,8 @@ Deliverables
 - [X] Determinism: decorator lists preserved in source order for AST
 - [X] Interactions: decorators may add metadata (e.g., `@deprecated("msg")`, `@metrics`)
   - [X] `@deprecated` emits a compile‑time warning diag.v1 with stable fields
-- [ ] Config: enable/disable specific decorators via `ami.workspace` (linter/compiler settings)
-  - [ ] Analyzer scaffold supports disabling decorators (E_DECORATOR_DISABLED); wiring to workspace.
+  - [X] Config: enable/disable specific decorators via `ami.workspace` (linter/compiler settings)
+  - [X] Analyzer scaffold supports disabling decorators (E_DECORATOR_DISABLED); wiring to workspace.
  - [X] AST: attach decorator metadata (name + arg list) to function nodes
  - [X] IR annotations: per‑function decorator list in `ir.v1`
 - [X] Codegen (scaffold): allow no‑op or pass‑through; reserve hook points for wrappers
@@ -1120,41 +1120,41 @@ Deliverables
 
 #### 6.11 Enum Conformance (docs/*.docx)
 
-- [ ] Spec alignment: implement enum semantics consistent with `docs/*.docx` (authoritative reference: `docs/Asynchronous Machine Interface.docx`)
-- [ ] Canonical names: stable, case‑sensitive canonical string for each member
-- [ ] Unique members: no duplicates, no blank identifiers; deterministic ordering
-- [ ] Backing ordinal: stable ordinal for each member; reserved unknown sentinel optional
-- [ ] Methods:
-  - [ ] `String() string`: canonical name
-  - [ ] `Ordinal() int`: zero‑based ordinal
-  - [ ] `IsValid() bool`: validity check (non‑unknown and within range)
-  - [ ] `Values() []<Enum>`: slice of all enum values in canonical order
-  - [ ] `Names() []string`: slice of canonical names in canonical order
-  - [ ] `Parse<Enum>(s string) (<Enum>, error)`: parse by name (case‑sensitive per docs)
-  - [ ] `MustParse<Enum>(s string) <Enum>`: panics on invalid (for tests/tooling)
-  - [ ] `FromOrdinal(i int) (<Enum>, error)`: map ordinal to value
-  - [ ] JSON: `MarshalJSON()`/`UnmarshalJSON()` to/from canonical string
-  - [ ] Text: `MarshalText()`/`UnmarshalText()` to/from canonical string
-  - [ ] `GoString() string`: stable debug form `Enum(Name)`
-- [ ] Error codes: parsing invalid input → `E_ENUM_PARSE`; invalid ordinal → `E_ENUM_ORDINAL`
-- [ ] Determinism: generated tables/maps have stable ordering; no map iteration nondeterminism in public outputs
-- [ ] Documentation: define case sensitivity and unknown handling consistent with docs
+- [X] Spec alignment: implement enum semantics consistent with `docs/*.docx` (authoritative reference: `docs/Asynchronous Machine Interface.docx`)
+- [X] Canonical names: stable, case‑sensitive canonical string for each member
+- [X] Unique members: no duplicates, no blank identifiers; deterministic ordering
+- [X] Backing ordinal: stable ordinal for each member; reserved unknown sentinel optional
+- [X] Methods:
+  - [X] `String() string`: canonical name
+  - [X] `Ordinal() int`: zero‑based ordinal
+  - [X] `IsValid() bool`: validity check (non‑unknown and within range)
+  - [X] `Values() []<Enum>`: slice of all enum values in canonical order
+  - [X] `Names() []string`: slice of canonical names in canonical order
+  - [X] `Parse<Enum>(s string) (<Enum>, error)`: parse by name (case‑sensitive per docs)
+  - [X] `MustParse<Enum>(s string) <Enum>`: panics on invalid (for tests/tooling)
+  - [X] `FromOrdinal(i int) (<Enum>, error)`: map ordinal to value
+  - [X] JSON: `MarshalJSON()`/`UnmarshalJSON()` to/from canonical string
+  - [X] Text: `MarshalText()`/`UnmarshalText()` to/from canonical string
+  - [X] `GoString() string`: stable debug form `Enum(Name)`
+- [X] Error codes: parsing invalid input → `E_ENUM_PARSE`; invalid ordinal → `E_ENUM_ORDINAL`
+- [X] Determinism: generated tables/maps have stable ordering; no map iteration nondeterminism in public outputs
+- [X] Documentation: define case sensitivity and unknown handling consistent with docs
 
 Deliverables
 
-- [ ] Runtime/stdlib helpers (or codegen) providing the above methods for enums
-- [ ] Compiler checks remain: unique members, valid literal values when assigned
-- [ ] Tests: string round‑trip, JSON/text round‑trip, parse errors, ordinal mapping, `Values()`/`Names()` ordering, `IsValid()` behavior
+- [X] Runtime/stdlib helpers (or codegen) providing the above methods for enums
+- [X] Compiler checks remain: unique members, valid literal values when assigned
+- [X] Tests: string round‑trip, JSON/text round‑trip, parse errors, ordinal mapping, `Values()`/`Names()` ordering, `IsValid()` behavior
 - [X] Docs: `docs/language-enum.md` with examples and guarantees
 
 ####  2.1.1) Wrapper and Output
-  - [ ] Wraps `go test -json` for provided packages (default `./...`).
-  - [ ] Streams `test.v1` JSON events: `run_start`, `test_start`, `test_output`, `test_end`, `run_end`.
-  - [ ] Human output: concise per‑test lines and final summary; per‑package lines include cases.
-  - [ ] Exit codes: failures → USER_ERROR (1); invocation/build/timeout → SYSTEM_IO_ERROR (2).
-  - [ ] Flags: `--timeout`, `--parallel`, `--pkg-parallel`, `--failfast`, `--run`.
-  - [ ] Package‑level concurrency: `--pkg-parallel` maps to `go test -p`.
-  - [ ] JSON fields:
+  - [X] Wraps `go test -json` for provided packages (default `./...`).
+  - [X] Streams `test.v1` JSON events: `run_start`, `test_start`, `test_output`, `test_end`, `run_end`.
+  - [X] Human output: concise per‑test lines and final summary; per‑package lines include cases.
+  - [X] Exit codes: failures → USER_ERROR (1); invocation/build/timeout → SYSTEM_IO_ERROR (2).
+  - [X] Flags: `--timeout`, `--parallel`, `--pkg-parallel`, `--failfast`, `--run`.
+  - [X] Package‑level concurrency: `--pkg-parallel` maps to `go test -p`.
+  - [X] JSON fields:
     - `run_start`: optional `timeout`, `parallel`, `pkg_parallel`, `failfast`, `run`.
     - `run_end`: includes `totals` and `packages[]` (per‑package `{package, pass, fail, skip, cases}`, sorted lexicographically).
 

@@ -145,54 +145,64 @@ func (p *Parser) ParseFile() (*ast.File, error) {
         f.Decls = append(f.Decls, im)
     }
 
-    // zero or more decorators + function declarations: decorators must precede func
-    for p.cur.Kind == token.AtSym || p.cur.Kind == token.KwFunc {
-        // collect any decorators in source order
-        for p.cur.Kind == token.AtSym {
-            if d, ok := p.parseDecorator(); ok {
-                p.pendingDecos = append(p.pendingDecos, d)
+    // Top-level declarations in any order: decorators+func, pipeline, enum, error.
+    for {
+        switch p.cur.Kind {
+        case token.AtSym, token.KwFunc:
+            // collect any decorators in source order
+            for p.cur.Kind == token.AtSym {
+                if d, ok := p.parseDecorator(); ok {
+                    p.pendingDecos = append(p.pendingDecos, d)
+                } else {
+                    // skip invalid decorator token
+                    p.next()
+                }
+            }
+            if p.cur.Kind != token.KwFunc {
+                if len(p.pendingDecos) > 0 {
+                    p.errf("decorators are only allowed immediately before function declarations")
+                    p.pendingDecos = nil
+                }
+                // Not a function; re-evaluate outer loop for other decl kinds
+                continue
+            }
+            fn, err := p.parseFuncDecl()
+            if err != nil {
+                p.errf("%v", err)
+                p.syncTop()
             } else {
-                // skip invalid decorator token
-                p.next()
+                f.Decls = append(f.Decls, fn)
             }
-        }
-        if p.cur.Kind != token.KwFunc {
-            if len(p.pendingDecos) > 0 {
-                p.errf("decorators are only allowed immediately before function declarations")
-                p.pendingDecos = nil
+        case token.KwPipeline:
+            pd, err := p.parsePipelineDecl()
+            if err != nil {
+                p.errf("%v", err)
+                p.syncTop()
+            } else {
+                f.Decls = append(f.Decls, pd)
             }
-            break
-        }
-        fn, err := p.parseFuncDecl()
-        if err != nil {
-            p.errf("%v", err)
-            p.syncTop()
-        } else {
-            f.Decls = append(f.Decls, fn)
-        }
-    }
-
-    // zero or more pipelines: `pipeline Name() {}` scaffold
-    for p.cur.Kind == token.KwPipeline {
-        pd, err := p.parsePipelineDecl()
-        if err != nil {
-            p.errf("%v", err)
-            p.syncTop()
-        } else {
-            f.Decls = append(f.Decls, pd)
-        }
-    }
-
-    // optional top-level error block: `error {}` scaffold
-    for p.cur.Kind == token.KwError {
-        eb, err := p.parseErrorBlock()
-        if err != nil {
-            p.errf("%v", err)
-            p.syncTop()
-        } else {
-            f.Decls = append(f.Decls, eb)
+        case token.KwEnum:
+            ed, err := p.parseEnumDecl()
+            if err != nil {
+                p.errf("%v", err)
+                p.syncTop()
+            } else {
+                f.Decls = append(f.Decls, ed)
+            }
+        case token.KwError:
+            eb, err := p.parseErrorBlock()
+            if err != nil {
+                p.errf("%v", err)
+                p.syncTop()
+            } else {
+                f.Decls = append(f.Decls, eb)
+            }
+        default:
+            // no more top-level decls
+            goto doneTop
         }
     }
+doneTop:
     // collect pragmas from raw file content (lines starting with '#pragma ')
     f.Pragmas = p.collectPragmas()
     return f, p.firstErr()
@@ -211,6 +221,46 @@ func (p *Parser) advance() {
         }
         return
     }
+}
+
+// parseEnumDecl parses: enum Name { Member (, Member)* }
+func (p *Parser) parseEnumDecl() (*ast.EnumDecl, error) {
+    pos := p.cur.Pos
+    p.next()
+    if p.cur.Kind != token.Ident { return nil, fmt.Errorf("expected enum name, got %q", p.cur.Lexeme) }
+    name := p.cur.Lexeme
+    namePos := p.cur.Pos
+    p.next()
+    if p.cur.Kind != token.LBraceSym { return nil, fmt.Errorf("expected '{' to start enum, got %q", p.cur.Lexeme) }
+    lb := p.cur.Pos
+    p.next()
+    var members []ast.EnumMember
+    expectMember := true
+    for p.cur.Kind != token.RBraceSym && p.cur.Kind != token.EOF {
+        if p.cur.Kind == token.CommaSym {
+            // If we were expecting a member but found a comma, this is a blank member (",,")
+            if expectMember {
+                members = append(members, ast.EnumMember{Pos: p.cur.Pos, Name: ""})
+            }
+            p.next()
+            expectMember = true
+            continue
+        }
+        if p.cur.Kind != token.Ident {
+            p.errf("expected enum member name, got %q", p.cur.Lexeme)
+            p.syncUntil(token.CommaSym, token.RBraceSym)
+            if p.cur.Kind == token.CommaSym { p.next() }
+            expectMember = true
+            continue
+        }
+        members = append(members, ast.EnumMember{Pos: p.cur.Pos, Name: p.cur.Lexeme})
+        p.next()
+        if p.cur.Kind == token.CommaSym { p.next(); expectMember = true; continue }
+        expectMember = false
+    }
+    rb := p.cur.Pos
+    if p.cur.Kind == token.RBraceSym { p.next() } else { p.errf("missing '}' to close enum") }
+    return &ast.EnumDecl{Pos: pos, NamePos: namePos, Name: name, LBrace: lb, Members: members, RBrace: rb}, nil
 }
 
 // parseFuncDecl parses a function declaration with optional params and result tuple.

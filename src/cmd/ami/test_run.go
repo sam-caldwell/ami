@@ -45,8 +45,19 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
     cmd.Env = env
     var stdout bytes.Buffer
     var stderr bytes.Buffer
-    // In JSON mode, stream go test events directly to out while tee'ing to buffer for artifacts
+    // In JSON mode, stream go test events directly to out while tee'ing to buffer for artifacts.
+    // Also emit a synthetic test.v1 run_start event with configured options.
     if jsonOut {
+        // Emit run_start
+        _ = json.NewEncoder(out).Encode(map[string]any{
+            "schema":       "test.v1",
+            "type":         "run_start",
+            "timeout_ms":   currentTestOptions.TimeoutMs,
+            "parallel":     currentTestOptions.Parallel,
+            "pkg_parallel": pkgConcurrency,
+            "failfast":     currentTestOptions.Failfast,
+            "run":          currentTestOptions.RunPattern,
+        })
         cmd.Stdout = io.MultiWriter(out, &stdout)
     } else {
         cmd.Stdout = &stdout
@@ -95,11 +106,11 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
     // and failures as number of events with Action=="fail" and a Test name.
     type counts struct{
         packages, tests, failures int
-        byPkg map[string]struct{ ok, fail int }
+        byPkg map[string]struct{ ok, fail, skip int }
     }
     computeCounts := func(b []byte) counts {
         var c counts
-        c.byPkg = map[string]struct{ ok, fail int }{}
+        c.byPkg = map[string]struct{ ok, fail, skip int }{}
         if len(b) == 0 { return c }
         dec := json.NewDecoder(bytes.NewReader(b))
         seenTests := map[string]struct{}{}
@@ -123,6 +134,7 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                 switch ev.Action {
                 case "pass": entry.ok++
                 case "fail": entry.fail++; c.failures++
+                case "skip": entry.skip++
                 }
                 c.byPkg[ev.Package] = entry
             }
@@ -295,7 +307,18 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
 
     // Emit a brief human summary to stdout when not JSON
     if !jsonOut {
-        // Per-package summaries
+        // Per-test concise lines reconstructed from go test JSON
+        dec := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
+        for dec.More() {
+            var ev goTestEvent
+            if dec.Decode(&ev) != nil { _ = dec.Decode(&map[string]any{}); continue }
+            if ev.Package == "" || ev.Test == "" { continue }
+            switch ev.Action {
+            case "pass", "fail", "skip":
+                fmt.Fprintf(out, "test: %s %s %s\n", ev.Package, ev.Test, ev.Action)
+            }
+        }
+        // Per-package summaries including case counts
         if len(c.byPkg) > 0 {
             // stable order
             pkgs := make([]string, 0, len(c.byPkg))
@@ -303,7 +326,8 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
             sort.Strings(pkgs)
             for _, pkg := range pkgs {
                 v := c.byPkg[pkg]
-                fmt.Fprintf(out, "test: pkg %s ok=%d fail=%d\n", pkg, v.ok, v.fail)
+                cases := v.ok + v.fail + v.skip
+                fmt.Fprintf(out, "test: pkg %s ok=%d fail=%d cases=%d\n", pkg, v.ok, v.fail, cases)
             }
         }
         if amiTests > 0 {
@@ -349,6 +373,40 @@ func runTest(out io.Writer, dir string, jsonOut bool, verbose bool, pkgConcurren
                 })
             }
         }
+        // Emit synthetic test.v1 test events (constructed from go test JSON) and run_end
+        // We reconstruct events from the captured buffer for determinism in our schema.
+        dec := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
+        for dec.More() {
+            var ev goTestEvent
+            if dec.Decode(&ev) != nil { _ = dec.Decode(&map[string]any{}); continue }
+            if ev.Test == "" || ev.Package == "" { continue }
+            switch ev.Action {
+            case "run":
+                _ = json.NewEncoder(out).Encode(map[string]any{"schema":"test.v1", "type":"test_start", "package": ev.Package, "test": ev.Test})
+            case "output":
+                _ = json.NewEncoder(out).Encode(map[string]any{"schema":"test.v1", "type":"test_output", "package": ev.Package, "test": ev.Test, "output": ev.Output})
+            case "pass", "fail", "skip":
+                _ = json.NewEncoder(out).Encode(map[string]any{"schema":"test.v1", "type":"test_end", "package": ev.Package, "test": ev.Test, "status": ev.Action})
+            }
+        }
+        // Build packages[] for run_end
+        var pkgsArr []map[string]any
+        if len(c.byPkg) > 0 {
+            keys := make([]string, 0, len(c.byPkg))
+            for k := range c.byPkg { keys = append(keys, k) }
+            sort.Strings(keys)
+            for _, k := range keys {
+                v := c.byPkg[k]
+                cases := v.ok + v.fail + v.skip
+                pkgsArr = append(pkgsArr, map[string]any{"package": k, "pass": v.ok, "fail": v.fail, "skip": v.skip, "cases": cases})
+            }
+        }
+        _ = json.NewEncoder(out).Encode(map[string]any{
+            "schema":   "test.v1",
+            "type":     "run_end",
+            "totals":   map[string]any{"packages": c.packages, "tests": c.tests, "failures": c.failures},
+            "packages": pkgsArr,
+        })
         _ = json.NewEncoder(out).Encode(map[string]any{
             "ok":       err == nil && amiFailures == 0 && rc.fail == 0,
             "packages": c.packages,

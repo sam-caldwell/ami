@@ -6,6 +6,7 @@ import (
     "path/filepath"
     "sort"
     "strings"
+    "strconv"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
 )
@@ -17,6 +18,7 @@ type contractsDoc struct {
     Delivery     string               `json:"delivery"`
     Capabilities []string             `json:"capabilities,omitempty"`
     TrustLevel   string               `json:"trustLevel,omitempty"`
+    Concurrency  *contractConcurrency  `json:"concurrency,omitempty"`
     Pipelines    []contractPipeline   `json:"pipelines"`
 }
 
@@ -32,12 +34,18 @@ type contractStep struct {
     Delivery string         `json:"delivery"`
 }
 
+type contractConcurrency struct {
+    Workers  int    `json:"workers,omitempty"`
+    Schedule string `json:"schedule,omitempty"`
+}
+
 // writeContractsDebug writes a minimal contracts.json snapshot with delivery policy,
 // capabilities, trust level, and per-step type and edge policy.
 func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
     defaultDelivery := "atLeastOnce"
     var capabilities []string
     var trustLevel string
+    var conc *contractConcurrency
     if f != nil {
         for _, pr := range f.Pragmas {
             switch pr.Domain {
@@ -60,6 +68,21 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                 if len(pr.Args) > 0 { capabilities = append(capabilities, pr.Args...) }
             case "trust":
                 if lv, ok := pr.Params["level"]; ok { trustLevel = lv }
+            case "concurrency":
+                if pr.Key == "workers" {
+                    if n, ok := pr.Params["count"]; ok && n != "" {
+                        if conc == nil { conc = &contractConcurrency{} }
+                        // best-effort parse; semantics pass validates
+                        if w, err := strconv.Atoi(n); err == nil { conc.Workers = w }
+                    } else if pr.Value != "" {
+                        if conc == nil { conc = &contractConcurrency{} }
+                        if w, err := strconv.Atoi(pr.Value); err == nil { conc.Workers = w }
+                    }
+                }
+                if pr.Key == "schedule" {
+                    if conc == nil { conc = &contractConcurrency{} }
+                    conc.Schedule = pr.Value
+                }
             }
         }
     }
@@ -112,7 +135,7 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
     }
     sort.Strings(capabilities)
     sort.SliceStable(pentries, func(i, j int) bool { return pentries[i].Name < pentries[j].Name })
-    obj := contractsDoc{Schema: "contracts.v1", Package: pkg, Unit: unit, Delivery: defaultDelivery, Capabilities: capabilities, TrustLevel: trustLevel, Pipelines: pentries}
+    obj := contractsDoc{Schema: "contracts.v1", Package: pkg, Unit: unit, Delivery: defaultDelivery, Capabilities: capabilities, TrustLevel: trustLevel, Concurrency: conc, Pipelines: pentries}
     dir := filepath.Join("build", "debug", "ir", pkg)
     if err := os.MkdirAll(dir, 0o755); err != nil { return "", err }
     b, err := json.MarshalIndent(obj, "", "  ")
@@ -121,4 +144,3 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
     if err := os.WriteFile(out, b, 0o644); err != nil { return "", err }
     return out, nil
 }
-

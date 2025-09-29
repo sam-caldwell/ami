@@ -61,7 +61,7 @@ func lowerFunction(fn ir.Function) (string, error) {
             case ir.Loop:
                 fmt.Fprintf(&b, "  ; loop %s\n", v.Name)
             case ir.Goto:
-                fmt.Fprintf(&b, "  ; goto %s\n", v.Label)
+                fmt.Fprintf(&b, "  br label %%%s\n", v.Label)
             case ir.SetPC:
                 fmt.Fprintf(&b, "  ; setpc %d\n", v.PC)
             case ir.Dispatch:

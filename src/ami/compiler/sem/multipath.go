@@ -51,6 +51,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             partitionField := ""
             hasSort := false
             hasStable := false
+            dedupNoField := false
             for _, at := range st.Attrs {
                 if strings.HasPrefix(at.Name, "merge.") {
                     if rng, ok := merges[at.Name]; ok {
@@ -128,6 +129,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         // track fields for combo checks
                         if at.Name == "merge.Key" && argc >= 1 { keyField = at.Args[0].Text }
                         if at.Name == "merge.PartitionBy" && argc >= 1 { partitionField = at.Args[0].Text }
+                        if at.Name == "merge.Dedup" && argc == 0 { dedupNoField = true }
                         // conflict detection on repeated attributes with differing normalized value
                         key := at.Name
                         val := canonicalAttrValue(at.Name, at.Args)
@@ -162,6 +164,11 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.Dedup field differs from merge.Key", Pos: &p})
                     }
                 }
+            }
+            // Dedup() without explicit field relies on merge.Key; warn if neither provided.
+            if dedupNoField && keyField == "" {
+                p := stepPos(st)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_DEDUP_WITHOUT_KEY", Message: "merge.Dedup without field requires merge.Key", Pos: &p})
             }
         }
     }

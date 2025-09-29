@@ -62,6 +62,12 @@ func AnalyzeEdges(f *ast.File) []diag.Record {
                 switch at.Name {
                 case "edge.FIFO", "edge.LIFO":
                     kv := parseKV(at.Args)
+                    // Unknown parameter detection
+                    for k := range kv {
+                        if k != "min" && k != "max" && k != "backpressure" {
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_PARAM_UNKNOWN", Message: "unknown edge parameter: " + k, Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                        }
+                    }
                     // min >= 0
                     if v, ok := kv["min"]; ok {
                         if n, err := strconv.Atoi(v); err != nil || n < 0 {
@@ -72,6 +78,8 @@ func AnalyzeEdges(f *ast.File) []diag.Record {
                     if vmax, ok := kv["max"]; ok {
                         if nmax, err := strconv.Atoi(vmax); err != nil {
                             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_INVALID", Message: "max must be an integer", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                        } else if nmax < 0 {
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_INVALID", Message: "max must be non-negative", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                         } else if vmin, ok := kv["min"]; ok {
                             if nmin, err := strconv.Atoi(vmin); err == nil && nmax < nmin {
                                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_ORDER", Message: "max must be >= min", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
@@ -111,4 +119,3 @@ func AnalyzeEdges(f *ast.File) []diag.Record {
     }
     return out
 }
-

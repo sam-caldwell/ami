@@ -19,6 +19,8 @@ type pipelineList struct {
 type pipelineEntry struct {
     Name  string       `json:"name"`
     Steps []pipelineOp `json:"steps"`
+    Edges []pipeEdge   `json:"edges,omitempty"`
+    Conn  *pipeConn    `json:"connectivity,omitempty"`
 }
 type pipelineOp struct {
     Name string   `json:"name"`
@@ -73,6 +75,19 @@ type pipeAttr struct {
     Args []string `json:"args,omitempty"`
 }
 
+type pipeEdge struct {
+    From string `json:"from"`
+    To   string `json:"to"`
+}
+
+type pipeConn struct {
+    HasEdges         bool     `json:"hasEdges"`
+    IngressToEgress  bool     `json:"ingressToEgress"`
+    Disconnected     []string `json:"disconnected,omitempty"`
+    UnreachableFromIngress []string `json:"unreachableFromIngress,omitempty"`
+    CannotReachEgress      []string `json:"cannotReachEgress,omitempty"`
+}
+
 // writePipelinesDebug writes pipelines debug JSON for a parsed file.
 func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
     var entries []pipelineEntry
@@ -96,6 +111,7 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
         pd, ok := d.(*ast.PipelineDecl)
         if !ok { continue }
         var steps []pipelineOp
+        var edges []pipeEdge
         for _, s := range pd.Stmts {
             if st, ok := s.(*ast.StepStmt); ok {
                 var args []string
@@ -216,8 +232,70 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                 }
                 steps = append(steps, op)
             }
+            if e, ok := s.(*ast.EdgeStmt); ok {
+                edges = append(edges, pipeEdge{From: e.From, To: e.To})
+            }
         }
-        entries = append(entries, pipelineEntry{Name: pd.Name, Steps: steps})
+        // compute connectivity metadata
+        var conn *pipeConn
+        if len(edges) > 0 {
+            // degree and adjacency
+            deg := map[string]int{}
+            adj := map[string][]string{}
+            radj := map[string][]string{}
+            for _, e := range edges {
+                deg[e.From]++
+                deg[e.To]++
+                adj[e.From] = append(adj[e.From], e.To)
+                radj[e.To] = append(radj[e.To], e.From)
+            }
+            // disconnected: any step name with deg==0
+            var disc []string
+            for _, st := range steps {
+                if deg[st.Name] == 0 { disc = append(disc, st.Name) }
+            }
+            sort.Strings(disc)
+            // reachability from ingress to egress
+            reach := map[string]bool{}
+            var stack []string
+            stack = append(stack, "ingress")
+            for len(stack) > 0 {
+                n := stack[len(stack)-1]
+                stack = stack[:len(stack)-1]
+                if reach[n] { continue }
+                reach[n] = true
+                for _, m := range adj[n] { if !reach[m] { stack = append(stack, m) } }
+            }
+            // nodes that cannot reach egress: reverse search from egress
+            reachToEgress := map[string]bool{}
+            var rstack []string
+            rstack = append(rstack, "egress")
+            for len(rstack) > 0 {
+                n := rstack[len(rstack)-1]
+                rstack = rstack[:len(rstack)-1]
+                if reachToEgress[n] { continue }
+                reachToEgress[n] = true
+                for _, m := range radj[n] { if !reachToEgress[m] { rstack = append(rstack, m) } }
+            }
+            // compile lists
+            var notFromIngress []string
+            var cannotToEgress []string
+            for _, st := range steps {
+                if !reach[st.Name] { notFromIngress = append(notFromIngress, st.Name) }
+                if !reachToEgress[st.Name] { cannotToEgress = append(cannotToEgress, st.Name) }
+            }
+            sort.Strings(notFromIngress)
+            sort.Strings(cannotToEgress)
+            conn = &pipeConn{HasEdges: true, IngressToEgress: reach["egress"], Disconnected: disc, UnreachableFromIngress: notFromIngress, CannotReachEgress: cannotToEgress}
+        }
+        // deterministic ordering of edges for stability
+        if len(edges) > 0 {
+            sort.SliceStable(edges, func(i, j int) bool {
+                if edges[i].From == edges[j].From { return edges[i].To < edges[j].To }
+                return edges[i].From < edges[j].From
+            })
+        }
+        entries = append(entries, pipelineEntry{Name: pd.Name, Steps: steps, Edges: edges, Conn: conn})
     }
     // if no pipelines parsed, synthesize a minimal entry to preserve defaults for tests/tools
     if len(entries) == 0 {

@@ -115,7 +115,8 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
         if len(edges) > 0 {
             // adjacency based on names; detect back-edge using DFS with recursion stack
             adj := map[string][]string{}
-            for _, e := range edges { adj[e.from] = append(adj[e.from], e.to) }
+            radj := map[string][]string{}
+            for _, e := range edges { adj[e.from] = append(adj[e.from], e.to); radj[e.to] = append(radj[e.to], e.from) }
             // helper to detect cycle
             visiting := map[string]bool{}
             visited := map[string]bool{}
@@ -170,6 +171,29 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
                 }
                 if !reach["egress"] {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_NO_PATH_INGRESS_EGRESS", Message: "no path from ingress to egress", Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}})
+                }
+                // Reverse reachability to egress
+                reachToEgress := map[string]bool{}
+                var rstack []string
+                rstack = append(rstack, "egress")
+                for len(rstack) > 0 {
+                    n := rstack[len(rstack)-1]
+                    rstack = rstack[:len(rstack)-1]
+                    if reachToEgress[n] { continue }
+                    reachToEgress[n] = true
+                    for _, m := range radj[n] { if !reachToEgress[m] { rstack = append(rstack, m) } }
+                }
+                // Flag unreachable and non-terminating nodes (exclude pure disconnected already handled)
+                for _, st := range steps {
+                    nameLower := strings.ToLower(st.Name)
+                    if nameLower != "ingress" && !reach[st.Name] && degree[st.Name] > 0 {
+                        p := stepPosMap[st.Name]
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_UNREACHABLE_FROM_INGRESS", Message: "node not reachable from ingress: " + st.Name, Pos: &p})
+                    }
+                    if nameLower != "egress" && !reachToEgress[st.Name] && degree[st.Name] > 0 {
+                        p := stepPosMap[st.Name]
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_CANNOT_REACH_EGRESS", Message: "node cannot reach egress: " + st.Name, Pos: &p})
+                    }
                 }
             }
         }

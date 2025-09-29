@@ -1,7 +1,6 @@
 # AMI Grammar (EBNF, Scaffold)
 
-This document captures the current implemented subset of the AMI language grammar used by the frontend (token →
-scanner
+This document captures the current implemented subset of the AMI language grammar used by the frontend (token → scanner
 → parser → AST). It is intentionally conservative and will evolve with the spec.
 
 Notation: EBNF with `?` for optional and `*` for repetition.

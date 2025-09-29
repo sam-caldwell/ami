@@ -30,7 +30,11 @@ func AnalyzeMergeFieldTypes(f *ast.File) []diag.Record {
             if st, ok := s.(*ast.StepStmt); ok {
                 for _, at := range st.Attrs {
                     if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 && at.Args[0].Text != "" {
-                        stepType[st.Name] = at.Args[0].Text
+                        ts := at.Args[0].Text
+                        if l := len(ts); l >= 2 {
+                            if (ts[0] == '"' && ts[l-1] == '"') || (ts[0] == '\'' && ts[l-1] == '\'') { ts = ts[1:l-1] }
+                        }
+                        stepType[st.Name] = ts
                     }
                 }
             }
@@ -91,6 +95,9 @@ func AnalyzeMergeFieldTypes(f *ast.File) []diag.Record {
             for _, at := range st.Attrs {
                 if (at.Name == "merge.Sort" || at.Name == "merge.Key" || at.Name == "merge.PartitionBy") && len(at.Args) > 0 {
                     fld := strings.TrimSpace(at.Args[0].Text)
+                    if l := len(fld); l >= 2 {
+                        if (fld[0] == '"' && fld[l-1] == '"') || (fld[0] == '\'' && fld[l-1] == '\'') { fld = fld[1:l-1] }
+                    }
                     if fld != "" { fields = append(fields, fld) }
                 }
             }

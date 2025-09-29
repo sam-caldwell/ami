@@ -7,8 +7,7 @@ This repository includes example AMI workspaces under `examples/`.
 
 ## Building
 
-1) Build the CLI: `go build -o build/ami ./src/cmd/ami`
-2) Build all examples: `make examples`
+1) Build the CLI: `go build -o build/ami ./src/cmd/ami` 2) Build all examples: `make examples`
 
 The `examples` Makefile target iterates through `examples/*` and runs `ami build --verbose` for each directory
 containing an `ami.workspace`. Resulting outputs are staged under `build/examples/<name>/`.

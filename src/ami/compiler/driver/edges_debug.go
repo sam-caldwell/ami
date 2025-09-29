@@ -11,8 +11,11 @@ import (
 
 type edgeEntry struct {
     Unit     string `json:"unit"`
+    Pipeline string `json:"pipeline"`
     From     string `json:"from"`
     To       string `json:"to"`
+    FromID   int    `json:"fromId,omitempty"`
+    ToID     int    `json:"toId,omitempty"`
     Bounded  bool   `json:"bounded"`
     Delivery string `json:"delivery"`
     Type     string `json:"type,omitempty"`
@@ -49,6 +52,16 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
     for _, d := range f.Decls {
         pd, ok := d.(*ast.PipelineDecl)
         if !ok { continue }
+        // build occurrences map to compute IDs
+        type occ struct{ id int; idx int }
+        occs := map[string][]occ{}
+        count := map[string]int{}
+        for i, s := range pd.Stmts {
+            if st, ok := s.(*ast.StepStmt); ok {
+                count[st.Name]++
+                occs[st.Name] = append(occs[st.Name], occ{id: count[st.Name], idx: i})
+            }
+        }
         // build a quick index of step attrs by step name
         stepAttrs := map[string][]ast.Attr{}
         for _, s := range pd.Stmts {
@@ -56,7 +69,7 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                 stepAttrs[st.Name] = st.Attrs
             }
         }
-        for _, s := range pd.Stmts {
+        for i, s := range pd.Stmts {
             if e, ok := s.(*ast.EdgeStmt); ok {
                 // derive bounded/delivery from target step attributes (scaffold defaults)
                 bounded := false
@@ -88,7 +101,18 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                         if at.Args[0].Text != "" { etype = at.Args[0].Text }
                     }
                 }
-                out = append(out, edgeEntry{Unit: unit, From: e.From, To: e.To, Bounded: bounded, Delivery: delivery, Type: etype, Tiny: tiny})
+                // resolve IDs: nearest occurrence before for From; nearest at/after for To
+                fromID := 0
+                toID := 0
+                if arr := occs[e.From]; len(arr) > 0 {
+                    bestIdx := -1
+                    for _, o := range arr { if o.idx <= i && o.idx >= bestIdx { bestIdx = o.idx; fromID = o.id } }
+                }
+                if arr := occs[e.To]; len(arr) > 0 {
+                    bestIdx := 1<<30
+                    for _, o := range arr { if o.idx >= i && o.idx <= bestIdx { bestIdx = o.idx; toID = o.id } }
+                }
+                out = append(out, edgeEntry{Unit: unit, Pipeline: pd.Name, From: e.From, To: e.To, FromID: fromID, ToID: toID, Bounded: bounded, Delivery: delivery, Type: etype, Tiny: tiny})
             }
         }
     }

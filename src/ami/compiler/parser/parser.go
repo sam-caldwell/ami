@@ -198,11 +198,12 @@ func (p *Parser) ParseFile() (*ast.File, error) {
                 f.Decls = append(f.Decls, eb)
             }
         default:
-            // no more top-level decls
-            goto doneTop
+            // Skip unknown/irrelevant tokens at top level (e.g., '#pragma' lines are collected separately).
+            // Do not terminate parsing; advance and continue scanning for declarations.
+            p.next()
+            continue
         }
     }
-doneTop:
     // collect pragmas from raw file content (lines starting with '#pragma ')
     f.Pragmas = p.collectPragmas()
     return f, p.firstErr()

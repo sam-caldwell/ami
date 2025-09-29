@@ -70,4 +70,4 @@ All new functionality includes happy and sad path tests under `src/ami/workspace
 
 ## See Also
 - `docs/cmd/mod.md` — user-facing module commands (`mod audit`, `mod update`, `mod sum`, etc.) that consume these
-  helpers.
+helpers.

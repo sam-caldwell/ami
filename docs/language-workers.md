@@ -17,12 +17,12 @@ Canonical Signature
 Constraints & Semantics
 
 - No Decorators: workers must not carry decorators; these are reserved for declarations and tooling hints. The compiler
-  emits `E_DECORATOR_ON_WORKER` otherwise.
+emits `E_DECORATOR_ON_WORKER` otherwise.
 - No Raw Pointers: AMI forbids `&` and pointer dereference. Mutating assignments require `*` on LHS and `mutate(expr)`
-  for side‑effects, as specified in memory safety rules.
+for side‑effects, as specified in memory safety rules.
 - Capability Boundaries: I/O and trust policies are enforced per node, not via ambient parameters.
 - Type Inference: `T`/`U` may be inferred locally from usage; diagnostics ensure mismatches are reported
-  deterministically.
+deterministically.
 
 Examples
 

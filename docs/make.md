@@ -1,5 +1,4 @@
-Make Targets
-============
+Make Targets ============
 
 This repository includes a convenient `Makefile` for common developer tasks. Below is a concise reference of the
 available targets and how to use them.

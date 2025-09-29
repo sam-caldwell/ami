@@ -21,7 +21,7 @@ Common options:
 Advanced (Stage B) options:
 - `--stage-b` — enable parser‑backed rules.
 - `--rule-memsafe` — memory safety diagnostics (`E_PTR_UNSUPPORTED_SYNTAX`, `E_MUT_BLOCK_UNSUPPORTED`,
-  `E_MUT_ASSIGN_UNMARKED`).
+`E_MUT_ASSIGN_UNMARKED`).
 - `--rule-raii` — hint to wrap `release(x)` calls (`W_RAII_OWNED_HINT`).
 - `--rule-unused` — report unused identifier‑style imports (`W_UNUSED_IMPORT`).
 
@@ -65,16 +65,16 @@ pipeline Q(){ ingress(); work(); egress(); tail } // W_PIPELINE_EGRESS_POS
 
 What gets checked (high level):
 - Workspace: `ami.workspace` exists and parses; has a version and a `main` package. Local imports are valid; duplicate
-  or cyclic imports are flagged.
+or cyclic imports are flagged.
 - Source style: underscores in identifiers, language reminders (`W_LANG_NOT_GO`, `W_GO_SYNTAX_DETECTED`), TODO/FIXME
-  policy.
+policy.
 - Stage B: memory‑safety, RAII hints, unused imports, simple pipeline checks (ingress/egress placement, unreachable
-  nodes), and basic buffer/backpressure smells.
+nodes), and basic buffer/backpressure smells.
 
 Exit codes:
 - Success: 0.
 - Failure: non‑zero when there are errors, or when `--strict` promotes warnings, or when `--failfast`/`--max-warn`
-  triggers.
+triggers.
 
 Filtering by rule code (`--rules`):
 - Substring: `IDENT` matches `W_IDENT_UNDERSCORE`.

@@ -29,9 +29,9 @@ Determinism:
 
 References:
 - Debug build manifest `build/debug/manifest.json` contains `irIndex`, `irTypesIndex`, and `irSymbolsIndex` paths for
-  each package.
+each package.
 - The verbose build plan (`build/debug/build.plan.json`) includes `irIndex`, `irTypesIndex`, and `irSymbolsIndex` arrays
-  when present.
+when present.
 
 ## See Also
 - `docs/backend/build_plan.md` — build plan schema that references these indices.

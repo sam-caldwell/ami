@@ -24,8 +24,8 @@ func Parse(s string) (Type, error) {
     if i := strings.IndexByte(s, '<'); i >= 0 && strings.HasSuffix(s, ">") {
         base := s[:i]
         inner := s[i+1:len(s)-1]
-        // split by top-level commas (reuse FromAST helpers)
-        parts := splitAllTop(inner)
+        // split by top-level commas; respect '<>', '{}', '()' and quotes
+        parts := splitTopAll(inner)
         switch base {
         case "map":
             if len(parts) != 2 { return nil, fmt.Errorf("map requires two type args") }
@@ -46,7 +46,7 @@ func Parse(s string) (Type, error) {
         body := s[len("Struct{") : len(s)-1]
         fields := map[string]Type{}
         if strings.TrimSpace(body) != "" {
-            parts := splitAllTop(body)
+            parts := splitTopAll(body)
             for _, p := range parts {
                 if i := strings.IndexByte(p, ':'); i > 0 {
                     name := strings.TrimSpace(p[:i])
@@ -63,6 +63,45 @@ func Parse(s string) (Type, error) {
     }
     // default: named type without args
     return Generic{Name: s}, nil
+}
+
+// splitTopAll splits on commas at top level, respecting nesting of '<>', '{}', '()' and string quotes.
+func splitTopAll(s string) []string {
+    var parts []string
+    depthAngle, depthBrace, depthParen := 0, 0, 0
+    inQuote := byte(0)
+    last := 0
+    for i := 0; i < len(s); i++ {
+        c := s[i]
+        if inQuote != 0 {
+            if c == inQuote { inQuote = 0 }
+            continue
+        }
+        switch c {
+        case '\'', '"':
+            inQuote = c
+        case '<':
+            depthAngle++
+        case '>':
+            if depthAngle > 0 { depthAngle-- }
+        case '{':
+            depthBrace++
+        case '}':
+            if depthBrace > 0 { depthBrace-- }
+        case '(':
+            depthParen++
+        case ')':
+            if depthParen > 0 { depthParen-- }
+        case ',':
+            if depthAngle == 0 && depthBrace == 0 && depthParen == 0 {
+                parts = append(parts, strings.TrimSpace(s[last:i]))
+                last = i + 1
+            }
+        }
+    }
+    tail := strings.TrimSpace(s[last:])
+    if tail != "" { parts = append(parts, tail) }
+    return parts
 }
 
 // splitTop splits a comma-separated list without breaking nested <...> groups.

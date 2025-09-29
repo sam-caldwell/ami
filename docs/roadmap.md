@@ -14,8 +14,7 @@ checklists. This document guides execution sequencing.
 - Codegen order: simplified object format → debug ASM → LLVM objects.
 - Priority order: bring CLI and linter to green first; then compiler frontend/semantics; then IR/codegen.
 - Repository conventions: one declaration per file; ≥80% coverage per touched package; deterministic outputs;
-  JSON/human
-  modes; errors to stderr; JSON lines for streaming.
+JSON/human modes; errors to stderr; JSON lines for streaming.
 
 ## Milestones
 
@@ -26,7 +25,7 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 
 #### Deliverables:
 - Directory layout scaffolding under `src/` for: `ami/{exit,logging,workspace}`, `cmd/ami`,
-  `ami/compiler/{source,token,scanner,ast,parser,types,sem,ir,codegen}`.
+`ami/compiler/{source,token,scanner,ast,parser,types,sem,ir,codegen}`.
 - Minimal tests to ensure packages compile and run.
 
 #### Acceptance:
@@ -48,8 +47,8 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 #### Deliverables:
 - `workspace.Workspace` with `Load/Save/Create` for `ami.workspace`.
 - `ami init`: create minimal workspace or `--force` add missing fields; ensure `toolchain.compiler.target` and
-  `packages.main.root` exist; seed `toolchain.compiler.env` with `darwin/arm64`; ensure git repo or `git init` on
-  `--force`; add `.gitignore` with `./build`.
+`packages.main.root` exist; seed `toolchain.compiler.env` with `darwin/arm64`; ensure git repo or `git init` on
+`--force`; add `.gitignore` with `./build`.
 
 #### Acceptance:
 - Tests: new workspace; idempotent re-init; `--force` with/without missing fields; JSON mode behavior.
@@ -58,25 +57,25 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 
 #### Deliverables:
 - `logging` package: JSON renderer (stable schema) and human renderer; verbose lines prefixed with ISO‑8601 UTC (ms).
-  Colors only when human mode and `--color`.
+Colors only when human mode and `--color`.
 - Diagnostic record schema `diag.v1` with level, code, message, file, and precise positions; JSON lines for streaming.
 
 #### Follow‑up (M3.1): stdlib logger pipeline configuration
 - Expose CLI flags to configure `ami/stdlib/logger` pipeline redaction when the CLI migrates from direct logger to
-  pipeline mode.
+pipeline mode.
 - Map root flags to pipeline config: JSONRedactKeys, JSONRedactPrefixes (and future allow/deny once available).
 - Add tests for batch/interval/backpressure policies and counters; verify safety‑net redaction for `log.v1` JSON
-  lines.
+lines.
 
 #### Acceptance:
 - Tests: timestamp format; multi-line handling; color disabled in JSON; fields present; stderr routing for invalid flag
-  combos.
+combos.
 
 ### M4 — Linter (Stage A: Pre‑Parser Checks)
 
 #### Deliverables:
 - `ami lint`: initial checks that do not require full parsing: workspace/package presence; import/version shape
-  validation; basic naming constraints.
+validation; basic naming constraints.
 - Outputs: human summary and `diag.v1` lines to stdout; final summary record.
 
 #### Acceptance:
@@ -90,7 +89,7 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 - `scanner`: UTF‑8, comments, tokens, recovery; position‑rich errors.
 - `ast`: nodes for files/decls/stmts/exprs/types; comment attachment.
 - `parser`: imports, package decls, funcs, pipelines and `error {}` blocks; tuple returns; container literals; tolerant
-  generics scaffold.
+generics scaffold.
 - Verbose `ast.v1` JSON under `build/debug/` with stable ordering.
 
 #### Acceptance:
@@ -102,9 +101,9 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 - `types`: primitives, `Event<T>`, `Error<E>`, `Owned<T>`, `slice<T>`, `set<T>`, `map<K,V>`; renderers.
 - `sem`: symbol tables/scopes, intra‑workspace import resolution, const folding, basic assignment/call checks.
 - Memory Safety (AMI 2.3.2): ban `&`; unary `*` only LHS mutating marker; diagnostics: `E_PTR_UNSUPPORTED_SYNTAX`,
-  `E_MUT_ASSIGN_UNMARKED`, `E_MUT_BLOCK_UNSUPPORTED`.
+`E_MUT_ASSIGN_UNMARKED`, `E_MUT_BLOCK_UNSUPPORTED`.
 - Pipelines: structural validation and canonical worker signature constraints (no raw pointers; ambient state per docx
-  rule).
+rule).
 
 #### Acceptance:
 - Tests for valid/invalid cases with precise positions; coverage ≥80%.
@@ -113,7 +112,7 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 
 #### Deliverables:
 - Integrate parser/semantics: unknown identifiers, unused, import existence/versioning, duplicate imports/aliases, basic
-  formatting markers.
+formatting markers.
 - AMI semantics lints: memory safety; RAII hint `W_RAII_OWNED_HINT`.
 
 #### Acceptance:
@@ -155,8 +154,7 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 
 #### Deliverables:
 - `ami build`: reads `ami.workspace`, ensures deps available, compiles packages (frontend→sem→IR→codegen),
-  produces
-  artifacts.
+produces artifacts.
 - Verbose: build plan JSON and debug artifacts under `build/debug/`.
 - Error handling: user vs IO vs integrity; JSON diagnostics streaming.
 
@@ -167,7 +165,7 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 
 #### Deliverables:
 - `ami test`: collects `_test.go`, produces binary in `build/test`, runs; `--verbose` writes `build/test/test.log` and
-  `build/test/test.manifest`.
+`build/test/test.manifest`.
 
 #### Acceptance:
 - Harness tests for execution, logs, and manifests; JSON/human mode behavior.
@@ -240,7 +238,7 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
     are produced where the host/linker allows; missing cross-linker yields diag with non-fatal logging when permitted by
     config
 - Tests validate per-env object emission and manifest/plan entries for linux/arm64; codegen emits correct triple in LLVM
-  IR.
+IR.
 
 ### M16 — darwin/amd64 and linux/amd64 Codegen (Cross-Target, Generalization)
 
@@ -259,13 +257,13 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
   - Per-env build loop shared for all OS/arch, writing objects under `build/<env>/obj/**`
   - Manifest and build plan include env-specific object indices and objects uniformly
 - `ami build` honors env matrices mixing arm64 and amd64 across darwin/linux; links where toolchain permits and emits
-  clear diagnostics otherwise.
+clear diagnostics otherwise.
 
 #### Acceptance:
 - On hosts with appropriate toolchains, `ami build` for `darwin/amd64` and `linux/amd64` produces linked binaries;
-  manifests list binaries and env objects/indices
+manifests list binaries and env objects/indices
 - With mixed env matrices, per-env objects exist under `build/<env>/obj/**` with `index.json`; build plan and
-  `build/ami.manifest` capture paths deterministically
+`build/ami.manifest` capture paths deterministically
 - Unit tests verify:
   - Triple mapping for `darwin/amd64` and `linux/amd64`
   - LLVM IR contains the correct `target triple`
@@ -284,7 +282,7 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
   - Emit per-env objects under `build/darwin/arm64/obj/**` and write `index.json`
   - Include darwin/arm64 env objects/indices in build plan and `build/ami.manifest`
 - Ensure env-matrix builds mixing darwin/arm64 with other envs remain deterministic and correctly isolated under
-  `build/<env>`.
+`build/<env>`.
 
 #### Acceptance:
 - On a darwin/arm64 host with clang toolchain:
@@ -293,7 +291,7 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
   - With mixed matrices (e.g., `[darwin/arm64, linux/arm64]`), per-env objects exist under their respective prefixes;
     plan/manifest capture deterministic paths
 - Tests verify triple mapping for `darwin/arm64`, presence of correct `target triple` in IR, and per-env object/index
-  emission for `darwin/arm64`.
+emission for `darwin/arm64`.
 
 ### M18 — Optimizer (DCE, Unused Detection, Const Folding/Propagation)
 
@@ -415,4 +413,4 @@ Each milestone lists key deliverables and acceptance criteria. All milestones mu
 - Treat this roadmap as the sequencing guide; SPECIFICATION.md remains the feature checklist of record.
 - When a milestone completes, check it off in SPECIFICATION.md under the relevant feature area and reference commits.
 - If priorities change, update the Decisions & Constraints and the affected milestones here; keep changes small and
-  focused.
+focused.

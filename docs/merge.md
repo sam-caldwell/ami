@@ -21,14 +21,14 @@ Status: scaffold with linter hints; normalization and runtime mapping are deferr
 Linter hints (current):
 
 - `W_PIPELINE_BUFFER_POLICY_SMELL`: policy + capacity combination likely to drop excessively (e.g., capacity <= 1 with
-  dropping policy).
+dropping policy).
 - `W_PIPELINE_BUFFER_DROP_ALIAS`: warns on ambiguous `drop` alias.
 
 Diagnostics:
 
 - Unknown/invalid merge attributes emit `E_MERGE_ATTR_*` codes with positions.
 - Hints use `W_*` codes and can be suppressed via config (`toolchain.linter.suppress`) or pragmas (`#pragma lint:disable
-  CODE`).
+CODE`).
 
 Example:
 

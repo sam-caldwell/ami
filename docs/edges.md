@@ -7,13 +7,13 @@ generation.
 Kinds:
 
 - FIFO: queue with optional bounds and backpressure. Backpressure in {block, dropOldest, dropNewest, shuntNewest,
-  shuntOldest}. Derived debug fields: bounded (Max>0), delivery (block=>atLeastOnce, else bestEffort).
+shuntOldest}. Derived debug fields: bounded (Max>0), delivery (block=>atLeastOnce, else bestEffort).
 - LIFO: stack with the same backpressure/bounds semantics as FIFO.
 - Pipeline: reference to another pipeline by name and an optional textual payload type. Future phases will enforce
-  cross-pipeline type matching.
+cross-pipeline type matching.
  - MultiPath: merge behavior configuration for Collect nodes. Supports simple k=v attributes and `merge.*(...)`
-   attribute calls. Deeper semantics (unknown attrs, conflicts, arg checks) are validated in the sem package. See
-   normalized merge scaffold in `contracts.v1`/`pipelines.v1` (`mergeNorm`) for Buffer/Stable/Sort.
+attribute calls. Deeper semantics (unknown attrs, conflicts, arg checks) are validated in the sem package. See
+normalized merge scaffold in `contracts.v1`/`pipelines.v1` (`mergeNorm`) for Buffer/Stable/Sort.
 
 These stubs are intentionally minimal to limit blast radius. They enable downstream phases to share a common structure
 for edges without embedding parser/semantics details.
@@ -92,16 +92,16 @@ The debug snapshot includes raw `merge` attributes and a normalized `mergeNorm`:
 
 ## Concurrency Pragmas and pipelines.v1
 
-Concurrency configuration is declared via pragmas and surfaced in `pipelines.v1` at the top level under
-`concurrency`. Supported directives:
+Concurrency configuration is declared via pragmas and surfaced in `pipelines.v1` at the top level under `concurrency`.
+Supported directives:
 
 - `#pragma concurrency:workers N`: default worker pool size (N >= 1). Invalid values emit
-  `E_CONCURRENCY_WORKERS_INVALID`.
+`E_CONCURRENCY_WORKERS_INVALID`.
 - `#pragma concurrency:schedule <policy>`: scheduling policy in `{fifo, lifo, fair, worksteal}`. Unknown values emit
-  `E_CONCURRENCY_SCHEDULE_INVALID`.
+`E_CONCURRENCY_SCHEDULE_INVALID`.
 - `#pragma concurrency:limits ingress=N transform=N fanout=N collect=N mutable=N egress=N`: per-node-kind limits; each
-  value must be `>= 1`. Unknown keys emit `E_CONCURRENCY_LIMITS_KEY_UNKNOWN`; invalid values emit
-  `E_CONCURRENCY_LIMITS_INVALID`.
+value must be `>= 1`. Unknown keys emit `E_CONCURRENCY_LIMITS_KEY_UNKNOWN`; invalid values emit
+`E_CONCURRENCY_LIMITS_INVALID`.
 
 Example source:
 
@@ -114,8 +114,8 @@ pipeline P(){ ingress; work(); egress }
 
 ## Collect Instances and Edge IDs in pipelines.v1
 
-When a pipeline contains multiple steps with the same name (e.g., multiple `Collect` steps), `pipelines.v1` disambiguates
-instances and edges:
+When a pipeline contains multiple steps with the same name (e.g., multiple `Collect` steps), `pipelines.v1`
+disambiguates instances and edges:
 
 - Each step entry includes an `id` field (1‑based per step name in order of appearance).
 - Each edge includes `fromId` and `toId` to reference specific step instances.
@@ -166,3 +166,31 @@ pipelines.v1 header excerpt:
   ]
 }
 ```
+
+## Validation Examples
+
+These small snippets illustrate common validation outcomes with their diagnostic codes.
+
+- Undeclared node in an edge:
+  - Source: `pipeline P(){ ingress; A; egress; A -> B; }`
+  - Diag: `E_EDGE_UNDECLARED_TO` at `B`.
+
+- Edge into `ingress` / out of `egress`:
+  - Source: `pipeline P(){ ingress; A; egress; A -> ingress; egress -> A; }`
+  - Diags: `E_EDGE_TO_INGRESS`, `E_EDGE_FROM_EGRESS`.
+
+- Self edge and duplicate edge:
+  - Source: `pipeline P(){ ingress; A; egress; A -> A; A -> egress; A -> egress; }`
+  - Diags: `E_PIPELINE_SELF_EDGE` for `A -> A`, `W_PIPELINE_DUP_EDGE` for duplicate `A -> egress`.
+
+- Disconnected node and no ingress→egress path:
+  - Source: `pipeline P(){ ingress; A; B; egress; A -> B; }`
+  - Diags: `E_PIPELINE_NODE_DISCONNECTED` (for `egress` if no incident edges), `E_PIPELINE_NO_PATH_INGRESS_EGRESS`.
+
+- Unreachable from ingress / cannot reach egress:
+  - Source: `pipeline P(){ ingress; A; B; egress; A -> egress; }`
+  - Diags: `E_PIPELINE_UNREACHABLE_FROM_INGRESS` (for `B`), `E_PIPELINE_CANNOT_REACH_EGRESS` (when a node has no path to `egress`).
+
+- Backpressure and capacity validation:
+  - Source: `pipeline P(){ Collect edge.FIFO(min=10, max=5, backpressure=unknown); egress }`
+  - Diags: `E_EDGE_CAPACITY_ORDER` (max < min), `E_EDGE_BACKPRESSURE`.

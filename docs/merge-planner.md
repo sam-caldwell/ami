@@ -47,7 +47,7 @@ Validation (input already guarded by semantics)
 - Conflicts: `partitionBy` vs `key` mismatch is an error (semantics: `E_MERGE_ATTR_CONFLICT`).
 - Requireds: `watermark` requires a field; `sort` requires field; arity checks enforced by parser/semantics.
 - Smells: tiny buffer with drop policy, non-positive window/lateness remain lints (non-fatal) unless strict mode
-  elevates.
+elevates.
 
 Mapping Rules
 

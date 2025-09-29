@@ -37,6 +37,7 @@ type contractStep struct {
 type contractConcurrency struct {
     Workers  int    `json:"workers,omitempty"`
     Schedule string `json:"schedule,omitempty"`
+    Limits   map[string]int `json:"limits,omitempty"`
 }
 
 // writeContractsDebug writes a minimal contracts.json snapshot with delivery policy,
@@ -82,6 +83,21 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                 if pr.Key == "schedule" {
                     if conc == nil { conc = &contractConcurrency{} }
                     conc.Schedule = pr.Value
+                }
+                if pr.Key == "limits" {
+                    if conc == nil { conc = &contractConcurrency{} }
+                    if conc.Limits == nil { conc.Limits = map[string]int{} }
+                    // collect params and args k=v
+                    for k, v := range pr.Params {
+                        if w, err := strconv.Atoi(v); err == nil { conc.Limits[k] = w }
+                    }
+                    for _, a := range pr.Args {
+                        if eq := strings.IndexByte(a, '='); eq > 0 {
+                            k := a[:eq]
+                            v := a[eq+1:]
+                            if w, err := strconv.Atoi(v); err == nil { conc.Limits[k] = w }
+                        }
+                    }
                 }
             }
         }

@@ -14,6 +14,7 @@ type pipelineList struct {
     Schema    string          `json:"schema"`
     Package   string          `json:"package"`
     Unit      string          `json:"unit"`
+    Concurrency *pipeConcurrency `json:"concurrency,omitempty"`
     Pipelines []pipelineEntry `json:"pipelines"`
 }
 type pipelineEntry struct {
@@ -24,6 +25,7 @@ type pipelineEntry struct {
 }
 type pipelineOp struct {
     Name string   `json:"name"`
+    ID   int      `json:"id,omitempty"`
     Args []string `json:"args,omitempty"`
     Edge *edgeAttrs `json:"edge,omitempty"`
     Merge []pipeMergeAttr `json:"merge,omitempty"`
@@ -75,9 +77,17 @@ type pipeAttr struct {
     Args []string `json:"args,omitempty"`
 }
 
+type pipeConcurrency struct {
+    Workers  int    `json:"workers,omitempty"`
+    Schedule string `json:"schedule,omitempty"`
+    Limits   map[string]int `json:"limits,omitempty"`
+}
+
 type pipeEdge struct {
     From string `json:"from"`
     To   string `json:"to"`
+    FromID int  `json:"fromId,omitempty"`
+    ToID   int  `json:"toId,omitempty"`
 }
 
 type pipeConn struct {
@@ -86,6 +96,37 @@ type pipeConn struct {
     Disconnected     []string `json:"disconnected,omitempty"`
     UnreachableFromIngress []string `json:"unreachableFromIngress,omitempty"`
     CannotReachEgress      []string `json:"cannotReachEgress,omitempty"`
+}
+
+func getInt(s string) int {
+    n := 0
+    for i := 0; i < len(s); i++ {
+        if s[i] >= '0' && s[i] <= '9' { n = n*10 + int(s[i]-'0') } else { return 0 }
+    }
+    return n
+}
+
+func indexOfStmt(stmts []ast.Stmt, target ast.Stmt) int {
+    for i, s := range stmts { if s == target { return i } }
+    return -1
+}
+
+func nearestOccBefore(arr []struct{ id int; stmtIdx int }, idx int) int {
+    best := 0
+    bestIdx := -1
+    for _, o := range arr {
+        if o.stmtIdx <= idx && o.stmtIdx >= bestIdx { bestIdx = o.stmtIdx; best = o.id }
+    }
+    return best
+}
+
+func nearestOccAfter(arr []struct{ id int; stmtIdx int }, idx int) int {
+    best := 0
+    bestIdx := 1<<30
+    for _, o := range arr {
+        if o.stmtIdx >= idx && o.stmtIdx <= bestIdx { bestIdx = o.stmtIdx; best = o.id }
+    }
+    return best
 }
 
 // writePipelinesDebug writes pipelines debug JSON for a parsed file.
@@ -107,16 +148,57 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
             }
         }
     }
+    // Optional: read concurrency pragmas
+    var conc *pipeConcurrency
+    if f != nil {
+        for _, pr := range f.Pragmas {
+            if pr.Domain != "concurrency" { continue }
+            if conc == nil { conc = &pipeConcurrency{} }
+            if pr.Key == "workers" {
+                if v, ok := pr.Params["count"]; ok && v != "" { if n := getInt(v); n > 0 { conc.Workers = n } } else if pr.Value != "" { if n := getInt(pr.Value); n > 0 { conc.Workers = n } }
+            }
+            if pr.Key == "schedule" { if pr.Value != "" { conc.Schedule = pr.Value } }
+            if pr.Key == "limits" {
+                if conc.Limits == nil { conc.Limits = map[string]int{} }
+                for k, v := range pr.Params { if n := getInt(v); n > 0 { conc.Limits[k] = n } }
+                for _, a := range pr.Args {
+                    if eq := strings.IndexByte(a, '='); eq > 0 {
+                        k := a[:eq]
+                        v := a[eq+1:]
+                        if n := getInt(v); n > 0 { conc.Limits[k] = n }
+                    }
+                }
+            }
+        }
+    }
+
     for _, d := range f.Decls {
         pd, ok := d.(*ast.PipelineDecl)
         if !ok { continue }
         var steps []pipelineOp
         var edges []pipeEdge
+        // Track occurrences per step name with their statement index in pd.Stmts
+        type occ struct{ id int; stmtIdx int }
+        occs := map[string][]occ{}
+        // Pre-scan to assign IDs per occurrence in order
+        nameCount := map[string]int{}
+        for si, s := range pd.Stmts {
+            if st, ok := s.(*ast.StepStmt); ok {
+                nameCount[st.Name]++
+                occs[st.Name] = append(occs[st.Name], occ{id: nameCount[st.Name], stmtIdx: si})
+            }
+        }
         for _, s := range pd.Stmts {
             if st, ok := s.(*ast.StepStmt); ok {
                 var args []string
                 for _, a := range st.Args { args = append(args, a.Text) }
-                op := pipelineOp{Name: st.Name, Args: args}
+                // Determine this step's ID via occurrence index at this position
+                id := 0
+                if arr := occs[st.Name]; len(arr) > 0 {
+                    // find matching occurrence by stmtIdx
+                    for _, o := range arr { if o.stmtIdx == indexOfStmt(pd.Stmts, s) { id = o.id; break } }
+                }
+                op := pipelineOp{Name: st.Name, ID: id, Args: args}
                 // default edge attributes (scaffold for #pragma backpressure)
                 op.Edge = &edgeAttrs{Bounded: false, Delivery: defaultDelivery}
                 // attributes
@@ -233,7 +315,32 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                 steps = append(steps, op)
             }
             if e, ok := s.(*ast.EdgeStmt); ok {
-                edges = append(edges, pipeEdge{From: e.From, To: e.To})
+                // Resolve fromId as the nearest occurrence at or before this edge stmt index
+                // Resolve toId as the nearest occurrence at or after this edge stmt index
+                esIdx := indexOfStmt(pd.Stmts, s)
+                fromID := nearestOccBefore(occs[e.From], esIdx)
+                toID := nearestOccAfter(occs[e.To], esIdx)
+                edges = append(edges, pipeEdge{From: e.From, To: e.To, FromID: fromID, ToID: toID})
+            }
+        }
+        // Assign MultiPath inputs per Collect instance based on resolved toId
+        if len(edges) > 0 {
+            // Build map of inputs per Collect ID
+            inputsByID := map[int][]string{}
+            for _, ed := range edges {
+                if ed.To == "Collect" && ed.ToID > 0 {
+                    inputsByID[ed.ToID] = append(inputsByID[ed.ToID], ed.From)
+                }
+            }
+            // Update each Collect step's MultiPath Inputs
+            for i := range steps {
+                if steps[i].Name == "Collect" && steps[i].ID > 0 {
+                    if ins, ok := inputsByID[steps[i].ID]; ok {
+                        sort.Strings(ins)
+                        if steps[i].MultiPath == nil { steps[i].MultiPath = &pipeMultiPath{} }
+                        steps[i].MultiPath.Inputs = ins
+                    }
+                }
             }
         }
         // compute connectivity metadata
@@ -303,7 +410,7 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
     }
     // deterministic ordering by pipeline name
     sort.SliceStable(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
-    obj := pipelineList{Schema: "pipelines.v1", Package: pkg, Unit: unit, Pipelines: entries}
+    obj := pipelineList{Schema: "pipelines.v1", Package: pkg, Unit: unit, Concurrency: conc, Pipelines: entries}
     dir := filepath.Join("build", "debug", "ir", pkg)
     if err := os.MkdirAll(dir, 0o755); err != nil { return "", err }
     b, err := json.MarshalIndent(obj, "", "  ")

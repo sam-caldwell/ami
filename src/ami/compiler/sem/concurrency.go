@@ -12,7 +12,9 @@ import (
 // AnalyzeConcurrency validates concurrency pragmas:
 //   #pragma concurrency:workers N
 //   #pragma concurrency:schedule <policy>
+//   #pragma concurrency:limits ingress=N transform=N fanout=N collect=N mutable=N egress=N
 // workers must be >=1; schedule in {fifo, lifo, fair, worksteal} (extensible).
+// limits: known keys only; each value must be >=1.
 func AnalyzeConcurrency(f *ast.File) []diag.Record {
     var out []diag.Record
     if f == nil { return out }
@@ -36,8 +38,39 @@ func AnalyzeConcurrency(f *ast.File) []diag.Record {
             default:
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CONCURRENCY_SCHEDULE_INVALID", Message: "invalid concurrency schedule", Pos: &diag.Position{Line: pr.Pos.Line, Column: pr.Pos.Column, Offset: pr.Pos.Offset}})
             }
+        case "limits":
+            // Parse space-separated k=v pairs from pr.Args and pr.Params
+            // Recognized keys
+            allowed := map[string]bool{"ingress": true, "transform": true, "fanout": true, "collect": true, "mutable": true, "egress": true}
+            // Params map already contains k=v parsed pairs
+            for k, v := range pr.Params {
+                k = strings.ToLower(strings.TrimSpace(k))
+                if !allowed[k] {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CONCURRENCY_LIMITS_KEY_UNKNOWN", Message: "unknown concurrency limit key: " + k, Pos: &diag.Position{Line: pr.Pos.Line, Column: pr.Pos.Column, Offset: pr.Pos.Offset}})
+                    continue
+                }
+                n, err := strconv.Atoi(strings.TrimSpace(v))
+                if err != nil || n < 1 {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CONCURRENCY_LIMITS_INVALID", Message: "concurrency limit must be >=1 for key: " + k, Pos: &diag.Position{Line: pr.Pos.Line, Column: pr.Pos.Column, Offset: pr.Pos.Offset}})
+                }
+            }
+            // Also scan args tokens of form k=v
+            for _, a := range pr.Args {
+                tok := strings.TrimSpace(a)
+                if eq := strings.IndexByte(tok, '='); eq > 0 {
+                    k := strings.ToLower(strings.TrimSpace(tok[:eq]))
+                    v := strings.TrimSpace(tok[eq+1:])
+                    if !allowed[k] {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CONCURRENCY_LIMITS_KEY_UNKNOWN", Message: "unknown concurrency limit key: " + k, Pos: &diag.Position{Line: pr.Pos.Line, Column: pr.Pos.Column, Offset: pr.Pos.Offset}})
+                        continue
+                    }
+                    n, err := strconv.Atoi(v)
+                    if err != nil || n < 1 {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CONCURRENCY_LIMITS_INVALID", Message: "concurrency limit must be >=1 for key: " + k, Pos: &diag.Position{Line: pr.Pos.Line, Column: pr.Pos.Column, Offset: pr.Pos.Offset}})
+                    }
+                }
+            }
         }
     }
     return out
 }
-

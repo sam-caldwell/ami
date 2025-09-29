@@ -3,6 +3,7 @@ package sem
 import (
     "time"
     "strings"
+    "unicode"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -71,6 +72,13 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
                                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Sort: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                             }
+                            // basic field name validation: [A-Za-z_][A-Za-z0-9_\.]*
+                            if argc >= 1 {
+                                fld := at.Args[0].Text
+                                if !validFieldName(fld) {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_FIELD_NAME_INVALID", Message: "merge.Sort: invalid field name", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"field": fld}})
+                                }
+                            }
                             if argc >= 2 {
                                 ord := at.Args[1].Text
                                 if ord != "asc" && ord != "desc" {
@@ -105,6 +113,12 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         case "merge.Key", "merge.PartitionBy":
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
                                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: at.Name + ": field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                            }
+                            if argc >= 1 {
+                                fld := at.Args[0].Text
+                                if !validFieldName(fld) {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_FIELD_NAME_INVALID", Message: at.Name + ": invalid field name", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"field": fld}})
+                                }
                             }
                         case "merge.Buffer":
                             if argc >= 1 {
@@ -198,4 +212,25 @@ func canonicalAttrValue(name string, args []ast.Arg) string {
 
 func stepPos(st *ast.StepStmt) diag.Position {
     return diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}
+}
+
+func validFieldName(s string) bool {
+    if s == "" { return false }
+    // allow dot-separated identifiers
+    part := 0
+    start := 0
+    for i, r := range s {
+        if r == '.' {
+            if i == start { return false }
+            start = i+1
+            part++
+            continue
+        }
+        if i == start { // start of a part
+            if !(r == '_' || unicode.IsLetter(r)) { return false }
+        } else {
+            if !(r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)) { return false }
+        }
+    }
+    return start < len(s)
 }

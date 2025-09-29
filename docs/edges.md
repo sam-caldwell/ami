@@ -89,3 +89,43 @@ The debug snapshot includes raw `merge` attributes and a normalized `mergeNorm`:
   "sort": [{"field": "ts", "order": "asc"}]
 }
 ```
+
+## Concurrency Pragmas and pipelines.v1
+
+Concurrency configuration is declared via pragmas and surfaced in `pipelines.v1` at the top level under
+`concurrency`. Supported directives:
+
+- `#pragma concurrency:workers N`: default worker pool size (N >= 1). Invalid values emit
+  `E_CONCURRENCY_WORKERS_INVALID`.
+- `#pragma concurrency:schedule <policy>`: scheduling policy in `{fifo, lifo, fair, worksteal}`. Unknown values emit
+  `E_CONCURRENCY_SCHEDULE_INVALID`.
+- `#pragma concurrency:limits ingress=N transform=N fanout=N collect=N mutable=N egress=N`: per-node-kind limits; each
+  value must be `>= 1`. Unknown keys emit `E_CONCURRENCY_LIMITS_KEY_UNKNOWN`; invalid values emit
+  `E_CONCURRENCY_LIMITS_INVALID`.
+
+Example source:
+
+```
+#pragma concurrency:workers 4
+#pragma concurrency:schedule fair
+#pragma concurrency:limits ingress=2 transform=8 collect=4
+pipeline P(){ ingress; work(); egress }
+```
+
+pipelines.v1 header excerpt:
+
+```
+{
+  "schema": "pipelines.v1",
+  "package": "app",
+  "unit": "u",
+  "concurrency": {
+    "workers": 4,
+    "schedule": "fair",
+    "limits": {"ingress": 2, "transform": 8, "collect": 4}
+  },
+  "pipelines": [
+    {"name": "P", "steps": [ ... ]}
+  ]
+}
+```

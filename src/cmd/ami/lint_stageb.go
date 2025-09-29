@@ -388,11 +388,13 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     adj := map[string][]string{}
                     radj := map[string][]string{}
                     degree := map[string]int{}
+                    foundIO := false
                     for _, s := range stmts {
                         switch n := s.(type) {
                         case *ast.StepStmt:
                             nodes[n.Name] = true
                             posByName[n.Name] = diag.Position{Line: n.Pos.Line, Column: n.Pos.Column, Offset: n.Pos.Offset}
+                            if strings.HasPrefix(strings.ToLower(n.Name), "io.") { foundIO = true }
                         case *ast.EdgeStmt:
                             nodes[n.From] = true
                             nodes[n.To] = true
@@ -444,6 +446,26 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     if !vis["egress"] && nodes["ingress"] && nodes["egress"] {
                         d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_NO_PATH_INGRESS_EGRESS", Message: "no path from ingress to egress; pipeline may not terminate", File: path, Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}}
                         if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                    }
+
+                    // Capability/trust smells (non-fatal guidance)
+                    if foundIO {
+                        if !declCaps["io"] {
+                            // pick a representative position
+                            p := diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_CAPABILITY_UNDECLARED", Message: "io.* operations present; declare capability 'io' via #pragma capabilities", File: path, Pos: &p}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                        if trustLevel == "" {
+                            p := diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_TRUST_UNSPECIFIED", Message: "trust level unspecified; declare via #pragma trust level=trusted|untrusted", File: path, Pos: &p}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                        if trustLevel == "untrusted" {
+                            p := diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_TRUST_UNTRUSTED_IO", Message: "io.* under untrusted trust level; consider revising trust or removing I/O", File: path, Pos: &p}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
                     }
                 }
             }

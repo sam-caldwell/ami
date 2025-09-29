@@ -17,6 +17,9 @@ import (
     "encoding/json"
 )
 
+// small helper for human one-liners without extra deps
+func joinCSV(ss []string) string { if len(ss)==0 { return "" }; out := ss[0]; for i:=1; i<len(ss); i++ { out += "," + ss[i] }; return out }
+
 // Compile compiles the provided packages using the given workspace configuration.
 // It performs basic memory-safety checks and lowers a minimal imperative subset
 // into IR suitable for debug inspection. When opts.Debug is true, it writes
@@ -221,6 +224,17 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                                         if len(pe.Conn.UnreachableFromIngress) > 0 { fields["unreachableFromIngress"] = pe.Conn.UnreachableFromIngress }
                                         if len(pe.Conn.CannotReachEgress) > 0 { fields["cannotReachEgress"] = pe.Conn.CannotReachEgress }
                                         opts.Log("unit.pipelines.connectivity", fields)
+                                        // Human one-liner summary for activity.log readers
+                                        // Example: "pipeline P: edges=3, ingress→egress=false, unreachable=[B], nonterm=[A]"
+                                        line := "pipeline " + pe.Name + ": edges=" + itoa(len(pe.Edges)) + ", ingress→egress="
+                                        if pe.Conn.IngressToEgress { line += "true" } else { line += "false" }
+                                        if len(pe.Conn.UnreachableFromIngress) > 0 {
+                                            line += ", unreachable=[" + joinCSV(pe.Conn.UnreachableFromIngress) + "]"
+                                        }
+                                        if len(pe.Conn.CannotReachEgress) > 0 {
+                                            line += ", nonterm=[" + joinCSV(pe.Conn.CannotReachEgress) + "]"
+                                        }
+                                        opts.Log("unit.pipelines.connectivity.human", map[string]any{"pkg": p.Name, "unit": unit, "pipeline": pe.Name, "text": line})
                                     }
                                 }
                             }

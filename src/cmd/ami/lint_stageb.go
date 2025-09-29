@@ -382,10 +382,12 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                             }
                         }
                     }
-                    // Reachability: simple graph over edge stmts from 'ingress'
+                    // Reachability and connectivity over explicit edge statements
                     nodes := map[string]bool{}
                     posByName := map[string]diag.Position{}
                     adj := map[string][]string{}
+                    radj := map[string][]string{}
+                    degree := map[string]int{}
                     for _, s := range stmts {
                         switch n := s.(type) {
                         case *ast.StepStmt:
@@ -396,6 +398,9 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                             nodes[n.To] = true
                             posByName[n.From] = diag.Position{Line: n.Pos.Line, Column: n.Pos.Column, Offset: n.Pos.Offset}
                             adj[n.From] = append(adj[n.From], n.To)
+                            radj[n.To] = append(radj[n.To], n.From)
+                            degree[n.From]++
+                            degree[n.To]++
                         }
                     }
                     // BFS from ingress
@@ -407,13 +412,38 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                         vis[u] = true
                         for _, v := range adj[u] { if !vis[v] { q = append(q, v) } }
                     }
+                    // Reverse reachability from egress
+                    visToEgress := map[string]bool{}
+                    rq := []string{"egress"}
+                    for len(rq) > 0 {
+                        u := rq[0]; rq = rq[1:]
+                        if visToEgress[u] { continue }
+                        visToEgress[u] = true
+                        for _, v := range radj[u] { if !visToEgress[v] { rq = append(rq, v) } }
+                    }
+                    // Non-fatal smells
                     for name := range nodes {
-                        if strings.ToLower(name) == "ingress" { continue }
-                        if !vis[name] {
+                        lower := strings.ToLower(name)
+                        if lower != "ingress" && !vis[name] && degree[name] > 0 {
                             p := posByName[name]
                             d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_UNREACHABLE_NODE", Message: "pipeline node appears unreachable from ingress", File: path, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"node": name}}
                             if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                         }
+                        if lower != "egress" && !visToEgress[name] && degree[name] > 0 {
+                            p := posByName[name]
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_NONTERMINATING_NODE", Message: "pipeline node cannot reach egress", File: path, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"node": name}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                        if degree[name] == 0 && lower != "ingress" && lower != "egress" {
+                            p := posByName[name]
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_DISCONNECTED_NODE", Message: "pipeline node has no incident edges", File: path, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"node": name}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                    }
+                    // If no path from ingress to egress, surface a summary warning at pipeline name
+                    if !vis["egress"] && nodes["ingress"] && nodes["egress"] {
+                        d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_NO_PATH_INGRESS_EGRESS", Message: "no path from ingress to egress; pipeline may not terminate", File: path, Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}}
+                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                     }
                 }
             }

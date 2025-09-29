@@ -17,9 +17,17 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
     if f == nil { return out }
     now := time.Unix(0, 0).UTC()
     // scan for pipeline decls
+    // detect duplicate pipeline names within the file
+    seenPipes := map[string]diag.Position{}
     for _, d := range f.Decls {
         pd, ok := d.(*ast.PipelineDecl)
         if !ok { continue }
+        if prev, exists := seenPipes[pd.Name]; exists {
+            p := diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DUP_PIPELINE", Message: "duplicate pipeline name: " + pd.Name, Pos: &p, Data: map[string]any{"previous": prev}})
+        } else {
+            seenPipes[pd.Name] = diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}
+        }
         // collect step statements only
         var steps []*ast.StepStmt
         for _, s := range pd.Stmts {
@@ -97,6 +105,7 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
             }
         }
         // Validate each edge endpoint references a declared step and enforce ingress/egress directionality.
+        seenEdge := map[string]diag.Position{}
         for _, e := range edges {
             if _, ok := declared[e.from]; !ok {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_UNDECLARED_FROM", Message: "edge references undeclared node: " + e.from, Pos: &e.fromPos})
@@ -110,6 +119,20 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
             }
             if strings.ToLower(e.from) == "egress" {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_FROM_EGRESS", Message: "edges cannot originate from 'egress'", Pos: &e.fromPos})
+            }
+            // Self-loop detection
+            if e.from == e.to {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_SELF_EDGE", Message: "self edge is not allowed: " + e.from + " -> " + e.to, Pos: &e.fromPos})
+            }
+            // Duplicate edge detection
+            key := e.from + "->" + e.to
+            if prev, dup := seenEdge[key]; dup {
+                // Report duplicate at second occurrence position
+                p := e.fromPos
+                if p.Line == 0 { p = prev }
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_DUP_EDGE", Message: "duplicate edge: " + key, Pos: &p})
+            } else {
+                seenEdge[key] = e.fromPos
             }
         }
         if len(edges) > 0 {

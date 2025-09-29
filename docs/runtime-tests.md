@@ -57,3 +57,22 @@ Running `ami test` will:
 - See `src/ami/runtime/kvstore` for API details; metrics fields: `hits`, `misses`, `expirations`, `evictions`,
   `currentSize`.
 
+## Default ErrorPipeline
+
+When a runtime case returns an error, the harness emits a default ErrorPipeline
+record to stderr as a single `errors.v1` JSON line with fields `{ timestamp, level,
+code, message, file, data }`. This mirrors the default `Ingress().Egress()` behavior
+for `Error<E>` events described in the spec.
+
+CLI toggles:
+- `--no-errorpipe`: suppress the default ErrorPipeline emission (useful for quiet CI logs)
+- `--errorpipe-human`: also write a concise human line to stderr (in human mode):
+  `error: code=<CODE> case=<NAME> file=<PATH>`
+
+Example:
+
+```
+ami test --json              # emits errors.v1 lines on stderr and test.v1 stream on stdout
+ami test --no-errorpipe      # suppresses errors.v1 emission to stderr
+ami test --errorpipe-human   # in human mode, also prints concise stderr lines for errors
+```

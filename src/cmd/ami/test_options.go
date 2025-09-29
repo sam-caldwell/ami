@@ -9,6 +9,8 @@ type TestOptions struct {
     KvMetrics   bool
     KvDump      bool
     KvEvents    bool
+    SuppressErrorPipe bool
+    ErrorPipeHuman    bool
 }
 
 var currentTestOptions TestOptions

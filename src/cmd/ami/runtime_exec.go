@@ -14,6 +14,7 @@ import (
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/runtime/tester"
+    "github.com/sam-caldwell/ami/src/ami/runtime/errorpipe"
     "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
     diag "github.com/sam-caldwell/ami/src/schemas/diag"
 )
@@ -56,7 +57,7 @@ func runRuntime(dir string, jsonOut bool, verbose bool, out ioWriter, cases []ru
     par := currentTestOptions.Parallel
     if par <= 0 { par = 1 }
     ch := make(chan runtimeCase)
-    type result struct{ c runtimeCase; ok bool; skipped bool; err error; dur time.Duration }
+type result struct{ c runtimeCase; ok bool; skipped bool; err error; errCode string; errMsg string; dur time.Duration }
     res := make(chan result)
     // start workers
     for i := 0; i < par; i++ {
@@ -104,7 +105,7 @@ func runRuntime(dir string, jsonOut bool, verbose bool, out ioWriter, cases []ru
                 if len(c.Spec.KvGet) > 0 {
                     for _, k := range c.Spec.KvGet { _, _ = st.Get(k) }
                 }
-                res <- result{c: c, ok: ok, skipped: false, err: err, dur: r.Duration}
+                res <- result{c: c, ok: ok, skipped: false, err: err, errCode: r.ErrCode, errMsg: r.ErrMsg, dur: r.Duration}
             }
         }()
     }
@@ -125,7 +126,17 @@ func runRuntime(dir string, jsonOut bool, verbose bool, out ioWriter, cases []ru
         if jsonOut {
             _ = json.NewEncoder(out).Encode(map[string]any{"schema":"test.v1","type":"test_start","file": r.c.File, "case": r.c.Name})
             ev := map[string]any{"schema":"test.v1","type":"test_end","file": r.c.File, "case": r.c.Name, "ok": r.ok, "skipped": r.skipped, "duration_ms": r.dur.Milliseconds()}
-            if r.err != nil { ev["error"] = r.err.Error() }
+            if r.err != nil {
+                ev["error"] = r.err.Error()
+                // Default ErrorPipeline: write errors.v1 to stderr unless suppressed
+                if !currentTestOptions.SuppressErrorPipe {
+                    _ = errorpipe.Default(r.errCode, r.errMsg, r.c.File, map[string]any{"case": r.c.Name})
+                }
+                // Optional concise human echo to stderr when requested
+                if !jsonOut && currentTestOptions.ErrorPipeHuman {
+                    _, _ = fmt.Fprintf(os.Stderr, "error: code=%s case=%s file=%s\n", r.errCode, r.c.Name, r.c.File)
+                }
+            }
             _ = json.NewEncoder(out).Encode(ev)
             // Optional KV diag events
             if currentTestOptions.KvEvents || r.c.Spec.KvEmit {

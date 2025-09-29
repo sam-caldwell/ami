@@ -655,7 +655,10 @@ packages:
 - [X] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
   - [X] Node/edge validation: explicit edges `A -> B` must reference declared steps; inbound edges to `ingress` and outbound edges from `egress` are forbidden (`E_EDGE_UNDECLARED_FROM`, `E_EDGE_UNDECLARED_TO`, `E_EDGE_TO_INGRESS`, `E_EDGE_FROM_EGRESS`).
   - [X] Connectivity: when explicit edges are present, flag nodes with no incident edges (`E_PIPELINE_NODE_DISCONNECTED`) and report absence of any path from `ingress` to `egress` (`E_PIPELINE_NO_PATH_INGRESS_EGRESS`).
+  - [X] Edge topology rules: self-edges are errors (`E_PIPELINE_SELF_EDGE`); duplicate edges warn (`W_PIPELINE_DUP_EDGE`).
+  - [X] Duplicate pipeline declarations in the same unit are errors (`E_DUP_PIPELINE`).
   - [X] Edge semantics tightening for `edge.FIFO/LIFO`: unknown parameter keys error (`E_EDGE_PARAM_UNKNOWN`); `min`/`max` must be integers with `min>=0`, `max>=0`, and `max>=min` when both set; `backpressure` must be one of `{block, dropOldest, dropNewest, shuntNewest, shuntOldest}`; legacy `drop` warns (`W_EDGE_BP_LEGACY_DROP`).
+  - [X] Additional connectivity diagnostics: `E_PIPELINE_UNREACHABLE_FROM_INGRESS` and `E_PIPELINE_CANNOT_REACH_EGRESS` for nodes with incident edges that are unreachable/non-terminating.
 - [ ] Event typing, error typing, and contracts (1.7, 2.2)
 - [X] Event schema (events.v1): id, timestamp, attempt, trace context; immutable payload typing and supported containers
   - [X] Error schema (align with diag.v1): stable codes/levels; optional position and data fields
@@ -873,6 +876,7 @@ packages:
   - [X] `pipelines.v1` includes explicit `edges` list per pipeline and a `connectivity` object with:
     - `hasEdges`, `ingressToEgress`, `disconnected`
     - `unreachableFromIngress` and `cannotReachEgress` step lists
+  - [X] Verbose build logs: emit `compiler.unit.pipelines.connectivity` events with edge counts and connectivity issue lists; additionally log a human-friendly one-liner summary.
     - [X] `edges.v1`: per-package summary with `bounded` and `delivery` (defaults scaffolded).
   - [X] Map `#pragma backpressure` defaults into IR attributes (scaffold via debug edge object defaults).
   - [X] Stub `edge.*` specs (FIFO, LIFO, Pipeline) as compiler-generated artifacts for analysis/codegen; see `src/ami/compiler/edge` and `docs/edges.md`.
@@ -883,7 +887,7 @@ packages:
   - [X] Unknown nodes in error path flagged as `E_UNKNOWN_NODE`.
 - [ ] Event lifecycle and metadata (1.1.6–1.1.7): id, timestamp, attempt, trace context; immutable payload
   - [X] Debug contract emitted per unit as `build/debug/ir/<package>/<unit>.eventmeta.json` (`eventmeta.v1`) with fields: `id`, `timestamp` (ISO‑8601 UTC), `attempt` (int), and structured `trace` context (`trace.traceparent`, `trace.tracestate`); plus `immutablePayload: true`.
-  - [ ] Runtime semantics; 
+  - [X] Default ErrorPipeline: when runtime errors occur and no user-defined error pipeline is present, emit `errors.v1` lines to stderr (Ingress().Egress() behavior; code/message/file/case included).
     - compiler enforces immutable event parameter shape (no pointers) and records generics; 
     - body‑level immutability checks (imperative subset lands must be completed first).
   - [X] Documentation: language-events.md clarifies lifecycle, immutability, and pointer ban

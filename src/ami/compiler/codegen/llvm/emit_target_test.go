@@ -22,6 +22,7 @@ func TestEmitModuleLLVMForTarget_SetsTriple_And_CollectsExterns(t *testing.T) {
     // expressions that imply extern requirements
     b.Instr = append(b.Instr, ir.Expr{Op: "panic", Args: []ir.Value{{ID: "code", Type: "int32"}}})
     b.Instr = append(b.Instr, ir.Expr{Op: "call", Callee: "ami_rt_alloc", Args: []ir.Value{{ID: "sz", Type: "int64"}}})
+    b.Instr = append(b.Instr, ir.Expr{Op: "call", Callee: "ami_rt_zeroize", Args: []ir.Value{{ID: "p0", Type: "ptr"}, {ID: "sz", Type: "int64"}}})
     // return
     b.Instr = append(b.Instr, ir.Return{})
     f.Blocks = []ir.Block{b}
@@ -39,6 +40,9 @@ func TestEmitModuleLLVMForTarget_SetsTriple_And_CollectsExterns(t *testing.T) {
     }
     if !strings.Contains(out, "declare ptr @ami_rt_alloc(i64)") {
         t.Fatalf("expected alloc extern; got:\n%s", out)
+    }
+    if !strings.Contains(out, "declare void @ami_rt_zeroize(ptr, i64)") {
+        t.Fatalf("expected zeroize extern; got:\n%s", out)
     }
     // var/assign scaffolds appear as deterministic comments
     if !strings.Contains(out, "; var x : i64 as %x0") { // int → i64

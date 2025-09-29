@@ -22,6 +22,9 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                     if op == "alloc" || ex.Callee == "ami_rt_alloc" {
                         e.RequireExtern("declare ptr @ami_rt_alloc(i64)")
                     }
+                    if ex.Callee == "ami_rt_zeroize" {
+                        e.RequireExtern("declare void @ami_rt_zeroize(ptr, i64)")
+                    }
                 }
             }
         }
@@ -47,6 +50,9 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                     }
                     if op == "alloc" || ex.Callee == "ami_rt_alloc" {
                         e.RequireExtern("declare ptr @ami_rt_alloc(i64)")
+                    }
+                    if ex.Callee == "ami_rt_zeroize" {
+                        e.RequireExtern("declare void @ami_rt_zeroize(ptr, i64)")
                     }
                 }
             }

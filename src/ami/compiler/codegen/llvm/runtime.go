@@ -20,6 +20,12 @@ func RuntimeLL(triple string, withMain bool) string {
         "entry:\n  ret void\n}\n\n" +
         "define ptr @ami_rt_alloc(i64 %size) {\n" +
         "entry:\n  ret ptr null\n}\n\n"
+    // zeroization helper: overwrites n bytes at p with 0x00 deterministically
+    s += "define void @ami_rt_zeroize(ptr %p, i64 %n) {\n" +
+        "entry:\n  br label %loop\n" +
+        "loop:\n  %i = phi i64 [ 0, %entry ], [ %next, %loop ]\n  %done = icmp uge i64 %i, %n\n  br i1 %done, label %exit, label %body\n" +
+        "body:\n  %addr = getelementptr i8, ptr %p, i64 %i\n  store i8 0, ptr %addr, align 1\n  %next = add i64 %i, 1\n  br label %loop\n" +
+        "exit:\n  ret void\n}\n\n"
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }
@@ -33,4 +39,3 @@ func WriteRuntimeLL(dir, triple string, withMain bool) (string, error) {
     path := filepath.Join(dir, "runtime.ll")
     return path, os.WriteFile(path, []byte(RuntimeLL(triple, withMain)), 0o644)
 }
-

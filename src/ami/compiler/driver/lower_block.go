@@ -28,8 +28,22 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
         case *ast.DeferStmt:
             out = append(out, lowerStmtDefer(st, v))
         case *ast.ExprStmt:
-            if e, ok := lowerExpr(st, v.X); ok {
-                out = append(out, e)
+            // Special-case release(x): emit zeroization call
+            if ce, isCall := v.X.(*ast.CallExpr); isCall && ce.Name == "release" && len(ce.Args) >= 1 {
+                if exArg, ok := lowerExpr(st, ce.Args[0]); ok {
+                    if exArg.Op != "" || exArg.Callee != "" || len(exArg.Args) > 0 { out = append(out, exArg) }
+                    // literal 0 length (until size info is available during typing/codegen)
+                    zlen := ir.Expr{Op: "lit:0", Result: &ir.Value{ID: st.newTemp(), Type: "int64"}}
+                    out = append(out, zlen)
+                    // call zeroize(ptr, len)
+                    var argv ir.Value
+                    if exArg.Result != nil { argv = *exArg.Result } else { argv = ir.Value{ID: "", Type: "ptr"} }
+                    out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_zeroize", Args: []ir.Value{argv, {ID: zlen.Result.ID, Type: "int64"}}})
+                }
+            } else {
+                if e, ok := lowerExpr(st, v.X); ok {
+                    out = append(out, e)
+                }
             }
         }
     }

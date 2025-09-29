@@ -5,6 +5,7 @@ import (
     "path/filepath"
     "sort"
     "time"
+    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/codegen"
@@ -92,6 +93,28 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             }
         }
         // PHASE 2: per-unit analyses, edges collection, lowering and debug
+        // Package-level pipeline egress type map for edge.Pipeline resolution across units
+        egressTypesPkg := map[string]string{}
+        for _, u := range units {
+            if u.ast == nil { continue }
+            for _, d := range u.ast.Decls {
+                if pd, ok := d.(*ast.PipelineDecl); ok {
+                    t := ""
+                    for _, s := range pd.Stmts {
+                        if st, ok := s.(*ast.StepStmt); ok {
+                            if strings.ToLower(st.Name) == "egress" {
+                                for _, at := range st.Attrs {
+                                    if at.Name == "type" || at.Name == "Type" {
+                                        if len(at.Args) > 0 { t = at.Args[0].Text }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    egressTypesPkg[pd.Name] = t
+                }
+            }
+        }
         var pkgEdges []edgeEntry
         var pkgCollects []collectEntry
         var bmPkgs []bmPackage
@@ -147,6 +170,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeMultiPath(af))
             attachFile(sem.AnalyzeEnums(af))
             attachFile(sem.AnalyzeConcurrency(af))
+            attachFile(sem.AnalyzeEdgesInContext(af, egressTypesPkg))
             attachFile(sem.AnalyzeEventTypeFlow(af))
             attachFile(sem.AnalyzeContainerTypes(af))
             attachFile(sem.AnalyzeTypeInference(af))

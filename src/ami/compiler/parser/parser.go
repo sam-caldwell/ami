@@ -470,6 +470,28 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             p.next(); continue
         }
         switch p.cur.Kind {
+        case token.KwIf:
+            leading := p.pending; p.pending = nil
+            ipos := p.cur.Pos
+            p.next()
+            // optional parens around condition
+            var cond ast.Expr
+            if p.cur.Kind == token.LParenSym { p.next(); e, ok := p.parseExprPrec(1); if ok { cond = e }; if p.cur.Kind == token.RParenSym { p.next() } } else { e, ok := p.parseExprPrec(1); if ok { cond = e } }
+            // then block
+            if p.cur.Kind != token.LBraceSym { p.errf("expected '{' to start if-block, got %q", p.cur.Lexeme); p.syncUntil(token.RBraceSym, token.SemiSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
+            tblk, err := p.parseFuncBlock()
+            if err != nil { p.errf("%v", err); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
+            // optional else block
+            var eblk *ast.BlockStmt
+            if p.cur.Kind == token.KwElse {
+                p.next()
+                if p.cur.Kind != token.LBraceSym { p.errf("expected '{' after else, got %q", p.cur.Lexeme) } else {
+                    if b, err := p.parseFuncBlock(); err == nil { eblk = b } else { p.errf("%v", err) }
+                }
+            }
+            is := &ast.IfStmt{Pos: ipos, Leading: leading, Cond: cond, Then: tblk, Else: eblk}
+            stmts = append(stmts, is)
+            if p.cur.Kind == token.SemiSym { p.next() }
         case token.KwReturn:
             pos := p.cur.Pos
             p.next()

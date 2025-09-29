@@ -31,10 +31,12 @@ func mapType(t string) string {
         return "double"
     case "string":
         return "ptr"
+    case "Owned":
+        // Explicit mapping for Owned handle type
+        return "ptr"
     default:
         // Generic/container/event/error/owned types → opaque handle
         if strings.Contains(tt, "<") || strings.Contains(tt, ">") { return "ptr" }
         return "ptr"
     }
 }
-

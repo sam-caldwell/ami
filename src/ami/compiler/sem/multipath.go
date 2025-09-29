@@ -4,6 +4,8 @@ import (
     "time"
     "strings"
     "unicode"
+    "strconv"
+    "regexp"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -93,20 +95,33 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             }
                             if argc >= 2 {
                                 lat := strings.TrimSpace(at.Args[1].Text)
-                                if lat == "0" || strings.HasPrefix(lat, "-") {
+                                if !validPositiveInt(lat) && !validPositiveDuration(lat) {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                } else if lat == "0" || strings.HasPrefix(lat, "-") {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                }
+                            }
+                            // validate field name when present
+                            if argc >= 1 {
+                                fld := at.Args[0].Text
+                                if !validFieldName(fld) {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_FIELD_NAME_INVALID", Message: "merge.Watermark: invalid field name", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"field": fld}})
                                 }
                             }
                         case "merge.Window":
                             if argc >= 1 {
-                                if at.Args[0].Text == "0" || strings.HasPrefix(at.Args[0].Text, "-") {
+                                if !validNonNegativeInt(at.Args[0].Text) {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Window: size must be a non-negative integer", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                } else if at.Args[0].Text == "0" || strings.HasPrefix(at.Args[0].Text, "-") {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WINDOW_ZERO_OR_NEGATIVE", Message: "merge.Window: size should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                                 }
                             }
                         case "merge.Timeout":
                             if argc >= 1 {
                                 ms := strings.TrimSpace(at.Args[0].Text)
-                                if ms == "0" || strings.HasPrefix(ms, "-") {
+                                if !validPositiveInt(ms) {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Timeout: must be a positive integer (ms)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                } else if ms == "0" || strings.HasPrefix(ms, "-") {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Timeout: must be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                                 }
                             }
@@ -122,7 +137,11 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             }
                         case "merge.Buffer":
                             if argc >= 1 {
-                                if at.Args[0].Text == "0" || at.Args[0].Text == "1" {
+                                cap := strings.TrimSpace(at.Args[0].Text)
+                                if !validNonNegativeInt(cap) {
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Buffer: capacity must be a non-negative integer", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                }
+                                if cap == "0" || cap == "1" {
                                     if argc >= 2 {
                                         pol := at.Args[1].Text
                                         if pol == "dropOldest" || pol == "dropNewest" {
@@ -234,3 +253,23 @@ func validFieldName(s string) bool {
     }
     return start < len(s)
 }
+
+func validNonNegativeInt(s string) bool {
+    s = strings.TrimSpace(s)
+    if s == "" { return false }
+    n, err := strconv.Atoi(s)
+    if err != nil { return false }
+    return n >= 0
+}
+
+func validPositiveInt(s string) bool {
+    s = strings.TrimSpace(s)
+    if s == "" { return false }
+    n, err := strconv.Atoi(s)
+    if err != nil { return false }
+    return n > 0
+}
+
+var durRe = regexp.MustCompile(`^\d+(ms|s|m|h)$`)
+
+func validPositiveDuration(s string) bool { s = strings.TrimSpace(s); if s == "" { return false }; return durRe.MatchString(s) }

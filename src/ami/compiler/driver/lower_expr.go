@@ -63,11 +63,18 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
         ly, oky := lowerExpr(st, v.Y)
         if !okx || !oky { return ir.Expr{}, false }
         id := st.newTemp()
-        res := &ir.Value{ID: id, Type: "any"}
+        // Set boolean result type for comparisons; otherwise 'any'
+        op := opName(v.Op)
+        rtype := "any"
+        switch op {
+        case "eq", "ne", "lt", "le", "gt", "ge":
+            rtype = "bool"
+        }
+        res := &ir.Value{ID: id, Type: rtype}
         args := []ir.Value{}
         if lx.Result != nil { args = append(args, *lx.Result) }
         if ly.Result != nil { args = append(args, *ly.Result) }
-        return ir.Expr{Op: opName(v.Op), Args: args, Result: res}, true
+        return ir.Expr{Op: op, Args: args, Result: res}, true
     case *ast.SliceLit:
         // Lower as a typed container literal with flattened element args.
         id := st.newTemp()
@@ -214,6 +221,12 @@ func opName(k token.Kind) string {
     case token.Shl: return "shl"
     case token.Shr: return "shr"
     case token.BitAnd: return "band"
+    case token.Eq: return "eq"
+    case token.Ne: return "ne"
+    case token.Lt: return "lt"
+    case token.Le: return "le"
+    case token.Gt: return "gt"
+    case token.Ge: return "ge"
     default:
         return k.String()
     }

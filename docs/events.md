@@ -14,6 +14,9 @@ Event Typing
 - Events have a payload type (what the data is) and metadata fields (who/when/where).
 - Payload can be scalars (numbers, strings), containers (slice/set/map), or structured types defined by the program.
 - Consistent typing enables static checks, better lints, and predictable behavior at runtime.
+ - Advanced: Optional/Union types are supported in payloads where needed:
+   - `Optional<T>` indicates a value may be absent; deep field resolution propagates optionality.
+   - `Union<A,B,...>` indicates one of several alternatives; comparisons treat membership set‑wise.
 
 Error Typing
 - Errors are first-class, with a stable code and message (e.g., E_PARSE, E_IO_PERMISSION).

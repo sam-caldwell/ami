@@ -1,6 +1,7 @@
 package sem
 
 import (
+    "strings"
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
@@ -12,6 +13,14 @@ import (
 // single string or ident argument, and they differ, emit E_EVENT_TYPE_FLOW at the
 // downstream step position.
 func AnalyzeEventTypeFlow(f *ast.File) []diag.Record {
+    return AnalyzeEventTypeFlowInContext(f, nil)
+}
+
+// AnalyzeEventTypeFlowInContext extends AnalyzeEventTypeFlow by consulting a
+// package-level egress type registry for cross-pipeline propagation at
+// edge.Pipeline(name=...). When egressType is nil, it behaves like the local
+// analysis.
+func AnalyzeEventTypeFlowInContext(f *ast.File, egressType map[string]string) []diag.Record {
     var out []diag.Record
     if f == nil { return out }
     now := time.Unix(0, 0).UTC()
@@ -28,6 +37,22 @@ func AnalyzeEventTypeFlow(f *ast.File) []diag.Record {
                     if at.Name == "type" || at.Name == "Type" {
                         if len(at.Args) > 0 && at.Args[0].Text != "" {
                             stepType[st.Name] = at.Args[0].Text
+                        }
+                    } else if at.Name == "edge.Pipeline" && egressType != nil {
+                        // propagate type from pipeline registry when available
+                        if len(at.Args) > 0 {
+                            for _, a := range at.Args {
+                                kv := a.Text
+                                if eq := strings.IndexByte(kv, '='); eq > 0 {
+                                    k := strings.TrimSpace(kv[:eq])
+                                    v := strings.TrimSpace(kv[eq+1:])
+                                    if k == "name" {
+                                        if t := egressType[v]; t != "" && stepType[st.Name] == "" {
+                                            stepType[st.Name] = t
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

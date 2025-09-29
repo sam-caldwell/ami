@@ -57,22 +57,11 @@ func AnalyzeMergeFieldTypes(f *ast.File) []diag.Record {
         return false
     }
 
-    // helper to resolve field path against Event<Struct{...}> and return leaf type
+    // helper to resolve field path against payload types using types.Resolver
     fieldType := func(ts, field string) (types.Type, bool) {
         ty, err := types.Parse(ts)
         if err != nil { return nil, false }
-        g, ok := ty.(types.Generic)
-        if !ok || g.Name != "Event" || len(g.Args) != 1 { return nil, false }
-        cur := g.Args[0]
-        parts := strings.Split(field, ".")
-        for _, p := range parts {
-            s, ok := cur.(types.Struct)
-            if !ok { return nil, false }
-            nxt, ok := s.Fields[p]
-            if !ok { return nil, false }
-            cur = nxt
-        }
-        return cur, true
+        return types.ResolveField(ty, field)
     }
 
     // For each Collect, find upstreams and validate fields
@@ -126,12 +115,7 @@ func AnalyzeMergeFieldTypes(f *ast.File) []diag.Record {
                     if ts := stepType[e.from]; ts != "" {
                         if ft, ok := fieldType(ts, fld); ok {
                             resolved = true
-                            switch ft.(type) {
-                            case types.Primitive:
-                                orderable = true
-                            default:
-                                orderable = false
-                            }
+                            orderable = types.IsOrderable(ft)
                             if orderable { break }
                         }
                     }

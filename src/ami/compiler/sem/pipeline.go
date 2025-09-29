@@ -172,13 +172,19 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_NODE_DISCONNECTED", Message: "node has no incident edges: " + st.Name, Pos: &p})
                 }
             }
-            // Path from ingress to egress (when both declared)
+            // Edge coverage: require ingress/egress presence when edges exist
             hasIngress := false
             hasEgress := false
             for _, st := range steps {
                 nl := strings.ToLower(st.Name)
                 if nl == "ingress" { hasIngress = true }
                 if nl == "egress" { hasEgress = true }
+            }
+            if !hasIngress {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGES_WITHOUT_INGRESS", Message: "edges present but no 'ingress' declared", Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}})
+            }
+            if !hasEgress {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGES_WITHOUT_EGRESS", Message: "edges present but no 'egress' declared", Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}})
             }
             if hasIngress && hasEgress {
                 // BFS/DFS from ingress using adj

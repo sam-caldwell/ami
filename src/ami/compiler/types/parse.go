@@ -34,6 +34,22 @@ func Parse(s string) (Type, error) {
             v, err := Parse(parts[1])
             if err != nil { return nil, err }
             return Generic{Name: "map", Args: []Type{k, v}}, nil
+        case "Optional":
+            if len(parts) != 1 { return nil, fmt.Errorf("Optional requires one type arg") }
+            a, err := Parse(parts[0])
+            if err != nil { return nil, err }
+            return Optional{Inner: a}, nil
+        case "Union":
+            if len(parts) < 2 { return nil, fmt.Errorf("Union requires two or more type args") }
+            alts := make([]Type, 0, len(parts))
+            seen := map[string]struct{}{}
+            for _, p := range parts {
+                t, err := Parse(p)
+                if err != nil { return nil, err }
+                key := t.String()
+                if _, ok := seen[key]; !ok { alts = append(alts, t); seen[key] = struct{}{} }
+            }
+            return Union{Alts: alts}, nil
         default:
             if len(parts) != 1 { return nil, fmt.Errorf("%s requires one type arg", base) }
             a, err := Parse(parts[0])
@@ -61,7 +77,7 @@ func Parse(s string) (Type, error) {
         }
         return Struct{Fields: fields}, nil
     }
-    // default: named type without args
+    // default: named type without args (simple named/generic placeholder)
     return Generic{Name: s}, nil
 }
 

@@ -9,6 +9,8 @@ const (
     OpReturn
     OpDefer
     OpExpr
+    OpPhi
+    OpCondBr
     OpLoop
     OpGoto
     OpSetPC
@@ -29,6 +31,10 @@ func (k Kind) String() string {
         return "DEFER"
     case OpExpr:
         return "EXPR"
+    case OpPhi:
+        return "PHI"
+    case OpCondBr:
+        return "COND_BR"
     case OpLoop:
         return "LOOP"
     case OpGoto:

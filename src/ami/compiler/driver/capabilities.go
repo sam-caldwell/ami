@@ -42,6 +42,7 @@ func analyzeCapabilityIR(f *ast.File) []diag.Record {
     }
 
     // Walk pipelines and flag IO/NET usage per IR position rules and capability/trust rules.
+    // Also suggest more specific io.* capability when only generic 'io' is declared but specifics are used.
     for _, d := range f.Decls {
         pd, ok := d.(*ast.PipelineDecl)
         if !ok { continue }
@@ -51,12 +52,19 @@ func analyzeCapabilityIR(f *ast.File) []diag.Record {
             if st, ok := s.(*ast.StepStmt); ok { steps = append(steps, st) }
         }
         if len(steps) == 0 { continue }
+        // Track if any io.read/write-like operations appear
+        sawIOReadWrite := false
         for i, st := range steps {
             name := strings.ToLower(st.Name)
             // IR position constraint: io.* only first/last
             if strings.HasPrefix(name, "io.") {
                 if i != 0 && i != len(steps)-1 {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION_IR", Message: "io.* operations only allowed in ingress/egress nodes (IR)", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
+                }
+                // detect specific read/write variants for suggestion
+                tail := strings.TrimPrefix(name, "io.")
+                if strings.HasPrefix(tail, "read") || strings.HasPrefix(tail, "write") || strings.HasPrefix(tail, "recv") || strings.HasPrefix(tail, "send") {
+                    sawIOReadWrite = true
                 }
             }
             // Capability/trust enforcement (duplicate of driver/sema, but closer to IR for resilience)
@@ -71,6 +79,13 @@ func analyzeCapabilityIR(f *ast.File) []diag.Record {
             }
             if !caps[need] {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CAPABILITY_REQUIRED", Message: "operation requires capability '" + need + "'", Pos: &p, Data: map[string]any{"node": st.Name, "required": need}})
+            }
+        }
+        // Suggest specific io capability if only generic 'io' declared and specific read/write used
+        if sawIOReadWrite {
+            if caps["io"] && !caps["io.read"] && !caps["io.write"] {
+                p := diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_CAPABILITY_SPECIFIC_SUGGESTION", Message: "io.read/write operations detected; consider declaring specific capabilities 'io.read'/'io.write' instead of generic 'io'", Pos: &p})
             }
         }
     }

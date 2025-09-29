@@ -56,7 +56,7 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
             dirs = append(dirs, ir.Directive{Domain: pr.Domain, Key: pr.Key, Value: pr.Value, Args: append([]string(nil), pr.Args...), Params: pr.Params})
         }
     }
-    // derive capabilities from io.* usage in pipelines (ingress/egress allowed)
+    // derive capabilities from io.* and net.* usage in pipelines (ingress/egress allowed)
     if f != nil {
         addCap := func(cap string) {
             if cap == "" { return }
@@ -73,9 +73,18 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
                 if strings.HasPrefix(st.Name, "io.") {
                     if cap := mapIOCapability(st.Name); cap != "" { addCap(cap) }
                 }
+                if strings.HasPrefix(strings.ToLower(st.Name), "net.") {
+                    addCap("net")
+                }
             }
         }
     }
+    // Capability normalization: include generic 'io' when specifics are present
+    hasIO := false
+    hasIOSpecific := false
+    for _, c := range capabilities { if c == "io" { hasIO = true } }
+    for _, c := range capabilities { if len(c) > 3 && c[:3] == "io." { hasIOSpecific = true; break } }
+    if hasIOSpecific && !hasIO { capabilities = append(capabilities, "io") }
     return ir.Module{Package: pkg, Functions: fns, Directives: dirs, Concurrency: concurrency, Backpressure: backpressure, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel}
 }
 

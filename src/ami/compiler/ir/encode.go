@@ -101,6 +101,13 @@ func instrsToJSON(ins []Instruction) []any {
             out = append(out, map[string]any{"op": OpDefer.String(), "expr": exprToJSON(v.Expr)})
         case Expr:
             out = append(out, map[string]any{"op": OpExpr.String(), "expr": exprToJSON(v)})
+        case Phi:
+            // Represent PHI with result and incomings
+            inc := make([]any, 0, len(v.Incomings))
+            for _, in := range v.Incomings { inc = append(inc, map[string]any{"value": map[string]any{"id": in.Value.ID, "type": in.Value.Type}, "label": in.Label}) }
+            out = append(out, map[string]any{"op": OpPhi.String(), "result": map[string]any{"id": v.Result.ID, "type": v.Result.Type}, "incomings": inc})
+        case CondBr:
+            out = append(out, map[string]any{"op": OpCondBr.String(), "cond": map[string]any{"id": v.Cond.ID, "type": v.Cond.Type}, "true": v.TrueLabel, "false": v.FalseLabel})
         case Loop:
             out = append(out, map[string]any{"op": OpLoop.String(), "name": v.Name})
         case Goto:

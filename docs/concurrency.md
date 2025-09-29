@@ -59,3 +59,12 @@ Short rules to keep two or more Codex CLI instances productive in this repo.
 - `ami clean` removes and recreates `./build`; announce before running during active work.
 
 — Keep changes small, isolated, and well‑tested. This enables safe concurrency across agents.
+## Runtime Scheduler (Developer Notes)
+- Worker model per node kind with policies: `fifo`, `lifo`, `fair`, `worksteal`.
+- Limits: configure `workers>=1`; construction fails fast on invalid values.
+- Backpressure: FIFO/LIFO buffers with `block`, `dropOldest`, `dropNewest`, `shuntOldest`, `shuntNewest`.
+- Merge operator: honors `Buffer/Stable/Sort/Key/PartitionBy/Dedup`, optional `Watermark` and `Timeout`, and `Window` bounds.
+- Packages:
+  - `src/ami/runtime/scheduler`: worker pool with policies and per-kind instantiation.
+  - `src/ami/runtime/buffer`: FIFO/LIFO with counters and policies.
+  - `src/ami/runtime/merge`: plan + operator with deterministic ordering.

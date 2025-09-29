@@ -17,7 +17,7 @@ func lowerFuncDeclWithSCC(fn *ast.FuncDecl, funcResMap, funcParamMap map[string]
     for _, r := range fn.Results {
         outResults = append(outResults, ir.Value{Type: r.Type})
     }
-    instrs := lowerBlock(st, fn.Body)
+    instrs, extraBlocks := lowerBlockCFG(st, fn.Body, 0)
     // collect decorators
     var decos []ir.Decorator
     for _, d := range fn.Decorators {
@@ -45,8 +45,9 @@ func lowerFuncDeclWithSCC(fn *ast.FuncDecl, funcResMap, funcParamMap map[string]
             }
         }
     }
-    blk := ir.Block{Name: "entry", Instr: instrs}
-    return ir.Function{Name: fn.Name, Params: params, Results: outResults, Blocks: []ir.Block{blk}, Decorators: decos}
+    blocks := []ir.Block{{Name: "entry", Instr: instrs}}
+    if len(extraBlocks) > 0 { blocks = append(blocks, extraBlocks...) }
+    return ir.Function{Name: fn.Name, Params: params, Results: outResults, Blocks: blocks, Decorators: decos}
 }
 
 // debugExprText mirrors the simple printer used in debug JSON paths.

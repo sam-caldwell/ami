@@ -20,6 +20,7 @@ type contractsDoc struct {
     TrustLevel   string               `json:"trustLevel,omitempty"`
     Concurrency  *contractConcurrency  `json:"concurrency,omitempty"`
     Pipelines    []contractPipeline   `json:"pipelines"`
+    CapabilityNotes []string          `json:"capabilityNotes,omitempty"`
 }
 
 type contractPipeline struct {
@@ -143,15 +144,26 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                         if strings.HasPrefix(head, "write") || strings.HasPrefix(head, "send") { addCap("io.write") }
                         if strings.HasPrefix(head, "connect") || strings.HasPrefix(head, "listen") || strings.HasPrefix(head, "dial") { addCap("network") }
                     }
+                    if strings.HasPrefix(strings.ToLower(st.Name), "net.") {
+                        addCap("net")
+                    }
                     steps = append(steps, contractStep{Name: st.Name, Type: typ, Bounded: bounded, Delivery: del})
                 }
             }
             pentries = append(pentries, contractPipeline{Name: pd.Name, Steps: steps})
         }
     }
+    // Normalize caps: ensure generic 'io' is present if specifics exist.
+    hasIO := false
+    hasIOSpecific := false
+    for _, c := range capabilities { if c == "io" { hasIO = true } }
+    for _, c := range capabilities { if strings.HasPrefix(c, "io.") { hasIOSpecific = true; break } }
+    if hasIOSpecific && !hasIO { capabilities = append(capabilities, "io") }
     sort.Strings(capabilities)
     sort.SliceStable(pentries, func(i, j int) bool { return pentries[i].Name < pentries[j].Name })
-    obj := contractsDoc{Schema: "contracts.v1", Package: pkg, Unit: unit, Delivery: defaultDelivery, Capabilities: capabilities, TrustLevel: trustLevel, Concurrency: conc, Pipelines: pentries}
+    var notes []string
+    if hasIOSpecific { notes = append(notes, "specific io.* capabilities present; generic 'io' implies all io.*") }
+    obj := contractsDoc{Schema: "contracts.v1", Package: pkg, Unit: unit, Delivery: defaultDelivery, Capabilities: capabilities, TrustLevel: trustLevel, Concurrency: conc, Pipelines: pentries, CapabilityNotes: notes}
     dir := filepath.Join("build", "debug", "ir", pkg)
     if err := os.MkdirAll(dir, 0o755); err != nil { return "", err }
     b, err := json.MarshalIndent(obj, "", "  ")

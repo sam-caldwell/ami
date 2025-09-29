@@ -115,6 +115,14 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 }
             }
         }
+        // Workspace-level: duplicate pipeline names across units in this package
+        if len(units) > 0 {
+            var urefs []struct{ file *source.File; ast *ast.File; unit string }
+            for _, u := range units { urefs = append(urefs, struct{ file *source.File; ast *ast.File; unit string }{file: u.file, ast: u.ast, unit: u.unit}) }
+            if cds := analyzeDuplicatePipelinesAcrossUnits(urefs); len(cds) > 0 {
+                outDiags = append(outDiags, cds...)
+            }
+        }
         var pkgEdges []edgeEntry
         var pkgCollects []collectEntry
         var bmPkgs []bmPackage
@@ -172,7 +180,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeEnums(af))
             attachFile(sem.AnalyzeConcurrency(af))
             attachFile(sem.AnalyzeEdgesInContext(af, egressTypesPkg))
-            attachFile(sem.AnalyzeEventTypeFlow(af))
+            attachFile(sem.AnalyzeEventTypeFlowInContext(af, egressTypesPkg))
             attachFile(sem.AnalyzeContainerTypes(af))
             attachFile(sem.AnalyzeTypeInference(af))
             attachFile(sem.AnalyzeAmbiguity(af))

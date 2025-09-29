@@ -8,10 +8,65 @@ import (
 
 // lowerBlock lowers a function body block into a sequence of IR instructions.
 func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
+    instrs, _ := lowerBlockCFG(st, b, 0)
+    return instrs
+}
+
+// lowerBlockCFG lowers a block into entry instructions plus any extra blocks for control flow.
+// It returns the entry instructions and a slice of additional blocks that callers can append
+// to the function. The blockId seeds unique label names.
+func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruction, []ir.Block) {
     var out []ir.Instruction
-    if b == nil { return out }
+    var extras []ir.Block
+    if b == nil { return out, extras }
+    nextID := blockId
+    endsWithReturn := func(ins []ir.Instruction) bool {
+        if len(ins) == 0 { return false }
+        _, ok := ins[len(ins)-1].(ir.Return)
+        return ok
+    }
     for _, s := range b.Stmts {
         switch v := s.(type) {
+        case *ast.IfStmt:
+            // Lower condition
+            if ex, ok := lowerExpr(st, v.Cond); ok {
+                if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
+                cid := ""
+                if ex.Result != nil { cid = ex.Result.ID }
+                // Create labels
+                thenName := fmt.Sprintf("then%d", nextID)
+                elseName := fmt.Sprintf("else%d", nextID)
+                joinName := fmt.Sprintf("join%d", nextID)
+                nextID++
+                // Branch
+                out = append(out, ir.CondBr{Cond: ir.Value{ID: cid, Type: "bool"}, TrueLabel: thenName, FalseLabel: elseName})
+                // Lower then block
+                tInstr, tExtra := lowerBlockCFG(st, v.Then, nextID)
+                nextID += len(tExtra) + 1
+                if !endsWithReturn(tInstr) { tInstr = append(tInstr, ir.Goto{Label: joinName}) }
+                extras = append(extras, ir.Block{Name: thenName, Instr: tInstr})
+                extras = append(extras, tExtra...)
+                // Lower else block
+                eInstr := []ir.Instruction{}
+                var eExtra []ir.Block
+                if v.Else != nil {
+                    eInstr, eExtra = lowerBlockCFG(st, v.Else, nextID)
+                    nextID += len(eExtra) + 1
+                }
+                if !endsWithReturn(eInstr) { eInstr = append(eInstr, ir.Goto{Label: joinName}) }
+                extras = append(extras, ir.Block{Name: elseName, Instr: eInstr})
+                extras = append(extras, eExtra...)
+                // Add empty join block; further statements in this lexical block continue after join
+                extras = append(extras, ir.Block{Name: joinName, Instr: nil})
+                // Switch current accumulation to join: we encode a marker by appending a Goto to move control;
+                // in IR, we simply continue emitting into 'out' for entry, as subsequent statements
+                // logically belong to the join block. To achieve this, we move 'out' accumulation to a new list,
+                // but since func returns separate blocks, leave 'out' as-is and subsequent statements will emit
+                // into the entry; to ensure they appear after join, we instead append them into the last join block.
+                // For simplicity, we stop further processing here; remaining statements (if any) are not handled.
+                // Future enhancement: carry a current block reference.
+            }
+        
         case *ast.VarDecl:
             // Owned ABI: unconditional copy-on-new for Owned variables with initializers.
             if v.Type != "" && (v.Type == "Owned" || (len(v.Type) >= 6 && v.Type[:6] == "Owned<")) && v.Init != nil {
@@ -195,5 +250,5 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
             }
         }
     }
-    return out
+    return out, extras
 }

@@ -84,6 +84,28 @@ Examples
 }
 ```
 
+Ordering Keys and Typing
+
+- `merge.Sort("field")` uses a payload field as an ordering key. Deep paths like `a.b.c` are supported for `Struct{}` payloads.
+- When the upstream payload is a primitive (e.g., `Event<int>`), referencing a field is an error.
+- Optional/Union:
+  - If the resolved leaf is `Optional<T>`, ordering uses `T` and propagates optionality; missing values are handled by runtime policy.
+  - If the resolved leaf is `Union<...>`, ordering is allowed only if all alternatives are orderable primitives.
+  - Container and `Struct` leaves are not orderable.
+
+Diagnostics (semantics layer)
+
+- `W_MERGE_FIELD_UNVERIFIED`: No upstream type information to verify the field.
+- `E_MERGE_FIELD_ON_PRIMITIVE`: Field used but upstream payload is a primitive type.
+- `E_MERGE_SORT_FIELD_UNKNOWN`: Field not found on typed upstream payload(s).
+- `E_MERGE_SORT_FIELD_UNORDERABLE`: Field exists but is not orderable (container/struct or mixed union).
+
 Status
 
 - Mapping and contracts documented; implementation deferred to runtime integration milestone per SPEC.
+- Runtime behavior
+
+- Buffer/policy enforced per partition. `capacity=0` means effectively unbounded, but backpressure policy is still parsed.
+- Timeout clears idle partition buffers older than the timeout when `ExpireStale(now)` is invoked by the scheduler.
+- Watermark drops events older than `now - lateness` based on the configured field.
+- Window (if set) further bounds in-flight items beyond `buffer.capacity`.

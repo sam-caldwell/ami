@@ -49,6 +49,12 @@ func lowerFunction(fn ir.Function) (string, error) {
                 b.WriteString(lowerAssign(v))
             case ir.Expr:
                 b.WriteString(lowerExpr(v))
+            case ir.Phi:
+                b.WriteString(lowerPhi(v))
+            case ir.CondBr:
+                // Conditional branch on boolean i1
+                // Ensure condition is mapped as i1; assume upstream typing enforces this
+                fmt.Fprintf(&b, "  br i1 %%%s, label %%%s, label %%%s\n", v.Cond.ID, v.TrueLabel, v.FalseLabel)
             case ir.Defer:
                 // Schedule defer for emission before returns (LIFO order)
                 defers = append(defers, v.Expr)

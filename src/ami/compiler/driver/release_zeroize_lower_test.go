@@ -23,17 +23,11 @@ func TestLower_Release_EmitsZeroizeCall_InLLVM(t *testing.T) {
     b, err := os.ReadFile(ll)
     if err != nil { t.Fatalf("read llvm: %v", err) }
     s := string(b)
-    if !strings.Contains(s, "declare void @ami_rt_zeroize(ptr, i64)") {
-        t.Fatalf("missing zeroize extern in LLVM: %s", s)
+    if !strings.Contains(s, "declare void @ami_rt_zeroize_owned(ptr)") {
+        t.Fatalf("missing zeroize_owned extern in LLVM: %s", s)
     }
-    if !strings.Contains(s, "declare i64 @ami_rt_owned_len(ptr)") {
-        t.Fatalf("missing owned_len extern in LLVM: %s", s)
-    }
-    if !strings.Contains(s, "call i64 @ami_rt_owned_len(") {
-        t.Fatalf("missing owned_len call in LLVM: %s", s)
-    }
-    if !strings.Contains(s, "call void @ami_rt_zeroize(") {
-        t.Fatalf("missing zeroize call in LLVM: %s", s)
+    if !strings.Contains(s, "call void @ami_rt_zeroize_owned(") {
+        t.Fatalf("missing zeroize_owned call in LLVM: %s", s)
     }
 }
 
@@ -49,8 +43,6 @@ func TestLower_Release_UsesOwnedLenABI(t *testing.T) {
     b, err := os.ReadFile(ll)
     if err != nil { t.Fatalf("read llvm: %v", err) }
     s := string(b)
-    if !strings.Contains(s, "declare void @ami_rt_zeroize(ptr, i64)") { t.Fatalf("missing zeroize extern: %s", s) }
-    if !strings.Contains(s, "declare i64 @ami_rt_owned_len(ptr)") { t.Fatalf("missing owned_len extern: %s", s) }
-    if !strings.Contains(s, "call i64 @ami_rt_owned_len(") { t.Fatalf("missing owned_len call: %s", s) }
-    if !strings.Contains(s, "call void @ami_rt_zeroize(") { t.Fatalf("missing zeroize call: %s", s) }
+    if !strings.Contains(s, "declare void @ami_rt_zeroize_owned(ptr)") { t.Fatalf("missing zeroize_owned extern: %s", s) }
+    if !strings.Contains(s, "call void @ami_rt_zeroize_owned(") { t.Fatalf("missing zeroize_owned call: %s", s) }
 }

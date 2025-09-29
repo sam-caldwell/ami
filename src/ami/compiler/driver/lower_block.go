@@ -49,13 +49,77 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
                 out = append(out, lowerStmtVar(st, v))
             }
         case *ast.AssignStmt:
+            // If destination variable is Owned and RHS is a literal, wrap via owned_new before assign
+            if st != nil && st.varTypes != nil {
+                if dtype := st.varTypes[v.Name]; dtype == "Owned" || (len(dtype) >= 6 && dtype[:6] == "Owned<") {
+                    // lower RHS expr for data
+                    if ex, ok := lowerExpr(st, v.Value); ok {
+                        if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
+                        // determine literal length from AST
+                        var length int
+                        switch lit := v.Value.(type) {
+                        case *ast.StringLit:
+                            length = len(lit.Value)
+                        case *ast.SliceLit:
+                            length = len(lit.Elems)
+                        default:
+                            length = -1
+                        }
+                        if length >= 0 {
+                            // materialize length
+                            lenID := st.newTemp()
+                            lres := &ir.Value{ID: lenID, Type: "int64"}
+                            out = append(out, ir.Expr{Op: fmt.Sprintf("lit:%d", length), Result: lres})
+                            // call owned_new
+                            var data ir.Value
+                            if ex.Result != nil { data = *ex.Result } else { data = ir.Value{ID: "", Type: "ptr"} }
+                            hid := st.newTemp()
+                            hres := &ir.Value{ID: hid, Type: "ptr"}
+                            out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, {ID: lenID, Type: "int64"}}, Result: hres})
+                            // assign handle
+                            out = append(out, ir.Assign{DestID: v.Name, Src: *hres})
+                            break
+                        }
+                    }
+                }
+            }
+            // fallback to simple assign
             out = append(out, lowerStmtAssign(st, v))
         case *ast.ReturnStmt:
             // Materialize return expressions so literals/ops appear as EXPR before RETURN
             var vals []ir.Value
-            for _, e := range v.Results {
+            for i, e := range v.Results {
                 if ex, ok := lowerExpr(st, e); ok {
                     if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
+                    // If returning Owned and expr is literal, wrap into handle
+                    if st != nil && st.currentFn != "" {
+                        if rts, ok2 := st.funcResults[st.currentFn]; ok2 && i < len(rts) {
+                            rt := rts[i]
+                            if rt == "Owned" || (len(rt) >= 6 && rt[:6] == "Owned<") {
+                                var length int = -1
+                                switch lit := e.(type) {
+                                case *ast.StringLit:
+                                    length = len(lit.Value)
+                                case *ast.SliceLit:
+                                    length = len(lit.Elems)
+                                }
+                                if length >= 0 {
+                                    // emit length literal
+                                    lenID := st.newTemp()
+                                    lres := &ir.Value{ID: lenID, Type: "int64"}
+                                    out = append(out, ir.Expr{Op: fmt.Sprintf("lit:%d", length), Result: lres})
+                                    // call owned_new(data,len)
+                                    hid := st.newTemp()
+                                    hres := &ir.Value{ID: hid, Type: "ptr"}
+                                    var data ir.Value
+                                    if ex.Result != nil { data = *ex.Result } else { data = ir.Value{ID: "", Type: "ptr"} }
+                                    out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, {ID: lenID, Type: "int64"}}, Result: hres})
+                                    vals = append(vals, *hres)
+                                    continue
+                                }
+                            }
+                        }
+                    }
                     if ex.Result != nil { vals = append(vals, *ex.Result) }
                 }
             }
@@ -67,14 +131,10 @@ func lowerBlock(st *lowerState, b *ast.BlockStmt) []ir.Instruction {
             if ce, isCall := v.X.(*ast.CallExpr); isCall && ce.Name == "release" && len(ce.Args) >= 1 {
                 if exArg, ok := lowerExpr(st, ce.Args[0]); ok {
                     if exArg.Op != "" || exArg.Callee != "" || len(exArg.Args) > 0 { out = append(out, exArg) }
-                    // Obtain Owned length via runtime ABI: len = ami_rt_owned_len(x)
-                    lenRes := &ir.Value{ID: st.newTemp(), Type: "int64"}
+                    // Call zeroize+free via runtime helper
                     var argv ir.Value
                     if exArg.Result != nil { argv = *exArg.Result } else { argv = ir.Value{ID: "", Type: "ptr"} }
-                    zlen := ir.Expr{Op: "call", Callee: "ami_rt_owned_len", Args: []ir.Value{argv}, Result: lenRes}
-                    out = append(out, zlen)
-                    // call zeroize(ptr, len)
-                    out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_zeroize", Args: []ir.Value{argv, {ID: lenRes.ID, Type: "int64"}}})
+                    out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_zeroize_owned", Args: []ir.Value{argv}})
                 }
             } else {
                 if e, ok := lowerExpr(st, v.X); ok {

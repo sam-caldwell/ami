@@ -7,4 +7,5 @@ type lowerState struct {
     funcResults map[string][]string
     funcParams  map[string][]string
     funcParamNames map[string][]string
+    currentFn string
 }

@@ -21,7 +21,6 @@ func TestPipelineNames_Duplicate_Err(t *testing.T) {
     af, _ := parser.New(f).ParseFile()
     ds := AnalyzePipelineNames(af)
     has := false
-    for _, d := range ds { if d.Code == "E_PIPELINE_NAME_DUP" { has = true } }
-    if !has { t.Fatalf("expected E_PIPELINE_NAME_DUP: %v", ds) }
+    for _, d := range ds { if d.Code == "E_DUP_PIPELINE" { has = true } }
+    if !has { t.Fatalf("expected E_DUP_PIPELINE: %v", ds) }
 }
-

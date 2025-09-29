@@ -18,8 +18,8 @@ func AnalyzePipelineNames(f *ast.File) []diag.Record {
     for _, d := range f.Decls {
         if pd, ok := d.(*ast.PipelineDecl); ok {
             if prev, found := seen[pd.Name]; found {
-                // Preserve historical code for compatibility; include previous position in data.
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_NAME_DUP", Message: "duplicate pipeline name: " + pd.Name, Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}, Data: map[string]any{"prevLine": prev.Line}})
+                // Unified duplicate-name code across analyzers
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DUP_PIPELINE", Message: "duplicate pipeline name: " + pd.Name, Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}, Data: map[string]any{"previous": diag.Position{Line: prev.Line, Column: prev.Column, Offset: prev.Offset}}})
             } else {
                 seen[pd.Name] = source.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}
             }

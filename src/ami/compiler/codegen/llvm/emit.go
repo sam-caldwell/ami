@@ -22,18 +22,21 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                     if op == "alloc" || ex.Callee == "ami_rt_alloc" {
                         e.RequireExtern("declare ptr @ami_rt_alloc(i64)")
                     }
-                    if ex.Callee == "ami_rt_zeroize" {
-                        e.RequireExtern("declare void @ami_rt_zeroize(ptr, i64)")
-                    }
-                    if ex.Callee == "ami_rt_owned_len" {
-                        e.RequireExtern("declare i64 @ami_rt_owned_len(ptr)")
-                    }
-                    if ex.Callee == "ami_rt_owned_new" {
-                        e.RequireExtern("declare ptr @ami_rt_owned_new(i8*, i64)")
-                    }
-                    if ex.Callee == "ami_rt_zeroize_owned" {
-                        e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
-                    }
+                if ex.Callee == "ami_rt_zeroize" {
+                    e.RequireExtern("declare void @ami_rt_zeroize(ptr, i64)")
+                }
+                if ex.Callee == "ami_rt_owned_len" {
+                    e.RequireExtern("declare i64 @ami_rt_owned_len(ptr)")
+                }
+                if ex.Callee == "ami_rt_owned_ptr" {
+                    e.RequireExtern("declare ptr @ami_rt_owned_ptr(ptr)")
+                }
+                if ex.Callee == "ami_rt_owned_new" {
+                    e.RequireExtern("declare ptr @ami_rt_owned_new(i8*, i64)")
+                }
+                if ex.Callee == "ami_rt_zeroize_owned" {
+                    e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
+                }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
                     if strings.ToLower(ex.Op) == "call" {
@@ -46,6 +49,8 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                             e.RequireExtern("declare void @ami_rt_zeroize(ptr, i64)")
                         case "ami_rt_owned_len":
                             e.RequireExtern("declare i64 @ami_rt_owned_len(ptr)")
+                        case "ami_rt_owned_ptr":
+                            e.RequireExtern("declare ptr @ami_rt_owned_ptr(ptr)")
                         case "ami_rt_owned_new":
                             e.RequireExtern("declare ptr @ami_rt_owned_new(i8*, i64)")
                         case "ami_rt_zeroize_owned":

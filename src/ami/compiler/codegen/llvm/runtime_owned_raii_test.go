@@ -5,6 +5,7 @@ import (
     "os/exec"
     "path/filepath"
     "runtime"
+    "strings"
     "testing"
 )
 
@@ -21,8 +22,23 @@ func TestRuntime_Owned_CopyOnNew_Zeroize_DoubleRelease(t *testing.T) {
     // Write runtime without main
     ll, err := WriteRuntimeLL(dir, DefaultTriple, false)
     if err != nil { t.Fatalf("write ll: %v", err) }
-    // Append a main that tests zeroize and owned double-release
+    // Replace calls to free in runtime with a test wrapper so we can count frees safely
+    if b, err := os.ReadFile(ll); err == nil {
+        s := string(b)
+        s = strings.ReplaceAll(s, "call void @free(", "call void @ami_test_free(")
+        if err := os.WriteFile(ll, []byte(s), 0o644); err != nil { t.Fatalf("rewrite ll: %v", err) }
+    } else { t.Fatalf("read ll: %v", err) }
+    // Append a free counter wrapper and a main that tests zeroize and owned double-release
     add := `
+@free_count = private global i64 0
+define void @ami_test_free(ptr %p) {
+entry:
+  %c0 = load i64, ptr @free_count
+  %c1 = add i64 %c0, 1
+  store i64 %c1, ptr @free_count
+  ret void
+}
+
 @.str = private constant [5 x i8] c"TEST\00"
 
 define i32 @main() {
@@ -60,6 +76,11 @@ owned:
   %h = call ptr @ami_rt_owned_new(ptr %gptr, i64 4)
   call void @ami_rt_zeroize_owned(ptr %h)
   call void @ami_rt_zeroize_owned(ptr %h)
+  ; expect exactly two frees (data + handle) total
+  %fc = load i64, ptr @free_count
+  %ok = icmp eq i64 %fc, 2
+  br i1 %ok, label %oklbl, label %fail
+oklbl:
   ret i32 0
 fail:
   ret i32 1

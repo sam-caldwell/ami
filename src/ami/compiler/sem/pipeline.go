@@ -78,7 +78,12 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_UNKNOWN_NODE", Message: "unknown node: " + st.Name, File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
             }
         }
-        // Detect cycles using explicit edge statements (A -> B).
+        // Build a set of declared step names and positions for edge validation and connectivity.
+        declared := map[string]struct{}{}
+        stepPosMap := map[string]diag.Position{}
+        for _, st := range steps { declared[st.Name] = struct{}{}; stepPosMap[st.Name] = diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset} }
+
+        // Detect cycles using explicit edge statements (A -> B) and validate endpoints/directions.
         type edge struct{ from, to string; fromPos, toPos diag.Position }
         var edges []edge
         for _, s := range pd.Stmts {
@@ -89,6 +94,22 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
                     fromPos: diag.Position{Line: e.FromPos.Line, Column: e.FromPos.Column, Offset: e.FromPos.Offset},
                     toPos:   diag.Position{Line: e.ToPos.Line, Column: e.ToPos.Column, Offset: e.ToPos.Offset},
                 })
+            }
+        }
+        // Validate each edge endpoint references a declared step and enforce ingress/egress directionality.
+        for _, e := range edges {
+            if _, ok := declared[e.from]; !ok {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_UNDECLARED_FROM", Message: "edge references undeclared node: " + e.from, Pos: &e.fromPos})
+            }
+            if _, ok := declared[e.to]; !ok {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_UNDECLARED_TO", Message: "edge references undeclared node: " + e.to, Pos: &e.toPos})
+            }
+            // Forbid inbound edges to ingress and outbound edges from egress.
+            if strings.ToLower(e.to) == "ingress" {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_TO_INGRESS", Message: "edges cannot target 'ingress'", Pos: &e.toPos})
+            }
+            if strings.ToLower(e.from) == "egress" {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_FROM_EGRESS", Message: "edges cannot originate from 'egress'", Pos: &e.fromPos})
             }
         }
         if len(edges) > 0 {
@@ -115,6 +136,41 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
             if hasCycle {
                 // Report a generic cycle error at the pipeline name position.
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_CYCLE", Message: "circular reference detected in pipeline '" + pd.Name + "'", Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}})
+            }
+
+            // Connectivity checks: disconnected nodes and missing ingress→egress path.
+            // Degree per node
+            degree := map[string]int{}
+            for _, e := range edges { degree[e.from]++; degree[e.to]++ }
+            for _, st := range steps {
+                if degree[st.Name] == 0 {
+                    p := stepPosMap[st.Name]
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_NODE_DISCONNECTED", Message: "node has no incident edges: " + st.Name, Pos: &p})
+                }
+            }
+            // Path from ingress to egress (when both declared)
+            hasIngress := false
+            hasEgress := false
+            for _, st := range steps {
+                nl := strings.ToLower(st.Name)
+                if nl == "ingress" { hasIngress = true }
+                if nl == "egress" { hasEgress = true }
+            }
+            if hasIngress && hasEgress {
+                // BFS/DFS from ingress using adj
+                reach := map[string]bool{}
+                var stack []string
+                stack = append(stack, "ingress")
+                for len(stack) > 0 {
+                    n := stack[len(stack)-1]
+                    stack = stack[:len(stack)-1]
+                    if reach[n] { continue }
+                    reach[n] = true
+                    for _, m := range adj[n] { if !reach[m] { stack = append(stack, m) } }
+                }
+                if !reach["egress"] {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_NO_PATH_INGRESS_EGRESS", Message: "no path from ingress to egress", Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}})
+                }
             }
         }
     }

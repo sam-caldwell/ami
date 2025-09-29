@@ -653,6 +653,7 @@ packages:
  - [X] Telemetry hooks (1.6): collected via `#pragma telemetry` and surfaced in ASM header
 - [X] Parser/semantics diagnostics for package identifiers and import paths (happy/sad tests)
 - [X] Basic node semantics: pipeline must start with `ingress` and end with `egress`; unknown nodes emit diagnostics
+  - [X] Node/edge validation: explicit edges `A -> B` must reference declared steps; inbound edges to `ingress` and outbound edges from `egress` are forbidden (`E_EDGE_UNDECLARED_FROM`, `E_EDGE_UNDECLARED_TO`, `E_EDGE_TO_INGRESS`, `E_EDGE_FROM_EGRESS`).
 - [ ] Event typing, error typing, and contracts (1.7, 2.2)
 - [X] Event schema (events.v1): id, timestamp, attempt, trace context; immutable payload typing and supported containers
   - [X] Error schema (align with diag.v1): stable codes/levels; optional position and data fields
@@ -866,7 +867,7 @@ packages:
     - pipeline name required. Emit a linter warning on legacy `drop` alias.
   - [X] Cross‑pipeline type safety: `edge.Pipeline(name=X, type=T)` must match the output payload type of pipeline `X`; emit `E_EDGE_PIPE_NOT_FOUND` for unknown `name` and `E_EDGE_PIPE_TYPE_MISMATCH` on mismatched types. Conservative when upstream type cannot be inferred.
   - [X] IR lowering attaches parsed `edge.*` specs to steps (scaffold via debug):
-    - [X] `pipelines.v1`: step edge object with derived `bounded` and `delivery` fields (defaults scaffolded).
+- [X] `pipelines.v1`: step edge object with derived `bounded` and `delivery` fields (defaults scaffolded).
     - [X] `edges.v1`: per-package summary with `bounded` and `delivery` (defaults scaffolded).
   - [X] Map `#pragma backpressure` defaults into IR attributes (scaffold via debug edge object defaults).
   - [X] Stub `edge.*` specs (FIFO, LIFO, Pipeline) as compiler-generated artifacts for analysis/codegen; see `src/ami/compiler/edge` and `docs/edges.md`.

@@ -28,8 +28,10 @@ Determinism:
 - Function, type, and symbol lists are sorted; file paths are workspace‑relative where surfaced (e.g., in build plan).
 
 References:
-- Debug build manifest `build/debug/manifest.json` contains `irIndex`, `irTypesIndex`, and `irSymbolsIndex` paths for each package.
-- The verbose build plan (`build/debug/build.plan.json`) includes `irIndex`, `irTypesIndex`, and `irSymbolsIndex` arrays when present.
+- Debug build manifest `build/debug/manifest.json` contains `irIndex`, `irTypesIndex`, and `irSymbolsIndex` paths for
+  each package.
+- The verbose build plan (`build/debug/build.plan.json`) includes `irIndex`, `irTypesIndex`, and `irSymbolsIndex` arrays
+  when present.
 
 ## See Also
 - `docs/backend/build_plan.md` — build plan schema that references these indices.

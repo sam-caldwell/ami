@@ -1,6 +1,7 @@
 ## Merge Attributes and MultiPath (Collect)
 
-This document summarizes the current scaffold for `edge.MultiPath` on `Collect` nodes and the `merge.*` attributes that influence merging behavior.
+This document summarizes the current scaffold for `edge.MultiPath` on `Collect` nodes and the `merge.*` attributes that
+influence merging behavior.
 
 Status: scaffold with linter hints; normalization and runtime mapping are deferred to later phases.
 
@@ -13,17 +14,21 @@ Status: scaffold with linter hints; normalization and runtime mapping are deferr
   - `merge.Window(size)` sets bounded in‑flight window size.
   - `merge.Watermark(field, lateness)` sets lateness tolerance.
   - `merge.Timeout(ms)` sets a max wait for merge decisions.
-  - `merge.Buffer(capacity[, backpressure])` sets internal buffer and backpressure policy. Supported policies: `block`, `dropOldest`, `dropNewest`. The legacy alias `drop` is allowed but discouraged (linter warns `W_PIPELINE_BUFFER_DROP_ALIAS`).
+  - `merge.Buffer(capacity[, backpressure])` sets internal buffer and backpressure policy. Supported policies: `block`,
+    `dropOldest`, `dropNewest`. The legacy alias `drop` is allowed but discouraged (linter warns
+    `W_PIPELINE_BUFFER_DROP_ALIAS`).
 
 Linter hints (current):
 
-- `W_PIPELINE_BUFFER_POLICY_SMELL`: policy + capacity combination likely to drop excessively (e.g., capacity <= 1 with dropping policy).
+- `W_PIPELINE_BUFFER_POLICY_SMELL`: policy + capacity combination likely to drop excessively (e.g., capacity <= 1 with
+  dropping policy).
 - `W_PIPELINE_BUFFER_DROP_ALIAS`: warns on ambiguous `drop` alias.
 
 Diagnostics:
 
 - Unknown/invalid merge attributes emit `E_MERGE_ATTR_*` codes with positions.
-- Hints use `W_*` codes and can be suppressed via config (`toolchain.linter.suppress`) or pragmas (`#pragma lint:disable CODE`).
+- Hints use `W_*` codes and can be suppressed via config (`toolchain.linter.suppress`) or pragmas (`#pragma lint:disable
+  CODE`).
 
 Example:
 

@@ -54,5 +54,6 @@ Running `ami test` will:
 
 - KV store supports namespacing, TTL (sliding), delete-on-read, and capacity with LRU eviction.
 - `ami test --kv-metrics` and `--kv-dump` emit process-level KV artifacts under `build/test/kv/`.
-- See `src/ami/runtime/kvstore` for API details; metrics fields: `hits`, `misses`, `expirations`, `evictions`, `currentSize`.
+- See `src/ami/runtime/kvstore` for API details; metrics fields: `hits`, `misses`, `expirations`, `evictions`,
+  `currentSize`.
 

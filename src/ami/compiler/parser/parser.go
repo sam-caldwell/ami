@@ -307,8 +307,33 @@ func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position
         p.next()
         var typ string
         if p.isTypeName(p.cur.Kind) {
+            typePos := p.cur.Pos
             typ = p.cur.Lexeme
             p.next()
+            // Capture generic args for Event<...> into the type string.
+            if typ == "Event" && p.cur.Kind == token.Lt {
+                // Record start at the beginning of type token and advance until matching '>'
+                startOff := typePos.Offset
+                depth := 0
+                var lastGtOff int
+                for {
+                    if p.cur.Kind == token.EOF { break }
+                    if p.cur.Kind == token.Lt { depth++ }
+                    if p.cur.Kind == token.Gt {
+                        depth--
+                        lastGtOff = p.cur.Pos.Offset
+                        p.next()
+                        if depth == 0 { break }
+                        continue
+                    }
+                    p.next()
+                }
+                // Reconstruct from file content slice [startOff : lastGtOff+1]
+                src := p.s.FileContent()
+                if lastGtOff > startOff && lastGtOff+1 <= len(src) {
+                    typ = src[startOff : lastGtOff+1]
+                }
+            }
         }
         params = append(params, ast.Param{Name: nameTok.Lexeme, Pos: nameTok.Pos, Type: typ, Leading: pend})
         pend = nil
@@ -329,8 +354,31 @@ func (p *Parser) parseResultList() ([]ast.Result, source.Position, source.Positi
     var results []ast.Result
     for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
         if !p.isTypeName(p.cur.Kind) { return nil, lp, source.Position{}, fmt.Errorf("expected result ident, got %q", p.cur.Lexeme) }
-        results = append(results, ast.Result{Pos: p.cur.Pos, Type: p.cur.Lexeme})
+        rpos := p.cur.Pos
+        rtype := p.cur.Lexeme
         p.next()
+        if rtype == "Event" && p.cur.Kind == token.Lt {
+            startOff := rpos.Offset
+            depth := 0
+            var lastGtOff int
+            for {
+                if p.cur.Kind == token.EOF { break }
+                if p.cur.Kind == token.Lt { depth++ }
+                if p.cur.Kind == token.Gt {
+                    depth--
+                    lastGtOff = p.cur.Pos.Offset
+                    p.next()
+                    if depth == 0 { break }
+                    continue
+                }
+                p.next()
+            }
+            src := p.s.FileContent()
+            if lastGtOff > startOff && lastGtOff+1 <= len(src) {
+                rtype = src[startOff : lastGtOff+1]
+            }
+        }
+        results = append(results, ast.Result{Pos: rpos, Type: rtype})
         if p.cur.Kind == token.CommaSym { p.next(); continue }
         if p.cur.Kind != token.RParenSym { return nil, lp, source.Position{}, fmt.Errorf("expected ',' or ')', got %q", p.cur.Lexeme) }
     }
@@ -473,7 +521,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             es := &ast.ExprStmt{Pos: ePos(expr), X: expr, Leading: leading}
             stmts = append(stmts, es)
             if p.cur.Kind == token.SemiSym { p.next() }
-        case token.String, token.Number, token.Bang:
+        case token.String, token.Number, token.Bang, token.Minus, token.TildeSym, token.LParenSym:
             leading := p.pending; p.pending = nil
             e, ok := p.parseExprPrec(1)
             if !ok { p.errf("unexpected token in statement: %q", p.cur.Lexeme); p.syncUntil(token.SemiSym, token.RBraceSym); if p.cur.Kind == token.SemiSym { p.next() }; continue }
@@ -495,7 +543,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
 func (p *Parser) isExprStart(k token.Kind) bool {
     switch k {
     case token.Ident, token.Number, token.String, token.KwSlice, token.KwSet, token.KwMap,
-        token.Bang:
+        token.Bang, token.Minus, token.TildeSym, token.LParenSym:
         return true
     default:
         return false
@@ -529,6 +577,22 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         rhs, ok := p.parseExprPrec(6)
         if !ok { return nil, false }
         u := &ast.UnaryExpr{Pos: pos, Op: token.Bang, X: rhs}
+        return p.parseBinaryRHS(u, minPrec), true
+    case token.Minus:
+        // unary negation
+        pos := p.cur.Pos
+        p.next()
+        rhs, ok := p.parseExprPrec(6)
+        if !ok { return nil, false }
+        u := &ast.UnaryExpr{Pos: pos, Op: token.Minus, X: rhs}
+        return p.parseBinaryRHS(u, minPrec), true
+    case token.TildeSym:
+        // unary bitwise not
+        pos := p.cur.Pos
+        p.next()
+        rhs, ok := p.parseExprPrec(6)
+        if !ok { return nil, false }
+        u := &ast.UnaryExpr{Pos: pos, Op: token.TildeSym, X: rhs}
         return p.parseBinaryRHS(u, minPrec), true
     case token.Ident, token.KwSlice, token.KwSet, token.KwMap:
         name := p.cur.Lexeme
@@ -1206,7 +1270,8 @@ func (p *Parser) isTypeName(k token.Kind) bool {
         token.KwBool, token.KwByte, token.KwInt, token.KwInt8, token.KwInt16, token.KwInt32, token.KwInt64, token.KwInt128,
         token.KwUint, token.KwUint8, token.KwUint16, token.KwUint32, token.KwUint64, token.KwUint128,
         token.KwFloat32, token.KwFloat64, token.KwStringTy, token.KwRune,
-        token.KwSlice, token.KwSet, token.KwMap:
+        token.KwSlice, token.KwSet, token.KwMap,
+        token.KwEvent, token.KwError:
         return true
     default:
         return false

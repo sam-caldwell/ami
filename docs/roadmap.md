@@ -1,8 +1,11 @@
 # AMI Toolchain Delivery Roadmap
 
-This roadmap captures the phased, test-first plan to deliver the AMI toolchain and compiler as described in SPECIFICATION.md and the AMI docx. It reflects the agreed priorities and codegen order, and is designed for iterative execution with clear acceptance gates per milestone.
+This roadmap captures the phased, test-first plan to deliver the AMI toolchain and compiler as described in
+SPECIFICATION.md and the AMI docx. It reflects the agreed priorities and codegen order, and is designed for iterative
+execution with clear acceptance gates per milestone.
 
-Authoritative source of truth remains `docs/Asynchronous Machine Interface.docx`. SPECIFICATION.md tracks features and checklists. This document guides execution sequencing.
+Authoritative source of truth remains `docs/Asynchronous Machine Interface.docx`. SPECIFICATION.md tracks features and
+checklists. This document guides execution sequencing.
 
 ## Decisions & Constraints
 
@@ -10,162 +13,180 @@ Authoritative source of truth remains `docs/Asynchronous Machine Interface.docx`
 - Package fetching scope: local-only early; `git+ssh` later.
 - Codegen order: simplified object format → debug ASM → LLVM objects.
 - Priority order: bring CLI and linter to green first; then compiler frontend/semantics; then IR/codegen.
-- Repository conventions: one declaration per file; ≥80% coverage per touched package; deterministic outputs; JSON/human modes; errors to stderr; JSON lines for streaming.
+- Repository conventions: one declaration per file; ≥80% coverage per touched package; deterministic outputs;
+  JSON/human
+  modes; errors to stderr; JSON lines for streaming.
 
 ## Milestones
 
-Each milestone lists key deliverables and acceptance criteria. All milestones must pass `go vet ./...`, `go test -v ./...` (with ≥80% coverage in changed packages), and `go build -o build/ami ./src/cmd/ami`.
+Each milestone lists key deliverables and acceptance criteria. All milestones must pass `go vet ./...`, `go test -v
+./...` (with ≥80% coverage in changed packages), and `go build -o build/ami ./src/cmd/ami`.
 
 ### M0 — Bootstrap
 
-Deliverables:
-- Directory layout scaffolding under `src/` for: `ami/{exit,logging,workspace}`, `cmd/ami`, `ami/compiler/{source,token,scanner,ast,parser,types,sem,ir,codegen}`.
+#### Deliverables:
+- Directory layout scaffolding under `src/` for: `ami/{exit,logging,workspace}`, `cmd/ami`,
+  `ami/compiler/{source,token,scanner,ast,parser,types,sem,ir,codegen}`.
 - Minimal tests to ensure packages compile and run.
 
-Acceptance:
+#### Acceptance:
 - Build/vet/test green on skeleton; initial coverage recorded.
 
 ### M1 — CLI Core + Global Flags
 
-Deliverables:
+#### Deliverables:
 - Cobra root in `src/cmd/ami/root.go` with persistent flags: `--help`, `--json`, `--verbose`, `--color`.
 - Exit codes in `src/ami/exit` with helpers mapping error classes.
 - Mutual exclusion validation: `--json` and `--color` rejects with USER_ERROR; error text to stderr.
 - Command stubs: `init`, `clean`, `mod {clean,sum,get,list}`, `lint`, `test`, `build`, `version`, `help`.
 
-Acceptance:
+#### Acceptance:
 - Unit tests cover flag parsing/help text/exit paths; JSON vs human outputs; mutual exclusion behavior.
 
 ### M2 — Workspace Management
 
-Deliverables:
+#### Deliverables:
 - `workspace.Workspace` with `Load/Save/Create` for `ami.workspace`.
-- `ami init`: create minimal workspace or `--force` add missing fields; ensure `toolchain.compiler.target` and `packages.main.root` exist; seed `toolchain.compiler.env` with `darwin/arm64`; ensure git repo or `git init` on `--force`; add `.gitignore` with `./build`.
+- `ami init`: create minimal workspace or `--force` add missing fields; ensure `toolchain.compiler.target` and
+  `packages.main.root` exist; seed `toolchain.compiler.env` with `darwin/arm64`; ensure git repo or `git init` on
+  `--force`; add `.gitignore` with `./build`.
 
-Acceptance:
+#### Acceptance:
 - Tests: new workspace; idempotent re-init; `--force` with/without missing fields; JSON mode behavior.
 
 ### M3 — Logging + Diagnostics
 
-Deliverables:
-- `logging` package: JSON renderer (stable schema) and human renderer; verbose lines prefixed with ISO‑8601 UTC (ms). Colors only when human mode and `--color`.
+#### Deliverables:
+- `logging` package: JSON renderer (stable schema) and human renderer; verbose lines prefixed with ISO‑8601 UTC (ms).
+  Colors only when human mode and `--color`.
 - Diagnostic record schema `diag.v1` with level, code, message, file, and precise positions; JSON lines for streaming.
 
-Follow‑up (M3.1): stdlib logger pipeline configuration
-- Expose CLI flags to configure `ami/stdlib/logger` pipeline redaction when the CLI migrates from direct logger to pipeline mode.
+#### Follow‑up (M3.1): stdlib logger pipeline configuration
+- Expose CLI flags to configure `ami/stdlib/logger` pipeline redaction when the CLI migrates from direct logger to
+  pipeline mode.
 - Map root flags to pipeline config: JSONRedactKeys, JSONRedactPrefixes (and future allow/deny once available).
-- Add tests for batch/interval/backpressure policies and counters; verify safety‑net redaction for `log.v1` JSON lines.
+- Add tests for batch/interval/backpressure policies and counters; verify safety‑net redaction for `log.v1` JSON
+  lines.
 
-Acceptance:
-- Tests: timestamp format; multi-line handling; color disabled in JSON; fields present; stderr routing for invalid flag combos.
+#### Acceptance:
+- Tests: timestamp format; multi-line handling; color disabled in JSON; fields present; stderr routing for invalid flag
+  combos.
 
 ### M4 — Linter (Stage A: Pre‑Parser Checks)
 
-Deliverables:
-- `ami lint`: initial checks that do not require full parsing: workspace/package presence; import/version shape validation; basic naming constraints.
+#### Deliverables:
+- `ami lint`: initial checks that do not require full parsing: workspace/package presence; import/version shape
+  validation; basic naming constraints.
 - Outputs: human summary and `diag.v1` lines to stdout; final summary record.
 
-Acceptance:
+#### Acceptance:
 - Tests: happy/sad rule coverage; strict mode filters; JSON/human mode switching.
 
 ### M5 — Frontend (Source → AST)
 
-Deliverables:
+#### Deliverables:
 - `source`: `position.go`, `file.go`, `fileset.go` with precise positions.
 - `token`: `kind.go`, `token.go`, `keywords.go`, `symbols.go`.
 - `scanner`: UTF‑8, comments, tokens, recovery; position‑rich errors.
 - `ast`: nodes for files/decls/stmts/exprs/types; comment attachment.
-- `parser`: imports, package decls, funcs, pipelines and `error {}` blocks; tuple returns; container literals; tolerant generics scaffold.
+- `parser`: imports, package decls, funcs, pipelines and `error {}` blocks; tuple returns; container literals; tolerant
+  generics scaffold.
 - Verbose `ast.v1` JSON under `build/debug/` with stable ordering.
 
-Acceptance:
+#### Acceptance:
 - Golden tests for scanner/parser; recovery paths; stable AST JSON.
 
 ### M6 — Semantics (M0)
 
-Deliverables:
+#### Deliverables:
 - `types`: primitives, `Event<T>`, `Error<E>`, `Owned<T>`, `slice<T>`, `set<T>`, `map<K,V>`; renderers.
 - `sem`: symbol tables/scopes, intra‑workspace import resolution, const folding, basic assignment/call checks.
-- Memory Safety (AMI 2.3.2): ban `&`; unary `*` only LHS mutating marker; diagnostics: `E_PTR_UNSUPPORTED_SYNTAX`, `E_MUT_ASSIGN_UNMARKED`, `E_MUT_BLOCK_UNSUPPORTED`.
-- Pipelines: structural validation and canonical worker signature constraints (no raw pointers; ambient state per docx rule).
+- Memory Safety (AMI 2.3.2): ban `&`; unary `*` only LHS mutating marker; diagnostics: `E_PTR_UNSUPPORTED_SYNTAX`,
+  `E_MUT_ASSIGN_UNMARKED`, `E_MUT_BLOCK_UNSUPPORTED`.
+- Pipelines: structural validation and canonical worker signature constraints (no raw pointers; ambient state per docx
+  rule).
 
-Acceptance:
+#### Acceptance:
 - Tests for valid/invalid cases with precise positions; coverage ≥80%.
 
 ### M7 — Linter (Stage B: Parser‑backed Rules)
 
-Deliverables:
-- Integrate parser/semantics: unknown identifiers, unused, import existence/versioning, duplicate imports/aliases, basic formatting markers.
+#### Deliverables:
+- Integrate parser/semantics: unknown identifiers, unused, import existence/versioning, duplicate imports/aliases, basic
+  formatting markers.
 - AMI semantics lints: memory safety; RAII hint `W_RAII_OWNED_HINT`.
 
-Acceptance:
+#### Acceptance:
 - Tests: rule filtering, strict mode, diagnostics streaming.
 
 ### M8 — Type Inference (M1/M2/M3)
 
-Deliverables:
+#### Deliverables:
 - M1: locals inference; unary/binary ops; call/assign constraints; `E_TYPE_AMBIGUOUS` with positions.
 - M2: container element/key inference; tuple return inference; propagation through `Event<T>`/`Error<E>`.
 - M3: conservative compatibility for generic `Event<typevar>` across steps; scoping/shadowing; return inference.
 
-Acceptance:
+#### Acceptance:
 - Targeted unit tests and golden diagnostics; stable positions; coverage maintained.
 
 ### M9 — IR + Artifacts
 
-Deliverables:
+#### Deliverables:
 - IR (SSA-like): ops VAR, ASSIGN, RETURN, DEFER, EXPR; typed values; blocks/edges.
 - Lowering: functions, calls, container literals; pipeline edges with capacity/backpressure annotations (scaffold).
 - Debug IR JSON under `build/debug/ir/...` with deterministic ordering.
 - Non‑debug obj index: `build/obj/<package>/index.json` (`objindex.v1`).
 
-Acceptance:
+#### Acceptance:
 - Golden IR; schema validation; determinism across runs (normalized timestamps in tests).
 
 ### M10 — Codegen & Linking
 
-Deliverables:
+#### Deliverables:
 - Stage A: simplified object format with relocatable symbol abstraction, indexes, integrity checks.
 - Stage B: initial debug ASM emission from IR; stable ASM indexing (for tests and inspection).
 - Stage C: LLVM objects generation; relocations; symbol tables.
 - Linker: symbol resolution, DCE, relocations, init order, metadata tables; produce PIE/static per config.
 
-Acceptance:
+#### Acceptance:
 - Minimal and multi‑package builds; missing deps map to correct exits; deterministic outputs.
 
 ### M11 — Build Command
 
-Deliverables:
-- `ami build`: reads `ami.workspace`, ensures deps available, compiles packages (frontend→sem→IR→codegen), produces artifacts.
+#### Deliverables:
+- `ami build`: reads `ami.workspace`, ensures deps available, compiles packages (frontend→sem→IR→codegen),
+  produces
+  artifacts.
 - Verbose: build plan JSON and debug artifacts under `build/debug/`.
 - Error handling: user vs IO vs integrity; JSON diagnostics streaming.
 
-Acceptance:
+#### Acceptance:
 - Schema tests for `ast.v1`, IR indices, `objindex.v1`; repeatability checks; failure mode tests.
 
 ### M12 — Test Runner
 
-Deliverables:
-- `ami test`: collects `_test.go`, produces binary in `build/test`, runs; `--verbose` writes `build/test/test.log` and `build/test/test.manifest`.
+#### Deliverables:
+- `ami test`: collects `_test.go`, produces binary in `build/test`, runs; `--verbose` writes `build/test/test.log` and
+  `build/test/test.manifest`.
 
-Acceptance:
+#### Acceptance:
 - Harness tests for execution, logs, and manifests; JSON/human mode behavior.
 
 ### M13 — Modules/Cache
 
-Deliverables:
+#### Deliverables:
 - `AMI_PACKAGE_CACHE` detection/creation; default `${HOME}/.ami/pkg`.
 - `mod clean`: remove and recreate cache.
 - [x] `mod list`: list cached packages.
 - `mod sum`: validate `ami.sum`, verify hashes, compare to workspace, update as needed.
 - Later: `mod get` with `git+ssh`, SemVer selection, integrity checks (post‑Phase 1).
 
-Acceptance:
+#### Acceptance:
 - Tests for each subcommand; integrity and error paths; no interactive prompts.
 
 ### M14 — RAII + Generic Inference
 
-Dependencies:
+#### Dependencies:
 - M5 Frontend (Source→AST) complete
 - M6 Semantics (initial) complete (memory safety, pipeline invariants, worker signature/resolution)
 - M7 Linter Stage B complete (parser-backed rules + pragma suppression)
@@ -173,10 +194,11 @@ Dependencies:
 - M9 IR + Artifacts scaffold complete (deterministic IR/obj index)
 - M12 Test Runner available (directive/runtime harness; JSON lines)
 
-Deliverables:
+#### Deliverables:
 - Full RAII ownership accounting for `Owned<T>` (intraprocedural, defer-aware):
   - States: acquire/transfer/release; defer-scheduled release counting to function exit
-  - Diagnostics: `E_RAII_LEAK`, `E_RAII_DOUBLE_RELEASE`, `E_RAII_USE_AFTER_RELEASE`, `E_RAII_RELEASE_UNOWNED`, `E_RAII_TRANSFER_UNOWNED`
+  - Diagnostics: `E_RAII_LEAK`, `E_RAII_DOUBLE_RELEASE`, `E_RAII_USE_AFTER_RELEASE`, `E_RAII_RELEASE_UNOWNED`,
+    `E_RAII_TRANSFER_UNOWNED`
   - Semantics pass `sem.AnalyzeRAII` + position-rich diag.v1
   - Optional IR debug markers for RAII events (acquire/release/defer/transfer)
 - Richer generic inference (local, deterministic):
@@ -187,19 +209,19 @@ Deliverables:
   - Diagnostics: `E_TYPE_UNINFERRED`, extended `E_TYPE_MISMATCH`/`E_TYPE_AMBIGUOUS`
 - Linter Stage B integration surfaces RAII errors; respects `#pragma lint:disable`.
 
-Acceptance:
+#### Acceptance:
 - `go vet ./...`, `go test -v ./...` pass; ≥80% coverage in changed packages
 - Deterministic diagnostics with precise positions (golden tests for inference/RAII)
 - No regressions across earlier milestones; stable JSON/human outputs
 
 ### M15 — linux/arm64 Codegen (Cross-Target)
 
-Dependencies:
+#### Dependencies:
 - M9 IR + Artifacts complete (deterministic IR)
 - M10 Codegen & Linking complete for darwin/arm64
 - M11 Build Command complete (env matrix, per-env objects/indices, manifest/plan)
 
-Deliverables:
+#### Deliverables:
 - Code generator supports `linux/arm64` target triple (`aarch64-unknown-linux-gnu`) end-to-end:
   - Emit LLVM IR with `target triple = "aarch64-unknown-linux-gnu"`
   - Compile `.ll` → `.o` for linux/arm64 via clang
@@ -210,20 +232,24 @@ Deliverables:
   - Attempts per-env linking when the toolchain supports it; logs clear diagnostics when cross-linker is unavailable
 - Deterministic build artifacts and diagnostics across both environments.
 
-Acceptance:
+#### Acceptance:
 - On a host with an appropriate clang toolchain:
-  - `ami build` with `toolchain.compiler.env: [linux/arm64]` produces a linked linux/arm64 binary; manifest lists the binary and env-specific objects/indices
-  - With `toolchain.compiler.env: [darwin/arm64, linux/arm64]`, per-env objects exist and indexes are recorded; binaries are produced where the host/linker allows; missing cross-linker yields diag with non-fatal logging when permitted by config
-- Tests validate per-env object emission and manifest/plan entries for linux/arm64; codegen emits correct triple in LLVM IR.
+  - `ami build` with `toolchain.compiler.env: [linux/arm64]` produces a linked linux/arm64 binary; manifest lists the
+    binary and env-specific objects/indices
+  - With `toolchain.compiler.env: [darwin/arm64, linux/arm64]`, per-env objects exist and indexes are recorded; binaries
+    are produced where the host/linker allows; missing cross-linker yields diag with non-fatal logging when permitted by
+    config
+- Tests validate per-env object emission and manifest/plan entries for linux/arm64; codegen emits correct triple in LLVM
+  IR.
 
 ### M16 — darwin/amd64 and linux/amd64 Codegen (Cross-Target, Generalization)
 
-Dependencies:
+#### Dependencies:
 - M10 Codegen & Linking complete (baseline)
 - M11 Build Command complete (env matrix and per-env artifacts)
 - M15 linux/arm64 Codegen complete (pattern established)
 
-Deliverables:
+#### Deliverables:
 - Add first-class support for `darwin/amd64` and `linux/amd64`:
   - Correct LLVM target triples: `x86_64-apple-macosx` and `x86_64-unknown-linux-gnu`
   - Emit `.ll` with the target triple set per environment
@@ -232,11 +258,14 @@ Deliverables:
   - Triple selection centralized (`TripleFor(os,arch)`), no special-case branches in lowering
   - Per-env build loop shared for all OS/arch, writing objects under `build/<env>/obj/**`
   - Manifest and build plan include env-specific object indices and objects uniformly
-- `ami build` honors env matrices mixing arm64 and amd64 across darwin/linux; links where toolchain permits and emits clear diagnostics otherwise.
+- `ami build` honors env matrices mixing arm64 and amd64 across darwin/linux; links where toolchain permits and emits
+  clear diagnostics otherwise.
 
-Acceptance:
-- On hosts with appropriate toolchains, `ami build` for `darwin/amd64` and `linux/amd64` produces linked binaries; manifests list binaries and env objects/indices
-- With mixed env matrices, per-env objects exist under `build/<env>/obj/**` with `index.json`; build plan and `build/ami.manifest` capture paths deterministically
+#### Acceptance:
+- On hosts with appropriate toolchains, `ami build` for `darwin/amd64` and `linux/amd64` produces linked binaries;
+  manifests list binaries and env objects/indices
+- With mixed env matrices, per-env objects exist under `build/<env>/obj/**` with `index.json`; build plan and
+  `build/ami.manifest` capture paths deterministically
 - Unit tests verify:
   - Triple mapping for `darwin/amd64` and `linux/amd64`
   - LLVM IR contains the correct `target triple`
@@ -244,42 +273,50 @@ Acceptance:
 
 ### M17 — darwin/arm64 Codegen (Baseline Hardening)
 
-Dependencies:
+#### Dependencies:
 - M10 Codegen & Linking complete (baseline)
 - M11 Build Command complete (env matrix and per-env artifacts)
 
-Deliverables:
+#### Deliverables:
 - Confirm and harden first-class support for `darwin/arm64` (baseline target):
   - Ensure LLVM IR sets `target triple = "arm64-apple-macosx"`
   - Compile `.ll` → `.o` and link binaries via clang on darwin/arm64 hosts
   - Emit per-env objects under `build/darwin/arm64/obj/**` and write `index.json`
   - Include darwin/arm64 env objects/indices in build plan and `build/ami.manifest`
-- Ensure env-matrix builds mixing darwin/arm64 with other envs remain deterministic and correctly isolated under `build/<env>`.
+- Ensure env-matrix builds mixing darwin/arm64 with other envs remain deterministic and correctly isolated under
+  `build/<env>`.
 
-Acceptance:
+#### Acceptance:
 - On a darwin/arm64 host with clang toolchain:
-  - `ami build` with `toolchain.compiler.env: [darwin/arm64]` produces a linked binary; manifest lists binary and env-specific objects/indices
-  - With mixed matrices (e.g., `[darwin/arm64, linux/arm64]`), per-env objects exist under their respective prefixes; plan/manifest capture deterministic paths
-- Tests verify triple mapping for `darwin/arm64`, presence of correct `target triple` in IR, and per-env object/index emission for `darwin/arm64`.
+  - `ami build` with `toolchain.compiler.env: [darwin/arm64]` produces a linked binary; manifest lists binary and
+    env-specific objects/indices
+  - With mixed matrices (e.g., `[darwin/arm64, linux/arm64]`), per-env objects exist under their respective prefixes;
+    plan/manifest capture deterministic paths
+- Tests verify triple mapping for `darwin/arm64`, presence of correct `target triple` in IR, and per-env object/index
+  emission for `darwin/arm64`.
 
 ### M18 — Optimizer (DCE, Unused Detection, Const Folding/Propagation)
 
-Dependencies:
+#### Dependencies:
 - M5 Frontend (Source→AST) and M6 Semantics (initial) complete (symbol tables, const evaluation scaffold)
 - M9 IR + Artifacts complete (deterministic IR)
 - M10 Codegen & Linking baseline complete (so optimizer changes are observable and testable)
 - M14 — RAII + Generic Inference
 
-Deliverables:
+#### Deliverables:
 - Dead Code Elimination (DCE):
-  - IR pass eliminates unreachable functions and data starting from program roots (entrypoints/pipelines, exported/public, runtime-required symbols)
+  - IR pass eliminates unreachable functions and data starting from program roots (entrypoints/pipelines,
+    exported/public, runtime-required symbols)
   - Intra-function DCE removes unreachable basic blocks after constant branch resolution
-  - Whole-program DCE coordinated with linker: drop unreferenced objects/symbols; reflect in obj index and build manifest
+  - Whole-program DCE coordinated with linker: drop unreferenced objects/symbols; reflect in obj index and build
+    manifest
 - Unused Detection (diagnostics):
-  - Detect and report unused local variables, constants, functions, structs, enums, and fields/types not referenced within compilation units
+  - Detect and report unused local variables, constants, functions, structs, enums, and fields/types not referenced
+    within compilation units
   - Emit `diag.v1` warnings (or errors under strict) with precise positions; integrate with `ami lint` for parity
 - Constant Folding & Propagation:
-  - Fold constant expressions (arithmetic/logical), evaluate const `let/const` initializers, and propagate through SSA temporaries
+  - Fold constant expressions (arithmetic/logical), evaluate const `let/const` initializers, and propagate through SSA
+    temporaries
   - Simplify control flow (`if true/false`, constant `switch` selection), remove dead branches
   - Replace map/set/slice literal sizes and simple len/cap on constants when determinable
   - Ensure stable, deterministic IR after optimization with golden tests
@@ -287,38 +324,46 @@ Deliverables:
   - Optimizations enabled by default; flags for `--no-opt` (future) reserved
   - Deterministic behavior across runs with identical inputs
 
-Acceptance:
+#### Acceptance:
 - Unit/golden tests show:
   - IR before/after: unreachable blocks/functions removed; constant expressions folded; branch simplification present
   - Unused symbol diagnostics emitted with correct positions; `strict` mode elevates to errors
-  - Linked binaries (when toolchain present) are smaller or equal compared to unoptimized builds; manifests reflect fewer objects when DCE applies
+  - Linked binaries (when toolchain present) are smaller or equal compared to unoptimized builds; manifests reflect
+    fewer objects when DCE applies
 - `go vet ./...`, `go test -v ./...` pass; ≥80% coverage in changed optimizer/semantics packages
 - No change to observable program behavior for non-dead code paths (semantics preserved)
 
 ### M19 — Recursion Optimizer (Tail-Call Elimination & Trampolines)
 
-Dependencies:
+#### Dependencies:
 - M9 IR + Artifacts complete (stable, analyzable IR)
 - M10 Codegen & Linking baseline complete
 - M18 Optimizer baseline complete (so DCE/const-fold interact cleanly)
 
-Deliverables:
+#### Deliverables:
 - Call Graph & SCC Analysis:
-  - Build a per-package call graph; compute strongly connected components (SCCs) to identify recursive clusters (self/mutual).
-  - Determine tail-position calls: a call is in tail position if its result flows directly to the current return (no work after the call in the current path).
+  - Build a per-package call graph; compute strongly connected components (SCCs) to identify recursive clusters
+    (self/mutual).
+  - Determine tail-position calls: a call is in tail position if its result flows directly to the current return (no
+    work after the call in the current path).
 - Tail-Call Elimination (TCE):
   - For tail self-calls: rewrite as parameter updates + jump to function entry (loop) reusing the current frame.
-  - For tail mutual recursion within an SCC: lower to a dispatch loop that updates a selector and jumps to the next callee’s entry (single trampoline per SCC when profitable).
+  - For tail mutual recursion within an SCC: lower to a dispatch loop that updates a selector and jumps to the next
+    callee’s entry (single trampoline per SCC when profitable).
 - General Trampolining for Non-tail Recursion:
   - For recursive functions where calls aren’t in tail position, synthesize an explicit frame machine:
-    - Frame type per recursive function capturing live locals, parameters, return slots, and a small program counter (`pc`).
+    - Frame type per recursive function capturing live locals, parameters, return slots, and a small program counter
+      (`pc`).
     - Replace recursive calls with a “push child frame” operation (child initialized with arguments and `pc=entry`).
-    - Compile the function as a trampoline: a loop that pops the top frame, `switch(pc)`, executes one small step, may push new child frames, and continues until the stack is empty.
+    - Compile the function as a trampoline: a loop that pops the top frame, `switch(pc)`, executes one small step, may
+      push new child frames, and continues until the stack is empty.
     - When a child returns, write its results back into the parent frame’s slots; advance parent `pc` accordingly.
 - CPS + Trampoline (when profitable):
   - Where non-tail recursive structure blocks TCE, apply a local CPS transform to make continuation explicit.
-  - Represent continuations as continuation-frames (or closure-like frame variants) and execute under the same trampoline loop.
-  - Hoist small continuations to straight-line code when they collapse after constant propagation; otherwise keep as frames to avoid stack growth.
+  - Represent continuations as continuation-frames (or closure-like frame variants) and execute under the same
+    trampoline loop.
+  - Hoist small continuations to straight-line code when they collapse after constant propagation; otherwise keep as
+    frames to avoid stack growth.
 - Structured Recursion Patterns (recognition & lowering):
   - Recognize common recursive schemes and lower to iterative forms with explicit worklists:
     - Accumulator/fold (tail recursion) → while-loop with accumulator updates
@@ -327,37 +372,36 @@ Deliverables:
     - Map/filter over linear data → loop with fused operations where side-effect free
   - Only apply transformations when side-effect and aliasing analysis allow; otherwise fall back to trampolining.
 - IR Extensions (scaffolded ops and lowering):
-  - Add IR forms for `PUSH_FRAME`, `POP_FRAME`, `SET_PC`, `DISPATCH`, and structured `GOTO`/`LOOP` as needed for deterministic lowering to LLVM.
-  - Ensure these forms lower to portable loops, stack (vector) operations, and `switch` in LLVM IR with the appropriate target triple.
+  - Add IR forms for `PUSH_FRAME`, `POP_FRAME`, `SET_PC`, `DISPATCH`, and structured `GOTO`/`LOOP` as needed for
+    deterministic lowering to LLVM.
+  - Ensure these forms lower to portable loops, stack (vector) operations, and `switch` in LLVM IR with the appropriate
+    target triple.
 - Correctness & Determinism:
   - Preserve observable semantics; restrict transforms when side effects or aliasing prevent safe TCE/trampolining.
   - Deterministic IR output and stable codegen across runs.
 - Configuration:
-  - Enabled by default; guard under an internal flag for A/B testing (future); diagnostics when an attempted transform is skipped.
+  - Enabled by default; guard under an internal flag for A/B testing (future); diagnostics when an attempted transform
+    is skipped.
   - Guardrails against stack exhaustion when transforms are not applicable:
-    - Insert conservative trampoline fallback for detected self/mutual recursion when analysis cannot prove safety for TCE/CPS rewrite.
-    - Optionally inject a depth counter with a deterministic threshold that switches execution to trampoline mode; emit a warning diagnostic (e.g., `W_RECURSION_GUARD`) when enabled by strict/profile builds.
+    - Insert conservative trampoline fallback for detected self/mutual recursion when analysis cannot prove safety for
+      TCE/CPS rewrite.
+    - Optionally inject a depth counter with a deterministic threshold that switches execution to trampoline mode; emit
+      a warning diagnostic (e.g., `W_RECURSION_GUARD`) when enabled by strict/profile builds.
 
-Acceptance:
+#### Acceptance:
 - Golden IR tests:
-  - Tail-recursive `fact`, mutual recursion (even/odd), and non-tail recursion (e.g., Fibonacci) show expected loop/trampoline forms.
+  - Tail-recursive `fact`, mutual recursion (even/odd), and non-tail recursion (e.g., Fibonacci) show expected
+    loop/trampoline forms.
   - Frame structs contain the minimal live locals/params/pc slots; `switch(pc)` structure is stable and deterministic.
 - Behavioral tests:
   - Deep recursion no longer overflows the host stack; results match unoptimized semantics.
   - Works across supported targets (darwin/linux, arm64/amd64) with identical IR structure modulo target triples.
-  - Guardrails verified: when TCE/CPS/structured transforms are not applied, fallback trampoline prevents stack exhaustion under adversarial depths.
+  - Guardrails verified: when TCE/CPS/structured transforms are not applied, fallback trampoline prevents stack
+    exhaustion under adversarial depths.
 - Integration:
-  - Plays well with DCE/const-folding (M18); dead frames/branches eliminated; const branches simplify trampoline `switch` arms where applicable.
+  - Plays well with DCE/const-folding (M18); dead frames/branches eliminated; const branches simplify trampoline
+    `switch` arms where applicable.
   - `go vet ./...`, `go test -v ./...` pass; ≥80% coverage on optimizer paths.
-
-## Sprint 1 (Immediate Backlog)
-
-- Scaffold M0/M1: root CLI + flags/exit codes; tests for flag parsing, stderr/stdout behavior.
-- Implement `workspace.Workspace` + tests.
-- Implement `ami init` and `ami clean` fully with ≥80% coverage.
-- Logging/diagnostics skeleton with basic tests.
-- Early `ami lint` Stage A rules with tests.
-- Keep `go build`, `go vet`, `go test` green.
 
 ## Quality Gates & Determinism
 
@@ -370,4 +414,5 @@ Acceptance:
 
 - Treat this roadmap as the sequencing guide; SPECIFICATION.md remains the feature checklist of record.
 - When a milestone completes, check it off in SPECIFICATION.md under the relevant feature area and reference commits.
-- If priorities change, update the Decisions & Constraints and the affected milestones here; keep changes small and focused.
+- If priorities change, update the Decisions & Constraints and the affected milestones here; keep changes small and
+  focused.

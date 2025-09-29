@@ -1,11 +1,14 @@
 # Merge Runtime Planner (Scaffold)
 
-This note defines how normalized `merge.*` attributes on `Collect` map to a runtime merge operator plan. It documents contracts and determinism requirements for the planner. Implementation is deferred until runtime integration, per roadmap.
+This note defines how normalized `merge.*` attributes on `Collect` map to a runtime merge operator plan. It documents
+contracts and determinism requirements for the planner. Implementation is deferred until runtime integration, per
+roadmap.
 
 Scope and Goals
 
 - Input: normalized attributes from pipelines debug (`mergeNorm`):
-  - `buffer{capacity,policy}`, `stable`, `sort[{field,order}]`, `key`, `partitionBy`, `timeoutMs`, `window`, `watermark{field,lateness}`, `dedup`.
+  - `buffer{capacity,policy}`, `stable`, `sort[{field,order}]`, `key`, `partitionBy`, `timeoutMs`, `window`,
+    `watermark{field,lateness}`, `dedup`.
 - Output: a deterministic operator plan with explicit, validated fields suitable for a runtime executor.
 - No behavior is implemented in this phase. This is a design/contract document ensuring stable mapping and no ambiguity.
 
@@ -14,7 +17,8 @@ Operator Plan Schema (draft)
 - Name: `merge.plan.v1`
 - Fields:
   - `partition`:
-    - `by`: string (empty means no partitioning). If both `key` and `partitionBy` are present and differ, this is an error (already enforced by semantics).
+    - `by`: string (empty means no partitioning). If both `key` and `partitionBy` are present and differ, this is an
+      error (already enforced by semantics).
   - `key`: string (primary key field for deduplication, if any). Missing means dedup uses event identity or is disabled.
   - `ordering`:
     - `fields`: array of `{ field, order }` (order in {asc,desc}); empty means FIFO arrival order.
@@ -42,7 +46,8 @@ Validation (input already guarded by semantics)
 
 - Conflicts: `partitionBy` vs `key` mismatch is an error (semantics: `E_MERGE_ATTR_CONFLICT`).
 - Requireds: `watermark` requires a field; `sort` requires field; arity checks enforced by parser/semantics.
-- Smells: tiny buffer with drop policy, non-positive window/lateness remain lints (non-fatal) unless strict mode elevates.
+- Smells: tiny buffer with drop policy, non-positive window/lateness remain lints (non-fatal) unless strict mode
+  elevates.
 
 Mapping Rules
 

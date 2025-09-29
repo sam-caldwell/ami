@@ -880,6 +880,7 @@ packages:
   - [ ] Runtime semantics; 
     - compiler enforces immutable event parameter shape (no pointers) and records generics; 
     - body‑level immutability checks (imperative subset lands must be completed first).
+  - [X] Documentation: language-events.md clarifies lifecycle, immutability, and pointer ban
 ### 1.2.3.0. Worker Functions (Ch. 1.5, 2.2.6, 2.2.13)
 - [X] Canonical signature parsed and enforced for worker references (ambient state, no raw pointers):
   `func(ev Event<T>) (Event<U>, error)`
@@ -1098,7 +1099,7 @@ Deliverables
 - [X] Resolution: decorator name resolves to built‑ins or top‑level functions
   - Unknown → `E_DECORATOR_UNDEFINED`
   - Non‑callable or invalid arity → `E_DECORATOR_INVALID`
-- [ ] Semantics: decorators must not change a worker’s externally visible signature
+- [X] Semantics: decorators must not change a worker’s externally visible signature
   - Worker signature validation preserved; violations → `E_DECORATOR_SIGNATURE`
 - [X] Determinism: decorator lists preserved in source order for AST
 - [X] Interactions: decorators may add metadata (e.g., `@deprecated("msg")`, `@metrics`)
@@ -1115,7 +1116,7 @@ Deliverables
 - [X] Semantics: resolution, ordering, and error conditions (scaffold: unresolved and conflicting duplicates)
 - [X] IR annotations: per‑function decorator list in `ir.v1`
 - [X] Tests: parse (single/multiple), ordering, arg parsing
-- [ ] Docs: syntax, ordering rules, built‑ins, configuration, and examples
+- [X] Docs: syntax, ordering rules, built‑ins, configuration, and examples
 
 #### 6.11 Enum Conformance (docs/*.docx)
 
@@ -1224,7 +1225,7 @@ Types & Semantics (incremental)
 - [X] Owned<T>: added to the type mapper; string rendering `Owned<…>`.
 - [X] RAII + Defer: semantic analyzer recognizes `defer`-scheduled releases/transfers and counts them toward Owned<T> cleanup. Flags double-release when mixed with immediate release.
  - [X] Worker resolution across imports: dotted references like `pkg.Func()` accepted when `pkg` is imported; undefined worker diagnostics suppressed (signature checks across packages).
- - [ ] Type inference/unification across expressions and generic instantiation inside bodies (M14)
+ - [X] Type inference/unification across expressions and generic instantiation inside bodies (M14)
   - Goals
     - [X] Infer local expression types (identifiers, literals, unary/binary ops, calls) without explicit annotations where possible.
     - [X] Instantiate generics from usage (e.g., infer `T` in `Event<T>`, `Error<E>`, `slice<T>`, `set<T>`, `map<K,V>` from call sites and argument/assignment contexts) — conservative via compatibility rules and container element/key inference.
@@ -1260,12 +1261,14 @@ Types & Semantics (incremental)
 
 - [X] Surface import version constraints into `sources.v1` (`importsDetailed`) during build planning/output.
 
--- [ ] Grammar extensions: unary/binary operators (tracking for backend ops already supported)
+-- [X] Grammar extensions: unary/binary operators (tracking for backend ops already supported)
   - [X] Add tokens and precedence for bitwise (`&`, `|`, `^`), shifts (`<<`, `>>`).
   - [X] Introduce `ast.UnaryExpr` and extend parsing to support unary logical `!`.
   - [X] Lowering: map unary `!` to IR op `not`; tests added.
   - [X] Lowering: map `|`→`bor`, `&`→`band`, `^`→`xor`, `<<`→`shl`, `>>`→`shr`; tests added.
   - [X] LLVM emission: handle `bor` (→ `or` iN), `band` (→ `and` iN), and `xor`, `shl`, `shr` for integers; keep logical `and`/`or` for booleans only.
+  - [X] Parser: support unary `-` (negation) and `~` (bitwise not) with precedence; added tests for both.
+  - [X] Parser: expression statements now accept `-`, `~`, and parenthesized forms as starters; tests cover logical/bitwise/shift parses.
 
  
 

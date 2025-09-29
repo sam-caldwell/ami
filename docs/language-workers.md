@@ -1,21 +1,28 @@
 # AMI Worker Signatures
 
-This document defines canonical worker function signatures for pipeline `Transform` steps, per the AMI docx. It replaces legacy suggestions that used an explicit `State` parameter; AMI workers do not accept raw state handles. Ambient node state resides behind runtime-managed boundaries and capabilities.
+This document defines canonical worker function signatures for pipeline `Transform` steps, per the AMI docx. It replaces
+legacy suggestions that used an explicit `State` parameter; AMI workers do not accept raw state handles. Ambient node
+state resides behind runtime-managed boundaries and capabilities.
 
 Canonical Signature
 
 - Worker: `func(Event<T>) (Event<U>, error)`
   - Input: a strongly typed `Event<T>` payload.
   - Output: a strongly typed `Event<U>` payload and an `error`.
-  - No raw pointers or address-of; memory safety rules apply (see 2.3.2).
+  - No raw pointers or address-of; memory safety rules apply (see 2.3.2). Event payload types must be pointer‑free;
+    see
+    language-events.md.
   - Factories: functions named `New*` are treated as factories and are not subject to worker signature checks.
 
 Constraints & Semantics
 
-- No Decorators: workers must not carry decorators; these are reserved for declarations and tooling hints. The compiler emits `E_DECORATOR_ON_WORKER` otherwise.
-- No Raw Pointers: AMI forbids `&` and pointer dereference. Mutating assignments require `*` on LHS and `mutate(expr)` for side‑effects, as specified in memory safety rules.
+- No Decorators: workers must not carry decorators; these are reserved for declarations and tooling hints. The compiler
+  emits `E_DECORATOR_ON_WORKER` otherwise.
+- No Raw Pointers: AMI forbids `&` and pointer dereference. Mutating assignments require `*` on LHS and `mutate(expr)`
+  for side‑effects, as specified in memory safety rules.
 - Capability Boundaries: I/O and trust policies are enforced per node, not via ambient parameters.
-- Type Inference: `T`/`U` may be inferred locally from usage; diagnostics ensure mismatches are reported deterministically.
+- Type Inference: `T`/`U` may be inferred locally from usage; diagnostics ensure mismatches are reported
+  deterministically.
 
 Examples
 

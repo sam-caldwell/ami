@@ -1,7 +1,8 @@
 Make Targets
 ============
 
-This repository includes a convenient `Makefile` for common developer tasks. Below is a concise reference of the available targets and how to use them.
+This repository includes a convenient `Makefile` for common developer tasks. Below is a concise reference of the
+available targets and how to use them.
 
 Core Targets
 - `make build`: build the `ami` CLI binary to `build/ami`.

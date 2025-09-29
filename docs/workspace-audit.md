@@ -1,6 +1,7 @@
 # Workspace Package/Manifest Audit — Implementation Summary
 
-This document describes package‑level tooling added to support dependency management workflows without modifying the `ami build` command (owned by Agent D).
+This document describes package‑level tooling added to support dependency management workflows without modifying the
+`ami build` command (owned by Agent D).
 
 ## Scope
 - Package/workspace features only (no changes to parser/lexer/compiler/build).
@@ -31,8 +32,11 @@ This document describes package‑level tooling added to support dependency mana
 
 - Requirements collection and cross‑checks
   - File: `src/ami/workspace/requirements.go`
-  - `CollectRemoteRequirements(*Workspace)`: extracts remote (non‑`./`) import requirements; defaults to `==latest` when unspecified; collects parse errors separately.
-  - `CrossCheckRequirements(*Manifest, []Requirement)`: reports names missing in `ami.sum` and present‑but‑unsatisfied.
+  - `CollectRemoteRequirements(*Workspace)`: extracts remote (non‑`./`) import requirements; defaults to `==latest`
+    when
+    unspecified; collects parse errors separately.
+  - `CrossCheckRequirements(*Manifest, []Requirement)`: reports names missing in `ami.sum` and
+    present‑but‑unsatisfied.
 
 - Cache/sum integrity helpers
   - File: `src/ami/workspace/sum_utils.go`
@@ -42,7 +46,8 @@ This document describes package‑level tooling added to support dependency mana
 
 - Orchestrator function (library only)
   - File: `src/ami/workspace/audit.go`
-  - `AuditDependencies(dir string) (AuditReport, error)`: loads workspace and `ami.sum`, collects requirements, computes:
+  - `AuditDependencies(dir string) (AuditReport, error)`: loads workspace and `ami.sum`, collects requirements,
+    computes:
     - `MissingInSum`, `Unsatisfied` (content checks),
     - `MissingInCache`, `Mismatched` (integrity checks filtered to satisfying versions),
     - `ParseErrors`, `Requirements`, `SumFound` flags.
@@ -64,4 +69,5 @@ All new functionality includes happy and sad path tests under `src/ami/workspace
 - These helpers are intended for future CLI and build integrations while remaining library‑only for now.
 
 ## See Also
-- `docs/cmd/mod.md` — user-facing module commands (`mod audit`, `mod update`, `mod sum`, etc.) that consume these helpers.
+- `docs/cmd/mod.md` — user-facing module commands (`mod audit`, `mod update`, `mod sum`, etc.) that consume these
+  helpers.

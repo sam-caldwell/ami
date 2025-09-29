@@ -1,6 +1,8 @@
 # Events, Errors, and Contracts (Beginner Guide)
 
-This guide explains AMI’s event model, error typing, and contracts at a high level. It’s written for newcomers and links back to the authoritative `.docx` spec.
+This guide explains AMI’s event model, error typing, and contracts at a high level. It’s written for newcomers and
+links
+back to the authoritative `.docx` spec.
 
 Authoritative reference: docs/Asynchronous Machine Interface.docx (Ch. 1.7 and 2.2)
 
@@ -56,9 +58,12 @@ Schema Reference
 How to get started
 - Read the overview above, then open the `.docx` sections 1.7 and 2.2 for the precise definitions.
 - When writing pipeline code, document expected input/output shapes and any ordering/buffering assumptions.
-- Use `ami lint` to catch capability and pipeline policy issues early; `ami test` can assert parser‑level correctness today.
+- Use `ami lint` to catch capability and pipeline policy issues early; `ami test` can assert parser‑level correctness
+  today.
 
 Notes
-- Until runtime execution tests are integrated, `ami test` focuses on parser‑level assertions. Contract execution tests will come with the runtime harness phase.
+- Until runtime execution tests are integrated, `ami test` focuses on parser‑level assertions. Contract execution
+  tests
+  will come with the runtime harness phase.
 
 Tooling tip: print the embedded events schema with `ami events schema --print` (hidden command).

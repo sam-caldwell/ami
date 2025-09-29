@@ -20,7 +20,8 @@ Common options:
 
 Advanced (Stage B) options:
 - `--stage-b` — enable parser‑backed rules.
-- `--rule-memsafe` — memory safety diagnostics (`E_PTR_UNSUPPORTED_SYNTAX`, `E_MUT_BLOCK_UNSUPPORTED`, `E_MUT_ASSIGN_UNMARKED`).
+- `--rule-memsafe` — memory safety diagnostics (`E_PTR_UNSUPPORTED_SYNTAX`, `E_MUT_BLOCK_UNSUPPORTED`,
+  `E_MUT_ASSIGN_UNMARKED`).
 - `--rule-raii` — hint to wrap `release(x)` calls (`W_RAII_OWNED_HINT`).
 - `--rule-unused` — report unused identifier‑style imports (`W_UNUSED_IMPORT`).
 
@@ -43,7 +44,8 @@ Stage B rules (parser‑backed)
   - `W_PIPELINE_UNREACHABLE_NODE`: node appears unreachable from `ingress`.
   - `W_PIPELINE_BUFFER_DROP_ALIAS`: ambiguous `drop` backpressure alias; prefer `dropOldest|dropNewest|block`.
   - `W_PIPELINE_BUFFER_POLICY_SMELL`: capacity <= 1 with drop policy is likely ineffective.
-  - Semantics parity (selected): `E_PIPELINE_START_INGRESS`, `E_PIPELINE_END_EGRESS`, `E_DUP_EGRESS`, `E_UNKNOWN_NODE`, `E_IO_PERMISSION`.
+  - Semantics parity (selected): `E_PIPELINE_START_INGRESS`, `E_PIPELINE_END_EGRESS`, `E_DUP_EGRESS`, `E_UNKNOWN_NODE`,
+    `E_IO_PERMISSION`.
 
 Examples
 
@@ -62,13 +64,17 @@ pipeline Q(){ ingress(); work(); egress(); tail } // W_PIPELINE_EGRESS_POS
 ```
 
 What gets checked (high level):
-- Workspace: `ami.workspace` exists and parses; has a version and a `main` package. Local imports are valid; duplicate or cyclic imports are flagged.
-- Source style: underscores in identifiers, language reminders (`W_LANG_NOT_GO`, `W_GO_SYNTAX_DETECTED`), TODO/FIXME policy.
-- Stage B: memory‑safety, RAII hints, unused imports, simple pipeline checks (ingress/egress placement, unreachable nodes), and basic buffer/backpressure smells.
+- Workspace: `ami.workspace` exists and parses; has a version and a `main` package. Local imports are valid; duplicate
+  or cyclic imports are flagged.
+- Source style: underscores in identifiers, language reminders (`W_LANG_NOT_GO`, `W_GO_SYNTAX_DETECTED`), TODO/FIXME
+  policy.
+- Stage B: memory‑safety, RAII hints, unused imports, simple pipeline checks (ingress/egress placement, unreachable
+  nodes), and basic buffer/backpressure smells.
 
 Exit codes:
 - Success: 0.
-- Failure: non‑zero when there are errors, or when `--strict` promotes warnings, or when `--failfast`/`--max-warn` triggers.
+- Failure: non‑zero when there are errors, or when `--strict` promotes warnings, or when `--failfast`/`--max-warn`
+  triggers.
 
 Filtering by rule code (`--rules`):
 - Substring: `IDENT` matches `W_IDENT_UNDERSCORE`.

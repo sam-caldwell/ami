@@ -65,13 +65,44 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
             // signature check: 1 param Event<...>; 2 results: Event<...>, error
             if len(fn.Params) != 1 || !strings.HasPrefix(fn.Params[0].Type, "Event<") {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: want func(Event<T>)->(Event<U>, error)", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
+                if len(fn.Decorators) > 0 {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_SIGNATURE", Message: "decorators must not change worker signature", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
+                }
                 continue
             }
             if len(fn.Results) != 2 || !strings.HasPrefix(fn.Results[0].Type, "Event<") || fn.Results[1].Type != "error" {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: want func(Event<T>)->(Event<U>, error)", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
+                if len(fn.Decorators) > 0 {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_SIGNATURE", Message: "decorators must not change worker signature", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
+                }
                 continue
+            }
+            // Enforce pointer-free Event<T>/Event<U> type arguments.
+            if t := eventTypeArg(fn.Params[0].Type); t != "" {
+                if strings.ContainsAny(t, "&*") {
+                    p := fn.Params[0].Pos
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_PTR_FORBIDDEN", Message: "Event<T> must be pointer-free (no '&' or '*')", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
+                }
+            }
+            if t := eventTypeArg(fn.Results[0].Type); t != "" {
+                if strings.ContainsAny(t, "&*") {
+                    p := fn.Results[0].Pos
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_PTR_FORBIDDEN", Message: "Event<U> must be pointer-free (no '&' or '*')", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
+                }
             }
         }
     }
     return out
+}
+
+// eventTypeArg extracts the inner type parameter from an Event<...> type string.
+// Returns empty string if not in the expected form.
+func eventTypeArg(typ string) string {
+    const pfx = "Event<"
+    if !strings.HasPrefix(typ, pfx) { return "" }
+    s := typ[len(pfx):]
+    if i := strings.IndexByte(s, '>'); i >= 0 {
+        return s[:i]
+    }
+    return ""
 }

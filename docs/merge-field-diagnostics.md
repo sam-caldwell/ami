@@ -53,6 +53,10 @@ Collect merge.Sort(".ts")
   - `W_MERGE_WATERMARK_NOT_PRIMARY_SORT`: Watermark field differs from the primary Sort field.
     - Data: `{ "watermark": "...", "primary": "...", "sort": ["..."] }`.
 
+Strictness toggle
+- Set `AMI_STRICT_DEDUP_PARTITION=1` to elevate `W_MERGE_DEDUP_FIELD_WITHOUT_KEY_UNDER_PARTITION` and
+  `W_MERGE_DEDUP_WITHOUT_KEY_UNDER_PARTITION` to their error forms (`E_*`).
+
 ## Structured Data (Data field)
 Most merge diagnostics include a `data` object for machine-readability. Examples:
 - `E_MERGE_ATTR_ARGS`: `{ "argc": 2, "expected_min": 1, "expected_max": 1 }`.

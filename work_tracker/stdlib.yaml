@@ -115,6 +115,22 @@ stdlib:
             status: ready
             tests: []
 
+          - id: E-1-3-4
+            statement: |
+              As a user, I expect that AMI `io` package will have an `io.Hostname()` method which will return the 
+              current hostname of the underlying system.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-3-4
+            statement: |
+              As a user, I expect that AMI `io` package will have an `io.Interfaces()` method which will list all
+              network interfaces.
+            dependencies: []
+            status: ready
+            tests: []
+
       - id: F-1-4
         name: I/O POP Capability Enforcement
         expectations:
@@ -126,10 +142,10 @@ stdlib:
               attributes.
 
   - id: S-2
-    name: os package
+    name: os package exec()
     features:
       - id: F-2-1
-        name: Stdlib Operating System Interfaces
+        name: Stdlib Operating System Interface (Process Runner)
         expectations:
           - id: E-2-1-1
             statement: |
@@ -148,7 +164,7 @@ stdlib:
             statement: |
               As a user, I expect the AMI `os` package will have an `Exec()` which will initialize a given external 
               program and return a os.Process object and error object; the os.Process object will be used to manage
-              the process lifecycle.
+              the process lifecycle; and the Exec() function will initialize but NOT start the new process.
             dependencies: []
             status: ready
             tests: []
@@ -157,20 +173,27 @@ stdlib:
               As a user, I expect the AMI `os.Process` object type will have a .Kill() method to immediately terminate
               the process, a .Status() method to return process state information (as a struct), a .Stdin() method for
               interacting over stdin, a .Stdout() and .Stderr() method for obtaining process outputs on stdout and
-              stderr, a .Pid() method for obtaining the process id, and .Start().
-              
-              function will return a process object for interacting with the process asynchronously as well as any error
-              state from the spawning process; the process object will have a PID property to obtain the process id of
-              the spawned process; the process object will have methods for sending to stdin or receiving from either
-              stdout or stderr; the process object will also have a .Kill() method to immediately terminate the process;
-              and the process object will have a .Status() method which returns information about the process state.
-
+              stderr, a .Pid() method for obtaining the process id, and a .Start() method to launch the process.
             dependencies: []
             status: ready
             tests: []
           - id: E-2-1-5
             statement: |
-              As a user, I expect the AMI `os` package
+              As a user, I expect the AMI `os.Process` .Start() method will accept an optional boolean value to indicate
+              whether it blocks or runs the executed process asynchronously.
+            dependencies: []
+            status: ready
+            tests: []
+
+  - id: S-3
+    name: os package
+    features:
+      - id: F-2-1
+        name:
+        expectations:
+          - id: E-2-1-1
+            statement: |
+              As a user, I expect
             dependencies: []
             status: ready
             tests: []

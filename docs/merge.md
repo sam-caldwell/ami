@@ -43,3 +43,25 @@ pipeline P(){
 
 See also: `docs/edges.md` for the edges index schema and debug artifacts.
 
+## Merge Rules (At a Glance)
+
+- Sort and Key
+  - Primary `merge.Sort(field, [order])` must equal `merge.Key(field)` when both are set.
+  - Missing sort order is treated as `asc` for conflict checks.
+
+- Partitioning
+  - With `merge.PartitionBy(p)` (and no `merge.Key`), the primary `merge.Sort` field must be `p`.
+  - `merge.Dedup(field)` under `merge.PartitionBy` without `merge.Key` is discouraged; enable strict mode to treat as error.
+
+- Windowing and Watermarks
+  - `merge.Window(n)` without `merge.Watermark(ts, lateness)` may default to processing‑time semantics.
+  - Prefer making the watermark field the primary sort key.
+
+- Stability
+  - `merge.Stable` has no effect without `merge.Sort`.
+  - Sorting without `Key`/`PartitionBy` and without `Stable` may be unstable across batches.
+
+Strictness toggles
+- Set `AMI_STRICT_DEDUP_PARTITION=1` to elevate `merge.Dedup(field)` under `PartitionBy` without `Key` from warn to error.
+
+Diagnostics include structured `data` payloads for machine consumers. See docs/diag-codes.md.

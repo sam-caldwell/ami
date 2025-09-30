@@ -15,6 +15,7 @@ func newLintCmd() *cobra.Command {
     var rDup bool
     var rMemsafe bool
     var rRAII bool
+    var strictMDP bool
     var rules []string
     var maxWarn int
     var failFast bool
@@ -22,6 +23,9 @@ func newLintCmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "lint",
         Short: "Lint the workspace and sources (Stage A)",
+        Long: "Lint AMI workspaces and sources. Notes: merge.Sort order normalization treats a missing order as 'asc' when checking for conflicts;" +
+            " enable parser-backed rules with --stage-b to surface merge/multipath semantics (e.g., Sort↔Key/Partition alignment). Strict Dedup-under-Partition" +
+            " can be configured via ami.workspace (toolchain.linter.strict_merge_dedup_partition) or environment variable AMI_STRICT_DEDUP_PARTITION=1.",
         Example: "\n  # Lint with default rules (human output)\n  ami lint\n\n  # Treat warnings as errors\n  ami lint --strict\n\n  # Only show JSON diagnostics\n  ami lint --json\n\n  # Filter by rule name/pattern\n  ami lint --rules re:^IMPORT\n",
         RunE: func(cmd *cobra.Command, args []string) error {
             verbose, _ := cmd.Root().PersistentFlags().GetBool("verbose")
@@ -31,6 +35,8 @@ func newLintCmd() *cobra.Command {
             // Apply lint options
             setLintOptions(LintOptions{Rules: rules, MaxWarn: maxWarn, FailFast: failFast, CompatCodes: compatCodes})
             // Apply rule toggles (Stage B still a no-op until frontend integration)
+            // Determine if override flag was explicitly provided
+            hasStrictMDPOverride := cmd.Flags().Changed("strict-merge-dedup-partition")
             setRuleToggles(RuleToggles{
                 StageB:       stageB,
                 UnknownIdent: rUnknown,
@@ -39,6 +45,8 @@ func newLintCmd() *cobra.Command {
                 Duplicates:   rDup,
                 MemorySafety: rMemsafe,
                 RAIIHint:     rRAII,
+                StrictMDPOverride:   strictMDP,
+                HasStrictMDPOverride: hasStrictMDPOverride,
             })
             return runLint(cmd.OutOrStdout(), ".", jsonOut, verbose, strict)
         },
@@ -52,6 +60,7 @@ func newLintCmd() *cobra.Command {
     cmd.Flags().BoolVar(&rDup, "rule-duplicates", false, "enable duplicate/alias checks (Stage B)")
     cmd.Flags().BoolVar(&rMemsafe, "rule-memsafe", false, "enable memory-safety diagnostics (Stage B)")
     cmd.Flags().BoolVar(&rRAII, "rule-raii", false, "enable RAII hint diagnostics (Stage B)")
+    cmd.Flags().BoolVar(&strictMDP, "strict-merge-dedup-partition", false, "override merge.Dedup-under-Partition strictness (Stage B) [default: workspace/env]")
     cmd.Flags().StringSliceVar(&rules, "rules", nil, "filter diagnostics by code pattern (supports substring, glob, and re:<regex> or /regex/)")
     cmd.Flags().IntVar(&maxWarn, "max-warn", -1, "fail when warnings exceed this count (-1 = no limit)")
     cmd.Flags().BoolVar(&failFast, "failfast", false, "exit non-zero if any warning or error is found")

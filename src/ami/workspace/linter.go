@@ -14,4 +14,7 @@ type Linter struct {
     // Example:
     //   decorators_disabled: ["metrics", "deprecated"]
     DecoratorsDisabled []string `yaml:"decorators_disabled,omitempty"`
+    // StrictMergeDedupPartition elevates certain Dedup/PartitionBy warnings to errors in semantics-backed lint.
+    // Equivalent to setting environment variable AMI_STRICT_DEDUP_PARTITION=1.
+    StrictMergeDedupPartition bool `yaml:"strict_merge_dedup_partition,omitempty"`
 }

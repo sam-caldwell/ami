@@ -185,6 +185,21 @@ func payloadWithin(expected, actual cty.Type) bool {
         return false
     }
 
+    // Struct width subtyping: expected struct fields must be present and compatible in actual.
+    if es, ok := expected.(cty.Struct); ok {
+        if as, ok := actual.(cty.Struct); ok {
+            for k, et := range es.Fields {
+                at, ok := as.Fields[k]
+                if !ok { return false }
+                // Allow Optional wrappers on actual fields when expected is non-Optional, by unwrapping once here.
+                if ao, ok := at.(cty.Optional); ok { at = ao.Inner }
+                if !payloadWithin(et, at) { return false }
+            }
+            return true
+        }
+        return false
+    }
+
     // Container variance: same generic name with compatible type arguments.
     // Supported forms via Parse: slice<T>, set<T>, map<K,V>, Owned<T>, Error<E>, etc.
     if eg, ok := expected.(cty.Generic); ok {

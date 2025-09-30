@@ -81,6 +81,12 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                 } else {
                     sem.SetDisabledDecorators()
                 }
+                // Propagate strictness toggles: CLI override (if set) wins, else workspace config
+                if t.HasStrictMDPOverride {
+                    sem.SetStrictDedupUnderPartition(t.StrictMDPOverride)
+                } else {
+                    sem.SetStrictDedupUnderPartition(ws.Toolchain.Linter.StrictMergeDedupPartition)
+                }
                 semDiags := append(sem.AnalyzePipelineSemantics(af), sem.AnalyzeErrorSemantics(af)...)
                 semDiags = append(semDiags, sem.AnalyzeDecorators(af)...)
                 for _, sd := range semDiags {

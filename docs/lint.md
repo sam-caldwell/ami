@@ -24,6 +24,9 @@ Advanced (Stage B) options:
 `E_MUT_ASSIGN_UNMARKED`).
 - `--rule-raii` — hint to wrap `release(x)` calls (`W_RAII_OWNED_HINT`).
 - `--rule-unused` — report unused identifier‑style imports (`W_UNUSED_IMPORT`).
+ - `--strict-merge-dedup-partition` — override strictness for `merge.Dedup` under `merge.PartitionBy` without `merge.Key`.
+   - When set, elevates related warnings to errors (see `docs/merge-field-diagnostics.md`).
+   - Alternative configuration: `toolchain.linter.strict_merge_dedup_partition: true` in `ami.workspace`, or env `AMI_STRICT_DEDUP_PARTITION=1`.
 
 Stage B rules (parser‑backed)
 
@@ -132,3 +135,4 @@ Troubleshooting:
 - "workspace not found": run `ami init` in your project root to create `ami.workspace`.
 - No output: when there are no findings, human mode prints `lint: OK`; JSON mode prints only the final `SUMMARY` record.
 - Want fewer findings: adjust `toolchain.linter.rules` or add `#pragma lint:disable` pragmas as shown above.
+- Generate diagnostics reference: run `make gen-diag-codes` (uses `tools/gen-diag-codes` to update `docs/diag-codes.md`).

@@ -41,6 +41,10 @@ bench: ## Run CLI microbenchmarks (vars: BENCH, BENCHTIME)
 	@echo "Running CLI benchmarks: $(BENCH) (benchtime=$(BENCHTIME))"
 	go test -run ^$$ -bench $(BENCH) -benchtime=$(BENCHTIME) ./src/cmd/ami
 
+gen-diag-codes: ## Generate docs/diag-codes.md from code annotations
+	@echo "Generating docs/diag-codes.md ..."
+	go run ./tools/gen-diag-codes
+
 e2e-build: ## Build CLI for end-to-end tests
 	@echo "Building ami CLI for E2E..."
 	go build -o build/ami ./src/cmd/ami

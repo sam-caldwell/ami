@@ -9,5 +9,8 @@ type RuleToggles struct {
     Duplicates   bool
     MemorySafety bool
     RAIIHint     bool
+    // StrictMDPOverride overrides workspace strict_merge_dedup_partition when set.
+    // HasStrictMDPOverride indicates whether the CLI explicitly set the override.
+    StrictMDPOverride   bool
+    HasStrictMDPOverride bool
 }
-

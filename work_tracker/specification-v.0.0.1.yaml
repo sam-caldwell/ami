@@ -761,7 +761,7 @@ subcommands:
               successfully in a docker container in order to validate compiler/linker operation, and I expect that
               the binary will run with no external dependencies beyond the operating system.
             dependencies: [F-11-5]
-            status: ready
+            status: complete
             tests:
               - src/cmd/ami/build_link_exec_test.go
 

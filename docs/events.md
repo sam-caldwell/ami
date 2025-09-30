@@ -68,3 +68,29 @@ Notes
 tests will come with the runtime harness phase.
 
 Tooling tip: print the embedded events schema with `ami events schema --print` (hidden command).
+
+## Type Flow Compatibility (Overview)
+
+The analyzer checks that downstream step types are compatible with upstream types across edges.
+
+- Event payloads compare structurally (via `Event<...>` inner types):
+  - Optional covariance: `Optional<X>` accepts `X` or `Optional<Y>` when `Y` is compatible with `X`.
+  - Union membership: `Union<A,B,...>` accepts any member payload (recursively).
+  - Containers (slice, set, map, Owned, Error, etc.): arguments compare element‑wise using the same rules.
+- Mismatch emits `E_EVENT_TYPE_FLOW` with `data` including `{from,to,fromType,toType}`.
+
+Examples
+
+```
+// OK: upstream member fits downstream union
+A type("Event<string>"); B type("Event<Union<int,string>>"); A -> B;
+
+// OK: downstream Optional allows non‑Optional upstream
+A type("Event<int>"); B type("Event<Optional<int>>"); A -> B;
+
+// OK: container variance (element‑wise)
+A type("Event<slice<string>>"); B type("Event<slice<Optional<Union<int,string>>>>"); A -> B;
+
+// Error: mismatched element type
+A type("Event<slice<string>>"); B type("Event<slice<int>>"); A -> B;  // E_EVENT_TYPE_FLOW
+```

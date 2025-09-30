@@ -169,10 +169,31 @@ func compatibleEventTypes(expected, actual string) bool {
 // payloadWithin reports whether actual equals expected or, when expected is a Union, whether
 // actual is one of the union alternatives.
 func payloadWithin(expected, actual cty.Type) bool {
+    // Exact structural match
     if cty.Equal(expected, actual) { return true }
+
+    // Optional covariance: Optional<X> accepts X or Optional<Y> when Y ∈ X (recursively).
+    if eo, ok := expected.(cty.Optional); ok {
+        // If actual is Optional<Y>, compare Y to X; else compare actual to X directly.
+        if ao, ok := actual.(cty.Optional); ok { return payloadWithin(eo.Inner, ao.Inner) }
+        return payloadWithin(eo.Inner, actual)
+    }
+
+    // Union membership: expected is Union, actual must be a member.
     if eu, ok := expected.(cty.Union); ok {
-        for _, alt := range eu.Alts { if cty.Equal(alt, actual) { return true } }
+        for _, alt := range eu.Alts { if payloadWithin(alt, actual) { return true } }
         return false
     }
+
+    // Container variance: same generic name with compatible type arguments.
+    // Supported forms via Parse: slice<T>, set<T>, map<K,V>, Owned<T>, Error<E>, etc.
+    if eg, ok := expected.(cty.Generic); ok {
+        if ag, ok := actual.(cty.Generic); ok && eg.Name == ag.Name && len(eg.Args) == len(ag.Args) {
+            for i := range eg.Args { if !payloadWithin(eg.Args[i], ag.Args[i]) { return false } }
+            return true
+        }
+    }
+
+    // No match by structure.
     return false
 }

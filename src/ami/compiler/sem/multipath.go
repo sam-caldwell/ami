@@ -6,6 +6,7 @@ import (
     "unicode"
     "strconv"
     "regexp"
+    "os"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -43,7 +44,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             for _, at := range st.Attrs {
                 if at.Name == "edge.MultiPath" || at.Name == "MultiPath" {
                     if st.Name != "Collect" {
-                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MP_ONLY_COLLECT", Message: "edge.MultiPath only valid on Collect nodes", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MP_ONLY_COLLECT", Message: "edge.MultiPath only valid on Collect nodes", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"attr": at.Name, "step": st.Name}})
                     }
                 }
             }
@@ -54,14 +55,17 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             partitionField := ""
             hasSort := false
             hasStable := false
+            hasWindow := false
+            hasWatermark := false
             dedupNoField := false
             var sortFields []string
+            watermarkField := ""
             for _, at := range st.Attrs {
                 if strings.HasPrefix(at.Name, "merge.") {
                     if rng, ok := merges[at.Name]; ok {
                         argc := len(at.Args)
                         if at.Name == "merge.Sort" && argc == 0 {
-                            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"attr": at.Name}})
                             continue
                         }
                         if argc < rng.min || (rng.max >= 0 && argc > rng.max) {
@@ -123,7 +127,9 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                 if !validFieldName(fld) {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_FIELD_NAME_INVALID", Message: "merge.Watermark: invalid field name", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"field": fld}})
                                 }
+                                watermarkField = fld
                             }
+                            hasWatermark = true
                         case "merge.Window":
                             if argc >= 1 {
                                 if !validNonNegativeInt(at.Args[0].Text) {
@@ -132,6 +138,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WINDOW_ZERO_OR_NEGATIVE", Message: "merge.Window: size should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"size": strings.TrimSpace(at.Args[0].Text)}})
                                 }
                             }
+                            hasWindow = true
                         case "merge.Timeout":
                             if argc >= 1 {
                                 ms := strings.TrimSpace(at.Args[0].Text)
@@ -201,21 +208,45 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             // cross-attribute conflicts
             if keyField != "" && partitionField != "" && keyField != partitionField {
                 p := stepPos(st)
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.PartitionBy vs merge.Key conflict", Pos: &p})
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.PartitionBy vs merge.Key conflict", Pos: &p, Data: map[string]any{"key": keyField, "partition": partitionField}})
             }
-            // sort should include key when both specified (advisory)
+            // Require primary Sort field to match Key when both provided.
             if keyField != "" && hasSort {
-                contains := false
-                for _, sf := range sortFields { if sf == keyField { contains = true; break } }
-                if !contains {
+                // primary is the first merge.Sort encountered
+                primary := ""
+                if len(sortFields) > 0 { primary = sortFields[0] }
+                if primary != keyField {
                     p := stepPos(st)
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NOT_BY_KEY", Message: "merge.Sort does not include merge.Key field", Pos: &p, Data: map[string]any{"key": keyField, "sort": sortFields}})
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_SORT_PRIMARY_NEQ_KEY", Message: "merge.Sort primary must equal merge.Key", Pos: &p, Data: map[string]any{"key": keyField, "primary": primary, "sort": sortFields}})
+                }
+            }
+            // If PartitionBy is present without Key, require primary Sort to match PartitionBy.
+            if keyField == "" && partitionField != "" && hasSort {
+                primary := ""
+                if len(sortFields) > 0 { primary = sortFields[0] }
+                if primary != partitionField {
+                    p := stepPos(st)
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_SORT_PRIMARY_NEQ_PARTITION", Message: "merge.Sort primary must equal merge.PartitionBy when Key is not set", Pos: &p, Data: map[string]any{"partition": partitionField, "primary": primary, "sort": sortFields}})
                 }
             }
             // stable requested but no sort field specified
             if hasStable && !hasSort {
                 p := stepPos(st)
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_STABLE_WITHOUT_SORT", Message: "merge.Stable has no effect without merge.Sort", Pos: &p})
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_STABLE_WITHOUT_SORT", Message: "merge.Stable has no effect without merge.Sort", Pos: &p, Data: map[string]any{"stable": true}})
+            }
+            // window without watermark hint
+            if hasWindow && !hasWatermark {
+                p := stepPos(st)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WINDOW_WITHOUT_WATERMARK", Message: "merge.Window without Watermark may be based on processing time", Pos: &p, Data: map[string]any{"window": true}})
+            }
+            // watermark field not used as primary sort
+            if hasWatermark && hasSort {
+                primary := ""
+                if len(sortFields) > 0 { primary = sortFields[0] }
+                if primary != "" && watermarkField != "" && primary != watermarkField {
+                    p := stepPos(st)
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NOT_PRIMARY_SORT", Message: "merge.Watermark field is not the primary merge.Sort field", Pos: &p, Data: map[string]any{"watermark": watermarkField, "primary": primary, "sort": sortFields}})
+                }
             }
             // sort stability hints: sort without key/partition and without stable may be unstable across batches
             if hasSort && !hasStable && keyField == "" && partitionField == "" {
@@ -227,25 +258,39 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                 p := stepPos(st)
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Info, Code: "W_MERGE_STABLE_REDUNDANT", Message: "merge.Stable may be redundant when a unique Key is present", Pos: &p, Data: map[string]any{"key": keyField, "sort": sortFields}})
             }
-            // Dedup(field) conflicts with Key when both provided and different
+            // Dedup(field) conflicts with Key when both provided and different; also hint under PartitionBy without Key.
             for _, at := range st.Attrs {
                 if at.Name == "merge.Dedup" && len(at.Args) >= 1 {
                     df := strings.TrimSpace(at.Args[0].Text)
-                    if df != "" && keyField != "" && df != keyField {
-                        p := stepPos(st)
-                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.Dedup field differs from merge.Key", Pos: &p, Data: map[string]any{"dedup": df, "key": keyField}})
+                    if df != "" {
+                        if keyField != "" && df != keyField {
+                            p := stepPos(st)
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.Dedup field differs from merge.Key", Pos: &p, Data: map[string]any{"dedup": df, "key": keyField}})
+                        }
+                        if keyField == "" && partitionField != "" {
+                            p := stepPos(st)
+                            if StrictDedupUnderPartition {
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_DEDUP_FIELD_WITHOUT_KEY_UNDER_PARTITION", Message: "merge.Dedup(field) under PartitionBy without Key may mis-deduplicate across partitions", Pos: &p, Data: map[string]any{"dedup": df, "partitionBy": partitionField}})
+                            } else {
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_DEDUP_FIELD_WITHOUT_KEY_UNDER_PARTITION", Message: "merge.Dedup(field) under PartitionBy without Key may be ineffective", Pos: &p, Data: map[string]any{"dedup": df, "partitionBy": partitionField}})
+                            }
+                        }
                     }
                 }
             }
             // Dedup() without explicit field relies on merge.Key; warn if neither provided.
             if dedupNoField && keyField == "" {
                 p := stepPos(st)
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_DEDUP_WITHOUT_KEY", Message: "merge.Dedup without field requires merge.Key", Pos: &p})
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_DEDUP_WITHOUT_KEY", Message: "merge.Dedup without field requires merge.Key", Pos: &p, Data: map[string]any{"dedup": true}})
             }
             // Dedup() without key under partitioning may not deduplicate as expected across partitions
             if dedupNoField && partitionField != "" && keyField == "" {
                 p := stepPos(st)
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_DEDUP_WITHOUT_KEY_UNDER_PARTITION", Message: "merge.Dedup without key under PartitionBy may be ineffective", Pos: &p, Data: map[string]any{"partitionBy": partitionField}})
+                if StrictDedupUnderPartition {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_DEDUP_WITHOUT_KEY_UNDER_PARTITION", Message: "merge.Dedup without key under PartitionBy may be ineffective", Pos: &p, Data: map[string]any{"partitionBy": partitionField}})
+                } else {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_DEDUP_WITHOUT_KEY_UNDER_PARTITION", Message: "merge.Dedup without key under PartitionBy may be ineffective", Pos: &p, Data: map[string]any{"partitionBy": partitionField}})
+                }
             }
         }
     }
@@ -257,7 +302,7 @@ func canonicalAttrValue(name string, args []ast.Arg) string {
     if name == "merge.Sort" {
         // field[/order]
         f := ""
-        ord := ""
+        ord := "asc" // default asc when unspecified
         if len(args) > 0 { f = args[0].Text }
         if len(args) > 1 { ord = args[1].Text }
         return f + "/" + ord
@@ -343,4 +388,15 @@ func numericPrefix(s string) string {
     for i < len(s) && s[i] >= '0' && s[i] <= '9' { i++ }
     if i == 0 { return "" }
     return s[:i]
+}
+
+// StrictDedupUnderPartition controls whether certain Dedup vs PartitionBy misconfigurations
+// are treated as errors rather than warnings. It can be toggled via the environment variable
+// AMI_STRICT_DEDUP_PARTITION (values: "1", "true"). Tests in package sem may also set the
+// variable directly.
+var StrictDedupUnderPartition bool
+
+func init() {
+    v := strings.ToLower(strings.TrimSpace(os.Getenv("AMI_STRICT_DEDUP_PARTITION")))
+    if v == "1" || v == "true" { StrictDedupUnderPartition = true }
 }

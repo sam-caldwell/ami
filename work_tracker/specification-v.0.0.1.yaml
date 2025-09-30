@@ -604,7 +604,7 @@ subcommands:
               As a user, I expect compiler/tool/clang failures to stream as diag.v1 records with consistent exit‑code
               mapping.
             dependencies: [F-11-22]
-            status: ready
+            status: complete
             docx: ["1.6"]
 
       - id: F-11-29

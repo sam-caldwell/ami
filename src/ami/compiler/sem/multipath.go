@@ -101,20 +101,20 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                 // Classify: malformed → E_MERGE_ATTR_TYPE; non‑positive but well‑formed → warn.
                                 if isInteger(lat) {
                                     if !validNonNegativeInt(lat) {
-                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"lateness": lat}})
                                     } else if lat == "0" {
-                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"lateness": lat}})
                                     }
                                 } else if isDurationLike(lat) {
                                     // extract numeric prefix then validate non‑negative
                                     num := numericPrefix(lat)
                                     if num == "" {
-                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"lateness": lat}})
                                     } else if num == "0" {
-                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"lateness": lat}})
                                     }
                                 } else {
-                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"lateness": lat}})
                                 }
                             }
                             // validate field name when present
@@ -127,9 +127,9 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         case "merge.Window":
                             if argc >= 1 {
                                 if !validNonNegativeInt(at.Args[0].Text) {
-                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Window: size must be a non-negative integer", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Window: size must be a non-negative integer", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"size": strings.TrimSpace(at.Args[0].Text)}})
                                 } else if at.Args[0].Text == "0" || strings.HasPrefix(at.Args[0].Text, "-") {
-                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WINDOW_ZERO_OR_NEGATIVE", Message: "merge.Window: size should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WINDOW_ZERO_OR_NEGATIVE", Message: "merge.Window: size should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"size": strings.TrimSpace(at.Args[0].Text)}})
                                 }
                             }
                         case "merge.Timeout":
@@ -137,11 +137,11 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                 ms := strings.TrimSpace(at.Args[0].Text)
                                 // First, ensure it is an integer at all → type error if not.
                                 if !isInteger(ms) {
-                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Timeout: must be a positive integer (ms)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Timeout: must be a positive integer (ms)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"ms": ms}})
                                 } else {
                                     // Parsed as integer; classify non‑positive as ARGS error per spec/tests.
                                     if !validPositiveInt(ms) {
-                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Timeout: must be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Timeout: must be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"ms": ms}})
                                     }
                                 }
                             }
@@ -159,22 +159,22 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             if argc >= 1 {
                                 cap := strings.TrimSpace(at.Args[0].Text)
                                 if !validNonNegativeInt(cap) {
-                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Buffer: capacity must be a non-negative integer", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Buffer: capacity must be a non-negative integer", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"capacity": cap}})
                                 }
                                 if cap == "0" || cap == "1" {
                                     if argc >= 2 {
                                         pol := at.Args[1].Text
                                         if pol == "dropOldest" || pol == "dropNewest" {
-                                            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_TINY_BUFFER", Message: "merge.Buffer: tiny capacity with dropping policy", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                            out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_TINY_BUFFER", Message: "merge.Buffer: tiny capacity with dropping policy", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"capacity": cap, "policy": pol}})
                                         }
                                     }
                                 }
                                 if argc >= 2 {
                                     pol := at.Args[1].Text
                                     if pol == "drop" {
-                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_BUFFER_DROP_ALIAS", Message: "merge.Buffer: ambiguous 'drop' alias; use dropOldest/dropNewest/block", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_BUFFER_DROP_ALIAS", Message: "merge.Buffer: ambiguous 'drop' alias; use dropOldest/dropNewest/block", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"policy": pol}})
                                     } else if pol != "block" && pol != "dropOldest" && pol != "dropNewest" {
-                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Buffer: policy must be one of block|dropOldest|dropNewest", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Buffer: policy must be one of block|dropOldest|dropNewest", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"policy": pol}})
                                     }
                                 }
                             }
@@ -188,13 +188,13 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         val := canonicalAttrValue(at.Name, at.Args)
                         if prev, ok := seen[key]; ok {
                             if prev != val {
-                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: at.Name + ": conflicting values", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: at.Name + ": conflicting values", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"prev": prev, "value": val}})
                             }
                         } else {
                             seen[key] = val
                         }
                     } else {
-                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_UNKNOWN", Message: "unknown merge attribute: " + at.Name, Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_UNKNOWN", Message: "unknown merge attribute: " + at.Name, Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"name": at.Name}})
                     }
                 }
             }
@@ -224,7 +224,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                     df := strings.TrimSpace(at.Args[0].Text)
                     if df != "" && keyField != "" && df != keyField {
                         p := stepPos(st)
-                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.Dedup field differs from merge.Key", Pos: &p})
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.Dedup field differs from merge.Key", Pos: &p, Data: map[string]any{"dedup": df, "key": keyField}})
                     }
                 }
             }

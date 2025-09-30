@@ -98,3 +98,14 @@ func TestMergeField_DeepUnion_MissingField_Unknown(t *testing.T) {
     ds := AnalyzeMergeFieldTypes(af)
     if !hasCodeRec(ds, "E_MERGE_SORT_FIELD_UNKNOWN") { t.Fatalf("expected E_MERGE_SORT_FIELD_UNKNOWN, got %+v", ds) }
 }
+
+// Triple-nested deep path with Optional above Union leaf is orderable
+func TestMergeField_DeepNested_OptionalUnion_PrimitiveLeaf_Orderable(t *testing.T) {
+    // Event<Struct{a:Optional<Struct{b:Struct{c:Union<int,string>}}}>>, field a.b.c → orderable
+    code := "package app\n" +
+        "pipeline P(){ A type(\"Event<Struct{a:Optional<Struct{b:Struct{c:Union<int,string>}}>}>\"); Collect merge.Sort(\"a.b.c\"); A -> Collect; egress }\n"
+    f := (&source.FileSet{}).AddFile("deep_nested_opt_union.ami", code)
+    af, _ := parser.New(f).ParseFile()
+    ds := AnalyzeMergeFieldTypes(af)
+    if len(ds) != 0 { t.Fatalf("unexpected diagnostics: %+v", ds) }
+}

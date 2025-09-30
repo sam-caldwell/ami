@@ -261,7 +261,7 @@ subcommands:
               As a user, I expect deterministic cross-file/package name resolution with stable diagnostics for
               unknown/duplicate symbols per §2.1.*.
             dependencies: []
-            status: in progress
+            status: complete
             tests:
               - src/cmd/ami/lint_import_recursive_test.go
               - src/cmd/ami/lint_import_cycle_test.go

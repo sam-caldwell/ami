@@ -149,12 +149,30 @@ func compatibleEventTypes(expected, actual string) bool {
     eg, ok1 := et.(cty.Generic)
     ag, ok2 := at.(cty.Generic)
     if !ok1 || !ok2 || eg.Name != "Event" || ag.Name != "Event" || len(eg.Args) != 1 || len(ag.Args) != 1 { return false }
-    // If expected payload is a Union, accept when actual payload is contained in the union.
-    if eu, ok := eg.Args[0].(cty.Union); ok {
-        ap := ag.Args[0]
-        for _, alt := range eu.Alts { if cty.Equal(alt, ap) { return true } }
+    exp := eg.Args[0]
+    act := ag.Args[0]
+    // Direct structural equality
+    if cty.Equal(exp, act) { return true }
+    // If expected is Optional<X>, allow actual X or Optional<X> (including union membership beneath Optional).
+    if eo, ok := exp.(cty.Optional); ok {
+        inner := eo.Inner
+        // If actual is Optional<Y>, compare Y against inner; else compare actual directly against inner.
+        if ao, ok := act.(cty.Optional); ok {
+            return payloadWithin(inner, ao.Inner)
+        }
+        return payloadWithin(inner, act)
+    }
+    // Otherwise check if expected is a Union and actual is a member.
+    return payloadWithin(exp, act)
+}
+
+// payloadWithin reports whether actual equals expected or, when expected is a Union, whether
+// actual is one of the union alternatives.
+func payloadWithin(expected, actual cty.Type) bool {
+    if cty.Equal(expected, actual) { return true }
+    if eu, ok := expected.(cty.Union); ok {
+        for _, alt := range eu.Alts { if cty.Equal(alt, actual) { return true } }
         return false
     }
-    // Otherwise fallback to structural equality of payloads
-    return cty.Equal(eg.Args[0], ag.Args[0])
+    return false
 }

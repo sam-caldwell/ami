@@ -26,6 +26,8 @@ func newPipelineVisualizeCmd() *cobra.Command {
     var jsonOut bool
     var pkgKey string
     var fileOnly string
+    var showIDs bool
+    var edgeIDs bool
     cmd := &cobra.Command{
         Use:   "visualize",
         Short: "Render ASCII pipeline graphs",
@@ -137,9 +139,11 @@ func newPipelineVisualizeCmd() *cobra.Command {
             width, _ := cmd.Flags().GetInt("width")
             legend, _ := cmd.Flags().GetBool("legend")
             color, _ := cmd.Root().Flags().GetBool("color")
+            showIDs, _ = cmd.Flags().GetBool("show-ids")
+            edgeIDs, _ = cmd.Flags().GetBool("edge-ids")
             for i, g := range graphs {
                 header := fmt.Sprintf("package: %s  pipeline: %s\n", g.Package, g.Name)
-                line := ascii.RenderBlock(g, ascii.Options{Width: width, Focus: focus, Legend: legend, Color: color})
+                line := ascii.RenderBlock(g, ascii.Options{Width: width, Focus: focus, Legend: legend, Color: color, ShowIDs: showIDs, EdgeIDs: edgeIDs})
                 if i > 0 { _, _ = cmd.OutOrStdout().Write([]byte("\n")) }
                 _, _ = cmd.OutOrStdout().Write([]byte(header))
                 _, _ = cmd.OutOrStdout().Write([]byte(line))
@@ -155,6 +159,8 @@ func newPipelineVisualizeCmd() *cobra.Command {
     cmd.Flags().Bool("no-summary", false, "omit JSON summary record")
     cmd.Flags().StringSlice("json-exclude", nil, "comma-separated fields to exclude in JSON (e.g., attrs)")
     cmd.Flags().Bool("legend", false, "show a simple legend in ASCII output")
+    cmd.Flags().BoolVar(&showIDs, "show-ids", false, "prefix node labels with instance ids (e.g., 00:kind)")
+    cmd.Flags().BoolVar(&edgeIDs, "edge-ids", false, "label edges by fromId->toId in ASCII output")
     return cmd
 }
 

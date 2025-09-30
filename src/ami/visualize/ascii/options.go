@@ -11,4 +11,8 @@ type Options struct {
     Legend bool
     // Color enables ANSI color for focus highlighting (human mode only).
     Color bool
+    // ShowIDs prefixes node labels with their instance IDs (e.g., 00:ingress).
+    ShowIDs bool
+    // EdgeIDs labels arrows with fromId->toId (e.g., [00->01]).
+    EdgeIDs bool
 }

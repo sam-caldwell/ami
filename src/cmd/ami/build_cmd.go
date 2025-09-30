@@ -11,6 +11,8 @@ var buildNoLink bool
 var buildNoLinkEnvs []string
 var buildDebugStrict bool
 var buildBackend string
+var buildNoErrorPipe bool
+var buildErrorPipeHuman bool
 
 // newBuildCmd returns the `ami build` subcommand.
 func newBuildCmd() *cobra.Command {
@@ -33,5 +35,7 @@ func newBuildCmd() *cobra.Command {
     cmd.Flags().StringSliceVar(&buildNoLinkEnvs, "no-link-env", nil, "skip linking for specific target envs (os/arch, comma-separated)")
     cmd.Flags().BoolVar(&buildDebugStrict, "debug-strict", false, "in verbose mode, surface object compile failures as diagnostics")
     cmd.Flags().StringVar(&buildBackend, "backend", "", "codegen backend to use (overrides workspace); e.g., 'llvm'")
+    cmd.Flags().BoolVar(&buildNoErrorPipe, "no-errorpipe", false, "suppress default ErrorPipeline emission on compiler errors")
+    cmd.Flags().BoolVar(&buildErrorPipeHuman, "errorpipe-human", false, "also echo concise human error lines to stderr when compiler errors occur")
     return cmd
 }

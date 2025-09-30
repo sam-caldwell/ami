@@ -105,6 +105,10 @@ func RenderBlock(g graph.Graph, opt Options) string {
         n := ids[id]
         lbl := strings.TrimSpace(n.Label)
         if lbl == "" { lbl = n.Kind }
+        if opt.ShowIDs {
+            // include the instance ID as prefix: e.g., 00:ingress
+            lbl = id + ":" + lbl
+        }
         // focus highlighting
         if opt.Focus != "" && containsFold(lbl, opt.Focus) {
             if opt.Color {
@@ -131,9 +135,9 @@ func RenderBlock(g graph.Graph, opt Options) string {
             from := chain[i-1]
             to := id
             if e, ok := findEdge(g, from, to); ok {
-                if tag := edgeTag(e); tag != "" {
-                    arrow = " --[" + tag + "]--> "
-                }
+                tags := edgeTag(e)
+                if opt.EdgeIDs { if tags != "" { tags += ";" }; tags += from + "->" + to }
+                if tags != "" { arrow = " --[" + tags + "]--> " }
             }
             parts = append(parts, arrow)
             col += len(arrow)

@@ -20,6 +20,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
     "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
+    "github.com/sam-caldwell/ami/src/ami/runtime/errorpipe"
     "crypto/sha256"
     "encoding/hex"
 )
@@ -466,9 +467,50 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             _ = os.Chdir(oldwd)
             if len(diags) > 0 {
                 enc := json.NewEncoder(out)
-                for i := range diags { _ = enc.Encode(diags[i]) }
+                for i := range diags {
+                    _ = enc.Encode(diags[i])
+                    // Default ErrorPipeline: write errors.v1 records for error-level diagnostics unless suppressed
+                    if !buildNoErrorPipe && strings.EqualFold(string(diags[i].Level), "error") {
+                        _ = errorpipe.Default(diags[i].Code, diags[i].Message, diags[i].File, map[string]any{"package": diags[i].Package})
+                        if buildErrorPipeHuman {
+                            _, _ = fmt.Fprintf(os.Stderr, "error: code=%s file=%s\n", diags[i].Code, diags[i].File)
+                        }
+                    }
+                }
                 return exit.New(exit.User, "compiler reported diagnostics")
             }
+        }
+    } else {
+        // Human mode: still surface compiler errors via ErrorPipeline and concise human stderr when requested.
+        var pkgs []driver.Package
+        for _, entry := range ws.Packages {
+            p := entry.Package
+            if p.Root == "" { continue }
+            root := filepath.Clean(filepath.Join(dir, p.Root))
+            var files []string
+            _ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+                if err != nil || d.IsDir() { return nil }
+                if filepath.Ext(path) == ".ami" { files = append(files, path) }
+                return nil
+            })
+            if len(files) == 0 { continue }
+            var fs source.FileSet
+            for _, f := range files { b, err := os.ReadFile(f); if err == nil { fs.AddFile(f, string(b)) } }
+            pkgs = append(pkgs, driver.Package{Name: p.Name, Files: &fs})
+        }
+        if len(pkgs) > 0 {
+            oldwd, _ := os.Getwd(); _ = os.Chdir(dir)
+            _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: false, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink})
+            _ = os.Chdir(oldwd)
+            hasErr := false
+            for i := range diags {
+                if strings.EqualFold(string(diags[i].Level), "error") {
+                    hasErr = true
+                    if !buildNoErrorPipe { _ = errorpipe.Default(diags[i].Code, diags[i].Message, diags[i].File, map[string]any{"package": diags[i].Package}) }
+                    if buildErrorPipeHuman { _, _ = fmt.Fprintf(os.Stderr, "error: code=%s file=%s\n", diags[i].Code, diags[i].File) }
+                }
+            }
+            if hasErr { return exit.New(exit.User, "compiler reported diagnostics") }
         }
     }
 

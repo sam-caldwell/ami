@@ -471,7 +471,7 @@ subcommands:
               As a language user, I expect complete function semantics for parameters and multiple results with return
               checks and deterministic diagnostics.
             dependencies: [F-9-3]
-            status: ready
+            status: complete
 
       - id: F-11-16
         name: Imperative Control Flow

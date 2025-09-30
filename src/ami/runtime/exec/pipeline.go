@@ -102,7 +102,9 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
             // Optional Timer source when specified by opts or edges contain a Timer node
             hasTimer := false
             for _, n := range nodes { if n == "Timer" { hasTimer = true; break } }
-            if hasTimer && (opts.SourceType == "auto" || opts.SourceType == "timer") {
+            // Use timer when explicitly requested, or when present in edges and source=auto
+            if opts.SourceType == "timer" || (hasTimer && opts.SourceType == "auto") {
+                if err := sandboxCheck(opts.Sandbox, "device"); err != nil { return nil, nil, err }
                 ch := make(chan ev.Event, 1024)
                 var st rmerge.Stats
                 go func(){
@@ -149,7 +151,25 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
         }
     }
     // Fallback: IR collect order with transform stubs as identity
-    var cur <-chan ev.Event = runIngress(out)
+    var cur <-chan ev.Event
+    if opts.SourceType == "timer" {
+        if err := sandboxCheck(opts.Sandbox, "device"); err != nil { return nil, nil, err }
+        ch := make(chan ev.Event, 1024)
+        var st rmerge.Stats
+        go func(){
+            tick := time.NewTicker(opts.TimerInterval)
+            defer tick.Stop()
+            i := 0
+            for {
+                if opts.TimerCount > 0 && i >= opts.TimerCount { break }
+                select { case <-ctx.Done(): break; case <-tick.C: st.Enqueued++; ch <- ev.Event{Payload: map[string]any{"i": i, "ts": time.Now().UTC()}}; st.Emitted++; i++ }
+            }
+            close(ch); forwardStats(StageInfo{Name:"Timer", Kind:"ingress", Index:0}, st)
+        }()
+        cur = ch
+    } else {
+        cur = runIngress(out)
+    }
     cIdx := 0
     for _, p := range m.Pipelines {
         if p.Name != pipeline { continue }

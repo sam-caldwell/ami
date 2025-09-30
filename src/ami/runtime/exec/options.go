@@ -7,5 +7,5 @@ type ExecOptions struct {
     SourceType    string        // auto|file|timer
     TimerInterval time.Duration // used when SourceType=timer or auto+Timer node
     TimerCount    int           // number of timer events (0=unlimited)
+    Sandbox       SandboxPolicy // source/ingress sandbox capability policy
 }
-

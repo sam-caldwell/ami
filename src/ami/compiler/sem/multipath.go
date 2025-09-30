@@ -65,7 +65,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             continue
                         }
                         if argc < rng.min || (rng.max >= 0 && argc > rng.max) {
-                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: at.Name + ": invalid number of arguments", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: at.Name + ": invalid number of arguments", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"argc": argc, "expected_min": rng.min, "expected_max": rng.max}})
                             continue
                         }
                         // additional validations
@@ -73,7 +73,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         case "merge.Sort":
                             hasSort = true
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
-                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Sort: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Sort: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"attr": at.Name}})
                             }
                             // basic field name validation: [A-Za-z_][A-Za-z0-9_\.]*
                             if argc >= 1 {
@@ -86,14 +86,14 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             if argc >= 2 {
                                 ord := at.Args[1].Text
                                 if ord != "asc" && ord != "desc" {
-                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_SORT_ORDER_INVALID", Message: "merge.Sort: order must be 'asc' or 'desc'", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_SORT_ORDER_INVALID", Message: "merge.Sort: order must be 'asc' or 'desc'", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"order": ord}})
                                 }
                             }
                         case "merge.Stable":
                             hasStable = true
                         case "merge.Watermark":
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
-                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Watermark: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: "merge.Watermark: field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"attr": at.Name}})
                             }
                             if argc >= 2 {
                                 lat := strings.TrimSpace(at.Args[1].Text)
@@ -147,7 +147,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             }
                         case "merge.Key", "merge.PartitionBy":
                             if argc >= 1 && strings.TrimSpace(at.Args[0].Text) == "" {
-                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: at.Name + ": field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_REQUIRED", Message: at.Name + ": field is required", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"attr": at.Name}})
                             }
                             if argc >= 1 {
                                 fld := at.Args[0].Text
@@ -202,6 +202,15 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             if keyField != "" && partitionField != "" && keyField != partitionField {
                 p := stepPos(st)
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_CONFLICT", Message: "merge.PartitionBy vs merge.Key conflict", Pos: &p})
+            }
+            // sort should include key when both specified (advisory)
+            if keyField != "" && hasSort {
+                contains := false
+                for _, sf := range sortFields { if sf == keyField { contains = true; break } }
+                if !contains {
+                    p := stepPos(st)
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NOT_BY_KEY", Message: "merge.Sort does not include merge.Key field", Pos: &p, Data: map[string]any{"key": keyField, "sort": sortFields}})
+                }
             }
             // stable requested but no sort field specified
             if hasStable && !hasSort {

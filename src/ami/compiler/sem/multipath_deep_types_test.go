@@ -77,6 +77,24 @@ func TestMergeField_PrimitivePayload_FieldReference_Error(t *testing.T) {
 }
 
 // Optional/Union behavior is not yet implemented in the type system; keep a TODO placeholder.
-func TestMergeField_Optional_Union_TODO(t *testing.T) {
-    t.Skip("Optional/Union types not yet supported by types.Parse; enable when implemented")
+// Deep Optional+Union: orderable when union alts are primitives under Optional
+func TestMergeField_DeepOptionalUnion_Orderable(t *testing.T) {
+    // Event<Struct{a:Optional<Struct{b:Union<int,string>}>}>, field a.b → Optional<Union<int,string>> orderable
+    code := "package app\n" +
+        "pipeline P(){ A type(\"Event<Struct{a:Optional<Struct{b:Union<int,string>}>}>\"); Collect merge.Sort(\"a.b\"); A -> Collect; egress }\n"
+    f := (&source.FileSet{}).AddFile("deep_opt_union.ami", code)
+    af, _ := parser.New(f).ParseFile()
+    ds := AnalyzeMergeFieldTypes(af)
+    if len(ds) != 0 { t.Fatalf("unexpected diagnostics: %+v", ds) }
+}
+
+// Deep Union of Structs with differing fields: unknown when not all alts resolve
+func TestMergeField_DeepUnion_MissingField_Unknown(t *testing.T) {
+    // Event<Struct{a:Union<Struct{b:int},Struct{c:int}>}>, field a.b → unknown
+    code := "package app\n" +
+        "pipeline P(){ A type(\"Event<Struct{a:Union<Struct{b:int},Struct{c:int}>}>\"); Collect merge.Sort(\"a.b\"); A -> Collect; egress }\n"
+    f := (&source.FileSet{}).AddFile("deep_union_unknown.ami", code)
+    af, _ := parser.New(f).ParseFile()
+    ds := AnalyzeMergeFieldTypes(af)
+    if !hasCodeRec(ds, "E_MERGE_SORT_FIELD_UNKNOWN") { t.Fatalf("expected E_MERGE_SORT_FIELD_UNKNOWN, got %+v", ds) }
 }

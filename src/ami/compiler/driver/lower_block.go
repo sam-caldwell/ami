@@ -25,7 +25,8 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
         _, ok := ins[len(ins)-1].(ir.Return)
         return ok
     }
-    for _, s := range b.Stmts {
+    for i := 0; i < len(b.Stmts); i++ {
+        s := b.Stmts[i]
         switch v := s.(type) {
         case *ast.IfStmt:
             // Lower condition
@@ -56,17 +57,23 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                 if !endsWithReturn(eInstr) { eInstr = append(eInstr, ir.Goto{Label: joinName}) }
                 extras = append(extras, ir.Block{Name: elseName, Instr: eInstr})
                 extras = append(extras, eExtra...)
-                // Add empty join block; further statements in this lexical block continue after join
-                extras = append(extras, ir.Block{Name: joinName, Instr: nil})
-                // Switch current accumulation to join: we encode a marker by appending a Goto to move control;
-                // in IR, we simply continue emitting into 'out' for entry, as subsequent statements
-                // logically belong to the join block. To achieve this, we move 'out' accumulation to a new list,
-                // but since func returns separate blocks, leave 'out' as-is and subsequent statements will emit
-                // into the entry; to ensure they appear after join, we instead append them into the last join block.
-                // For simplicity, we stop further processing here; remaining statements (if any) are not handled.
-                // Future enhancement: carry a current block reference.
+                // Lower remaining statements in this block into the join block
+                var rest *ast.BlockStmt
+                if i+1 < len(b.Stmts) {
+                    rest = &ast.BlockStmt{Stmts: b.Stmts[i+1:]}
+                }
+                joinInstr := []ir.Instruction{}
+                var joinExtra []ir.Block
+                if rest != nil {
+                    joinInstr, joinExtra = lowerBlockCFG(st, rest, nextID)
+                    nextID += len(joinExtra) + 1
+                }
+                extras = append(extras, ir.Block{Name: joinName, Instr: joinInstr})
+                extras = append(extras, joinExtra...)
+                // Entire remainder handled via join; terminate processing of this lexical block
+                return out, extras
             }
-        
+
         case *ast.VarDecl:
             // Owned ABI: unconditional copy-on-new for Owned variables with initializers.
             if v.Type != "" && (v.Type == "Owned" || (len(v.Type) >= 6 && v.Type[:6] == "Owned<")) && v.Init != nil {

@@ -209,9 +209,12 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
 
             // Pipeline buffer/backpressure smells, capability (I/O) checks, and reachability
             if t.StageB {
-                // Gather declared capabilities and trust level from pragmas (parser + raw scan fallback)
+                // Gather declared capabilities, trust level, and concurrency hints from pragmas
                 declCaps := map[string]bool{}
                 trustLevel := ""
+                workers := 0
+                schedule := ""
+                limits := map[string]int{}
                 for _, pr := range af.Pragmas {
                     switch strings.ToLower(pr.Domain) {
                     case "capabilities":
@@ -227,6 +230,20 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     case "trust":
                         if pr.Params != nil {
                             if lv, ok := pr.Params["level"]; ok { trustLevel = strings.ToLower(lv) }
+                        }
+                    case "concurrency":
+                        switch strings.ToLower(pr.Key) {
+                        case "workers":
+                            // value or params[count]
+                            if pr.Value != "" { workers = atoiSafe(pr.Value) } else if pr.Params != nil { if v, ok := pr.Params["count"]; ok { workers = atoiSafe(v) } }
+                        case "schedule":
+                            schedule = strings.ToLower(pr.Value)
+                        case "limits":
+                            // collect numeric args/params
+                            for k, v := range pr.Params { if n := atoiSafe(v); n > 0 { limits[strings.ToLower(k)] = n } }
+                            for _, a := range pr.Args {
+                                if eq := strings.IndexByte(a, '='); eq > 0 { k := strings.ToLower(strings.TrimSpace(a[:eq])); v := strings.TrimSpace(a[eq+1:]); if n := atoiSafe(v); n > 0 { limits[k] = n } }
+                            }
                         }
                     }
                 }
@@ -381,6 +398,28 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                                 }
                             }
                         }
+                        // Additional sensitive ops and trust boundary hints
+                        if strings.HasPrefix(lname, "fs.") || strings.HasPrefix(lname, "proc.") || strings.HasPrefix(lname, "exec.") || strings.HasPrefix(lname, "shell.") || strings.HasPrefix(lname, "env.") || strings.HasPrefix(lname, "sys.") {
+                            cap := ""
+                            switch {
+                            case strings.HasPrefix(lname, "fs."):
+                                cap = "fs"
+                            case strings.HasPrefix(lname, "proc.") || strings.HasPrefix(lname, "exec.") || strings.HasPrefix(lname, "shell."):
+                                cap = "proc"
+                            case strings.HasPrefix(lname, "env."):
+                                cap = "env"
+                            case strings.HasPrefix(lname, "sys."):
+                                cap = "sys"
+                            }
+                            if cap != "" && !declCaps[cap] {
+                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_CAPABILITY_UNDECLARED_CAP", Message: "sensitive operation present; declare capability '" + cap + "' via #pragma capabilities", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"cap": cap}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
+                            if trustLevel == "untrusted" {
+                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_VIOLATION", Message: "sensitive operation not allowed under trust level 'untrusted'", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"node": st.Name, "required": cap}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            }
+                        }
                     }
                     // Reachability and connectivity over explicit edge statements
                     nodes := map[string]bool{}
@@ -464,6 +503,34 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                         if trustLevel == "untrusted" {
                             p := diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}
                             d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_TRUST_UNTRUSTED_IO", Message: "io.* under untrusted trust level; consider revising trust or removing I/O", File: path, Pos: &p}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                    }
+                    // Concurrency hints: limits unspecified/unused, schedule/policy smells
+                    if len(nodes) > 0 {
+                        if len(limits) == 0 {
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_CONCURRENCY_LIMITS_UNSPECIFIED", Message: "concurrency limits unspecified; consider #pragma concurrency:limits", File: path, Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        } else {
+                            // count node kinds
+                            kindCount := map[string]int{"ingress":0,"transform":0,"fanout":0,"collect":0,"mutable":0,"egress":0}
+                            for name := range nodes {
+                                ln := strings.ToLower(name)
+                                if _, ok := kindCount[ln]; ok { kindCount[ln]++ }
+                            }
+                            for k := range limits {
+                                if kindCount[k] == 0 {
+                                    d := diag.Record{Timestamp: now, Level: diag.Info, Code: "W_CONCURRENCY_LIMIT_UNUSED", Message: "concurrency limit set for unused kind: " + k, File: path, Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}, Data: map[string]any{"kind": k}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                }
+                            }
+                        }
+                        if workers == 1 && (schedule == "worksteal" || schedule == "fair") {
+                            d := diag.Record{Timestamp: now, Level: diag.Info, Code: "W_CONCURRENCY_SCHEDULE_IGNORED", Message: "concurrency schedule likely ineffective with workers=1", File: path, Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}, Data: map[string]any{"schedule": schedule, "workers": workers}}
+                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        }
+                        if workers > 1 && schedule == "" {
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_CONCURRENCY_SCHEDULE_UNSPECIFIED", Message: "concurrency schedule unspecified; set via #pragma concurrency:schedule", File: path, Pos: &diag.Position{Line: pd.NamePos.Line, Column: pd.NamePos.Column, Offset: pd.NamePos.Offset}}
                             if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                         }
                     }

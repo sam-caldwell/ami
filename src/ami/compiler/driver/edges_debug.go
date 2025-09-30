@@ -14,12 +14,16 @@ type edgeEntry struct {
     Pipeline string `json:"pipeline"`
     From     string `json:"from"`
     To       string `json:"to"`
-    FromID   int    `json:"fromId,omitempty"`
-    ToID     int    `json:"toId,omitempty"`
+    FromID   int    `json:"fromId"`
+    ToID     int    `json:"toId"`
     Bounded  bool   `json:"bounded"`
     Delivery string `json:"delivery"`
     Type     string `json:"type,omitempty"`
     Tiny     bool   `json:"tinyBuffer,omitempty"`
+    // Derived connectivity hints
+    FromReachable bool `json:"fromReachableFromIngress,omitempty"`
+    ToReachable   bool `json:"toCanReachEgress,omitempty"`
+    OnPath        bool `json:"onIngressToEgressPath,omitempty"`
 }
 
 type edgesIndex struct {
@@ -69,6 +73,43 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                 stepAttrs[st.Name] = st.Attrs
             }
         }
+        // Build connectivity (name-level) for hints
+        nodes := map[string]bool{}
+        adj := map[string][]string{}
+        radj := map[string][]string{}
+        for _, s := range pd.Stmts {
+            switch n := s.(type) {
+            case *ast.StepStmt:
+                nodes[n.Name] = true
+            case *ast.EdgeStmt:
+                nodes[n.From] = true; nodes[n.To] = true
+                adj[n.From] = append(adj[n.From], n.To)
+                radj[n.To] = append(radj[n.To], n.From)
+            }
+        }
+        // Reachability from ingress
+        reach := map[string]bool{}
+        var stReach []string
+        stReach = append(stReach, "ingress")
+        for len(stReach) > 0 {
+            n := stReach[len(stReach)-1]
+            stReach = stReach[:len(stReach)-1]
+            if reach[n] { continue }
+            reach[n] = true
+            for _, m := range adj[n] { if !reach[m] { stReach = append(stReach, m) } }
+        }
+        // Reachability to egress
+        reachTo := map[string]bool{}
+        var stTo []string
+        stTo = append(stTo, "egress")
+        for len(stTo) > 0 {
+            n := stTo[len(stTo)-1]
+            stTo = stTo[:len(stTo)-1]
+            if reachTo[n] { continue }
+            reachTo[n] = true
+            for _, m := range radj[n] { if !reachTo[m] { stTo = append(stTo, m) } }
+        }
+
         for i, s := range pd.Stmts {
             if e, ok := s.(*ast.EdgeStmt); ok {
                 // derive bounded/delivery from target step attributes (scaffold defaults)
@@ -112,7 +153,10 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                     bestIdx := 1<<30
                     for _, o := range arr { if o.idx >= i && o.idx <= bestIdx { bestIdx = o.idx; toID = o.id } }
                 }
-                out = append(out, edgeEntry{Unit: unit, Pipeline: pd.Name, From: e.From, To: e.To, FromID: fromID, ToID: toID, Bounded: bounded, Delivery: delivery, Type: etype, Tiny: tiny})
+                fr := reach[e.From]
+                tr := reachTo[e.To]
+                on := fr && tr
+                out = append(out, edgeEntry{Unit: unit, Pipeline: pd.Name, From: e.From, To: e.To, FromID: fromID, ToID: toID, Bounded: bounded, Delivery: delivery, Type: etype, Tiny: tiny, FromReachable: fr, ToReachable: tr, OnPath: on})
             }
         }
     }

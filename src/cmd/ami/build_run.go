@@ -14,6 +14,8 @@ import (
     "github.com/sam-caldwell/ami/src/ami/exit"
     "github.com/sam-caldwell/ami/src/ami/compiler/driver"
     "github.com/sam-caldwell/ami/src/ami/compiler/codegen"
+    "github.com/sam-caldwell/ami/src/ami/compiler/parser"
+    "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -522,10 +524,18 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 envWithObjects[env] = true
                 triple := be.TripleForEnv(env)
                 rtDir := filepath.Join(dir, "build", "runtime")
-                if llPath, werr := be.WriteRuntimeLL(rtDir, triple, true); werr == nil {
+                // Emit runtime without main and, if no user main, a separate entry module that spawns pipeline ingress
+                if llPath, werr := be.WriteRuntimeLL(rtDir, triple, false); werr == nil {
                     rtObj := filepath.Join(rtDir, "runtime.o")
                     if cerr := be.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
                         objs = append(objs, rtObj)
+                        if !hasUserMain(ws, dir) {
+                            ingress := collectIngressIDs(ws, dir)
+                            if entLL, eerr := be.WriteIngressEntrypointLL(rtDir, triple, ingress); eerr == nil {
+                                entObj := filepath.Join(rtDir, "entry.o")
+                                if ecomp := be.CompileLLToObject(clang, entLL, entObj, triple); ecomp == nil { objs = append(objs, entObj) }
+                            }
+                        }
                         outDir := filepath.Join(dir, "build", env)
                         _ = os.MkdirAll(outDir, 0o755)
                         outBin := filepath.Join(outDir, binName)
@@ -559,10 +569,17 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
                 triple := be.TripleForEnv("")
                     if len(envs) > 0 { triple = be.TripleForEnv(envs[0]) }
                     rtDir := filepath.Join(dir, "build", "runtime")
-                    if llPath, werr := be.WriteRuntimeLL(rtDir, triple, true); werr == nil {
+                    if llPath, werr := be.WriteRuntimeLL(rtDir, triple, false); werr == nil {
                         rtObj := filepath.Join(rtDir, "runtime.o")
                         if cerr := be.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
                             objects = append(objects, rtObj)
+                            if !hasUserMain(ws, dir) {
+                                ingress := collectIngressIDs(ws, dir)
+                                if entLL, eerr := be.WriteIngressEntrypointLL(rtDir, triple, ingress); eerr == nil {
+                                    entObj := filepath.Join(rtDir, "entry.o")
+                                    if ecomp := be.CompileLLToObject(clang, entLL, entObj, triple); ecomp == nil { objects = append(objects, entObj) }
+                                }
+                            }
                             outDir := filepath.Join(dir, "build")
                             if len(envs) > 0 && envs[0] != "" { outDir = filepath.Join(outDir, envs[0]) }
                             _ = os.MkdirAll(outDir, 0o755)
@@ -851,4 +868,65 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         fmt.Fprintf(out, "workspace valid: target=%s envs=%d\n", absTarget, len(envs))
         return nil
     }
+}
+
+// collectIngressIDs scans the workspace packages and returns a stable list of ingress identifiers,
+// formatted as "<pkg>.<pipeline>". It parses .ami files under each package root.
+func collectIngressIDs(ws workspace.Workspace, root string) []string {
+    var result []string
+    for _, entry := range ws.Packages {
+        pkg := entry.Package
+        if pkg.Root == "" || pkg.Name == "" { continue }
+        pdir := filepath.Clean(filepath.Join(root, pkg.Root))
+        var files []string
+        _ = filepath.WalkDir(pdir, func(path string, d os.DirEntry, err error) error {
+            if err != nil || d.IsDir() { return nil }
+            if filepath.Ext(path) == ".ami" { files = append(files, path) }
+            return nil
+        })
+        for _, f := range files {
+            b, err := os.ReadFile(f)
+            if err != nil { continue }
+            sf := &source.File{Name: f, Content: string(b)}
+            af, _ := parser.New(sf).ParseFile()
+            if af == nil || af.PackageName == "" { continue }
+            for _, d := range af.Decls {
+                if pd, ok := d.(*ast.PipelineDecl); ok {
+                    if pd.Name != "" {
+                        result = append(result, af.PackageName+"."+pd.Name)
+                    }
+                }
+            }
+        }
+    }
+    sort.Strings(result)
+    return result
+}
+
+// hasUserMain returns true if a package 'main' defines a function named 'main'.
+func hasUserMain(ws workspace.Workspace, root string) bool {
+    for _, entry := range ws.Packages {
+        pkg := entry.Package
+        if pkg.Root == "" || pkg.Name != "main" { continue }
+        pdir := filepath.Clean(filepath.Join(root, pkg.Root))
+        var files []string
+        _ = filepath.WalkDir(pdir, func(path string, d os.DirEntry, err error) error {
+            if err != nil || d.IsDir() { return nil }
+            if filepath.Ext(path) == ".ami" { files = append(files, path) }
+            return nil
+        })
+        for _, f := range files {
+            b, err := os.ReadFile(f)
+            if err != nil { continue }
+            sf := &source.File{Name: f, Content: string(b)}
+            af, _ := parser.New(sf).ParseFile()
+            if af == nil { continue }
+            for _, d := range af.Decls {
+                if fn, ok := d.(*ast.FuncDecl); ok {
+                    if fn.Name == "main" { return true }
+                }
+            }
+        }
+    }
+    return false
 }

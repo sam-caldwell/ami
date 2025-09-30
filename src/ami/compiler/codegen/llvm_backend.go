@@ -28,9 +28,12 @@ func (*llvmBackend) WriteRuntimeLL(dir, triple string, withMain bool) (string, e
     return llvme.WriteRuntimeLL(dir, triple, withMain)
 }
 
+func (*llvmBackend) WriteIngressEntrypointLL(dir, triple string, ingress []string) (string, error) {
+    return llvme.WriteIngressEntrypointLL(dir, triple, ingress)
+}
+
 func (*llvmBackend) FindToolchain() (string, error) { return llvme.FindClang() }
 
 func (*llvmBackend) ToolVersion(path string) (string, error) { return llvme.Version(path) }
 
 func (*llvmBackend) TripleForEnv(env string) string { return llvme.TripleForEnv(env) }
-

@@ -1,0 +1,32 @@
+package app
+
+#pragma capabilities list=io
+#pragma concurrency:workers 4
+#pragma concurrency:schedule fair
+
+// Two Collect instances (C1, C2) with distinct inputs
+pipeline P(){
+  ingress;
+  A; B; C1; C2; egress;
+
+  // Types to help the planner
+  A type("Event<Log>");
+  B type("Event<Log>");
+  C1 type("Event<Log>");
+  C2 type("Event<Log>");
+
+  // Collect instance 1: partition by user, stable sort by ts
+  C1 merge.Key("user"), merge.PartitionBy("user"), merge.Stable(), merge.Sort("meta.ts", asc), merge.Buffer(32, dropOldest);
+
+  // Collect instance 2: window-only with timeout
+  C2 merge.Window(10), merge.Timeout(500);
+
+  // Inputs: route A->C1 and B->C2 independently
+  ingress -> A; ingress -> B;
+  A -> C1; C1 -> egress;
+  B -> C2; C2 -> egress;
+}
+
+// Example struct payload (illustrative)
+type Log struct { user string; meta struct { ts int } }
+

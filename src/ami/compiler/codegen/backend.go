@@ -19,6 +19,9 @@ type Backend interface {
     LinkObjects(clang string, objs []string, outBin, targetTriple string, extra ...string) error
     // WriteRuntimeLL writes a minimal runtime (and optional main) for the target triple and returns its .ll path.
     WriteRuntimeLL(dir, triple string, withMain bool) (string, error)
+    // WriteIngressEntrypointLL writes an LLVM module defining main() which calls
+    // ami_rt_spawn_ingress(name) for each provided ingress identifier. Returns its .ll path.
+    WriteIngressEntrypointLL(dir, triple string, ingress []string) (string, error)
     // FindToolchain returns the compiler path needed for compile/link steps.
     FindToolchain() (string, error)
     // ToolVersion returns a version string for the compiler (for logging/debug).
@@ -32,4 +35,3 @@ var defaultBackend Backend = &llvmBackend{}
 
 // DefaultBackend returns the configured default backend.
 func DefaultBackend() Backend { return defaultBackend }
-

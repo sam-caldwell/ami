@@ -21,6 +21,8 @@ type contractsDoc struct {
     Concurrency  *contractConcurrency  `json:"concurrency,omitempty"`
     Pipelines    []contractPipeline   `json:"pipelines"`
     CapabilityNotes []string          `json:"capabilityNotes,omitempty"`
+    SchemaStability string            `json:"schemaStability,omitempty"`
+    SchemaNotes   []string            `json:"schemaNotes,omitempty"`
 }
 
 type contractPipeline struct {
@@ -33,6 +35,7 @@ type contractStep struct {
     Type     string         `json:"type,omitempty"`
     Bounded  bool           `json:"bounded"`
     Delivery string         `json:"delivery"`
+    ExecModel string        `json:"execModel,omitempty"`
 }
 
 type contractConcurrency struct {
@@ -46,6 +49,7 @@ type contractConcurrency struct {
 func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
     defaultDelivery := "atLeastOnce"
     var capabilities []string
+    declaredCaps := map[string]bool{}
     var trustLevel string
     var conc *contractConcurrency
     if f != nil {
@@ -64,10 +68,16 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                 if lst, ok := pr.Params["list"]; ok && lst != "" {
                     for _, p := range strings.Split(lst, ",") {
                         p = strings.TrimSpace(p)
-                        if p != "" { capabilities = append(capabilities, p) }
+                        if p != "" {
+                            capabilities = append(capabilities, p)
+                            declaredCaps[strings.ToLower(p)] = true
+                        }
                     }
                 }
-                if len(pr.Args) > 0 { capabilities = append(capabilities, pr.Args...) }
+                if len(pr.Args) > 0 {
+                    capabilities = append(capabilities, pr.Args...)
+                    for _, a := range pr.Args { if a != "" { declaredCaps[strings.ToLower(a)] = true } }
+                }
             case "trust":
                 if lv, ok := pr.Params["level"]; ok { trustLevel = lv }
             case "concurrency":
@@ -110,6 +120,7 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
         capabilities = append(capabilities, cap)
     }
     var pentries []contractPipeline
+    var sawIOReadWrite bool
     if f != nil {
         for _, d := range f.Decls {
             pd, ok := d.(*ast.PipelineDecl)
@@ -121,6 +132,7 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                     typ := ""
                     bounded := false
                     del := defaultDelivery
+                    exec := "thread"
                     for _, at := range st.Attrs {
                         if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 && at.Args[0].Text != "" {
                             typ = at.Args[0].Text
@@ -136,18 +148,25 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                             }
                         }
                     }
-                    if strings.HasPrefix(st.Name, "io.") {
+                    lname := strings.ToLower(st.Name)
+                    if strings.HasPrefix(lname, "io.") {
                         // broad mapping
-                        head := strings.TrimPrefix(st.Name, "io.")
+                        head := strings.TrimPrefix(lname, "io.")
                         head = strings.ToLower(head)
-                        if strings.HasPrefix(head, "read") || strings.HasPrefix(head, "recv") { addCap("io.read") }
-                        if strings.HasPrefix(head, "write") || strings.HasPrefix(head, "send") { addCap("io.write") }
+                        if strings.HasPrefix(head, "read") || strings.HasPrefix(head, "recv") { addCap("io.read"); sawIOReadWrite = true }
+                        if strings.HasPrefix(head, "write") || strings.HasPrefix(head, "send") { addCap("io.write"); sawIOReadWrite = true }
                         if strings.HasPrefix(head, "connect") || strings.HasPrefix(head, "listen") || strings.HasPrefix(head, "dial") { addCap("network") }
+                        exec = "process"
                     }
-                    if strings.HasPrefix(strings.ToLower(st.Name), "net.") {
+                    if strings.HasPrefix(lname, "net.") {
                         addCap("net")
+                        exec = "process"
                     }
-                    steps = append(steps, contractStep{Name: st.Name, Type: typ, Bounded: bounded, Delivery: del})
+                    // Trust-level influence: under untrusted, prefer process isolation
+                    if strings.EqualFold(trustLevel, "untrusted") {
+                        exec = "process"
+                    }
+                    steps = append(steps, contractStep{Name: st.Name, Type: typ, Bounded: bounded, Delivery: del, ExecModel: exec})
                 }
             }
             pentries = append(pentries, contractPipeline{Name: pd.Name, Steps: steps})
@@ -163,7 +182,14 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
     sort.SliceStable(pentries, func(i, j int) bool { return pentries[i].Name < pentries[j].Name })
     var notes []string
     if hasIOSpecific { notes = append(notes, "specific io.* capabilities present; generic 'io' implies all io.*") }
+    // Suggest specific capabilities when only generic 'io' was declared but read/write used
+    if sawIOReadWrite && declaredCaps["io"] && !declaredCaps["io.read"] && !declaredCaps["io.write"] {
+        notes = append(notes, "io.read/write operations detected; consider declaring specific capabilities 'io.read'/'io.write' instead of generic 'io'")
+    }
     obj := contractsDoc{Schema: "contracts.v1", Package: pkg, Unit: unit, Delivery: defaultDelivery, Capabilities: capabilities, TrustLevel: trustLevel, Concurrency: conc, Pipelines: pentries, CapabilityNotes: notes}
+    // Document stability window for the schema to aid consumers; conservative default.
+    obj.SchemaStability = "beta"
+    obj.SchemaNotes = append(obj.SchemaNotes, "contracts.v1 is stable for debug/analysis; fields may expand in minor milestones without breaking existing keys")
     dir := filepath.Join("build", "debug", "ir", pkg)
     if err := os.MkdirAll(dir, 0o755); err != nil { return "", err }
     b, err := json.MarshalIndent(obj, "", "  ")

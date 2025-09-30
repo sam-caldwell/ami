@@ -86,8 +86,8 @@ type pipeConcurrency struct {
 type pipeEdge struct {
     From string `json:"from"`
     To   string `json:"to"`
-    FromID int  `json:"fromId,omitempty"`
-    ToID   int  `json:"toId,omitempty"`
+    FromID int  `json:"fromId"`
+    ToID   int  `json:"toId"`
 }
 
 type pipeConn struct {

@@ -55,6 +55,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             hasSort := false
             hasStable := false
             dedupNoField := false
+            var sortFields []string
             for _, at := range st.Attrs {
                 if strings.HasPrefix(at.Name, "merge.") {
                     if rng, ok := merges[at.Name]; ok {
@@ -80,6 +81,7 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                                 if !validFieldName(fld) {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_FIELD_NAME_INVALID", Message: "merge.Sort: invalid field name", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}, Data: map[string]any{"field": fld}})
                                 }
+                                sortFields = append(sortFields, fld)
                             }
                             if argc >= 2 {
                                 ord := at.Args[1].Text
@@ -188,6 +190,16 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                 p := stepPos(st)
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_STABLE_WITHOUT_SORT", Message: "merge.Stable has no effect without merge.Sort", Pos: &p})
             }
+            // sort stability hints: sort without key/partition and without stable may be unstable across batches
+            if hasSort && !hasStable && keyField == "" && partitionField == "" {
+                p := stepPos(st)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_POSSIBLY_UNSTABLE", Message: "merge.Sort without Key/Partition and Stable may be unstable", Pos: &p, Data: map[string]any{"fields": sortFields}})
+            }
+            // redundant stable: when a unique key is present, Stable often provides no additional guarantees
+            if hasStable && keyField != "" && hasSort {
+                p := stepPos(st)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Info, Code: "W_MERGE_STABLE_REDUNDANT", Message: "merge.Stable may be redundant when a unique Key is present", Pos: &p, Data: map[string]any{"key": keyField, "sort": sortFields}})
+            }
             // Dedup(field) conflicts with Key when both provided and different
             for _, at := range st.Attrs {
                 if at.Name == "merge.Dedup" && len(at.Args) >= 1 {
@@ -202,6 +214,11 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
             if dedupNoField && keyField == "" {
                 p := stepPos(st)
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_DEDUP_WITHOUT_KEY", Message: "merge.Dedup without field requires merge.Key", Pos: &p})
+            }
+            // Dedup() without key under partitioning may not deduplicate as expected across partitions
+            if dedupNoField && partitionField != "" && keyField == "" {
+                p := stepPos(st)
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_DEDUP_WITHOUT_KEY_UNDER_PARTITION", Message: "merge.Dedup without key under PartitionBy may be ineffective", Pos: &p, Data: map[string]any{"partitionBy": partitionField}})
             }
         }
     }

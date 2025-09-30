@@ -155,7 +155,7 @@ subcommands:
               As a user, I expect `ami mod sum` to validate `ami.sum` format, resolve version constraints consistently
               with `ami.workspace`, and enforce integrity via checksums with clear diagnostics.
             dependencies: [F-7-1]
-            status: ready
+            status: complete
             docx: ["2.2.1"]
             tests:
               - src/cmd/ami/mod_sum_cmd_test.go
@@ -295,7 +295,7 @@ subcommands:
               As an AMI programmer, I expect lint to enforce explicit mutation markers and reject unmarked mutations with
               `E_MUT_ASSIGN_UNMARKED` and related diagnostics.
             dependencies: []
-            status: ready
+            status: complete
 
   - id: C-10
     name: test
@@ -328,7 +328,7 @@ subcommands:
               As an operator, I expect `diag.v1` emission with event-level IDs/timings, respecting redaction and
               producing deterministic JSON lines per §1.6.*.
             dependencies: [F-11-5]
-            status: ready
+            status: complete
             tests:
               - src/cmd/ami/events_schema_cmd_test.go
               - src/cmd/ami/events_validate_cmd_test.go
@@ -344,7 +344,7 @@ subcommands:
               As a user, I expect deterministic scheduling honoring concurrency/backpressure pragmas with unit tests
               for block/drop policies per §1.4.4–1.4.6.
             dependencies: []
-            status: ready
+            status: complete
             tests:
               - src/cmd/ami/lint_buffer_smells_test.go
               - src/cmd/ami/runtime_errorpipeline_test.go
@@ -356,7 +356,7 @@ subcommands:
               As a user, I expect `ami test` to execute compiled tests/pipelines and emit JSON lines per event with a
               final summary, integrating AMI directives.
             dependencies: []
-            status: ready
+            status: complete
 
   - id: C-11
     name: build
@@ -420,7 +420,7 @@ subcommands:
               As a compiler engineer, I expect IR to cover VAR/ASSIGN/RETURN/DEFER/EXPR, control flow, pipeline edges
               and RAII markers with deterministic JSON under build/debug.
             dependencies: []
-            status: ready
+            status: complete
 
       - id: F-11-11
         name: Event Lifecycle Metadata in IR
@@ -440,7 +440,7 @@ subcommands:
               As a runtime engineer, I expect IR and build artifacts to carry concurrency and scheduling hints honored by
               the runtime scheduler deterministically.
             dependencies: [F-11-10]
-            status: ready
+            status: complete
             docx: ["1.4.4", "1.4.5", "1.4.6"]
 
       - id: F-11-13
@@ -451,7 +451,7 @@ subcommands:
               As a runtime engineer, I expect edge buffer capacities and policies {block, dropOldest, dropNewest} to be
               encoded and validated with deterministic behavior.
             dependencies: [F-11-10]
-            status: ready
+            status: complete
 
       - id: F-11-14
         name: Cross‑package Composition Contracts
@@ -543,7 +543,7 @@ subcommands:
               As an operator, I expect the build/runtime path to support diag/log streams (diag.v1) with redaction
               controls and deterministic JSON lines.
             dependencies: [F-11-11]
-            status: ready
+            status: complete
             docx: ["1.6"]
 
       - id: F-11-23
@@ -554,7 +554,7 @@ subcommands:
               As a user, I expect a deterministic scheduler honoring concurrency/backpressure pragmas with tests using
               simulated sources.
             dependencies: [F-11-12, F-11-13]
-            status: ready
+            status: complete
 
       - id: F-11-24
         name: Edge Buffers with Backpressure
@@ -564,7 +564,7 @@ subcommands:
               As a runtime engineer, I expect bounded queues with {block, dropOldest, dropNewest} policies and
               counters/diagnostics.
             dependencies: [F-11-13]
-            status: ready
+            status: complete
             docx: ["1.4.4"]
 
       - id: F-11-25
@@ -575,7 +575,7 @@ subcommands:
               As a runtime engineer, I expect a merge engine implementing windowing, watermark, timeout, partitioning,
               and stability/tiebreakers enforcing orderability.
             dependencies: [F-11-4]
-            status: ready
+            status: complete
 
       - id: F-11-26
         name: Backend Safety Assertions
@@ -708,7 +708,7 @@ subcommands:
               As a compiler engineer, I expect IR to encode sort keys, windows, watermarks, partitions, and 
               backpressure attributes for Collect nodes per §2.4.0.0.
             dependencies: []
-            status: ready
+            status: complete
             tests:
               - src/cmd/ami/lint_merge_sort_test.go
       - id: F-11-5
@@ -730,7 +730,7 @@ subcommands:
               As a user, I expect linux/arm64 builds to compile and link with deterministic artifacts when toolchains 
               are available, and that all artifacts will be statically linked.
             dependencies: [F-11-5]
-            status: ready
+            status: complete
             tests:
               - src/cmd/ami/build_link_linux_arm64_test.go
       - id: F-11-7
@@ -741,7 +741,7 @@ subcommands:
               As a user, I expect darwin/amd64 builds to compile and link with deterministic artifacts when 
               toolchains are available, and that all artifacts will be statically linked.
             dependencies: [F-11-5]
-            status: ready
+            status: complete
             tests:
               - src/cmd/ami/build_link_darwin_amd64_test.go
       - id: F-11-8
@@ -752,7 +752,7 @@ subcommands:
               As a user, I expect linux/amd64 builds to compile and link with deterministic artifacts when toolchains 
               are available, and that all artifacts will be statically linked.
             dependencies: [F-11-5]
-            status: ready
+            status: complete
             tests:
               - src/cmd/ami/build_link_exec_test.go
           - id: E-11-9

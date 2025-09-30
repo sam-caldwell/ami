@@ -76,7 +76,7 @@ func TestMergeField_PrimitivePayload_FieldReference_Error(t *testing.T) {
     }
 }
 
-// Optional/Union behavior is not yet implemented in the type system; keep a TODO placeholder.
+// Optional/Union behavior is supported in the type system; deep cases below.
 // Deep Optional+Union: orderable when union alts are primitives under Optional
 func TestMergeField_DeepOptionalUnion_Orderable(t *testing.T) {
     // Event<Struct{a:Optional<Struct{b:Union<int,string>}>}>, field a.b → Optional<Union<int,string>> orderable

@@ -123,10 +123,18 @@ stdlib:
             status: ready
             tests: []
 
-          - id: E-1-3-4
+          - id: E-1-3-5
             statement: |
               As a user, I expect that AMI `io` package will have an `io.Interfaces()` method which will list all
               network interfaces.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-3-6
+            statement: |
+              As a user, I expect that AMI `io` package will have an `io.SystemStats()` method return a struct
+              describing the system's hardware.
             dependencies: []
             status: ready
             tests: []

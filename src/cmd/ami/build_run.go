@@ -135,6 +135,39 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         return exit.New(exit.User, "%s", msg)
     }
 
+    // Enforce local cross-package composition contracts (local imports):
+    // - Imported local path must exist
+    // - Imported local path should be declared as a workspace package root
+    {
+        // Build a set of declared roots for quick lookup
+        declaredRoots := map[string]bool{}
+        for _, e := range ws.Packages {
+            root := filepath.Clean(filepath.Join(dir, strings.TrimSpace(e.Package.Root)))
+            declaredRoots[root] = true
+        }
+        for _, e := range ws.Packages {
+            p := e.Package
+            workspace.NormalizeImports(&p)
+            for _, ent := range p.Import {
+                path, _ := workspace.ParseImportEntry(ent)
+                if path == "" || !strings.HasPrefix(path, "./") { continue }
+                abs := filepath.Clean(filepath.Join(dir, path))
+                if st, err := os.Stat(abs); errors.Is(err, os.ErrNotExist) || (err == nil && !st.IsDir()) {
+                    if jsonOut {
+                        _ = json.NewEncoder(out).Encode(diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_IMPORT_LOCAL_MISSING", Message: "local import path not found: " + path, File: "ami.workspace", Data: map[string]any{"package": p.Name, "import": path}})
+                    }
+                    return exit.New(exit.User, "local import path not found: %s", path)
+                }
+                if !declaredRoots[abs] {
+                    if jsonOut {
+                        _ = json.NewEncoder(out).Encode(diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_IMPORT_LOCAL_UNDECLARED", Message: "local import not declared as package: " + path, File: "ami.workspace", Data: map[string]any{"package": p.Name, "import": path}})
+                    }
+                    return exit.New(exit.User, "local import not declared as package: %s", path)
+                }
+            }
+        }
+    }
+
     // Configuration from workspace
     // - target directory (workspace-relative; validated by ws.Validate)
     target := ws.Toolchain.Compiler.Target

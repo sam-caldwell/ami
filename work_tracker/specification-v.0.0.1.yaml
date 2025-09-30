@@ -626,7 +626,7 @@ subcommands:
               As a runtime integrator, I expect hooks for ingress/source sandboxing per policy (fs/net/device
               capabilities) with deterministic tests via simulated sources.
             dependencies: [F-11-23]
-            status: ready
+            status: complete
             docx: ["1.2.3"]
 
       - id: F-11-31

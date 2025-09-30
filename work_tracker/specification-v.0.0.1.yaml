@@ -481,7 +481,7 @@ subcommands:
               As a language user, I expect structured control flow (if/else, loops) lowered to IR branches/loops
               deterministically.
             dependencies: [F-11-17]
-            status: ready
+            status: complete
 
       - id: F-11-17
         name: IR Control‑Flow Graph Constructs
@@ -491,7 +491,7 @@ subcommands:
               As a compiler engineer, I expect structured blocks and phis in IR preserving positions for diagnostics and
               codegen.
             dependencies: [F-11-10]
-            status: ready
+            status: complete
 
       - id: F-11-18
         name: LLVM Emission Hardening

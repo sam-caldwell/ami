@@ -615,7 +615,7 @@ subcommands:
               As a user, I expect explicit capability/trust boundary declarations enforced at compile/link with
               diagnostics; no implicit propagation.
             dependencies: [F-11-14]
-            status: ready
+            status: complete
             docx: ["1.3.4"]
 
       - id: F-11-30

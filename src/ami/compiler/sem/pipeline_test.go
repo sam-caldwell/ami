@@ -65,30 +65,31 @@ func TestPipelineSemantics_EmptyPipeline(t *testing.T) {
     if !hasStart || !hasEnd { t.Fatalf("missing expected codes: %s", codesJSON(ds)) }
 }
 
-func TestPipelineSemantics_IngressPositionAndDup(t *testing.T) {
+func TestPipelineSemantics_AllowsMultipleIngress_NoPosEnforcement(t *testing.T) {
     code := "package app\npipeline X() { ingress; ingress; egress }\n"
     f := (&source.FileSet{}).AddFile("x.ami", code)
     p := parser.New(f)
     af, _ := p.ParseFile()
     ds := AnalyzePipelineSemantics(af)
-    // Expect duplicate ingress and position error for second ingress
-    hasDup := false
-    hasPos := false
-    for _, d := range ds { if d.Code == "E_DUP_INGRESS" { hasDup = true }; if d.Code == "E_INGRESS_POSITION" { hasPos = true } }
-    if !hasDup || !hasPos { t.Fatalf("missing dup/pos ingress: %s", codesJSON(ds)) }
+    // Multiple ingress entrypoints are allowed; no position enforcement
+    for _, d := range ds {
+        if d.Code == "E_DUP_INGRESS" || d.Code == "E_INGRESS_POSITION" {
+            t.Fatalf("did not expect ingress dup/position errors: %s", codesJSON(ds))
+        }
+    }
 }
 
-func TestPipelineSemantics_EgressPositionAndDup(t *testing.T) {
+func TestPipelineSemantics_DuplicateEgressStillErrors_NoPosEnforcement(t *testing.T) {
     code := "package app\npipeline Y() { ingress; egress; egress }\n"
     f := (&source.FileSet{}).AddFile("y.ami", code)
     p := parser.New(f)
     af, _ := p.ParseFile()
     ds := AnalyzePipelineSemantics(af)
-    // Expect duplicate egress and position error for first egress (not last)
+    // Duplicate egress remains an error; no position enforcement
     hasDup := false
-    hasPos := false
-    for _, d := range ds { if d.Code == "E_DUP_EGRESS" { hasDup = true }; if d.Code == "E_EGRESS_POSITION" { hasPos = true } }
-    if !hasDup || !hasPos { t.Fatalf("missing dup/pos egress: %s", codesJSON(ds)) }
+    for _, d := range ds { if d.Code == "E_DUP_EGRESS" { hasDup = true } }
+    if !hasDup { t.Fatalf("expected duplicate egress error: %s", codesJSON(ds)) }
+    for _, d := range ds { if d.Code == "E_EGRESS_POSITION" { t.Fatalf("did not expect egress position error: %s", codesJSON(ds)) } }
 }
 
 func TestPipelineSemantics_IOPermission(t *testing.T) {

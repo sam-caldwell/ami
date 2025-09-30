@@ -97,10 +97,24 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                             }
                             if argc >= 2 {
                                 lat := strings.TrimSpace(at.Args[1].Text)
-                                if !validPositiveInt(lat) && !validPositiveDuration(lat) {
+                                // Determine format: integer millis or duration with unit.
+                                // Classify: malformed → E_MERGE_ATTR_TYPE; non‑positive but well‑formed → warn.
+                                if isInteger(lat) {
+                                    if !validNonNegativeInt(lat) {
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    } else if lat == "0" {
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    }
+                                } else if isDurationLike(lat) {
+                                    // extract numeric prefix then validate non‑negative
+                                    num := numericPrefix(lat)
+                                    if num == "" {
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    } else if num == "0" {
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    }
+                                } else {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Watermark: lateness must be positive int or duration (e.g., 100ms,1s,2m,1h)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
-                                } else if lat == "0" || strings.HasPrefix(lat, "-") {
-                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_WATERMARK_NONPOSITIVE", Message: "merge.Watermark: lateness should be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                                 }
                             }
                             // validate field name when present
@@ -121,10 +135,14 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
                         case "merge.Timeout":
                             if argc >= 1 {
                                 ms := strings.TrimSpace(at.Args[0].Text)
-                                if !validPositiveInt(ms) {
+                                // First, ensure it is an integer at all → type error if not.
+                                if !isInteger(ms) {
                                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_TYPE", Message: "merge.Timeout: must be a positive integer (ms)", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
-                                } else if ms == "0" || strings.HasPrefix(ms, "-") {
-                                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Timeout: must be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                } else {
+                                    // Parsed as integer; classify non‑positive as ARGS error per spec/tests.
+                                    if !validPositiveInt(ms) {
+                                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_ATTR_ARGS", Message: "merge.Timeout: must be > 0", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                                    }
                                 }
                             }
                         case "merge.Key", "merge.PartitionBy":
@@ -290,3 +308,30 @@ func validPositiveInt(s string) bool {
 var durRe = regexp.MustCompile(`^\d+(ms|s|m|h)$`)
 
 func validPositiveDuration(s string) bool { s = strings.TrimSpace(s); if s == "" { return false }; return durRe.MatchString(s) }
+
+// isInteger reports whether s parses as a base‑10 integer (allows optional sign).
+func isInteger(s string) bool {
+    s = strings.TrimSpace(s)
+    if s == "" { return false }
+    // allow optional sign
+    if s[0] == '+' || s[0] == '-' { s = s[1:] }
+    if s == "" { return false }
+    for i := 0; i < len(s); i++ { if s[i] < '0' || s[i] > '9' { return false } }
+    return true
+}
+
+// isDurationLike reports whether s looks like a simple duration (e.g., 100ms, 2s, 3m, 1h).
+func isDurationLike(s string) bool {
+    s = strings.TrimSpace(s)
+    if s == "" { return false }
+    return durRe.MatchString(s)
+}
+
+// numericPrefix returns the leading decimal digits of s (trimmed); empty if none.
+func numericPrefix(s string) string {
+    s = strings.TrimSpace(s)
+    i := 0
+    for i < len(s) && s[i] >= '0' && s[i] <= '9' { i++ }
+    if i == 0 { return "" }
+    return s[:i]
+}

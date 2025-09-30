@@ -14,9 +14,9 @@ type Plan struct {
     Watermark *Watermark // nil means disabled
     TimeoutMs int // 0 disabled
     Window int // 0 disabled
+    LatePolicy string // drop|accept
 }
 
 type SortKey struct{ Field string; Order string /*asc|desc*/ }
 
 type Watermark struct{ Field string; LatenessMs int }
-

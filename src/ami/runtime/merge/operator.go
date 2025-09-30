@@ -18,18 +18,24 @@ type Operator struct{
     rr []string
     rrIdx int
     seq int64
+    enqueued int64
+    emitted  int64
+    dropped  int64
+    expired  int64
 }
 
 type item struct{
     ev ev.Event
     keys []any // extracted sort key values
     seq int64
+    key any
 }
 
 type partition struct{
     buf []item
     seen map[string]struct{}
     last time.Time
+    // For watermark flush: track per-item event times separately where available
 }
 
 var ErrBackpressure = errors.New("merge buffer full")
@@ -56,14 +62,14 @@ func (op *Operator) Push(e ev.Event) error {
     pk := op.partitionKey(e)
     part := op.parts[pk]
     if part == nil { part = &partition{buf: make([]item,0), seen: map[string]struct{}{}, last: time.Now()}; op.parts[pk]=part; op.rr = append(op.rr, pk) }
-    // watermark filter
+    // watermark late-arrival handling per LatePolicy
     if op.plan.Watermark != nil && op.plan.Watermark.Field != "" {
         if v, ok := extractPath(e.Payload, op.plan.Watermark.Field); ok {
             if t, ok2 := toTime(v); ok2 {
                 // Any event older than now - lateness is dropped
                 if op.plan.Watermark.LatenessMs > 0 {
                     if t.Before(time.Now().Add(-time.Duration(op.plan.Watermark.LatenessMs) * time.Millisecond)) {
-                        return nil
+                        if op.plan.LatePolicy == "accept" { /* accept late into next windows */ } else { op.dropped++; return nil }
                     }
                 }
             }
@@ -83,9 +89,11 @@ func (op *Operator) Push(e ev.Event) error {
             return ErrBackpressure
         case "dropOldest", "shuntOldest":
             if len(part.buf) > 0 {
+                op.dropped++
                 part.buf = part.buf[1:]
             }
         case "dropNewest", "shuntNewest":
+            op.dropped++
             return nil
         default:
             return nil
@@ -96,9 +104,15 @@ func (op *Operator) Push(e ev.Event) error {
     for i, k := range op.plan.Sort {
         if v, ok := extractPath(e.Payload, k.Field); ok { keys[i] = v } else { keys[i] = nil }
     }
+    // extract tiebreak key when present
+    var key any
+    if op.plan.Key != "" {
+        if v, ok := extractPath(e.Payload, op.plan.Key); ok { key = v }
+    }
     op.seq++
-    it := item{ev: e, keys: keys, seq: op.seq}
+    it := item{ev: e, keys: keys, seq: op.seq, key: key}
     part.buf = append(part.buf, it)
+    op.enqueued++
     // maintain ordering on insert
     sort.SliceStable(part.buf, func(i, j int) bool { return less(part.buf[i], part.buf[j], op.plan) })
     part.last = time.Now()
@@ -116,6 +130,7 @@ func (op *Operator) Pop() (ev.Event, bool) {
         it := part.buf[0]
         part.buf = part.buf[1:]
         op.rrIdx = (idx + 1) % len(op.rr)
+        op.emitted++
         return it.ev, true
     }
     return ev.Event{}, false
@@ -138,7 +153,52 @@ func (op *Operator) ExpireStale(now time.Time) int {
             part.last = now
         }
     }
+    if dropped > 0 { op.expired += int64(dropped); op.dropped += int64(dropped) }
     return dropped
+}
+
+// FlushByWatermark emits and removes items whose watermark field time is older than now-lateness,
+// preserving ordering. It returns flushed events in deterministic order.
+func (op *Operator) FlushByWatermark(now time.Time) []ev.Event {
+    var out []ev.Event
+    if op.plan.Watermark == nil || op.plan.Watermark.Field == "" || op.plan.Watermark.LatenessMs <= 0 { return out }
+    cutoff := now.Add(-time.Duration(op.plan.Watermark.LatenessMs) * time.Millisecond)
+    for _, pk := range op.rr {
+        part := op.parts[pk]
+        if part == nil || len(part.buf) == 0 { continue }
+        // Buffer is sorted; flush from head while item timestamp <= cutoff
+        for len(part.buf) > 0 {
+            it := part.buf[0]
+            // extract timestamp per watermark field
+            if v, ok := extractPath(it.ev.Payload, op.plan.Watermark.Field); ok {
+                if t, ok2 := toTime(v); ok2 {
+                    if t.After(cutoff) { break }
+                } else { break }
+            } else { break }
+            out = append(out, it.ev)
+            part.buf = part.buf[1:]
+            op.emitted++
+        }
+    }
+    return out
+}
+
+// FlushWindowExcess emits items from the head of each partition until the window
+// size constraint is satisfied. When Window==0, no action is taken.
+func (op *Operator) FlushWindowExcess() []ev.Event {
+    var out []ev.Event
+    if op.plan.Window <= 0 { return out }
+    for _, pk := range op.rr {
+        part := op.parts[pk]
+        if part == nil { continue }
+        for len(part.buf) > op.plan.Window {
+            it := part.buf[0]
+            part.buf = part.buf[1:]
+            out = append(out, it.ev)
+            op.emitted++
+        }
+    }
+    return out
 }
 
 func less(a, b item, p Plan) bool {
@@ -150,12 +210,22 @@ func less(a, b item, p Plan) bool {
         if k.Order == "desc" { return c > 0 }
         return c < 0
     }
+    // Secondary tiebreak: explicit Key when provided
+    if p.Key != "" {
+        if c := cmp(a.key, b.key); c != 0 { return c < 0 }
+    }
     if p.Stable { return a.seq < b.seq }
     return false
 }
 
 func cmp(a, b any) int {
     switch av := a.(type) {
+    case bool:
+        // false < true
+        bv, ok := b.(bool); if !ok { return 0 }
+        if !av && bv { return -1 }
+        if av && !bv { return 1 }
+        return 0
     case int:
         bv, ok := b.(int); if !ok { return 0 }
         switch { case av < bv: return -1; case av > bv: return 1; default: return 0 }
@@ -225,3 +295,8 @@ func toTime(v any) (time.Time, bool) {
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 func ftoa(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
+
+// Stats returns current counters. Intended for single-threaded reads in tests.
+func (op *Operator) Stats() (enq, emit, drop, exp int64) {
+    return op.enqueued, op.emitted, op.dropped, op.expired
+}

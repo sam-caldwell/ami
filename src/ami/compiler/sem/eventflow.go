@@ -5,6 +5,7 @@ import (
     "time"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+    cty "github.com/sam-caldwell/ami/src/ami/compiler/types"
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
@@ -106,7 +107,7 @@ func AnalyzeEventTypeFlowInContext(f *ast.File, egressType map[string]string) []
         for _, e := range edges {
             tFrom := stepType[e.from]
             tTo := stepType[e.to]
-            if tFrom != "" && tTo != "" && !typesCompatible(tTo, tFrom) {
+            if tFrom != "" && tTo != "" && !compatibleEventTypes(tTo, tFrom) {
                 pos := stepPos[e.to]
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_TYPE_FLOW", Message: "event type mismatch across edge", Pos: &pos, Data: map[string]any{"from": e.from, "to": e.to, "fromType": tFrom, "toType": tTo}})
             }
@@ -131,4 +132,29 @@ func AnalyzeEventTypeFlowInContext(f *ast.File, egressType map[string]string) []
         }
     }
     return out
+}
+
+// compatibleEventTypes returns true when downstream 'expected' event type is compatible with
+// upstream 'actual'. It first applies simple text compatibility, then augments for Event<Union<...>>
+// where membership of the actual payload type within the expected union is considered compatible.
+func compatibleEventTypes(expected, actual string) bool {
+    // fast path using existing textual rules
+    if typesCompatible(expected, actual) { return true }
+    // structural check for Event<...>
+    if !strings.HasPrefix(expected, "Event<") || !strings.HasPrefix(actual, "Event<") { return false }
+    et, err1 := cty.Parse(expected)
+    at, err2 := cty.Parse(actual)
+    if err1 != nil || err2 != nil { return false }
+    // Unwrap Event payloads
+    eg, ok1 := et.(cty.Generic)
+    ag, ok2 := at.(cty.Generic)
+    if !ok1 || !ok2 || eg.Name != "Event" || ag.Name != "Event" || len(eg.Args) != 1 || len(ag.Args) != 1 { return false }
+    // If expected payload is a Union, accept when actual payload is contained in the union.
+    if eu, ok := eg.Args[0].(cty.Union); ok {
+        ap := ag.Args[0]
+        for _, alt := range eu.Alts { if cty.Equal(alt, ap) { return true } }
+        return false
+    }
+    // Otherwise fallback to structural equality of payloads
+    return cty.Equal(eg.Args[0], ag.Args[0])
 }

@@ -1,0 +1,844 @@
+spec_version: 0.0.1
+generated: 2025-09-30T00:00:00Z
+authority:
+  docx: docs/Asynchronous Machine Interface.docx
+notes:
+  - Expectations are grouped by `ami` subcommand, then by feature.
+  - Where present, `docx` lists relevant sections from the authoritative document.
+  - Status mapping: done→complete, todo→ready, partial/checklisted→in progress.
+  - Completion means: code complete, ≥0.80 coverage (happy+sad), all tests passing.
+  - Codegen order:
+      - simplified object format → debug ASM → LLVM objects.
+      - binary artifacts should be statically linked
+  - Repository conventions:
+      - one declaration per file
+      - ≥80% coverage per touched package
+      - deterministic outputs
+      - JSON/human modes
+      - errors to stderr
+      - JSON lines for streaming
+  - directory layout:
+      - source code: `src/`
+      - documentation: `docs/`
+      - AMI examples: `examples/`
+      - End-to-End tests: `tests/`
+
+
+subcommands:
+  - id: C-1
+    name: root
+    features:
+      - id: F-1-1
+        name: Global Flags & Output Modes
+        expectations:
+          - id: E-1-1
+            statement: As a CLI user, I expect `--help`, `--json`, `--verbose`, and `--color` to be consistently
+              available on root and subcommands with enforced incompatibility between `--json` and `--color` and
+              correct exit codes.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/root_flags_test.go
+              - src/cmd/ami/root_examples_test.go
+              - src/cmd/ami/root_more_test.go
+              - src/cmd/ami/command_wiring_test.go
+              - src/cmd/ami/filter_fields_cli_test.go
+              - src/cmd/ami/redact_cli_test.go
+              - src/cmd/ami/redact_prefix_cli_test.go
+      - id: F-1-2
+        name: Structured Logging
+        expectations:
+          - id: E-1-2
+            statement: As an operator, I expect structured logs with human and JSON renderers, redaction controls,
+              and verbose logs written to `build/debug` without polluting primary stdout/stderr streams.
+            dependencies: []
+            status: complete
+            tests:
+              - src/schemas/log/record_test.go
+              - src/cmd/ami/build_compile_logging_test.go
+              - src/cmd/ami/build_verbose_kvstore_test.go
+
+  - id: C-2
+    name: init
+    features:
+      - id: F-2-1
+        name: Workspace Bootstrapping
+        expectations:
+          - id: E-2-1
+            statement: |
+              As a project author, I expect `ami init` to create a default `ami.workspace` with the AMI workspace schema, 
+              seed current `os/arch`, and create target and source directories idempotently, with `--force` only 
+              adding missing fields.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/init_cmd_test.go
+              - src/cmd/ami/cache_dir_test.go
+      - id: F-2-2
+        name: Git Initialization and Ignoring Build Artifacts
+        expectations:
+          - id: E-2-2
+            statement: |
+              As a project author, I expect `ami init` to ensure the repo is initialized with git or to 
+              run `git init` when `--force` is provided and create a `.gitignore` that ignores `./build`.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/init_gitignore_test.go
+
+  - id: C-3
+    name: clean
+    features:
+      - id: F-3-1
+        name: Build Artifacts Cleanup
+        expectations:
+          - id: E-3-1
+            statement: |
+              As a user, I expect `ami clean` to remove and recreate `./build`, emitting human and JSON outputs 
+              and correct exit codes on errors.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/clean_cmd_cli_test.go
+              - src/cmd/ami/clean_cmd_test.go
+              - src/cmd/ami/clean_preserve_sum_test.go
+
+  - id: C-4
+    name: mod clean
+    features:
+      - id: F-4-1
+        name: Package Cache Cleanup
+        expectations:
+          - id: E-4-1
+            statement: |
+              As a user, I expect `ami mod clean` to remove and recreate the package cache 
+              directory `${AMI_PACKAGE_CACHE}` (or default `${HOME}/.ami/pkg`).
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/mod_clean_cmd_test.go
+              - src/cmd/ami/mod_clean_run_test.go
+              - src/cmd/ami/mod_clean_json_shape_test.go
+              - src/cmd/ami/mod_clean_mkdir_fail_test.go
+
+  - id: C-5
+    name: mod update
+    aliases: [mod sum]
+    features:
+      - id: F-5-1
+        name: Sum Validation and Fetch
+        expectations:
+          - id: E-5-1
+            statement: |
+              As a user, I expect `ami mod update` to validate `ami.sum`, verify checksums, resolve version 
+              constraints from `ami.workspace`, and download missing packages into the cache, updating `ami.sum` 
+              deterministically.
+            dependencies: [F-7-1, F-9-1]
+            status: complete
+            docx: ["2.2.1"]
+            tests:
+              - src/cmd/ami/mod_sum_cmd_test.go
+              - src/cmd/ami/mod_sum_run_test.go
+              - src/cmd/ami/mod_sum_json_shape_test.go
+              - src/cmd/ami/mod_sum_network_test.go
+              - src/cmd/ami/mod_update_cmd_test.go
+              - src/cmd/ami/mod_update_run_test.go
+              - src/cmd/ami/mod_update_select_test.go
+              - src/cmd/ami/mod_update_human_selected_test.go
+              - src/cmd/ami/mod_update_json_audit_test.go
+
+      - id: F-5-2
+        name: Modules Sum Integrity and Version Checks
+        expectations:
+          - id: E-5-2
+            statement: |
+              As a user, I expect `ami mod sum` to validate `ami.sum` format, resolve version constraints consistently
+              with `ami.workspace`, and enforce integrity via checksums with clear diagnostics.
+            dependencies: [F-7-1]
+            status: ready
+            docx: ["2.2.1"]
+            tests:
+              - src/cmd/ami/mod_sum_cmd_test.go
+              - src/cmd/ami/mod_sum_run_test.go
+              - src/cmd/ami/mod_sum_json_shape_test.go
+              - src/cmd/ami/mod_sum_network_test.go
+
+  - id: C-6
+    name: mod get
+    features:
+      - id: F-6-1
+        name: Fetch Sources
+        expectations:
+          - id: E-6-1
+            statement: |
+              As a user, I expect `ami mod get <url>` to fetch a package via `git+ssh://...#<semver>` or local
+              workspace path, place it under `${HOME}/.ami/pkg/<name>/<version>`, and update `ami.sum`.
+            dependencies: [F-9-1]
+            status: complete
+            tests:
+              - src/cmd/ami/mod_get_cmd_test.go
+              - src/cmd/ami/mod_get_run_test.go
+              - src/cmd/ami/mod_get_git_run_test.go
+              - src/cmd/ami/mod_get_json_shape_test.go
+              - src/cmd/ami/mod_get_network_test.go
+              - src/cmd/ami/mod_get_select_semver_test.go
+              - src/cmd/ami/mod_get_version_select_test.go
+
+  - id: C-7
+    name: mod list
+    features:
+      - id: F-7-1
+        name: List Cached Packages
+        expectations:
+          - id: E-7-1
+            statement: |
+              As a user, I expect `ami mod list` to enumerate cached packages with name, version, size, and updated
+              timestamp in human and JSON modes.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/mod_list_cmd_test.go
+              - src/cmd/ami/mod_list_run_test.go
+              - src/cmd/ami/mod_list_human_test.go
+              - src/cmd/ami/mod_list_json_shape_test.go
+              - src/cmd/ami/mod_list_versions_test.go
+
+  - id: C-8
+    name: mod audit
+    features:
+      - id: F-8-1
+        name: Audit Requirements vs Cache
+        expectations:
+          - id: E-8-1
+            statement: |
+              As a user, I expect `ami mod audit` to report requirements, missingInSum, unsatisfied constraints,
+              missingInCache, mismatched digests, parseErrors, and sumFound with machine-parsable JSON and succinct
+              human output.
+            dependencies: [F-9-1]
+            status: complete
+            tests:
+              - src/cmd/ami/mod_audit_run_test.go
+
+  - id: C-9
+    name: lint
+    features:
+      - id: F-9-1
+        name: Memory Safety Diagnostics
+        expectations:
+          - id: E-9-1-2.3.2
+            statement: |
+              As an AMI programmer, I expect the linter to report memory-safety violations including
+              `E_PTR_UNSUPPORTED_SYNTAX`, `E_MUT_BLOCK_UNSUPPORTED`, and `E_MUT_ASSIGN_UNMARKED` per AMI 2.3.2.
+            dependencies: []
+            status: complete
+            docx: ["1.9.1", "1.5.4"]
+            tests:
+              - src/cmd/ami/lint_memsafety_test.go
+              - src/cmd/ami/lint_mut_assign_test.go
+              - src/cmd/ami/lint_raii_hint_test.go
+      - id: F-9-2
+        name: Lint Rule Engine and CLI
+        expectations:
+          - id: E-9-2
+            statement: |
+              As a user, I expect lint to support naming/import/unused/style rules, strict mode, pragma/config
+              suppression, and emit `diag.v1` JSON lines with a final summary.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/lint_cmd_cli_test.go
+              - src/cmd/ami/lint_engine_test.go
+              - src/cmd/ami/lint_rules_test.go
+              - src/cmd/ami/lint_rules_flags_test.go
+              - src/cmd/ami/lint_rule_elevation_test.go
+              - src/cmd/ami/lint_rule_elevation_human_test.go
+              - src/cmd/ami/lint_exit_codes_test.go
+      - id: F-9-3
+        name: Name Resolution and Types
+        expectations:
+          - id: E-9-3-2.1
+            statement: |
+              As a user, I expect deterministic cross-file/package name resolution with stable diagnostics for
+              unknown/duplicate symbols per §2.1.*.
+            dependencies: []
+            status: in progress
+            tests:
+              - src/cmd/ami/lint_import_recursive_test.go
+              - src/cmd/ami/lint_import_cycle_test.go
+              - src/cmd/ami/lint_import_cycle_multi_test.go
+              - src/cmd/ami/lint_dup_func_test.go
+              - src/cmd/ami/lint_import_undeclared_test.go
+              - src/cmd/ami/lint_crosspkg_constraints_test.go
+              - src/cmd/ami/lint_crosspkg_constraints_conflict_test.go
+              - src/cmd/ami/lint_crosspkg_range_test.go
+              - src/cmd/ami/lint_crosspkg_single_version_test.go
+              - src/cmd/ami/lint_crosspkg_prerelease_test.go
+              - src/cmd/ami/lint_pkg_version_test.go
+
+      - id: F-9-4
+        name: Merge Attribute Validation
+        expectations:
+          - id: E-9-4-1.2.4
+            statement: |
+              As a user, I expect lint to validate merge.* attributes (Buffer/Window/Watermark/Timeout/PartitionBy/
+              Dedup/Key/Stable) for arity/type/conflict with deterministic normalization.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/lint_buffer_smells_test.go
+
+      - id: F-9-5
+        name: Mutation Enforcement Rules
+        expectations:
+          - id: E-9-5-2.3.2
+            statement: |
+              As an AMI programmer, I expect lint to enforce explicit mutation markers and reject unmarked mutations with
+              `E_MUT_ASSIGN_UNMARKED` and related diagnostics.
+            dependencies: []
+            status: ready
+
+  - id: C-10
+    name: test
+    features:
+      - id: F-10-1
+        name: JSON Event Streaming
+        expectations:
+          - id: E-10-1
+            statement: |
+              As a user, I expect `ami test` to stream JSON lines for events and a final summary with stable schema,
+              honoring CLI flags.
+            dependencies: [F-11-1]
+            status: complete
+            docx: ["1.6"]
+            tests:
+              - src/cmd/ami/test_json_stream_test.go
+              - src/cmd/ami/test_run_test.go
+              - src/cmd/ami/test_run_more_test.go
+              - src/cmd/ami/test_runtime_cli_test.go
+              - src/cmd/ami/test_run_check_events_test.go
+              - src/cmd/ami/test_run_human_per_test_lines_test.go
+              - src/cmd/ami/test_default_ami_case_test.go
+              - src/cmd/ami/test_flags_acceptance_test.go
+              - src/cmd/ami/test_cli_conflict_on_subcommand_test.go
+      - id: F-10-2
+        name: Observability Hooks
+        expectations:
+          - id: E-10-2-1.6
+            statement: |
+              As an operator, I expect `diag.v1` emission with event-level IDs/timings, respecting redaction and
+              producing deterministic JSON lines per §1.6.*.
+            dependencies: [F-11-5]
+            status: ready
+            tests:
+              - src/cmd/ami/events_schema_cmd_test.go
+              - src/cmd/ami/events_validate_cmd_test.go
+              - src/cmd/ami/errors_schema_cmd_test.go
+              - src/cmd/ami/errors_validate_cmd_test.go
+              - src/cmd/ami/test_runtime_kv_test.go
+              - src/cmd/ami/test_runtime_kv_events_test.go
+      - id: F-10-3
+        name: Scheduler and Backpressure (Simulated)
+        expectations:
+          - id: E-10-3-1.4.4
+            statement: |
+              As a user, I expect deterministic scheduling honoring concurrency/backpressure pragmas with unit tests
+              for block/drop policies per §1.4.4–1.4.6.
+            dependencies: []
+            status: ready
+            tests:
+              - src/cmd/ami/lint_buffer_smells_test.go
+              - src/cmd/ami/runtime_errorpipeline_test.go
+      - id: F-10-4
+        name: Runtime Test Harness
+        expectations:
+          - id: E-10-4
+            statement: |
+              As a user, I expect `ami test` to execute compiled tests/pipelines and emit JSON lines per event with a
+              final summary, integrating AMI directives.
+            dependencies: []
+            status: ready
+
+  - id: C-11
+    name: build
+    features:
+      - id: F-11-1
+        name: End-to-End Build
+        expectations:
+          - id: E-11-1
+            statement: |
+              As a user, I expect `ami build` to orchestrate frontend→IR→LLVM→object→link with deterministic artifacts,
+              reproducible layouts, and JSON build plans; errors map to standardized exit codes with `diag.v1` streams.
+            dependencies:
+              - F-11-2
+              - F-11-3
+            status: complete
+            docx: ["1.8.4"]
+            tests:
+              - src/cmd/ami/build_run_success_test.go
+              - src/cmd/ami/build_link_exec_test.go
+              - src/cmd/ami/build_link_flags_test.go
+              - src/cmd/ami/build_link_darwin_arm64_test.go
+              - src/cmd/ami/build_link_darwin_amd64_test.go
+              - src/cmd/ami/build_link_linux_arm64_test.go
+              - src/cmd/ami/build_link_fail_stderr_test.go
+              - src/cmd/ami/build_no_link_env_test.go
+              - src/cmd/ami/build_run_objects_nonverbose_test.go
+              - src/cmd/ami/build_run_objects_s_test.go
+              - src/cmd/ami/build_run_deps_ok_test.go
+              - src/cmd/ami/build_run_deps_test.go
+              - src/cmd/ami/build_run_json_diag_test.go
+              - src/cmd/ami/build_run_json_sem_diags_test.go
+              - src/cmd/ami/build_run_schema_error_test.go
+              - src/cmd/ami/build_run_missing_root_json_test.go
+              - src/cmd/ami/build_run_missing_root_human_test.go
+              - src/cmd/ami/build_run_config_test.go
+              - src/cmd/ami/build_dir_layout_test.go
+              - src/cmd/ami/build_signature_test.go
+              - src/cmd/ami/build_multi_package_repeatability_test.go
+              - src/cmd/ami/build_run_json_verbose_objindex_test.go
+              - src/cmd/ami/build_run_plan_verbose_test.go
+              - src/cmd/ami/build_run_plan_json_verbose_test.go
+              - src/cmd/ami/build_run_plan_env_objects_test.go
+              - src/cmd/ami/build_run_plan_objindex_test.go
+
+      - id: F-11-9
+        name: POP Multiple Entrypoints and Error Pipelines
+        expectations:
+          - id: E-11-9-1.1.5
+            statement: |
+              As a compiler engineer, I expect multiple Ingress() entrypoints per package with ingress-first/egress-last
+              ordering and error pipeline routing per docx semantics.
+            dependencies: [F-11-10, F-9-3]
+            status: complete
+            docx: ["1.1.5", "1.1.8"]
+
+      - id: F-11-10
+        name: IR Core Completeness
+        expectations:
+          - id: E-11-10-1.9
+            statement: |
+              As a compiler engineer, I expect IR to cover VAR/ASSIGN/RETURN/DEFER/EXPR, control flow, pipeline edges
+              and RAII markers with deterministic JSON under build/debug.
+            dependencies: []
+            status: ready
+
+      - id: F-11-11
+        name: Event Lifecycle Metadata in IR
+        expectations:
+          - id: E-11-11-1.1.6
+            statement: |
+              As a runtime integrator, I expect IR to model event metadata (id, timestamp, attempt, trace context) to
+              enable observability and diagnostics.
+            dependencies: [F-11-10]
+            status: complete
+
+      - id: F-11-12
+        name: Concurrency Declarations and Scheduling Hints
+        expectations:
+          - id: E-11-12-1.4
+            statement: |
+              As a runtime engineer, I expect IR and build artifacts to carry concurrency and scheduling hints honored by
+              the runtime scheduler deterministically.
+            dependencies: [F-11-10]
+            status: ready
+            docx: ["1.4.4", "1.4.5", "1.4.6"]
+
+      - id: F-11-13
+        name: Backpressure Policies on Edges
+        expectations:
+          - id: E-11-13-1.2.5
+            statement: |
+              As a runtime engineer, I expect edge buffer capacities and policies {block, dropOldest, dropNewest} to be
+              encoded and validated with deterministic behavior.
+            dependencies: [F-11-10]
+            status: ready
+
+      - id: F-11-14
+        name: Cross‑package Composition Contracts
+        expectations:
+          - id: E-11-14-1.3.4
+            statement: |
+              As a user, I expect type‑safe cross‑package composition with explicit version binding and capability/trust
+              boundaries enforced at build/link time.
+            dependencies: [F-9-3]
+            status: ready
+
+      - id: F-11-15
+        name: Imperative Functions (parameters/results)
+        expectations:
+          - id: E-11-15-2.2
+            statement: |
+              As a language user, I expect complete function semantics for parameters and multiple results with return
+              checks and deterministic diagnostics.
+            dependencies: [F-9-3]
+            status: ready
+
+      - id: F-11-16
+        name: Imperative Control Flow
+        expectations:
+          - id: E-11-16-2.3
+            statement: |
+              As a language user, I expect structured control flow (if/else, loops) lowered to IR branches/loops
+              deterministically.
+            dependencies: [F-11-17]
+            status: ready
+
+      - id: F-11-17
+        name: IR Control‑Flow Graph Constructs
+        expectations:
+          - id: E-11-17-1.10
+            statement: |
+              As a compiler engineer, I expect structured blocks and phis in IR preserving positions for diagnostics and
+              codegen.
+            dependencies: [F-11-10]
+            status: ready
+
+      - id: F-11-18
+        name: LLVM Emission Hardening
+        expectations:
+          - id: E-11-18
+            statement: |
+              As a backend engineer, I expect deterministic LLVM emission for control flow and extended expressions while
+              preserving memory‑safety guarantees.
+            dependencies: [F-11-17]
+            status: ready
+            docx: ["1.8.4"]
+
+      - id: F-11-19
+        name: Runtime ABI Finalization
+        expectations:
+          - id: E-11-19-1.8.4
+            statement: |
+              As a runtime engineer, I expect finalized ABI for event/state, Owned<T>, entry and helpers with opaque
+              handles and reproducible runtime objects.
+            dependencies: [F-11-18]
+            status: ready
+
+      - id: F-11-20
+        name: Build E2E Hardening
+        expectations:
+          - id: E-11-20
+            statement: |
+              As a user, I expect `ami build` to orchestrate end‑to‑end across environments with stable JSON plans and
+              deterministic artifacts beyond current scope.
+            dependencies: [F-11-1]
+            status: ready
+
+      - id: F-11-21
+        name: Owned<T> Zeroization and Safety Hooks
+        expectations:
+          - id: E-11-21
+            statement: |
+              As a runtime engineer, I expect Owned<T> to zeroize on release/transfer and guard against double release
+              with analyzer integration.
+            dependencies: []
+            status: complete
+            docx: ["1.9.1"]
+
+      - id: F-11-22
+        name: Observability Hooks (runtime emission)
+        expectations:
+          - id: E-11-22-1.6
+            statement: |
+              As an operator, I expect the build/runtime path to support diag/log streams (diag.v1) with redaction
+              controls and deterministic JSON lines.
+            dependencies: [F-11-11]
+            status: ready
+            docx: ["1.6"]
+
+      - id: F-11-23
+        name: Scheduler and Worker‑pool Execution
+        expectations:
+          - id: E-11-23-1.4.4
+            statement: |
+              As a user, I expect a deterministic scheduler honoring concurrency/backpressure pragmas with tests using
+              simulated sources.
+            dependencies: [F-11-12, F-11-13]
+            status: ready
+
+      - id: F-11-24
+        name: Edge Buffers with Backpressure
+        expectations:
+          - id: E-11-24
+            statement: |
+              As a runtime engineer, I expect bounded queues with {block, dropOldest, dropNewest} policies and
+              counters/diagnostics.
+            dependencies: [F-11-13]
+            status: ready
+            docx: ["1.4.4"]
+
+      - id: F-11-25
+        name: Merge Engine for Collect
+        expectations:
+          - id: E-11-25-2.4.0.0
+            statement: |
+              As a runtime engineer, I expect a merge engine implementing windowing, watermark, timeout, partitioning,
+              and stability/tiebreakers enforcing orderability.
+            dependencies: [F-11-4]
+            status: ready
+
+      - id: F-11-26
+        name: Backend Safety Assertions
+        expectations:
+          - id: E-11-26
+            statement: |
+              As a user, I expect no public ABI exposes raw pointers; failing cases produce E_LLVM_EMIT diagnostics.
+            dependencies: [F-11-18]
+            status: complete
+            docx: ["1.9.1"]
+
+      - id: F-11-27
+        name: Branching/Loop Lowering (Codegen)
+        expectations:
+          - id: E-11-27
+            statement: |
+              As a backend engineer, I expect IR CFG constructs lowered to LLVM with stable block ordering and phis.
+            dependencies: [F-11-17]
+            status: complete
+
+      - id: F-11-28
+        name: Stream Tool Diagnostics
+        expectations:
+          - id: E-11-28
+            statement: |
+              As a user, I expect compiler/tool/clang failures to stream as diag.v1 records with consistent exit‑code
+              mapping.
+            dependencies: [F-11-22]
+            status: ready
+            docx: ["1.6"]
+
+      - id: F-11-29
+        name: Security and Trust Boundaries
+        expectations:
+          - id: E-11-29-1.3.4
+            statement: |
+              As a user, I expect explicit capability/trust boundary declarations enforced at compile/link with
+              diagnostics; no implicit propagation.
+            dependencies: [F-11-14]
+            status: ready
+            docx: ["1.3.4"]
+
+      - id: F-11-30
+        name: Source Isolation and Sandboxing Hooks
+        expectations:
+          - id: E-11-30-1.2.3
+            statement: |
+              As a runtime integrator, I expect hooks for ingress/source sandboxing per policy (fs/net/device
+              capabilities) with deterministic tests via simulated sources.
+            dependencies: [F-11-23]
+            status: ready
+            docx: ["1.2.3"]
+
+      - id: F-11-31
+        name: Sensitive‑data Zeroization Policy
+        expectations:
+          - id: E-11-31
+            statement: |
+              As a security engineer, I expect a policy and implementation for zeroization across Owned<T>, buffers, and
+              node‑state with redacted observability.
+            dependencies: [F-11-21]
+            status: ready
+            docx: ["1.9.1"]
+
+      - id: F-11-32
+        name: Minimal Examples and Docs Updates
+        expectations:
+          - id: E-11-32
+            statement: |
+              As a user, I expect a minimal end‑to‑end POP example to build/run across supported targets with docs
+              updated.
+            dependencies: [F-11-1]
+            status: ready
+
+      - id: F-11-33
+        name: Generic Constraints and Unification
+        expectations:
+          - id: E-11-33-2.1
+            statement: |
+              As a language user, I expect generic constraints (e.g., any) and conservative unification across calls/returns with
+              stable diagnostics (E_TYPE_UNINFERRED/E_TYPE_AMBIGUOUS) per §2.1.*.
+            dependencies: [F-11-15]
+            status: ready
+
+      - id: F-11-34
+        name: Type Inference M2/M3
+        expectations:
+          - id: E-11-34-2.1
+            statement: |
+              As a language user, I expect container element/key inference, tuple returns, and propagation through Event<T>/Error<E>
+              with conservative generic compatibility and stable positions in diagnostics per §2.1.*.
+            dependencies: [F-11-15]
+            status: ready
+      - id: F-11-2
+        name: Debug Artifacts (verbose)
+        expectations:
+          - id: E-11-2
+            statement: |
+              As a developer, I expect `--verbose` to emit resolved sources, AST/IR JSON, assembly, edges summaries, 
+              activity logs, and manifest cross-references under `build/debug` only when verbose.
+            dependencies: [F-11-3]
+            status: complete
+            tests:
+              - src/cmd/ami/build_verbose_manifest_refs_test.go
+              - src/cmd/ami/build_verbose_kvstore_test.go
+              - src/cmd/ami/build_run_verbose_ast_test.go
+              - src/cmd/ami/build_run_verbose_asm_test.go
+              - src/cmd/ami/build_run_no_verbose_nodebug_test.go
+      - id: F-11-3
+        name: Workspace/Manifest Validation
+        expectations:
+          - id: E-11-3
+            statement: |
+              As a user, I expect workspace schema validation and integrity checks between `ami.manifest`, `ami.sum`, 
+              and the cache with clear `E_WS_SCHEMA` and `E_INTEGRITY*` diagnostics.
+            dependencies: [F-5-1]
+            status: complete
+            tests:
+              - src/cmd/ami/build_manifest_integrity_test.go
+              - src/cmd/ami/build_manifest_artifacts_test.go
+              - src/cmd/ami/build_write_manifest_test.go
+              - src/cmd/ami/build_write_manifest_env_objects_test.go
+              - src/cmd/ami/build_write_manifest_env_objects_darwin_arm64_test.go
+              - src/cmd/ami/build_integrity_diag_test.go
+      - id: F-11-4
+        name: Merge/Collect IR Extensions
+        expectations:
+          - id: E-11-4-2.4.0.0
+            statement: |
+              As a compiler engineer, I expect IR to encode sort keys, windows, watermarks, partitions, and 
+              backpressure attributes for Collect nodes per §2.4.0.0.
+            dependencies: []
+            status: ready
+            tests:
+              - src/cmd/ami/lint_merge_sort_test.go
+      - id: F-11-5
+        name: Runtime ABI Finalization
+        expectations:
+          - id: E-11-5-1.8.4
+            statement: |
+              As a runtime engineer, I expect finalized ABI for event/state, Owned<T>, and helpers with opaque handles
+              and reproducible runtime objects per §1.8.4.
+            dependencies: []
+            status: ready
+            tests:
+              - src/cmd/ami/runtime_parse_test.go
+      - id: F-11-6
+        name: Target linux/arm64
+        expectations:
+          - id: E-11-6
+            statement: |
+              As a user, I expect linux/arm64 builds to compile and link with deterministic artifacts when toolchains 
+              are available, and that all artifacts will be statically linked.
+            dependencies: [F-11-5]
+            status: ready
+            tests:
+              - src/cmd/ami/build_link_linux_arm64_test.go
+      - id: F-11-7
+        name: Target darwin/amd64
+        expectations:
+          - id: E-11-7
+            statement: |
+              As a user, I expect darwin/amd64 builds to compile and link with deterministic artifacts when 
+              toolchains are available, and that all artifacts will be statically linked.
+            dependencies: [F-11-5]
+            status: ready
+            tests:
+              - src/cmd/ami/build_link_darwin_amd64_test.go
+      - id: F-11-8
+        name: Target linux/amd64
+        expectations:
+          - id: E-11-8
+            statement: |
+              As a user, I expect linux/amd64 builds to compile and link with deterministic artifacts when toolchains 
+              are available, and that all artifacts will be statically linked.
+            dependencies: [F-11-5]
+            status: ready
+            tests:
+              - src/cmd/ami/build_link_exec_test.go
+          - id: E-11-9
+            statement: |
+              As a user, I expect I can build an executable linux/amd64 binary test POP/AMI program and run it 
+              successfully in a docker container in order to validate compiler/linker operation, and I expect that
+              the binary will run with no external dependencies beyond the operating system.
+            dependencies: [F-11-5]
+            status: ready
+            tests:
+              - src/cmd/ami/build_link_exec_test.go
+
+  - id: C-12
+    name: pipeline visualize
+    features:
+      - id: F-12-1
+        name: ASCII and JSON Graphs
+        expectations:
+          - id: E-12-1
+            statement: |
+              As a user, I expect `ami pipeline visualize` to render deterministic ASCII graphs in human mode 
+              and `graph.v1` JSON in machine mode, detecting cycles as `E_GRAPH_CYCLE` and exiting non-zero.
+            dependencies: []
+            status: complete
+            docx: ["1.8.2"]
+            tests:
+              - src/cmd/ami/pipeline_cmd_test.go
+              - src/cmd/ami/pipeline_visualize_ascii_test.go
+              - src/cmd/ami/pipeline_visualize_json_test.go
+              - src/cmd/ami/pipeline_visualize_cycle_json_test.go
+              - src/cmd/ami/pipeline_visualize_json_exclude_test.go
+              - src/cmd/ami/pipeline_visualize_json_nosummary_test.go
+              - src/cmd/ami/pipeline_visualize_filter_test.go
+
+  - id: C-13
+    name: version
+    features:
+      - id: F-13-1
+        name: Version Reporting
+        expectations:
+          - id: E-13-1
+            statement: |
+              As a user, I expect `ami version` to report the build-time injected version (ldflags) consistently.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/version_cmd_test.go
+              - src/cmd/ami/version_cmd_json_test.go
+
+  - id: C-14
+    name: help
+    features:
+      - id: F-14-1
+        name: Embedded Help Content
+        expectations:
+          - id: E-14-1
+            statement: |
+              As a user, I expect `ami help` to display embedded content sourced from `docs/help-guide/**/*.md` via 
+              `go:embed` with consistent formatting and paging behavior.
+            dependencies: []
+            status: complete
+            tests:
+              - src/cmd/ami/help_cmd_test.go
+              - src/cmd/ami/help_content_test.go
+              - src/cmd/ami/examples_help_test.go
+              - src/cmd/ami/help_examples_test.go
+
+      - id: F-14-2
+        name: Gaps Reconciliation
+        expectations:
+          - id: E-14-2
+            statement: |
+              As a maintainer, I expect the YAML and docx gaps to be captured and reconciled, with missing features 
+              listed explicitly in this YAML and tracked to closure.
+            dependencies: []
+            status: ready
+
+cross_cutting:
+  gates:
+    - id: CC-1
+      statement: |
+        All features must maintain ≥0.80 coverage on changed packages with happy and sad path tests; `go vet`, 
+        `go test`, and build must be green.
+      status: in progress
+  risks:
+    - id: CC-2
+      statement: |
+        No public ABI may expose raw pointers; enforce via codegen safety assertions and tests.
+      status: in progress

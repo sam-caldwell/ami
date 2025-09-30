@@ -31,7 +31,7 @@ func TestDriver_Lower_Compare_Expr_EQ(t *testing.T) {
         blks, _ := fn["blocks"].([]any)
         for _, bb := range blks {
             bbo, _ := bb.(map[string]any)
-            instrs, _ := bbo["instr"].([]any)
+            instrs, _ := bbo["instrs"].([]any)
             for _, in := range instrs {
                 mo, _ := in.(map[string]any)
                 if mo["op"] == "EXPR" {
@@ -42,4 +42,3 @@ func TestDriver_Lower_Compare_Expr_EQ(t *testing.T) {
     }
     if !found { t.Fatalf("missing eq expr in IR: %s", string(b)) }
 }
-

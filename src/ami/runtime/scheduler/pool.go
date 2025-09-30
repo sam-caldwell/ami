@@ -107,11 +107,20 @@ func (p *Pool) Submit(t Task) error {
         p.fairMu.Unlock()
         return nil
     case WORKSTEAL:
+        // Try to enqueue into any worker's deque; spin briefly until accepted to avoid drops.
         p.wsMu.Lock()
-        ch := p.wsQ[p.wsRR%len(p.wsQ)]
+        start := p.wsRR
         p.wsRR++
+        n := len(p.wsQ)
         p.wsMu.Unlock()
-        select { case ch <- t: return nil; default: return errors.New("queue full") }
+        for {
+            for i := 0; i < n; i++ {
+                idx := (start + i) % n
+                select { case p.wsQ[idx] <- t: return nil; default: }
+            }
+            runtime.Gosched()
+            time.Sleep(1 * time.Millisecond)
+        }
     default:
         return errors.New("unknown policy")
     }
@@ -173,4 +182,3 @@ func (p *Pool) tryPopWS(id int) (Task, bool) {
     select { case t := <-p.wsQ[id]: return t, true; default: return Task{}, false }
 }
 func (p *Pool) tryStealWS(id int) (Task, bool) { return p.tryPopWS(id) }
-

@@ -1,6 +1,6 @@
 .PHONY: help all clean lint test build bench examples e2e-build e2e-test \
         e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update \
-        test-hotspots
+        test-hotspots coverage-short
 
 # Print Makefile target help by scanning for lines with '##' descriptions.
 help: ## Show this help with targets and descriptions
@@ -21,6 +21,17 @@ lint: ## Run go vet across all packages
 
 test: ## Run all tests (go test -v ./...)
 	go test -v ./...
+
+coverage-short: ## Fast coverage on CLI (filters heavy tests) + sanity on schemas
+	@echo "Running short coverage for CLI (filtered) ..."
+	mkdir -p build
+	# Run only fast CLI tests: Root/Version/Help/Mod/Lint/Pipeline; skip Build/Test E2E-like suites
+	GOFLAGS= go test -count=1 -short -timeout 90s \
+	  -run '^(TestRoot_|TestVersion_|TestHelp_|TestMod_|TestLint_|TestPipeline_)' \
+	  -covermode=atomic -coverprofile=build/coverage-short.out ./src/cmd/ami
+	@echo "CLI coverage written to build/coverage-short.out"
+	# Sanity run schema packages in short mode (no coverage merge)
+	GOFLAGS= go test -count=1 -short ./src/schemas/log ./src/schemas/diag
 
 build: clean ## Build the ami CLI binary to build/ami
 	go build -o build/ami ./src/cmd/ami

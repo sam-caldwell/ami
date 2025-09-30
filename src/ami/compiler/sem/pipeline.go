@@ -8,10 +8,11 @@ import (
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
-// AnalyzePipelineSemantics enforces basic pipeline invariants:
-// - first step must be `ingress` (E_PIPELINE_START_INGRESS)
-// - last step must be `egress` (E_PIPELINE_END_EGRESS)
-// - unknown steps emit E_UNKNOWN_NODE (only `ingress` and `egress` are recognized)
+// AnalyzePipelineSemantics enforces basic pipeline invariants aligned with the docx:
+// - At least one `ingress` must be present (E_PIPELINE_START_INGRESS when missing)
+// - An `egress` must be present (E_PIPELINE_END_EGRESS when missing)
+// - Multiple ingress entrypoints are allowed; position within the block is not enforced here
+// - Unknown steps emit E_UNKNOWN_NODE; IO capability checks apply to non-ingress/egress nodes
 func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
     var out []diag.Record
     if f == nil { return out }
@@ -35,43 +36,36 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
                 steps = append(steps, st)
             }
         }
-        // start check
+        // presence checks (allow multiple ingress and egress position anywhere)
         if len(steps) == 0 {
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_START_INGRESS", Message: "pipeline must start with 'ingress'", File: "", Pos: &diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}})
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_END_EGRESS", Message: "pipeline must end with 'egress'", File: "", Pos: &diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}})
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_START_INGRESS", Message: "pipeline requires at least one 'ingress'", File: "", Pos: &diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}})
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_END_EGRESS", Message: "pipeline requires an 'egress'", File: "", Pos: &diag.Position{Line: pd.Pos.Line, Column: pd.Pos.Column, Offset: pd.Pos.Offset}})
             continue
         }
-        if steps[0].Name != "ingress" {
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_START_INGRESS", Message: "pipeline must start with 'ingress'", File: "", Pos: &diag.Position{Line: steps[0].Pos.Line, Column: steps[0].Pos.Column, Offset: steps[0].Pos.Offset}})
+        hasIngressAny := false
+        hasEgressAny := false
+        for _, st := range steps {
+            if strings.ToLower(st.Name) == "ingress" { hasIngressAny = true }
+            if strings.ToLower(st.Name) == "egress" { hasEgressAny = true }
         }
-        // end check
-        last := steps[len(steps)-1]
-        if last.Name != "egress" {
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_END_EGRESS", Message: "pipeline must end with 'egress'", File: "", Pos: &diag.Position{Line: last.Pos.Line, Column: last.Pos.Column, Offset: last.Pos.Offset}})
+        if !hasIngressAny {
+            // Preserve historical code for missing ingress
+            first := steps[0]
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_START_INGRESS", Message: "pipeline requires at least one 'ingress'", File: "", Pos: &diag.Position{Line: first.Pos.Line, Column: first.Pos.Column, Offset: first.Pos.Offset}})
+        }
+        if !hasEgressAny {
+            // Point at the end of the block by using the last step position
+            last := steps[len(steps)-1]
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_PIPELINE_END_EGRESS", Message: "pipeline requires an 'egress'", File: "", Pos: &diag.Position{Line: last.Pos.Line, Column: last.Pos.Column, Offset: last.Pos.Offset}})
         }
         // position/uniqueness checks, io permissions, and unknown nodes
         ingressCount := 0
         egressCount := 0
         for _, st := range steps {
-            if st.Name == "ingress" {
-                if ingressCount > 0 { // duplicate beyond the first seen
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DUP_INGRESS", Message: "duplicate ingress", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
-                }
-                // position must be 0
-                // check based on index by scanning again to find this st; simpler: compare to steps[0]
-                if st != steps[0] {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_INGRESS_POSITION", Message: "'ingress' only allowed at position 0", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
-                }
-                ingressCount++
-                continue
-            }
+            if strings.ToLower(st.Name) == "ingress" { ingressCount++; continue }
             if st.Name == "egress" {
                 if egressCount > 0 { // duplicate beyond the first seen
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DUP_EGRESS", Message: "duplicate egress", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
-                }
-                // position must be last
-                if st != steps[len(steps)-1] {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EGRESS_POSITION", Message: "'egress' only allowed at last position", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
                 }
                 egressCount++
                 continue

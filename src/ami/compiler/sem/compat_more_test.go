@@ -16,3 +16,11 @@ func TestTypesCompatible_Containers(t *testing.T) {
     if typesCompatible("map<string,int>", "map<int,string>") { t.Fatal("map mismatch should be false") }
 }
 
+func TestEventCompat_UnionMembership(t *testing.T) {
+    if compatibleEventTypes("Event<Union<int,int64>>", "Event<string>") {
+        t.Fatalf("expected non-membership for Event<Union<int,int64>> vs Event<string>")
+    }
+    if !compatibleEventTypes("Event<Union<int,int64>>", "Event<int>") {
+        t.Fatalf("expected membership for Event<Union<int,int64>> vs Event<int>")
+    }
+}

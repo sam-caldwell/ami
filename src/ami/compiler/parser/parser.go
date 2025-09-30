@@ -146,7 +146,7 @@ func (p *Parser) ParseFile() (*ast.File, error) {
     }
 
     // Top-level declarations in any order: decorators+func, pipeline, enum, error.
-    for {
+    for p.cur.Kind != token.EOF {
         switch p.cur.Kind {
         case token.AtSym, token.KwFunc:
             // collect any decorators in source order

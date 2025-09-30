@@ -8,11 +8,6 @@ import (
     diag "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
-func hasCode(ds []diagRecordLike, code string) bool {
-    for _, d := range ds { if d.Code == code { return true } }
-    return false
-}
-
 // diagRecordLike is the minimal shape we need from diag.Record for tests
 type diagRecordLike struct{ Code string }
 

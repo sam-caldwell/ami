@@ -6,11 +6,6 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
 )
 
-func hasCode(ds []diag.Record, code string) bool {
-    for _, d := range ds { if d.Code == code { return true } }
-    return false
-}
-
 // Watermark: invalid lateness unit/type should emit E_MERGE_ATTR_TYPE
 func TestMergeAttrTypes_Watermark_InvalidLateness(t *testing.T) {
     code := "package app\n"+
@@ -56,4 +51,3 @@ func TestMergeAttrTypes_Buffer_CapacityType(t *testing.T) {
     ds := AnalyzeMultiPath(af)
     if !hasCodeRec(ds, "E_MERGE_ATTR_TYPE") { t.Fatalf("expected E_MERGE_ATTR_TYPE; got %+v", ds) }
 }
-

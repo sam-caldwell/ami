@@ -542,113 +542,7 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     }
 
     // Link stage — produce executables per-env when possible, and fall back to default objects when no per-env objects are present.
-    if !buildNoLink {
-        be := codegen.DefaultBackend()
-        clang, ferr := be.FindToolchain()
-        if ferr != nil {
-            if lg := getRootLogger(); lg != nil { lg.Info("build.toolchain.missing", map[string]any{"tool": "clang"}) }
-        } else {
-            // Resolve binary name from main package
-            binName := "app"
-            if mp := ws.FindPackage("main"); mp != nil && mp.Name != "" { binName = mp.Name }
-
-            // First, attempt per-env linking where env-specific objects exist.
-            envWithObjects := map[string]bool{}
-            for _, env := range envs {
-                if containsEnv(buildNoLinkEnvs, env) { continue }
-                // collect per-env objects
-                var objs []string
-                for _, e := range ws.Packages {
-                    glob := filepath.Join(dir, "build", env, "obj", e.Package.Name, "*.o")
-                    if matches, _ := filepath.Glob(glob); len(matches) > 0 { objs = append(objs, matches...) }
-                }
-                if len(objs) == 0 { continue }
-                envWithObjects[env] = true
-                triple := be.TripleForEnv(env)
-                rtDir := filepath.Join(dir, "build", "runtime")
-                // Emit runtime without main and, if no user main, a separate entry module that spawns pipeline ingress
-                if llPath, werr := be.WriteRuntimeLL(rtDir, triple, false); werr == nil {
-                    rtObj := filepath.Join(rtDir, "runtime.o")
-                    if cerr := be.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
-                        objs = append(objs, rtObj)
-                        if !hasUserMain(ws, dir) {
-                            ingress := collectIngressIDs(ws, dir)
-                            if entLL, eerr := be.WriteIngressEntrypointLL(rtDir, triple, ingress); eerr == nil {
-                                entObj := filepath.Join(rtDir, "entry.o")
-                                if ecomp := be.CompileLLToObject(clang, entLL, entObj, triple); ecomp == nil { objs = append(objs, entObj) }
-                            }
-                        }
-                        outDir := filepath.Join(dir, "build", env)
-                        _ = os.MkdirAll(outDir, 0o755)
-                        outBin := filepath.Join(outDir, binName)
-                        extra := linkExtraFlags(env, ws.Toolchain.Linker.Options)
-                        if lerr := be.LinkObjects(clang, objs, outBin, triple, extra...); lerr != nil {
-                            if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin, "env": env}) }
-                            if jsonOut {
-                                d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LINK_FAIL", Message: "linking failed", File: "clang", Data: map[string]any{"env": env}}
-                                _ = json.NewEncoder(out).Encode(d)
-                            }
-                        } else if lg := getRootLogger(); lg != nil {
-                            lg.Info("build.link.ok", map[string]any{"bin": outBin, "objects": len(objs), "env": env})
-                        }
-                    } else if lg := getRootLogger(); lg != nil {
-                        lg.Info("build.runtime.obj.fail", map[string]any{"error": cerr.Error(), "env": env})
-                    }
-                } else if lg := getRootLogger(); lg != nil {
-                    lg.Info("build.runtime.ll.fail", map[string]any{"error": werr.Error(), "env": env})
-                }
-            }
-
-            // Fallback: only when no envs specified. Otherwise strictly honor env matrix.
-            if len(envs) == 0 {
-                if len(envs) > 0 && containsEnv(buildNoLinkEnvs, envs[0]) { /* skip fallback link */ } else {
-                var objects []string
-                for _, e := range ws.Packages {
-                    glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
-                    if matches, _ := filepath.Glob(glob); len(matches) > 0 { objects = append(objects, matches...) }
-                }
-                if len(objects) > 0 {
-                triple := be.TripleForEnv("")
-                    if len(envs) > 0 { triple = be.TripleForEnv(envs[0]) }
-                    rtDir := filepath.Join(dir, "build", "runtime")
-                    if llPath, werr := be.WriteRuntimeLL(rtDir, triple, false); werr == nil {
-                        rtObj := filepath.Join(rtDir, "runtime.o")
-                        if cerr := be.CompileLLToObject(clang, llPath, rtObj, triple); cerr == nil {
-                            objects = append(objects, rtObj)
-                            if !hasUserMain(ws, dir) {
-                                ingress := collectIngressIDs(ws, dir)
-                                if entLL, eerr := be.WriteIngressEntrypointLL(rtDir, triple, ingress); eerr == nil {
-                                    entObj := filepath.Join(rtDir, "entry.o")
-                                    if ecomp := be.CompileLLToObject(clang, entLL, entObj, triple); ecomp == nil { objects = append(objects, entObj) }
-                                }
-                            }
-                            outDir := filepath.Join(dir, "build")
-                            if len(envs) > 0 && envs[0] != "" { outDir = filepath.Join(outDir, envs[0]) }
-                            _ = os.MkdirAll(outDir, 0o755)
-                            outBin := filepath.Join(outDir, binName)
-                            env0 := ""
-                            if len(envs) > 0 { env0 = envs[0] }
-                            extra := linkExtraFlags(env0, ws.Toolchain.Linker.Options)
-                            if lerr := be.LinkObjects(clang, objects, outBin, triple, extra...); lerr != nil {
-                                if lg := getRootLogger(); lg != nil { lg.Info("build.link.fail", map[string]any{"error": lerr.Error(), "bin": outBin}) }
-                                if jsonOut {
-                                    d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_LINK_FAIL", Message: "linking failed", File: "clang"}
-                                    _ = json.NewEncoder(out).Encode(d)
-                                }
-                            } else if lg := getRootLogger(); lg != nil {
-                                lg.Info("build.link.ok", map[string]any{"bin": outBin, "objects": len(objects)})
-                            }
-                        } else if lg := getRootLogger(); lg != nil {
-                            lg.Info("build.runtime.obj.fail", map[string]any{"error": cerr.Error()})
-                        }
-                    } else if lg := getRootLogger(); lg != nil {
-                        lg.Info("build.runtime.ll.fail", map[string]any{"error": werr.Error()})
-                    }
-                }
-            }
-        }
-    }
-    }
+    if !buildNoLink { buildLink(out, dir, ws, envs, jsonOut) }
     // Close link stage block explicitly before manifest rewrite.
     // (Ensures subsequent steps are outside of the link conditional.)
 
@@ -693,6 +587,20 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             }
         }
         if len(objects) > 0 { sort.Strings(objects); outObj["objects"] = objects }
+        // Include runtime objects by env
+        var rtObjs []string
+        for _, env := range envs {
+            glob := filepath.Join(dir, "build", "runtime", env, "*.o")
+            if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                for _, m := range matches {
+                    if rel, err := filepath.Rel(dir, m); err == nil {
+                        rtObjs = append(rtObjs, rel)
+                        artifacts = append(artifacts, map[string]any{"kind": "runtime_obj", "path": rel, "env": env})
+                    }
+                }
+            }
+        }
+        if len(rtObjs) > 0 { sort.Strings(rtObjs); outObj["runtimeObjects"] = rtObjs }
         if len(artifacts) > 0 { outObj["artifacts"] = artifacts }
         // integrity evidence from ami.sum vs cache
         if len(sum.Packages) > 0 {

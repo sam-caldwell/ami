@@ -46,5 +46,6 @@ func TestMerge_Backpressure_DropNewest(t *testing.T) {
     _ = op.Push(ev.Event{Payload: map[string]any{"x":2}}) // should drop
     out, ok := op.Pop(); if !ok { t.Fatal("no out") }
     if out.Payload.(map[string]any)["x"].(int) != 1 { t.Fatalf("got %v", out) }
+    enq, emit, drop, exp := op.Stats()
+    if enq != 1 || emit != 1 || drop < 1 || exp != 0 { t.Fatalf("stats unexpected enq=%d emit=%d drop=%d exp=%d", enq, emit, drop, exp) }
 }
-

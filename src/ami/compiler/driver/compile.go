@@ -201,6 +201,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeContainerTypes(af))
             // lower
             m := lowerFile(p.Name, af, paramSigs, resultSigs, paramNames)
+            // include pipeline IR projection for Collect/merge behavior
+            m.Pipelines = append(m.Pipelines, lowerPipelines(af)...)
             // Optimizer M18 (DCE): remove unreferenced functions per file
             // Only apply when a 'main' root exists; otherwise keep all functions for tooling/tests.
             hasMain := false

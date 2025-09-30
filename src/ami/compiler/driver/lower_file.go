@@ -14,6 +14,7 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
     var concurrency int
     var backpressure string
     var telemetry bool
+    var schedule string
     var capabilities []string
     var trustLevel string
     // Compute SCCs for recursion analysis
@@ -31,16 +32,28 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
         for _, pr := range f.Pragmas {
             switch pr.Domain {
             case "concurrency":
+                // level parameter
                 if lv, ok := pr.Params["level"]; ok {
                     // naive atoi
                     n := 0
                     for i := 0; i < len(lv); i++ { if lv[i] >= '0' && lv[i] <= '9' { n = n*10 + int(lv[i]-'0') } else { n = 0; break } }
                     if n > 0 { concurrency = n }
                 }
+                // schedule may be provided as a keyed pragma: `#pragma concurrency:schedule fair`
+                if pr.Key == "schedule" {
+                    if pr.Value != "" { schedule = strings.ToLower(pr.Value) }
+                }
+                // or as a param e.g., schedule=fair; also accept policy alias
+                if v, ok := pr.Params["schedule"]; ok && schedule == "" { schedule = strings.ToLower(v) }
+                if v, ok := pr.Params["policy"]; ok && schedule == "" { schedule = strings.ToLower(v) }
             case "backpressure":
                 if pol, ok := pr.Params["policy"]; ok { backpressure = pol }
             case "telemetry":
                 if en, ok := pr.Params["enabled"]; ok && (en == "true" || en == "1") { telemetry = true }
+            case "schedule":
+                // legacy/alternate domain
+                if pr.Value != "" { schedule = strings.ToLower(pr.Value) }
+                if v, ok := pr.Params["policy"]; ok && schedule == "" { schedule = strings.ToLower(v) }
             case "capabilities":
                 // support list param as comma separated; also consider args list
                 if lst, ok := pr.Params["list"]; ok && lst != "" {
@@ -85,7 +98,9 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
     for _, c := range capabilities { if c == "io" { hasIO = true } }
     for _, c := range capabilities { if len(c) > 3 && c[:3] == "io." { hasIOSpecific = true; break } }
     if hasIOSpecific && !hasIO { capabilities = append(capabilities, "io") }
-    return ir.Module{Package: pkg, Functions: fns, Directives: dirs, Concurrency: concurrency, Backpressure: backpressure, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel}
+    // standard event lifecycle metadata descriptor for observability
+    em := &ir.EventMeta{Schema: "eventmeta.v1", Fields: []string{"id", "ts", "attempt", "trace"}}
+    return ir.Module{Package: pkg, Functions: fns, Directives: dirs, Concurrency: concurrency, Backpressure: backpressure, Schedule: schedule, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel, EventMeta: em}
 }
 
 // mapIOCapability converts an io.* step name into a coarse-grained capability string.

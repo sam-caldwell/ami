@@ -20,6 +20,7 @@ var (
     kvRe         = regexp.MustCompile(`\"([a-zA-Z0-9_]+)\"\s*:`)
     msgSimpleRe  = regexp.MustCompile(`Message:\s*\"([^\"]+)\"`)
     msgFmtRe     = regexp.MustCompile(`Message:\s*fmt\.Sprintf\(\"([^\"]+)\"`)
+    dataVarRe    = regexp.MustCompile(`Data:\s*([a-zA-Z_][a-zA-Z0-9_]*)`)
 )
 
 func main() {
@@ -37,6 +38,12 @@ func main() {
             inRec := false
             braceDepth := 0
             var recBuf strings.Builder
+            // Track most recent map[string]any assignments to variables (e.g., `data := map[string]any{...}`)
+            type mapAssign struct{ name string; keys map[string]struct{} }
+            var currentMapVar string
+            mapBraceDepth := 0
+            inMapAssign := false
+            recentMaps := []mapAssign{}
             for scanner.Scan() {
                 line := scanner.Text()
                 // track record start/brace depth
@@ -47,6 +54,42 @@ func main() {
                     recBuf.WriteByte('\n')
                     braceDepth = strings.Count(line, "{") - strings.Count(line, "}")
                     continue
+                }
+                // Track variable map assignments like `data := map[string]any{ ... }`
+                if !inRec {
+                    // Start of assignment
+                    if !inMapAssign && strings.Contains(line, ":= map[string]any{") {
+                        // Extract var name before ':='
+                        idx := strings.Index(line, ":= map[string]any{")
+                        if idx > 0 {
+                            name := strings.TrimSpace(line[:idx])
+                            currentMapVar = name
+                            inMapAssign = true
+                            mapBraceDepth = strings.Count(line, "{") - strings.Count(line, "}")
+                            // seed recent map with any keys on same line after '{'
+                            keys := map[string]struct{}{}
+                            if cm := dataKeyRe.FindStringSubmatch("Data: " + line[idx:]); cm != nil && len(cm) > 1 {
+                                for _, km := range kvRe.FindAllStringSubmatch(cm[1], -1) {
+                                    if len(km) > 1 { keys[km[1]] = struct{}{} }
+                                }
+                            }
+                            recentMaps = append(recentMaps, mapAssign{name: currentMapVar, keys: keys})
+                            continue
+                        }
+                    }
+                    if inMapAssign {
+                        mapBraceDepth += strings.Count(line, "{") - strings.Count(line, "}")
+                        if len(recentMaps) > 0 {
+                            // accumulate keys
+                            for _, km := range kvRe.FindAllStringSubmatch(line, -1) {
+                                if len(km) > 1 { recentMaps[len(recentMaps)-1].keys[km[1]] = struct{}{} }
+                            }
+                        }
+                        if mapBraceDepth <= 0 {
+                            inMapAssign = false
+                            currentMapVar = ""
+                        }
+                    }
                 }
                 if inRec {
                     braceDepth += strings.Count(line, "{") - strings.Count(line, "}")
@@ -65,6 +108,17 @@ func main() {
                                 if len(dm) > 1 {
                                     for _, km := range kvRe.FindAllStringSubmatch(dm[1], -1) {
                                         if len(km) > 1 { codes[code][km[1]] = struct{}{} }
+                                    }
+                                }
+                            }
+                            // If Data references a var (e.g., Data: data), try to source keys from recent map assignment
+                            if m := dataVarRe.FindStringSubmatch(content); m != nil && len(m) > 1 {
+                                varName := m[1]
+                                // Find the most recent assignment with this var name (scan from end)
+                                for i := len(recentMaps) - 1; i >= 0; i-- {
+                                    if recentMaps[i].name == varName {
+                                        for k := range recentMaps[i].keys { codes[code][k] = struct{}{} }
+                                        break
                                     }
                                 }
                             }

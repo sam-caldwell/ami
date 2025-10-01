@@ -2,6 +2,7 @@ package amios
 
 import (
     "bytes"
+    "io"
     "os/exec"
     "sync"
 )
@@ -27,7 +28,10 @@ func Exec(program string, args ...string) (*Process, error) {
     // Wire stdout/stderr buffers for capture
     c.Stdout = &p.stdoutBuf
     c.Stderr = &p.stderrBuf
-    // Lazily create stdin pipe on first Stdin() call; avoid premature pipe creation
+    // Pre-wire stdin with a pipe so Stdin() can be used before or after Start()
+    pr, pw := io.Pipe()
+    c.Stdin = pr
+    p.stdin = pw
     return p, nil
 }
 
@@ -94,10 +98,6 @@ func (p *Process) Stderr() []byte { if p == nil { return nil }; return p.stderrB
 func (p *Process) Stdin() (ioWriteCloser, error) {
     if p == nil || p.cmd == nil { return nil, errInvalidProcess }
     p.mu.Lock(); defer p.mu.Unlock()
-    if p.stdin != nil { return p.stdin, nil }
-    w, err := p.cmd.StdinPipe()
-    if err != nil { return nil, err }
-    p.stdin = w
     return p.stdin, nil
 }
 
@@ -133,4 +133,3 @@ func exitCodeFromError(err error) *int {
 
 // Minimal interface to avoid pulling io in public signature; concrete value is io.WriteCloser.
 type ioWriteCloser interface{ Write([]byte) (int, error); Close() error }
-

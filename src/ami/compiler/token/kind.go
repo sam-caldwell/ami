@@ -14,6 +14,7 @@ const (
     Ident
     Number
     String
+    DurationLit
     Symbol // generic symbol bucket for single-character tokens in early scaffolds
 
     // Operators (subset for precedence scaffolding)

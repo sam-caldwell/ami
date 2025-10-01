@@ -26,6 +26,14 @@ type NumberLit struct {
 func (*NumberLit) isNode() {}
 func (*NumberLit) isExpr() {}
 
+// DurationLit represents a duration literal like 300ms, 5s, 2h45m, 1.5h
+type DurationLit struct {
+    Pos  source.Position
+    Text string
+}
+func (*DurationLit) isNode() {}
+func (*DurationLit) isExpr() {}
+
 type CallExpr struct {
     Pos     source.Position
     Name    string
@@ -36,4 +44,3 @@ type CallExpr struct {
 }
 func (*CallExpr) isNode() {}
 func (*CallExpr) isExpr() {}
-

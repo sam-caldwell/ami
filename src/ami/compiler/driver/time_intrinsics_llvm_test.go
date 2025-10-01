@@ -13,7 +13,7 @@ import (
 func TestLower_Time_Intrinsics_Emit_All_Externs_InLLVM(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
-    src := "package app\nimport time\nfunc F(){ time.Now(); var t = time.Now(); time.Add(t, 5); time.Delta(t, t); time.Unix(t); time.UnixNano(t) }\n"
+    src := "package app\nimport time\nfunc F(){ time.Now(); var t = time.Now(); time.Add(t, 5ms); time.Delta(t, t); time.Unix(t); time.UnixNano(t) }\n"
     fs.AddFile("u.ami", src)
     pkgs := []Package{{Name: "app", Files: fs}}
     _, _ = Compile(ws, pkgs, Options{Debug: true, EmitLLVMOnly: true})

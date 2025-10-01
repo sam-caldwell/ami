@@ -833,6 +833,12 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         p.next()
         left := ast.Expr(&ast.NumberLit{Pos: pos, Text: t})
         return p.parseWithTernary(left, minPrec), true
+    case token.DurationLit:
+        t := p.cur.Lexeme
+        pos := p.cur.Pos
+        p.next()
+        left := ast.Expr(&ast.DurationLit{Pos: pos, Text: t})
+        return p.parseWithTernary(left, minPrec), true
     default:
         return nil, false
     }
@@ -973,6 +979,8 @@ func exprText(e ast.Expr) string {
         return v.Name
     case *ast.StringLit:
         return v.Value
+    case *ast.DurationLit:
+        return v.Text
     case *ast.NumberLit:
         return v.Text
     case *ast.SelectorExpr:

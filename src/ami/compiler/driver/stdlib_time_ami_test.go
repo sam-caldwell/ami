@@ -13,9 +13,9 @@ func TestAMIStdlib_Time_Stubs_Resolve(t *testing.T) {
     timefs := &source.FileSet{}
     timeSrc := "package time\n" +
         "// AMI stdlib stubs (signatures only)\n" +
-        "func Sleep(d int) {}\n" +
+        "func Sleep(d Duration) {}\n" +
         "func Now() (Time) {}\n" +
-        "func Add(t Time, d int) (Time) {}\n" +
+        "func Add(t Time, d Duration) (Time) {}\n" +
         "func Delta(a Time, b Time) (int64) {}\n" +
         "func Unix(t Time) (int64) {}\n" +
         "func UnixNano(t Time) (int64) {}\n"
@@ -25,9 +25,9 @@ func TestAMIStdlib_Time_Stubs_Resolve(t *testing.T) {
     appfs := &source.FileSet{}
     appSrc := "package app\nimport time\n" +
         "func F(){\n" +
-        "  time.Sleep(1)\n" +
+        "  time.Sleep(1s)\n" +
         "  var t = time.Now()\n" +
-        "  var u = time.Add(t, 1)\n" +
+        "  var u = time.Add(t, 1s)\n" +
         "  var _d = time.Delta(t, u)\n" +
         "  var _s = time.Unix(t)\n" +
         "  var _n = time.UnixNano(t)\n" +

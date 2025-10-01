@@ -13,7 +13,7 @@ func TestAMIStdlib_Time_Builtin_API_Surface(t *testing.T) {
     appfs := &source.FileSet{}
     appSrc := "package app\nimport time\n" +
         "func F() {\n" +
-        "  var d Duration = 1\n" +
+        "  var d Duration = 1s\n" +
         "  time.Sleep(d)\n" +
         "  var t = time.Now()\n" +
         "  var _u = time.Add(t, d)\n" +

@@ -13,7 +13,7 @@ import (
 func TestLower_Time_Sleep_Emits_SleepExtern_InLLVM(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
-    src := "package app\nimport time\nfunc F(){ time.Sleep(10) }\n"
+    src := "package app\nimport time\nfunc F(){ time.Sleep(10ms) }\n"
     fs.AddFile("u.ami", src)
     pkgs := []Package{{Name: "app", Files: fs}}
     _, _ = Compile(ws, pkgs, Options{Debug: true, EmitLLVMOnly: true})
@@ -28,4 +28,3 @@ func TestLower_Time_Sleep_Emits_SleepExtern_InLLVM(t *testing.T) {
         t.Fatalf("missing sleep_ms call in LLVM: %s", s)
     }
 }
-

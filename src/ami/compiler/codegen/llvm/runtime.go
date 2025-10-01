@@ -54,10 +54,19 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "declare i64 @llvm.umin.i64(i64, i64)\n\n"
     // No-op ingress spawner stub; real implementation will create threads/processes per ingress trigger.
     s += "define void @ami_rt_spawn_ingress(ptr %name) {\nentry:\n  ret void\n}\n\n"
-    // Signal handler registry: store opaque handler tokens by signal (mod 64)
+    // Signal registration: opaque handler tokens by signal (mod 64)
     s += "@ami_signal_handlers = private global [64 x i64] zeroinitializer\n\n"
     s += "define void @ami_rt_signal_register(i64 %sig, i64 %handler) {\n" +
         "entry:\n  %idx = urem i64 %sig, 64\n  %slot = getelementptr [64 x i64], ptr @ami_signal_handlers, i64 0, i64 %idx\n  store i64 %handler, ptr %slot, align 8\n  ret void\n}\n\n"
+
+    // Handler thunk registry: token → function pointer (ptr). Not exposed at language ABI boundary.
+    s += "@ami_handler_thunks = private global [1024 x ptr] zeroinitializer\n\n"
+    s += "define void @ami_rt_install_handler_thunk(i64 %token, ptr %fp) {\n" +
+        "entry:\n  %idx = urem i64 %token, 1024\n  %slot = getelementptr [1024 x ptr], ptr @ami_handler_thunks, i64 0, i64 %idx\n  store ptr %fp, ptr %slot, align 8\n  ret void\n}\n\n"
+    s += "define ptr @ami_rt_get_handler_thunk(i64 %token) {\n" +
+        "entry:\n  %idx = urem i64 %token, 1024\n  %slot = getelementptr [1024 x ptr], ptr @ami_handler_thunks, i64 0, i64 %idx\n  %fp = load ptr, ptr %slot, align 8\n  ret ptr %fp\n}\n\n"
+    // OS-specific append (behind build tag)
+    s += runtimeOSLL()
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }

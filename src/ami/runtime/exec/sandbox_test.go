@@ -2,9 +2,6 @@ package exec
 
 import (
     "context"
-    "encoding/json"
-    "os"
-    "path/filepath"
     ir "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
     "testing"
@@ -15,7 +12,7 @@ func TestSandbox_TimerDenied(t *testing.T) {
     // Minimal module with package/pipeline metadata
     m := ir.Module{Package: "app", Pipelines: []ir.Pipeline{{Name: "P"}}}
     // Write edges to include a Timer node so executor uses IR-defined trigger
-    mustWriteEdges(t, "app", "P", []edgeEntry{
+    WriteEdges(t, "app", "P", []edgeEntry{
         {Unit: "P", Pipeline: "P", From: "ingress", To: "Timer"},
         {Unit: "P", Pipeline: "P", From: "Timer", To: "egress"},
     })
@@ -34,7 +31,7 @@ func TestSandbox_TimerDenied(t *testing.T) {
 
 func TestSandbox_TimerAllowed(t *testing.T) {
     m := ir.Module{Package: "app", Pipelines: []ir.Pipeline{{Name: "P"}}}
-    mustWriteEdges(t, "app", "P", []edgeEntry{
+    WriteEdges(t, "app", "P", []edgeEntry{
         {Unit: "P", Pipeline: "P", From: "ingress", To: "Timer"},
         {Unit: "P", Pipeline: "P", From: "Timer", To: "egress"},
     })
@@ -55,12 +52,4 @@ func TestSandbox_TimerAllowed(t *testing.T) {
     if count == 0 { t.Fatalf("expected timer to emit events; got 0") }
 }
 
-// mustWriteEdges writes a minimal build/debug/asm/<pkg>/edges.json with provided edges.
-func mustWriteEdges(t *testing.T, pkg, pipeline string, edges []edgeEntry) {
-    t.Helper()
-    dir := filepath.Join("build", "debug", "asm", pkg)
-    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
-    idx := edgesIndex{Schema: "asm.v1", Package: pkg, Edges: edges}
-    b, _ := json.Marshal(idx)
-    if err := os.WriteFile(filepath.Join(dir, "edges.json"), b, 0o644); err != nil { t.Fatalf("write edges: %v", err) }
-}
+// edges helper moved to testutil_test.go

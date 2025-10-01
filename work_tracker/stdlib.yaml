@@ -11,6 +11,7 @@ stdlib:
             dependencies: []
             status: ready
             tests: []
+
           - id: E-1-1-2
             statement: |
               As a user, I expect that AMI `io` package will have a file handle object (FHO) representing a file and 
@@ -18,6 +19,7 @@ stdlib:
             dependencies: []
             status: ready
             tests: []
+
           - id: E-1-1-3
             statement: |
               As a user, I expect the AMI `io` package to have a function comparable to `os.Open()` in Golang, except
@@ -25,6 +27,7 @@ stdlib:
             dependencies: []
             status: ready
             tests: []
+
           - id: E-1-1-4
             statement: |
               As a user, I expect that AMI `io.FHO` type will manage all file I/O for its given file; the io.FHO 
@@ -34,6 +37,7 @@ stdlib:
             dependencies: []
             status: ready
             tests: []
+
           - id: E-1-1-5
             statement: |
               As a user, I expect that AMI `io.FHO` type will manage all file I/O for its given file; the io.FHO 
@@ -43,6 +47,7 @@ stdlib:
             dependencies: []
             status: ready
             tests: []
+
           - id: E-1-1-6
             statement: |
               As a user, I expect that AMI `io.FHO` type will have a .Length() method which will return the file size,
@@ -51,9 +56,17 @@ stdlib:
             dependencies: []
             status: ready
             tests: []
+
           - id: E-1-1-7
             statement: |
               As a user, I expect that AMI `io.FHO` type will have a .Flush() method to flush file buffers to disk.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-8
+            statement: |
+              As a user, I expect that AMI 
             dependencies: []
             status: ready
             tests: []
@@ -194,14 +207,23 @@ stdlib:
             tests: []
 
   - id: S-3
-    name: os package
+    name: os package (general)
     features:
       - id: F-2-1
-        name:
+        name: environment variable
         expectations:
           - id: E-2-1-1
             statement: |
-              As a user, I expect
+              As a user, I expect the AMI os package to have a .GetEnv() method which will return the value of an
+              environment variable given the environment variable name.
             dependencies: []
             status: ready
             tests: []
+
+          - id: E-2-1-1
+            statement: |
+              As a user, I expect the AMI os package to have a .SetEnv() method which will set the value of an
+              environment variable given the environment variable name.
+            dependencies: [ ]
+            status: ready
+            tests: [ ]

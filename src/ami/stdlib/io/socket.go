@@ -35,6 +35,26 @@ func OpenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error) {
     }
 }
 
+// ConnectSocket is an alias for establishing a connected socket when supported.
+// Currently supports TCP. For UDP, returns an error (use OpenSocket + SendTo).
+func ConnectSocket(proto NetProtocol, host string, port uint16) (*Socket, error) {
+    switch proto {
+    case TCP:
+        return OpenSocket(TCP, host, port)
+    case UDP:
+        return nil, errors.New("UDP ConnectSocket not supported; use OpenSocket + SendTo")
+    case ICMP:
+        return nil, errors.New("ICMP not implemented")
+    default:
+        return nil, errors.New("unknown protocol")
+    }
+}
+
+// Convenience wrappers for common patterns.
+func ConnectTCP(host string, port uint16) (*Socket, error)  { return ConnectSocket(TCP, host, port) }
+func ListenTCP(addr string, port uint16) (*Socket, error)   { return ListenSocket(TCP, addr, port) }
+func ListenUDP(addr string, port uint16) (*Socket, error)   { return OpenSocket(UDP, addr, port) }
+
 // ListenSocket creates a listening socket for the given protocol.
 // For UDP, this is equivalent to OpenSocket(UDP, addr, port).
 // For TCP, it binds and listens on addr:port for incoming connections.
@@ -143,6 +163,30 @@ func (s *Socket) Listen(handler func(b []byte)) error {
     default:
         return errors.New("unsupported protocol")
     }
+}
+
+// WriteTo sends p immediately to host:port on UDP listeners (non-buffered).
+func (s *Socket) WriteTo(host string, port uint16, p []byte) (int, error) {
+    if s == nil || s.closed { return 0, ErrClosed }
+    if s.proto != UDP || s.pc == nil { return 0, errors.New("WriteTo requires UDP listening socket") }
+    raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(int(port))))
+    if err != nil { return 0, err }
+    return s.pc.WriteTo(p, raddr)
+}
+
+// Serve accepts TCP connections and invokes handler with a per-connection Socket.
+// It runs the accept loop in a goroutine and returns immediately.
+func (s *Socket) Serve(handler func(*Socket)) error {
+    if s == nil || s.closed { return ErrClosed }
+    if s.ln == nil || s.proto != TCP { return errors.New("Serve requires TCP listening socket") }
+    go func() {
+        for {
+            c, err := s.ln.Accept()
+            if err != nil { return }
+            go func(conn net.Conn){ handler(&Socket{proto: TCP, conn: conn}) }(c)
+        }
+    }()
+    return nil
 }
 
 // Read reads from the socket into p. For TCP it reads from the connected stream.

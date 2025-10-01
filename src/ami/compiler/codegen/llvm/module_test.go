@@ -51,10 +51,19 @@ func TestEmitLLVM_ExprCallWithResult(t *testing.T) {
     }
 }
 
-func TestEmitLLVM_MultiResultUnsupported(t *testing.T) {
-    f := ir.Function{Name: "F", Results: []ir.Value{{Type: "int"}, {Type: "int"}}, Blocks: []ir.Block{{Name: "entry"}}}
-    _, err := lowerFunction(f)
-    if err == nil { t.Fatalf("expected error for multi-result functions") }
+func TestEmitLLVM_MultiResultFunctionAndReturn(t *testing.T) {
+    // define {i64,i64} @Pair()
+    f := ir.Function{Name: "Pair", Results: []ir.Value{{Type: "int"}, {Type: "int"}}, Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{
+        ir.Return{Values: []ir.Value{{ID: "a", Type: "int"}, {ID: "b", Type: "int"}}},
+    }}}}
+    out, err := lowerFunction(f)
+    if err != nil { t.Fatalf("lower: %v", err) }
+    if !strings.Contains(out, "define { i64, i64 } @Pair(") {
+        t.Fatalf("multi-result signature missing: %s", out)
+    }
+    if !strings.Contains(out, "insertvalue { i64, i64 } undef, i64 %a, 0") {
+        t.Fatalf("insertvalue chain missing: %s", out)
+    }
 }
 
 func TestEmitLLVM_MultiBlockAndUnknownOp(t *testing.T) {

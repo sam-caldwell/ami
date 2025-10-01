@@ -80,6 +80,28 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                 if ex.Callee == "ami_rt_posix_install_trampoline" {
                     e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
                 }
+                // Math multi-result helpers (aggregate returns)
+                if ex.Callee == "ami_rt_math_sincos" {
+                    e.RequireExtern("declare { double, double } @ami_rt_math_sincos(double)")
+                }
+                if ex.Callee == "ami_rt_math_frexp" {
+                    e.RequireExtern("declare { double, i64 } @ami_rt_math_frexp(double)")
+                }
+                if ex.Callee == "ami_rt_math_modf" {
+                    e.RequireExtern("declare { double, double } @ami_rt_math_modf(double)")
+                }
+                if ex.Callee == "ami_rt_math_inf" {
+                    e.RequireExtern("declare double @ami_rt_math_inf(i64)")
+                }
+                if ex.Callee == "ami_rt_math_isnan" {
+                    e.RequireExtern("declare i1 @ami_rt_math_isnan(double)")
+                }
+                if ex.Callee == "ami_rt_math_isinf" {
+                    e.RequireExtern("declare i1 @ami_rt_math_isinf(double, i64)")
+                }
+                if ex.Callee == "ami_rt_math_signbit" {
+                    e.RequireExtern("declare i1 @ami_rt_math_signbit(double)")
+                }
                 if ex.Callee == "ami_rt_gpu_blocking_submit" {
                     e.RequireExtern("declare ptr @ami_rt_gpu_blocking_submit(ptr)")
                 }

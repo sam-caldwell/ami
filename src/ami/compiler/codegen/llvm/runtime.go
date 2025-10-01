@@ -68,6 +68,10 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "define void @ami_rt_metal_copy_from_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
     s += "define ptr @ami_rt_metal_dispatch_blocking(ptr %ctx, ptr %pipe, i64 %gx, i64 %gy, i64 %gz, i64 %tx, i64 %ty, i64 %tz) {\nentry:\n  ret ptr null\n}\n\n"
 
+    // String/Slice length helpers (scaffold): return 0 until full ABI is wired.
+    s += "define i64 @ami_rt_string_len(ptr %s) {\nentry:\n  ret i64 0\n}\n\n"
+    s += "define i64 @ami_rt_slice_len(ptr %sl) {\nentry:\n  ret i64 0\n}\n\n"
+
     // No-op ingress spawner stub; real implementation will create threads/processes per ingress trigger.
     s += "define void @ami_rt_spawn_ingress(ptr %name) {\nentry:\n  ret void\n}\n\n"
     // Signal registration: opaque handler tokens by signal (mod 64)
@@ -83,6 +87,20 @@ func RuntimeLL(triple string, withMain bool) string {
         "entry:\n  %idx = urem i64 %token, 1024\n  %slot = getelementptr [1024 x ptr], ptr @ami_handler_thunks, i64 0, i64 %idx\n  %fp = load ptr, ptr %slot, align 8\n  ret ptr %fp\n}\n\n"
     // OS-specific append (behind build tag)
     s += runtimeOSLL()
+    // Math runtime helpers (portable, aggregate returns). Use intrinsics where available.
+    s += "\n; math helpers (aggregate returns)\n"
+    // sincos: {sin(x), cos(x)}
+    s += "define { double, double } @ami_rt_math_sincos(double %x) {\nentry:\n  %s = call double @llvm.sin.f64(double %x)\n  %c = call double @llvm.cos.f64(double %x)\n  %a0 = insertvalue { double, double } undef, double %s, 0\n  %a1 = insertvalue { double, double } %a0, double %c, 1\n  ret { double, double } %a1\n}\n\n"
+    // frexp: {frac, exp}
+    // Implement via bit ops: this is a simple stub for bring-up; precise semantics can be refined.
+    s += "define { double, i64 } @ami_rt_math_frexp(double %x) {\nentry:\n  ; naive stub: return {x, 0} for bring-up\n  %a0 = insertvalue { double, i64 } undef, double %x, 0\n  %a1 = insertvalue { double, i64 } %a0, i64 0, 1\n  ret { double, i64 } %a1\n}\n\n"
+    // modf: {intpart, fracpart}
+    s += "define { double, double } @ami_rt_math_modf(double %x) {\nentry:\n  %i = fptosi double %x to i64\n  %id = sitofp i64 %i to double\n  %f = fsub double %x, %id\n  %a0 = insertvalue { double, double } undef, double %id, 0\n  %a1 = insertvalue { double, double } %a0, double %f, 1\n  ret { double, double } %a1\n}\n\n"
+    // Other helpers
+    s += "define double @ami_rt_math_inf(i64 %sign) {\nentry:\n  %isneg = icmp slt i64 %sign, 0\n  %sel = select i1 %isneg, double 0xFFF0000000000000, double 0x7FF0000000000000\n  ret double %sel\n}\n\n"
+    s += "define i1 @ami_rt_math_isnan(double %x) {\nentry:\n  %r = fcmp uno double %x, %x\n  ret i1 %r\n}\n\n"
+    s += "define i1 @ami_rt_math_isinf(double %x, i64 %sign) {\nentry:\n  %pinf = fcmp oeq double %x, 0x7FF0000000000000\n  %ninf = fcmp oeq double %x, 0xFFF0000000000000\n  %isneg = icmp slt i64 %sign, 0\n  %sel = select i1 %isneg, i1 %ninf, i1 %pinf\n  ret i1 %sel\n}\n\n"
+    s += "define i1 @ami_rt_math_signbit(double %x) {\nentry:\n  %neg = fcmp olt double %x, 0.0\n  ret i1 %neg\n}\n\n"
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }

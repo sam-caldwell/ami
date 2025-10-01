@@ -357,13 +357,13 @@ func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position
         nameTok := p.cur
         p.next()
         var typ string
+        var typePos source.Position
         if p.isTypeName(p.cur.Kind) {
-            typePos := p.cur.Pos
+            typePos = p.cur.Pos
             typ = p.cur.Lexeme
             p.next()
-            // Capture generic args for Event<...> into the type string.
-            if typ == "Event" && p.cur.Kind == token.Lt {
-                // Record start at the beginning of type token and advance until matching '>'
+            // If generic arguments follow, capture full "Base<...>" from source
+            if p.cur.Kind == token.Lt {
                 startOff := typePos.Offset
                 depth := 0
                 var lastGtOff int
@@ -379,14 +379,13 @@ func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position
                     }
                     p.next()
                 }
-                // Reconstruct from file content slice [startOff : lastGtOff+1]
                 src := p.s.FileContent()
                 if lastGtOff > startOff && lastGtOff+1 <= len(src) {
                     typ = src[startOff : lastGtOff+1]
                 }
             }
         }
-        params = append(params, ast.Param{Name: nameTok.Lexeme, Pos: nameTok.Pos, Type: typ, Leading: pend})
+        params = append(params, ast.Param{Name: nameTok.Lexeme, Pos: nameTok.Pos, Type: typ, TypePos: typePos, Leading: pend})
         pend = nil
         if p.cur.Kind == token.CommaSym { p.next(); continue }
         if p.cur.Kind != token.RParenSym { return nil, lp, source.Position{}, fmt.Errorf("expected ',' or ')', got %q", p.cur.Lexeme) }
@@ -407,8 +406,9 @@ func (p *Parser) parseResultList() ([]ast.Result, source.Position, source.Positi
         if !p.isTypeName(p.cur.Kind) { return nil, lp, source.Position{}, fmt.Errorf("expected result ident, got %q", p.cur.Lexeme) }
         rpos := p.cur.Pos
         rtype := p.cur.Lexeme
+        rtypePos := rpos
         p.next()
-        if rtype == "Event" && p.cur.Kind == token.Lt {
+        if p.cur.Kind == token.Lt {
             startOff := rpos.Offset
             depth := 0
             var lastGtOff int
@@ -429,7 +429,7 @@ func (p *Parser) parseResultList() ([]ast.Result, source.Position, source.Positi
                 rtype = src[startOff : lastGtOff+1]
             }
         }
-        results = append(results, ast.Result{Pos: rpos, Type: rtype})
+        results = append(results, ast.Result{Pos: rpos, Type: rtype, TypePos: rtypePos})
         if p.cur.Kind == token.CommaSym { p.next(); continue }
         if p.cur.Kind != token.RParenSym { return nil, lp, source.Position{}, fmt.Errorf("expected ',' or ')', got %q", p.cur.Lexeme) }
     }
@@ -519,17 +519,27 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                 tname = p.cur.Lexeme
                 tpos = p.cur.Pos
                 p.next()
-                // consume optional generic type parameters like '<T[,U]>' in var type position
+                // Capture optional generic arguments like '<T[,U]>' preserving nested forms
                 if p.cur.Kind == token.Lt {
-                    depth := 1
-                    // advance into '<'
-                    p.next()
-                    for depth > 0 && p.cur.Kind != token.EOF {
-                        if p.cur.Kind == token.Lt { depth++ } else if p.cur.Kind == token.Gt { depth-- }
+                    startOff := tpos.Offset
+                    depth := 0
+                    var lastGtOff int
+                    for {
+                        if p.cur.Kind == token.EOF { break }
+                        if p.cur.Kind == token.Lt { depth++ }
+                        if p.cur.Kind == token.Gt {
+                            depth--
+                            lastGtOff = p.cur.Pos.Offset
+                            p.next()
+                            if depth == 0 { break }
+                            continue
+                        }
                         p.next()
                     }
-                    // For now, drop explicit generic var type to avoid partial type mismatch.
-                    tname = ""
+                    src := p.s.FileContent()
+                    if lastGtOff > startOff && lastGtOff+1 <= len(src) {
+                        tname = src[startOff : lastGtOff+1]
+                    }
                 }
             }
             var init ast.Expr

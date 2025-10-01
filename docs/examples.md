@@ -16,3 +16,18 @@ You can also build an individual example by changing into the example directory 
 --verbose`.
 
 See also: `docs/make.md` for Make targets used by examples.
+
+## POP Quickstart
+
+The `examples/simple` workspace contains a minimal POP program that demonstrates:
+
+- a trivial function and a minimal pipeline `P` with ingress/egress
+- a workspace configured for multiple targets (darwin/linux/windows)
+
+Run:
+
+1) Build the CLI: `go build -o build/ami ./src/cmd/ami`
+2) Change into the example directory: `cd examples/simple`
+3) Build: `../../build/ami build --verbose`
+
+This emits deterministic artifacts under `./build/` including per‑target LLVM/object files, a verbose debug tree (AST/IR/ASM), and `ami.manifest`.

@@ -14,7 +14,7 @@ func TestCallsWithSigs_Generic_Event_Unifies(t *testing.T) {
     af, _ := p.ParseFileCollect()
     params := map[string][]string{"G": {"Event<T>"}}
     results := map[string][]string{"G": {}}
-    ds := AnalyzeCallsWithSigs(af, params, results)
+    ds := AnalyzeCallsWithSigs(af, params, results, nil)
     for _, d := range ds { if d.Code == "E_CALL_ARG_TYPE_MISMATCH" { t.Fatalf("unexpected mismatch: %+v", ds) } }
 }
 
@@ -26,7 +26,6 @@ func TestCallsWithSigs_Generic_Owned_Unifies(t *testing.T) {
     af, _ := p.ParseFileCollect()
     params := map[string][]string{"H": {"Owned<T>"}}
     results := map[string][]string{"H": {}}
-    ds := AnalyzeCallsWithSigs(af, params, results)
+    ds := AnalyzeCallsWithSigs(af, params, results, nil)
     for _, d := range ds { if d.Code == "E_CALL_ARG_TYPE_MISMATCH" { t.Fatalf("unexpected mismatch: %+v", ds) } }
 }
-

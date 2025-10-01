@@ -501,8 +501,17 @@ subcommands:
               As a backend engineer, I expect deterministic LLVM emission for control flow and extended expressions while
               preserving memory‑safety guarantees.
             dependencies: [F-11-17]
-            status: ready
+            status: complete
             docx: ["1.8.4"]
+            tests:
+              - src/ami/compiler/codegen/llvm/cond_phi_test.go
+              - src/ami/compiler/codegen/llvm/cmp_float_emit_test.go
+              - src/ami/compiler/codegen/llvm/expr_edgecases_test.go
+              - src/ami/compiler/codegen/llvm/expr_mod_double_test.go
+              - src/ami/compiler/codegen/llvm/defer_lifo_multiblock_test.go
+              - src/ami/compiler/codegen/llvm/defer_noexplicit_return_test.go
+              - src/ami/compiler/codegen/llvm/extern_order_deterministic_test.go
+              - src/ami/compiler/codegen/llvm/abi_backend_safety_test.go
 
       - id: F-11-19
         name: Runtime ABI Finalization
@@ -512,7 +521,14 @@ subcommands:
               As a runtime engineer, I expect finalized ABI for event/state, Owned<T>, entry and helpers with opaque
               handles and reproducible runtime objects.
             dependencies: [F-11-18]
-            status: ready
+            status: complete
+            tests:
+              - src/ami/compiler/codegen/llvm/runtime_zeroize_test.go
+              - src/ami/compiler/codegen/llvm/runtime_owned_raii_test.go
+              - src/ami/compiler/codegen/llvm/runtime_roundtrip_test.go
+              - src/ami/compiler/codegen/llvm/runtime_link_test.go
+              - src/ami/compiler/codegen/llvm/runtime_write_nomains_test.go
+              - src/ami/compiler/codegen/llvm/entry_write_test.go
 
       - id: F-11-20
         name: Build E2E Hardening
@@ -522,7 +538,12 @@ subcommands:
               As a user, I expect `ami build` to orchestrate end‑to‑end across environments with stable JSON plans and
               deterministic artifacts beyond current scope.
             dependencies: [F-11-1]
-            status: ready
+            status: complete
+            tests:
+              - src/cmd/ami/build_run_plan_json_verbose_test.go
+              - src/cmd/ami/build_run_plan_env_objects_test.go
+              - src/cmd/ami/build_run_plan_objindex_test.go
+              - src/cmd/ami/build_run_plan_deterministic_test.go
 
       - id: F-11-21
         name: Owned<T> Zeroization and Safety Hooks
@@ -637,8 +658,12 @@ subcommands:
               As a security engineer, I expect a policy and implementation for zeroization across Owned<T>, buffers, and
               node‑state with redacted observability.
             dependencies: [F-11-21]
-            status: ready
+            status: complete
             docx: ["1.9.1"]
+            tests:
+              - src/ami/compiler/codegen/llvm/runtime_zeroize_test.go
+              - src/ami/compiler/codegen/llvm/runtime_owned_raii_test.go
+              - src/ami/runtime/merge/zeroize_policy_test.go
 
       - id: F-11-32
         name: Minimal Examples and Docs Updates
@@ -648,7 +673,9 @@ subcommands:
               As a user, I expect a minimal end‑to‑end POP example to build/run across supported targets with docs
               updated.
             dependencies: [F-11-1]
-            status: ready
+            status: complete
+            tests:
+              - src/cmd/ami/examples_minimal_build_test.go
 
       - id: F-11-33
         name: Generic Constraints and Unification
@@ -658,7 +685,13 @@ subcommands:
               As a language user, I expect generic constraints (e.g., any) and conservative unification across calls/returns with
               stable diagnostics (E_TYPE_UNINFERRED/E_TYPE_AMBIGUOUS) per §2.1.*.
             dependencies: [F-11-15]
-            status: ready
+            status: complete
+            tests:
+              - src/ami/compiler/sem/calls_generics_unify_test.go
+              - src/ami/compiler/sem/calls_generics_unify_local_test.go
+              - src/ami/compiler/sem/calls_generics_constraints_any_test.go
+              - src/ami/compiler/sem/ambiguous_test.go
+              - src/ami/compiler/sem/return_infer_test.go
 
       - id: F-11-34
         name: Type Inference M2/M3
@@ -668,7 +701,13 @@ subcommands:
               As a language user, I expect container element/key inference, tuple returns, and propagation through Event<T>/Error<E>
               with conservative generic compatibility and stable positions in diagnostics per §2.1.*.
             dependencies: [F-11-15]
-            status: ready
+            status: complete
+            tests:
+              - src/ami/compiler/sem/inference_propagation_test.go
+              - src/ami/compiler/sem/return_types_test.go
+              - src/ami/compiler/sem/return_infer_containers_test.go
+              - src/ami/compiler/sem/return_types_with_sigs.go
+              - src/ami/compiler/sem/return_infer_generic_event_error_test.go
       - id: F-11-2
         name: Debug Artifacts (verbose)
         expectations:
@@ -719,9 +758,13 @@ subcommands:
               As a runtime engineer, I expect finalized ABI for event/state, Owned<T>, and helpers with opaque handles
               and reproducible runtime objects per §1.8.4.
             dependencies: []
-            status: ready
+            status: complete
             tests:
               - src/cmd/ami/runtime_parse_test.go
+              - src/ami/compiler/codegen/llvm/runtime_zeroize_test.go
+              - src/ami/compiler/codegen/llvm/runtime_owned_raii_test.go
+              - src/ami/compiler/codegen/llvm/runtime_roundtrip_test.go
+              - src/ami/compiler/codegen/llvm/runtime_link_test.go
       - id: F-11-6
         name: Target linux/arm64
         expectations:
@@ -828,7 +871,9 @@ subcommands:
               As a maintainer, I expect the YAML and docx gaps to be captured and reconciled, with missing features 
               listed explicitly in this YAML and tracked to closure.
             dependencies: []
-            status: ready
+            status: complete
+            tests:
+              - docs/gaps.md
 
 cross_cutting:
   gates:

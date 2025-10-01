@@ -8,11 +8,26 @@ import (
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
-// AnalyzeCallsWithSigs is like AnalyzeCalls but uses the provided package-wide signature maps.
-func AnalyzeCallsWithSigs(f *ast.File, params map[string][]string, results map[string][]string) []diag.Record {
+// AnalyzeCallsWithSigs is like AnalyzeCalls but uses the provided package-wide signature maps,
+// and optionally parameter type positions from the driver. When positions are not provided,
+// it falls back to local function declarations in the same file.
+func AnalyzeCallsWithSigs(f *ast.File, params map[string][]string, results map[string][]string, paramPos map[string][]diag.Position) []diag.Record {
     var out []diag.Record
     if f == nil { return out }
     now := time.Unix(0, 0).UTC()
+    // Gather local param type positions for functions present in this file (best-effort)
+    localParamPos := map[string][]diag.Position{}
+    for _, d := range f.Decls {
+        if fn, ok := d.(*ast.FuncDecl); ok {
+            var pos []diag.Position
+            for _, p := range fn.Params {
+                tp := diag.Position{Line: p.TypePos.Line, Column: p.TypePos.Column, Offset: p.TypePos.Offset}
+                if p.TypePos.Line == 0 { tp = diag.Position{Line: p.Pos.Line, Column: p.Pos.Column, Offset: p.Pos.Offset} }
+                pos = append(pos, tp)
+            }
+            localParamPos[fn.Name] = pos
+        }
+    }
     // analyze each function with local var types
     for _, d := range f.Decls {
         fn, ok := d.(*ast.FuncDecl)
@@ -23,19 +38,32 @@ func AnalyzeCallsWithSigs(f *ast.File, params map[string][]string, results map[s
             switch v := st.(type) {
             case *ast.ExprStmt:
                 if ce, ok := v.X.(*ast.CallExpr); ok {
-                    out = append(out, checkCallWithSigs(ce, params, now, vars)...)
+                    // prefer driver-provided positions when present
+                    effective := localParamPos
+                    if paramPos != nil { effective = paramPos }
+                    out = append(out, checkCallWithSigsWithResults(ce, params, results, now, vars, effective)...)
                 }
             case *ast.DeferStmt:
-                if v.Call != nil { out = append(out, checkCallWithSigs(v.Call, params, now, vars)...)}
+                if v.Call != nil {
+                    effective := localParamPos
+                    if paramPos != nil { effective = paramPos }
+                    out = append(out, checkCallWithSigsWithResults(v.Call, params, results, now, vars, effective)...)
+                }
             case *ast.ReturnStmt:
-                for _, e := range v.Results { if ce, ok := e.(*ast.CallExpr); ok { out = append(out, checkCallWithSigs(ce, params, now, vars)...)} }
+                for _, e := range v.Results {
+                    if ce, ok := e.(*ast.CallExpr); ok {
+                        effective := localParamPos
+                        if paramPos != nil { effective = paramPos }
+                        out = append(out, checkCallWithSigsWithResults(ce, params, results, now, vars, effective)...)
+                    }
+                }
             }
         }
     }
     return out
 }
 
-func checkCallWithSigs(c *ast.CallExpr, params map[string][]string, now time.Time, vars map[string]string) []diag.Record {
+func checkCallWithSigsWithResults(c *ast.CallExpr, params map[string][]string, results map[string][]string, now time.Time, vars map[string]string, paramPos map[string][]diag.Position) []diag.Record {
     var out []diag.Record
     if c == nil { return out }
     sigp, ok := params[c.Name]
@@ -45,14 +73,41 @@ func checkCallWithSigs(c *ast.CallExpr, params map[string][]string, now time.Tim
         return out
     }
     for i, a := range c.Args {
-        at := inferExprTypeWithVars(a, vars)
+        at := inferExprTypeWithEnvAndResults(a, vars, results)
         pt := sigp[i]
         if pt == "" || pt == "any" || at == "any" { continue }
+        if mismatch, base, wantN, gotN := isGenericArityMismatch(pt, at); mismatch {
+            p := epos(a)
+            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
+            if v, ok := paramPos[c.Name]; ok && i < len(v) { data["expectedPos"] = v[i] }
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
+            continue
+        }
         if !typesCompatible(pt, at) {
             p := epos(a)
             msg := fmt.Sprintf("call argument type mismatch: arg %d expected %s, got %s", i, pt, at)
-            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: msg, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: map[string]any{"argIndex": i, "expected": pt, "actual": at, "callee": c.Name}})
+            data := map[string]any{"argIndex": i, "expected": pt, "actual": at, "callee": c.Name}
+            if v, ok := paramPos[c.Name]; ok && i < len(v) { data["expectedPos"] = v[i] }
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: msg, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
         }
     }
     return out
+}
+
+// paramsToResults adapts a params map to a results‑like map (not used now).
+func paramsToResults(params map[string][]string) map[string][]string { return params }
+
+// inferExprTypeWithEnvAndResults attempts to deduce argument types using local env
+// and, when the expression is a call, by consulting known function result types
+// (only the first result is considered for scalar param positions).
+func inferExprTypeWithEnvAndResults(e ast.Expr, vars map[string]string, results map[string][]string) string {
+    switch v := e.(type) {
+    case *ast.CallExpr:
+        if results != nil {
+            if rs, ok := results[v.Name]; ok && len(rs) > 0 && rs[0] != "" { return rs[0] }
+        }
+        return "any"
+    default:
+        return inferExprTypeWithVars(e, vars)
+    }
 }

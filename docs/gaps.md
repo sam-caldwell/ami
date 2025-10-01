@@ -1,0 +1,29 @@
+# Gaps Reconciliation
+
+This document captures known gaps or clarifications between the authoritative docx and the YAML tracker, and proposes next actions. The intent is to make gaps explicit and track them to closure.
+
+Scope: As of this update, the repository’s tracker (work_tracker/specification-v.0.0.1.yaml) reflects implemented features. The items below are either in‑progress cross‑cutting gates or candidate enhancements that improve clarity and developer UX.
+
+Known items
+
+- Cross‑cutting (in progress):
+  - CC‑1 Coverage Gate: ≥0.80 coverage on changed packages. Action: maintain in CI and keep tests for new work.
+  - CC‑2 No raw pointers in public ABI: enforced via backend safety checks (LLVM emitter + tests). Continue to gate new backends by the same rule.
+
+- Generics diagnostics (candidate enhancements):
+  - Add E_GENERIC_ARITY_MISMATCH for wrong number of generic type arguments (e.g., Owned<>) to improve feedback beyond generic type mismatch.
+  - Enrich diagnostics data payloads with {expected, actual, paramName} where available for call/return mismatches.
+
+- Sandbox configuration (CLI ergonomics):
+  - exec.SandboxPolicy exists for simulated runtime tests. Consider adding `ami run` flags to allow specifying fs/net/device capability policies for examples and demos.
+
+- Examples/docs cohesion:
+  - Minimal POP example validated in tests (multi‑target). `examples/simple` and `examples/complex` are available; docs/examples.md describes usage. Optionally add a short POP quickstart snippet referencing `examples/simple`.
+
+- Diagnostics reference upkeep:
+  - `docs/diag-codes.md` can be regenerated with `make gen-diag-codes`. Keep in sync after introducing new diagnostic codes.
+
+Status
+
+- The YAML tracker reflects current features and ready/completed statuses. This file will evolve as new diagnostics or CLI ergonomics are added.
+

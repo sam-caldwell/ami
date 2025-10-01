@@ -78,17 +78,26 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
         paramSigs := map[string][]string{}
         paramNames := map[string][]string{}
         resultSigs := map[string][]string{}
+        paramPos := map[string][]diag.Position{}
         for _, u := range units {
             for _, d := range u.ast.Decls {
                 if fn, ok := d.(*ast.FuncDecl); ok && fn.Name != "" {
                     var ps []string
                     var pnames []string
+                    var ppos []diag.Position
                     var rs []string
-                    for _, p := range fn.Params { ps = append(ps, p.Type); pnames = append(pnames, p.Name) }
+                    for _, p := range fn.Params {
+                        ps = append(ps, p.Type)
+                        pnames = append(pnames, p.Name)
+                        tp := diag.Position{Line: p.TypePos.Line, Column: p.TypePos.Column, Offset: p.TypePos.Offset}
+                        if p.TypePos.Line == 0 { tp = diag.Position{Line: p.Pos.Line, Column: p.Pos.Column, Offset: p.Pos.Offset} }
+                        ppos = append(ppos, tp)
+                    }
                     for _, r := range fn.Results { rs = append(rs, r.Type) }
                     paramSigs[fn.Name] = ps
                     paramNames[fn.Name] = pnames
                     resultSigs[fn.Name] = rs
+                    paramPos[fn.Name] = ppos
                 }
             }
         }
@@ -194,7 +203,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeReturnInference(af))
             attachFile(sem.AnalyzeReturnTypesWithSigs(af, resultSigs))
             attachFile(sem.AnalyzeRAII(af))
-            attachFile(sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs))
+            attachFile(sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs, paramPos))
             attachFile(sem.AnalyzePackageAndImports(af))
             // IR/codegen-stage capability check (complements semantics layer)
             attachFile(analyzeCapabilityIR(af))

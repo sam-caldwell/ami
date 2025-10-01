@@ -25,11 +25,15 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
             if !ok { continue }
             // infer result types
             var got []string
+            var gpos []diag.Position
             if len(rs.Results) == 1 {
                 // Special case: single call expression returning multiple results.
                 if ce, ok := rs.Results[0].(*ast.CallExpr); ok {
                     if rts, ok := results[ce.Name]; ok && len(rts) > 1 {
                         got = append(got, rts...)
+                        // use call position for each expanded element
+                        cp := diag.Position{Line: ce.Pos.Line, Column: ce.Pos.Column, Offset: ce.Pos.Offset}
+                        for range rts { gpos = append(gpos, cp) }
                     }
                 }
             }
@@ -45,11 +49,15 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
                     if ce, isCall := e.(*ast.CallExpr); isCall && !expanded {
                         if rts, ok := results[ce.Name]; ok && nonCall+len(rts) == declN {
                             got = append(got, rts...)
+                            cp := diag.Position{Line: ce.Pos.Line, Column: ce.Pos.Column, Offset: ce.Pos.Offset}
+                            for range rts { gpos = append(gpos, cp) }
                             expanded = true
                             continue
                         }
                     }
                     got = append(got, inferRetTypeWithEnv(e, env, results))
+                    p := epos(e)
+                    gpos = append(gpos, diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset})
                     // after first element, mark expanded if we already appended rts
                     _ = i
                 }
@@ -58,13 +66,18 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return arity mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}})
                 continue
             }
-            // compare
-            mismatch := false
+            // compare element-wise and emit precise diagnostics, including generic arity when applicable
             for i := range got {
-                if !typesCompatible(decl[i], got[i]) { mismatch = true; break }
-            }
-            if mismatch {
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_RESULT_MISMATCH", Message: "return type mismatch from call", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}})
+                expPos := diag.Position{}
+                if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
+                actPos := gpos[i]
+                if mismatch, base, wantN, gotN := isGenericArityMismatch(decl[i], got[i]); mismatch {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                    continue
+                }
+                if !typesCompatible(decl[i], got[i]) {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_RESULT_MISMATCH", Message: "return type mismatch from call", Pos: &actPos, Data: map[string]any{"index": i, "expected": decl[i], "actual": got[i], "expectedPos": expPos}})
+                }
             }
         }
     }

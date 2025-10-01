@@ -26,7 +26,12 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
             if !ok { continue }
             // infer result types
             var got []string
-            for _, e := range rs.Results { got = append(got, inferExprType(env, e)) }
+            var gpos []diag.Position
+            for _, e := range rs.Results {
+                got = append(got, inferExprType(env, e))
+                p := epos(e)
+                gpos = append(gpos, diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset})
+            }
             // length mismatch
             if len(got) != len(decl) {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return arity mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}})
@@ -34,9 +39,17 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
             }
             // element-wise mismatch using compatibility rules
             for i := range got {
+                // compute positions for precision
+                expPos := diag.Position{}
+                if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
+                actPos := gpos[i]
+                if mismatch, base, wantN, gotN := isGenericArityMismatch(decl[i], got[i]); mismatch {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                    // continue checking remaining positions to surface multiple issues
+                    continue
+                }
                 if !typesCompatible(decl[i], got[i]) {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}})
-                    break
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch", Pos: &actPos, Data: map[string]any{"index": i, "expected": decl[i], "actual": got[i], "expectedPos": expPos}})
                 }
             }
         }

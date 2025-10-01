@@ -1,5 +1,4 @@
 package main
-
 import (
     "encoding/json"
     "errors"
@@ -393,81 +392,7 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             "size":      len(keys),
         }
         _ = writeJSONFile(filepath.Join(kvDir, "dump.json"), dobj)
-        // Build plan after emitting artifacts; include object index paths when present
-        planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
-        type planPkg struct{
-            Key, Name, Version, Root string
-            HasObjects bool `json:"hasObjects"`
-        }
-        plan := struct {
-            Schema    string    `json:"schema"`
-            TargetDir string    `json:"targetDir"`
-            Targets   []string  `json:"targets"`
-            Packages  []planPkg `json:"packages"`
-            ObjIndex  []string  `json:"objIndex,omitempty"`
-            Objects   []string  `json:"objects,omitempty"`
-            ObjectsByEnv map[string][]string `json:"objectsByEnv,omitempty"`
-            ObjIndexByEnv map[string][]string `json:"objIndexByEnv,omitempty"`
-            IRIndex   []string  `json:"irIndex,omitempty"`
-            IRTypesIndex []string `json:"irTypesIndex,omitempty"`
-            IRSymbolsIndex []string `json:"irSymbolsIndex,omitempty"`
-        }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
-        for _, e := range ws.Packages {
-            // detect any object files for this package
-            hasObjects := false
-            if matches, _ := filepath.Glob(filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")); len(matches) > 0 { hasObjects = true }
-            plan.Packages = append(plan.Packages, planPkg{Key: e.Key, Name: e.Package.Name, Version: e.Package.Version, Root: e.Package.Root, HasObjects: hasObjects})
-            // if object index exists for this package, include path
-            idx := filepath.Join(dir, "build", "obj", e.Package.Name, "index.json")
-            if st, err := os.Stat(idx); err == nil && !st.IsDir() {
-                rel, _ := filepath.Rel(dir, idx)
-                plan.ObjIndex = append(plan.ObjIndex, rel)
-            }
-            // Include .o object files when present
-            glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
-            if matches, _ := filepath.Glob(glob); len(matches) > 0 {
-                for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { plan.Objects = append(plan.Objects, rel) } }
-            }
-            // Include IR indices when present under build/debug/ir/<pkg>
-            irIdx := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.index.json")
-            if st, err := os.Stat(irIdx); err == nil && !st.IsDir() {
-                if rel, err := filepath.Rel(dir, irIdx); err == nil { plan.IRIndex = append(plan.IRIndex, rel) }
-            }
-            irTypes := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.types.index.json")
-            if st, err := os.Stat(irTypes); err == nil && !st.IsDir() {
-                if rel, err := filepath.Rel(dir, irTypes); err == nil { plan.IRTypesIndex = append(plan.IRTypesIndex, rel) }
-            }
-            irSyms := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.symbols.index.json")
-            if st, err := os.Stat(irSyms); err == nil && !st.IsDir() {
-                if rel, err := filepath.Rel(dir, irSyms); err == nil { plan.IRSymbolsIndex = append(plan.IRSymbolsIndex, rel) }
-            }
-        }
-        // Include per-env objects if present under build/<env>/obj/**
-        if len(envs) > 0 {
-            plan.ObjectsByEnv = map[string][]string{}
-            plan.ObjIndexByEnv = map[string][]string{}
-            for _, env := range envs {
-                var list []string
-                for _, e := range ws.Packages {
-                    glob := filepath.Join(dir, "build", env, "obj", e.Package.Name, "*.o")
-                    if matches, _ := filepath.Glob(glob); len(matches) > 0 {
-                        for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { list = append(list, rel) } }
-                    }
-                    // per-env obj index file
-                    idx := filepath.Join(dir, "build", env, "obj", e.Package.Name, "index.json")
-                    if st, err := os.Stat(idx); err == nil && !st.IsDir() {
-                        if rel, rerr := filepath.Rel(dir, idx); rerr == nil { plan.ObjIndexByEnv[env] = append(plan.ObjIndexByEnv[env], rel) }
-                    }
-                }
-                if len(list) > 0 { sort.Strings(list); plan.ObjectsByEnv[env] = list }
-            }
-            if len(plan.ObjectsByEnv) == 0 { plan.ObjectsByEnv = nil }
-            if len(plan.ObjIndexByEnv) == 0 { plan.ObjIndexByEnv = nil }
-        }
-        if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
-            _ = json.NewEncoder(f).Encode(plan)
-            _ = f.Close()
-        }
+        // Build plan is written after object emission for determinism (see below)
     }
 
     // In JSON mode, run a non-debug compile to surface parser/semantic diagnostics as a stream.
@@ -732,6 +657,67 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             _ = json.NewEncoder(f).Encode(outObj)
             _ = f.Close()
         }
+    }
+
+    // Write verbose build plan (deterministic) after artifacts are emitted
+    if verbose {
+        planPath := filepath.Join(dir, "build", "debug", "build.plan.json")
+        type planPkg struct{ Key, Name, Version, Root string; HasObjects bool `json:"hasObjects"` }
+        plan := struct{
+            Schema         string              `json:"schema"`
+            TargetDir      string              `json:"targetDir"`
+            Targets        []string            `json:"targets"`
+            Packages       []planPkg           `json:"packages"`
+            ObjIndex       []string            `json:"objIndex,omitempty"`
+            Objects        []string            `json:"objects,omitempty"`
+            ObjectsByEnv   map[string][]string `json:"objectsByEnv,omitempty"`
+            ObjIndexByEnv  map[string][]string `json:"objIndexByEnv,omitempty"`
+            IRIndex        []string            `json:"irIndex,omitempty"`
+            IRTypesIndex   []string            `json:"irTypesIndex,omitempty"`
+            IRSymbolsIndex []string            `json:"irSymbolsIndex,omitempty"`
+        }{Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs}
+        for _, e := range ws.Packages {
+            hasObjects := false
+            if matches, _ := filepath.Glob(filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")); len(matches) > 0 { hasObjects = true }
+            plan.Packages = append(plan.Packages, planPkg{Key: e.Key, Name: e.Package.Name, Version: e.Package.Version, Root: e.Package.Root, HasObjects: hasObjects})
+            // obj index and objects under default obj dir
+            idx := filepath.Join(dir, "build", "obj", e.Package.Name, "index.json")
+            if st, err := os.Stat(idx); err == nil && !st.IsDir() { if rel, err := filepath.Rel(dir, idx); err == nil { plan.ObjIndex = append(plan.ObjIndex, rel) } }
+            if matches, _ := filepath.Glob(filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")); len(matches) > 0 {
+                for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { plan.Objects = append(plan.Objects, rel) } }
+            }
+            // debug IR indices
+            irIdx := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.index.json")
+            if st, err := os.Stat(irIdx); err == nil && !st.IsDir() { if rel, err := filepath.Rel(dir, irIdx); err == nil { plan.IRIndex = append(plan.IRIndex, rel) } }
+            irTypes := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.types.index.json")
+            if st, err := os.Stat(irTypes); err == nil && !st.IsDir() { if rel, err := filepath.Rel(dir, irTypes); err == nil { plan.IRTypesIndex = append(plan.IRTypesIndex, rel) } }
+            irSyms := filepath.Join(dir, "build", "debug", "ir", e.Package.Name, "ir.symbols.index.json")
+            if st, err := os.Stat(irSyms); err == nil && !st.IsDir() { if rel, err := filepath.Rel(dir, irSyms); err == nil { plan.IRSymbolsIndex = append(plan.IRSymbolsIndex, rel) } }
+        }
+        if len(plan.Packages) > 1 { sort.Slice(plan.Packages, func(i, j int) bool { if plan.Packages[i].Name == plan.Packages[j].Name { return plan.Packages[i].Root < plan.Packages[j].Root }; return plan.Packages[i].Name < plan.Packages[j].Name }) }
+        if len(plan.ObjIndex) > 1 { sort.Strings(plan.ObjIndex) }
+        if len(plan.Objects) > 1 { sort.Strings(plan.Objects) }
+        if len(plan.IRIndex) > 1 { sort.Strings(plan.IRIndex) }
+        if len(plan.IRTypesIndex) > 1 { sort.Strings(plan.IRTypesIndex) }
+        if len(plan.IRSymbolsIndex) > 1 { sort.Strings(plan.IRSymbolsIndex) }
+        plan.ObjectsByEnv = map[string][]string{}
+        plan.ObjIndexByEnv = map[string][]string{}
+        for _, env := range envs {
+            var list []string
+            for _, e := range ws.Packages {
+                if matches, _ := filepath.Glob(filepath.Join(dir, "build", env, "obj", e.Package.Name, "*.o")); len(matches) > 0 {
+                    for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { list = append(list, rel) } }
+                }
+                idx := filepath.Join(dir, "build", env, "obj", e.Package.Name, "index.json")
+                if st, err := os.Stat(idx); err == nil && !st.IsDir() { if rel, err := filepath.Rel(dir, idx); err == nil { plan.ObjIndexByEnv[env] = append(plan.ObjIndexByEnv[env], rel) } }
+            }
+            if len(list) > 0 { sort.Strings(list); plan.ObjectsByEnv[env] = list }
+            if v := plan.ObjIndexByEnv[env]; len(v) > 1 { sort.Strings(v); plan.ObjIndexByEnv[env] = v }
+        }
+        if len(plan.ObjectsByEnv) == 0 { plan.ObjectsByEnv = nil }
+        if len(plan.ObjIndexByEnv) == 0 { plan.ObjIndexByEnv = nil }
+        _ = os.MkdirAll(filepath.Join(dir, "build", "debug"), 0o755)
+        if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil { _ = json.NewEncoder(f).Encode(plan); _ = f.Close() }
     }
 
     if jsonOut {

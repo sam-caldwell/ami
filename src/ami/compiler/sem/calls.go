@@ -8,7 +8,7 @@ import (
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
-type sig struct{ params, results []string; paramNames []string }
+type sig struct{ params, results []string; paramNames []string; paramTypePos []diag.Position }
 
 // AnalyzeCalls checks call sites against known function signatures to detect arity
 // and basic argument type mismatches (scaffold typing rules).
@@ -23,9 +23,16 @@ func AnalyzeCalls(f *ast.File) []diag.Record {
             var ps []string
             var rs []string
             var pnames []string
-            for _, p := range fn.Params { ps = append(ps, p.Type); pnames = append(pnames, p.Name) }
+            var ppos []diag.Position
+            for _, p := range fn.Params {
+                ps = append(ps, p.Type)
+                pnames = append(pnames, p.Name)
+                tp := diag.Position{Line: p.TypePos.Line, Column: p.TypePos.Column, Offset: p.TypePos.Offset}
+                if p.TypePos.Line == 0 { tp = diag.Position{Line: p.Pos.Line, Column: p.Pos.Column, Offset: p.Pos.Offset} }
+                ppos = append(ppos, tp)
+            }
             for _, r := range fn.Results { rs = append(rs, r.Type) }
-            funcs[fn.Name] = sig{params: ps, results: rs, paramNames: pnames}
+            funcs[fn.Name] = sig{params: ps, results: rs, paramNames: pnames, paramTypePos: ppos}
         }
     }
     // analyze each function body
@@ -81,11 +88,21 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
         at := inferExprTypeWithVars(a, vars)
         pt := s.params[i]
         if pt == "" || pt == "any" || at == "any" { continue }
+        // Prefer a specific generic arity mismatch diagnostic when applicable
+        if mismatch, base, wantN, gotN := isGenericArityMismatch(pt, at); mismatch {
+            p := epos(a)
+            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
+            if i < len(s.paramNames) && s.paramNames[i] != "" { data["paramName"] = s.paramNames[i] }
+            if i < len(s.paramTypePos) { data["expectedPos"] = s.paramTypePos[i] }
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
+            continue
+        }
         if !typesCompatible(pt, at) {
             p := epos(a)
             msg := fmt.Sprintf("call argument type mismatch: arg %d expected %s, got %s", i, pt, at)
             data := map[string]any{"argIndex": i, "expected": pt, "actual": at, "callee": c.Name}
             if i < len(s.paramNames) && s.paramNames[i] != "" { data["paramName"] = s.paramNames[i] }
+            if i < len(s.paramTypePos) { data["expectedPos"] = s.paramTypePos[i] }
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: msg, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
         }
     }

@@ -37,6 +37,17 @@ func TestLowerFunction_RejectsRawPointerParam(t *testing.T) {
     }
 }
 
+func TestLowerFunction_RejectsRawPointerResult(t *testing.T) {
+    f := ir.Function{
+        Name:   "F",
+        Results: []ir.Value{{ID: "r0", Type: "*int"}},
+        Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{ir.Return{}}}},
+    }
+    if _, err := lowerFunction(f); err == nil {
+        t.Fatalf("expected error for unsafe pointer result")
+    }
+}
+
 func TestLowerExpr_Call_ABI_UserVsRuntimeReturn(t *testing.T) {
     // Build a module with two calls: user function (should use i64) and runtime alloc (should use ptr)
     m := ir.Module{Package: "p"}
@@ -55,4 +66,3 @@ func TestLowerExpr_Call_ABI_UserVsRuntimeReturn(t *testing.T) {
         t.Fatalf("runtime alloc call did not use ptr return:\n%s", out)
     }
 }
-

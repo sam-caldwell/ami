@@ -89,10 +89,14 @@ func (op *Operator) Push(e ev.Event) error {
             return ErrBackpressure
         case "dropOldest", "shuntOldest":
             if len(part.buf) > 0 {
+                // zeroize oldest payload before dropping
+                zeroizePayload(part.buf[0].ev.Payload)
                 op.dropped++
                 part.buf = part.buf[1:]
             }
         case "dropNewest", "shuntNewest":
+            // zeroize the incoming event payload before dropping
+            zeroizePayload(e.Payload)
             op.dropped++
             return nil
         default:
@@ -146,7 +150,9 @@ func (op *Operator) ExpireStale(now time.Time) int {
         part := op.parts[pk]
         if part == nil { continue }
         if part.last.Before(cutoff) && len(part.buf) > 0 {
+            // zeroize all buffered payloads prior to clearing
             dropped += len(part.buf)
+            for i := range part.buf { zeroizePayload(part.buf[i].ev.Payload) }
             part.buf = part.buf[:0]
             // reset seen map only if dedup is enabled
             if op.plan.Dedup.Field != "" || op.plan.Key != "" { part.seen = map[string]struct{}{} }

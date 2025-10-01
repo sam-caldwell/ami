@@ -56,6 +56,8 @@ func (e *ModuleEmitter) Build() string {
     // Minimal runtime externs (deterministic order)
     ex := e.externs
     if len(ex) > 0 {
+        // Ensure deterministic extern ordering regardless of discovery order.
+        sort.Strings(ex)
         for _, d := range ex { b.WriteString(d); b.WriteString("\n") }
         b.WriteString("\n")
     }

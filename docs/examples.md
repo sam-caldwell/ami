@@ -4,6 +4,7 @@ This repository includes example AMI workspaces under `examples/`.
 
 - `examples/simple`: minimal single-package workspace with a trivial function and pipeline.
 - `examples/complex`: multi-package workspace with a local vendor package.
+- Planned: `os` stdlib integration (docs/examples/os-exec.md) — AMI sample showing how to call `os.Exec` and `Process` once language hooks are enabled.
 
 ## Building
 

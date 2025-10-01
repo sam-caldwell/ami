@@ -44,6 +44,7 @@ Documentation Index (docs/*)
   - `docs/make.md` — Makefile targets (build, test, bench, e2e)
   - `docs/examples.md` — building and exploring the examples
   - `docs/stdlib/os.md` — stdlib os package (process runner)
+  - `docs/examples/os-exec.md` — planned AMI example using stdlib os once hooks are available
 
 Authoritative Specification
 - The authoritative specification is maintained as a `.docx` and mirrored by the YAML tracker:

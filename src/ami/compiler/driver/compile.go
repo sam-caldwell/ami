@@ -306,7 +306,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                 if err == nil {
                     out := filepath.Join(dir, unit+".ir.json")
                     _ = os.WriteFile(out, b, 0o644)
-                    arts.IR = append(arts.IR, out)
+                    // Only surface IR artifacts for user-provided packages in Artifacts.IR.
+                    if have[p.Name] { arts.IR = append(arts.IR, out) }
                     bmu.IR = out
                     if opts.Log != nil { opts.Log("unit.ir.write", map[string]any{"pkg": p.Name, "unit": unit, "path": out}) }
                 }

@@ -23,10 +23,10 @@ func builtinStdlibPackages() []Package {
     // signal package minimal surface (SignalType and Register). Handlers are stubs; semantics handled by runtime.
     sigSrc := "package signal\n" +
         "enum SignalType { SIGINT, SIGTERM, SIGHUP, SIGQUIT }\n" +
-        "func Register(sig SignalType, fn func()) {}\n"
+        "// Use 'any' for handler to avoid function-typed params in parser scaffold\n" +
+        "func Register(sig SignalType, fn any) {}\n"
     sfs := &source.FileSet{}
     sfs.AddFile("signal.ami", sigSrc)
     out = append(out, Package{Name: "signal", Files: sfs})
     return out
 }
-

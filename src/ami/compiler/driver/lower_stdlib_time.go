@@ -13,6 +13,24 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     name := c.Name
     // Normalize alias-qualified call by suffix when possible
     // Supported time intrinsics: time.Sleep(d)
+    // Supported signal intrinsic: signal.Register(sig, fn)
+    if strings.HasSuffix(name, ".Register") || name == "signal.Register" {
+        var args []ir.Value
+        // arg0: signal enum → i64 token (ordinal or opaque id). We coerce to i64.
+        if len(c.Args) >= 1 {
+            if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil {
+                args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})
+            }
+        }
+        // arg1: handler function reference → opaque handler token (i64) for safety
+        if len(c.Args) >= 2 {
+            if ex, ok := lowerExpr(st, c.Args[1]); ok && ex.Result != nil {
+                // Represent handler refs as i64 tokens (no raw ptr exposure)
+                args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})
+            }
+        }
+        return ir.Expr{Op: "call", Callee: "ami_rt_signal_register", Args: args}, true
+    }
     if strings.HasSuffix(name, ".Sleep") || name == "time.Sleep" {
         // Lower to runtime sleep (milliseconds). Result is void.
         var args []ir.Value

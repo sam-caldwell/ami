@@ -65,6 +65,8 @@ func collectExterns(m ir.Module) []string {
                         add("ami_rt_time_unix")
                     case "ami_rt_time_unix_nano":
                         add("ami_rt_time_unix_nano")
+                    case "ami_rt_signal_register":
+                        add("ami_rt_signal_register")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     // Include deferred calls in extern set
@@ -97,6 +99,8 @@ func collectExterns(m ir.Module) []string {
                             add("ami_rt_time_unix")
                         case "ami_rt_time_unix_nano":
                             add("ami_rt_time_unix_nano")
+                        case "ami_rt_signal_register":
+                            add("ami_rt_signal_register")
                         }
                     }
                 }

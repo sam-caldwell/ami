@@ -26,6 +26,8 @@ func lowerExpr(e ir.Expr) string {
             switch e.Callee {
             case "ami_rt_panic", "ami_rt_zeroize", "ami_rt_zeroize_owned":
                 ret = "void"
+            case "ami_rt_signal_register":
+                ret = "void"
             case "ami_rt_owned_len":
                 ret = "i64"
             case "ami_rt_alloc", "ami_rt_owned_ptr", "ami_rt_owned_new":

@@ -23,6 +23,29 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
         }
         res := &ir.Value{ID: v.Name, Type: typ}
         return ir.Expr{Op: "ident", Args: nil, Result: res}, true
+    case *ast.SelectorExpr:
+        // Minimal support for enum-like selectors (e.g., signal.SIGINT)
+        // Map known signal names to stable integer literals for runtime ABI.
+        sel := v.Sel
+        switch sel {
+        case "SIGINT":
+            id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
+            return ir.Expr{Op: "lit:2", Result: res}, true
+        case "SIGTERM":
+            id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
+            return ir.Expr{Op: "lit:15", Result: res}, true
+        case "SIGHUP":
+            id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
+            return ir.Expr{Op: "lit:1", Result: res}, true
+        case "SIGQUIT":
+            id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
+            return ir.Expr{Op: "lit:3", Result: res}, true
+        default:
+            // Fallback: treat as identifier of unknown type
+            id := st.newTemp()
+            res := &ir.Value{ID: id, Type: "any"}
+            return ir.Expr{Op: "ident", Result: res}, true
+        }
     case *ast.StringLit:
         // strings produce a temp value of type string
         id := st.newTemp()

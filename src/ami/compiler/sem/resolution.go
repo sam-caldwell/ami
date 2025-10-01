@@ -14,6 +14,13 @@ func AnalyzeNameResolution(f *ast.File) []diag.Record {
     var out []diag.Record
     if f == nil { return out }
     now := time.Unix(0, 0).UTC()
+    // collect top-level function names to allow referencing them as values (e.g., passing handlers)
+    topFuncs := map[string]struct{}{}
+    for _, d := range f.Decls {
+        if fn, ok := d.(*ast.FuncDecl); ok && fn.Name != "" {
+            topFuncs[fn.Name] = struct{}{}
+        }
+    }
     // collect import aliases for scope: alias or last path segment
     imports := map[string]struct{}{}
     for _, d := range f.Decls {
@@ -32,6 +39,8 @@ func AnalyzeNameResolution(f *ast.File) []diag.Record {
         if !ok || fn.Body == nil { continue }
         env := map[string]bool{}
         for _, p := range fn.Params { if p.Name != "" { env[p.Name] = true } }
+        // allow referencing any top-level func names in this file
+        for n := range topFuncs { env[n] = true }
         // Gather var decls
         for _, st := range fn.Body.Stmts {
             if vd, ok := st.(*ast.VarDecl); ok && vd.Name != "" { env[vd.Name] = true }

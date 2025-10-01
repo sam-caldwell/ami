@@ -306,7 +306,8 @@ stdlib:
             tests: []
           - id: E-2-1-1
             statement: |
-              As a user, I expect there to be a `signal.
+              As a user, I expect there to be a `signal.Register(signal signalType, func())` function which will 
+              register a signal handler function for a given signal
             dependencies: []
             status: ready
             tests: []

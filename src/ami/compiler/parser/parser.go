@@ -363,22 +363,34 @@ func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position
             typ = p.cur.Lexeme
             p.next()
             // If generic arguments follow, capture full "Base<...>" from source
-            if p.cur.Kind == token.Lt {
+            if p.cur.Kind == token.Lt || p.cur.Kind == token.Shl {
                 startOff := typePos.Offset
                 depth := 0
                 var lastGtOff int
                 for {
                     if p.cur.Kind == token.EOF { break }
-                    if p.cur.Kind == token.Lt { depth++ }
-                    if p.cur.Kind == token.Gt {
+                    switch p.cur.Kind {
+                    case token.Lt:
+                        depth++
+                    case token.Shl:
+                        depth += 2
+                    case token.Gt:
                         depth--
                         lastGtOff = p.cur.Pos.Offset
                         p.next()
-                        if depth == 0 { break }
+                        if depth == 0 { goto doneParamGeneric }
+                        continue
+                    case token.Shr:
+                        // token position is at first '>' of '>>'; set last to second '>'
+                        depth -= 2
+                        lastGtOff = p.cur.Pos.Offset + 1
+                        p.next()
+                        if depth == 0 { goto doneParamGeneric }
                         continue
                     }
                     p.next()
                 }
+            doneParamGeneric:
                 src := p.s.FileContent()
                 if lastGtOff > startOff && lastGtOff+1 <= len(src) {
                     typ = src[startOff : lastGtOff+1]
@@ -408,22 +420,33 @@ func (p *Parser) parseResultList() ([]ast.Result, source.Position, source.Positi
         rtype := p.cur.Lexeme
         rtypePos := rpos
         p.next()
-        if p.cur.Kind == token.Lt {
+        if p.cur.Kind == token.Lt || p.cur.Kind == token.Shl {
             startOff := rpos.Offset
             depth := 0
             var lastGtOff int
             for {
                 if p.cur.Kind == token.EOF { break }
-                if p.cur.Kind == token.Lt { depth++ }
-                if p.cur.Kind == token.Gt {
+                switch p.cur.Kind {
+                case token.Lt:
+                    depth++
+                case token.Shl:
+                    depth += 2
+                case token.Gt:
                     depth--
                     lastGtOff = p.cur.Pos.Offset
                     p.next()
-                    if depth == 0 { break }
+                    if depth == 0 { goto doneResultGeneric }
+                    continue
+                case token.Shr:
+                    depth -= 2
+                    lastGtOff = p.cur.Pos.Offset + 1
+                    p.next()
+                    if depth == 0 { goto doneResultGeneric }
                     continue
                 }
                 p.next()
             }
+        doneResultGeneric:
             src := p.s.FileContent()
             if lastGtOff > startOff && lastGtOff+1 <= len(src) {
                 rtype = src[startOff : lastGtOff+1]
@@ -520,22 +543,33 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                 tpos = p.cur.Pos
                 p.next()
                 // Capture optional generic arguments like '<T[,U]>' preserving nested forms
-                if p.cur.Kind == token.Lt {
+                if p.cur.Kind == token.Lt || p.cur.Kind == token.Shl {
                     startOff := tpos.Offset
                     depth := 0
                     var lastGtOff int
                     for {
                         if p.cur.Kind == token.EOF { break }
-                        if p.cur.Kind == token.Lt { depth++ }
-                        if p.cur.Kind == token.Gt {
+                        switch p.cur.Kind {
+                        case token.Lt:
+                            depth++
+                        case token.Shl:
+                            depth += 2
+                        case token.Gt:
                             depth--
                             lastGtOff = p.cur.Pos.Offset
                             p.next()
-                            if depth == 0 { break }
+                            if depth == 0 { goto doneVarGeneric }
+                            continue
+                        case token.Shr:
+                            depth -= 2
+                            lastGtOff = p.cur.Pos.Offset + 1
+                            p.next()
+                            if depth == 0 { goto doneVarGeneric }
                             continue
                         }
                         p.next()
                     }
+                doneVarGeneric:
                     src := p.s.FileContent()
                     if lastGtOff > startOff && lastGtOff+1 <= len(src) {
                         tname = src[startOff : lastGtOff+1]

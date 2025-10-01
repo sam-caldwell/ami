@@ -15,14 +15,17 @@ import (
 // on simple regex patterns and is best-effort.
 
 var (
-    codeRe = regexp.MustCompile(`Code:\s*\"([A-Z]_[A-Z0-9_]+)\"`)
-    dataKeyRe = regexp.MustCompile(`Data:\s*map\[string\]any\{([^}]*)\}`)
-    kvRe = regexp.MustCompile(`\"([a-zA-Z0-9_]+)\"\s*:`)
+    codeRe       = regexp.MustCompile(`Code:\s*\"([A-Z]_[A-Z0-9_]+)\"`)
+    dataKeyRe    = regexp.MustCompile(`Data:\s*map\[string\]any\{([^}]*)\}`)
+    kvRe         = regexp.MustCompile(`\"([a-zA-Z0-9_]+)\"\s*:`)
+    msgSimpleRe  = regexp.MustCompile(`Message:\s*\"([^\"]+)\"`)
+    msgFmtRe     = regexp.MustCompile(`Message:\s*fmt\.Sprintf\(\"([^\"]+)\"`)
 )
 
 func main() {
     repoRoot := "."
     codes := map[string]map[string]struct{}{}
+    samples := map[string]string{}
     // Scan selected dirs
     roots := []string{"src/ami/compiler/sem", "src/cmd/ami"}
     for _, root := range roots {
@@ -33,60 +36,49 @@ func main() {
             scanner := bufio.NewScanner(f)
             inRec := false
             braceDepth := 0
-            lastCode := ""
-            inData := false
-            var dataBuf strings.Builder
+            var recBuf strings.Builder
             for scanner.Scan() {
                 line := scanner.Text()
                 // track record start/brace depth
                 if strings.Contains(line, "diag.Record{") {
                     inRec = true
+                    recBuf.Reset()
+                    recBuf.WriteString(line)
+                    recBuf.WriteByte('\n')
                     braceDepth = strings.Count(line, "{") - strings.Count(line, "}")
-                    lastCode = ""
-                } else if inRec {
-                    braceDepth += strings.Count(line, "{") - strings.Count(line, "}")
+                    continue
                 }
-                // code inside record
                 if inRec {
-                    if cm := codeRe.FindStringSubmatch(line); cm != nil {
-                        lastCode = cm[1]
-                        if _, ok := codes[lastCode]; !ok { codes[lastCode] = map[string]struct{}{} }
-                    }
-                    // Data map start
-                    if !inData && strings.Contains(line, "Data: map[string]any{") {
-                        inData = true
-                        dataBuf.Reset()
-                        // append after first '{'
-                        idx := strings.Index(line, "Data: map[string]any{")
-                        if idx >= 0 {
-                            rem := line[idx+len("Data: map[string]any{"):]
-                            dataBuf.WriteString(rem)
-                            // if line already has closing brace, end
-                            if strings.Contains(rem, "}") {
-                                inData = false
-                                content := dataBuf.String()
-                                for _, km := range kvRe.FindAllStringSubmatch(content, -1) {
-                                    if len(km) > 1 && lastCode != "" { codes[lastCode][km[1]] = struct{}{} }
+                    braceDepth += strings.Count(line, "{") - strings.Count(line, "}")
+                    recBuf.WriteString(line)
+                    recBuf.WriteByte('\n')
+                    if braceDepth <= 0 {
+                        // parse this record buffer
+                        content := recBuf.String()
+                        // code
+                        code := ""
+                        if cm := codeRe.FindStringSubmatch(content); cm != nil { code = cm[1] }
+                        if code != "" {
+                            if _, ok := codes[code]; !ok { codes[code] = map[string]struct{}{} }
+                            // data keys (may be multiple Data maps; collect all keys)
+                            for _, dm := range dataKeyRe.FindAllStringSubmatch(content, -1) {
+                                if len(dm) > 1 {
+                                    for _, km := range kvRe.FindAllStringSubmatch(dm[1], -1) {
+                                        if len(km) > 1 { codes[code][km[1]] = struct{}{} }
+                                    }
                                 }
                             }
-                        }
-                        continue
-                    }
-                    if inData {
-                        dataBuf.WriteString(line)
-                        if strings.Contains(line, "}") {
-                            inData = false
-                            content := dataBuf.String()
-                            for _, km := range kvRe.FindAllStringSubmatch(content, -1) {
-                                if len(km) > 1 && lastCode != "" { codes[lastCode][km[1]] = struct{}{} }
+                            // message sample: prefer fmt.Sprintf format; fallback to simple literal
+                            if sm := msgFmtRe.FindStringSubmatch(content); sm != nil {
+                                if _, seen := samples[code]; !seen { samples[code] = sm[1] }
+                            } else if sm := msgSimpleRe.FindStringSubmatch(content); sm != nil {
+                                if _, seen := samples[code]; !seen { samples[code] = sm[1] }
                             }
                         }
+                        // reset
+                        inRec = false
+                        recBuf.Reset()
                     }
-                }
-                // end record
-                if inRec && braceDepth <= 0 {
-                    inRec = false
-                    lastCode = ""
                 }
             }
             return nil
@@ -108,10 +100,17 @@ func main() {
     sort.Strings(codeList)
     for _, c := range codeList {
         fmt.Fprintf(of, "- %s", c)
+        // message sample
+        if msg, ok := samples[c]; ok && strings.TrimSpace(msg) != "" {
+            fmt.Fprintf(of, ": message sample = %q", msg)
+        }
         keys := make([]string, 0, len(codes[c]))
         for k := range codes[c] { keys = append(keys, k) }
         sort.Strings(keys)
-        if len(keys) > 0 { fmt.Fprintf(of, ": data keys = %s", strings.Join(keys, ", ")) }
+        if len(keys) > 0 {
+            if _, ok := samples[c]; ok { fmt.Fprintf(of, "; ") } else { fmt.Fprintf(of, ": ") }
+            fmt.Fprintf(of, "data keys = %s", strings.Join(keys, ", "))
+        }
         fmt.Fprintln(of)
     }
 }

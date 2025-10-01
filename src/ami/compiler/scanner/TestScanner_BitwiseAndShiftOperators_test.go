@@ -11,7 +11,7 @@ func TestScanner_BitwiseAndShiftOperators(t *testing.T) {
 	// Ensure '&', '^', '<<', '>>' are recognized via the Operators map.
 	src := "& ^ << >>"
 	s := New(&source.File{Name: "ops", Content: src})
-	seq := []token.Kind{}
+	var seq []token.Kind
 	for {
 		tok := s.Next()
 		seq = append(seq, tok.Kind)

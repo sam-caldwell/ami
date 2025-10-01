@@ -1,6 +1,6 @@
 package scanner
 
-// matchDurationUnit returns length of a valid duration unit at position i.
+// matchDurationUnit returns the length of a valid duration unit at position i.
 // Recognizes the longest match among: ns, us, ms, h, m, s
 func matchDurationUnit(src string, i int) int {
 	if i+2 <= len(src) {

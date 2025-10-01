@@ -30,7 +30,7 @@ func (s *Scanner) scanDurationLiteral() (string, bool) {
 	if digits == 0 {
 		return "", false
 	}
-	// optional fractional part for first segment
+	// optional fractional part for the first segment
 	if i < n && src[i] == '.' {
 		i++
 		frac := 0

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/sam-caldwell/ami/src/ami/compiler/source"
+	"github.com/sam-caldwell/ami/src/ami/compiler/token"
 )
 
 func TestScanner_NilOrEmpty(t *testing.T) {

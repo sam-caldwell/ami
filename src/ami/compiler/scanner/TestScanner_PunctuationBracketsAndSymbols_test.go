@@ -11,7 +11,7 @@ func TestScanner_PunctuationBracketsAndSymbols(t *testing.T) {
 	// Cover LBracket/RBracket, Backslash, Dollar, Tick, Tilde, Question, At, SingleQuote, and fallback Symbol.
 	src := "[ ] \\ $ ` ~ ? @ ' §"
 	s := New(&source.File{Name: "t", Content: src})
-	kinds := []token.Kind{}
+	var kinds []token.Kind
 	for {
 		tok := s.Next()
 		kinds = append(kinds, tok.Kind)

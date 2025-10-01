@@ -38,6 +38,7 @@ func (s *Scanner) Next() token.Token {
 		if src[s.offset+1] == '/' {
 			start := s.offset
 			s.offset += 2
+			//goland:noinspection SpellCheckingInspection
 			cstart := s.offset
 			for s.offset < n {
 				r, size := utf8.DecodeRuneInString(src[s.offset:])
@@ -52,6 +53,7 @@ func (s *Scanner) Next() token.Token {
 		if src[s.offset+1] == '*' {
 			start := s.offset
 			s.offset += 2
+			//goland:noinspection SpellCheckingInspection
 			cstart := s.offset
 			for s.offset+1 < n && !(src[s.offset] == '*' && src[s.offset+1] == '/') {
 				s.offset++
@@ -85,6 +87,7 @@ func (s *Scanner) Next() token.Token {
 	}
 
 	// number or duration literal
+	//goland:noinspection GrazieInspection,AiaStyle,AiaStyle
 	if unicode.IsDigit(ch) {
 		// Attempt to scan a Go-style duration literal like 300ms, 5s, 2h45m, 1.5h
 		if lex, ok := s.scanDurationLiteral(); ok {

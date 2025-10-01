@@ -52,7 +52,8 @@ func RuntimeLL(triple string, withMain bool) string {
         "gfound:\n  ret void\n" +
         "gcont:\n  %ginext = add i64 %gi, 1\n  br label %gloop\n" +
         "gexit:\n  ; perform zeroize + free, then record handle\n  %p = call ptr @ami_rt_owned_ptr(ptr %h)\n  %n = call i64 @ami_rt_owned_len(ptr %h)\n  call void @ami_rt_zeroize(ptr %p, i64 %n)\n  call void @free(ptr %p)\n  call void @free(ptr %h)\n  %idx1 = load i64, ptr @ami_released_idx, align 8\n  %slot = urem i64 %idx1, %cap\n  %rt = getelementptr [256 x ptr], ptr @ami_released_tab, i64 0, i64 %slot\n  store ptr %h, ptr %rt, align 8\n  %idx2 = add i64 %idx1, 1\n  store i64 %idx2, ptr @ami_released_idx, align 8\n  ret void\n}\n\n"
-    s += "declare i64 @llvm.umin.i64(i64, i64)\n\n"
+    s += "declare i64 @llvm.umin.i64(i64, i64)\n"
+    s += "declare i64 @llvm.ctlz.i64(i64, i1)\n\n"
     // Error ABI: heap-allocated handle with code, message pointer and length.
     // Layout: { i32 code; i8* msg; i64 len }
     s += "%Error = type { i32, i8*, i64 }\n\n"
@@ -121,9 +122,11 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "\n; math helpers (aggregate returns)\n"
     // sincos: {sin(x), cos(x)}
     s += "define { double, double } @ami_rt_math_sincos(double %x) {\nentry:\n  %s = call double @llvm.sin.f64(double %x)\n  %c = call double @llvm.cos.f64(double %x)\n  %a0 = insertvalue { double, double } undef, double %s, 0\n  %a1 = insertvalue { double, double } %a0, double %c, 1\n  ret { double, double } %a1\n}\n\n"
-    // frexp: {frac, exp}
-    // Implement via bit ops: this is a simple stub for bring-up; precise semantics can be refined.
-    s += "define { double, i64 } @ami_rt_math_frexp(double %x) {\nentry:\n  ; naive stub: return {x, 0} for bring-up\n  %a0 = insertvalue { double, i64 } undef, double %x, 0\n  %a1 = insertvalue { double, i64 } %a0, i64 0, 1\n  ret { double, i64 } %a1\n}\n\n"
+    // frexp: {frac, exp} with IEEE-754 semantics.
+    // For normals: frac in [0.5,1) with sign of x; exp such that x = frac * 2^exp.
+    // For zeros: return {x, 0}. For Inf/NaN: return {x, 0}. For subnormals: normalize mantissa.
+    s += "define { double, i64 } @ami_rt_math_frexp(double %x) {\n" +
+        "entry:\n  %ibits = bitcast double %x to i64\n  %Eraw = lshr i64 %ibits, 52\n  %E = and i64 %Eraw, 2047\n  %M = and i64 %ibits, 4503599627370495\n  %sign = and i64 %ibits, -9223372036854775808\n  ; handle zero: M==0 && E==0 -> {x,0}\n  %E_is_zero = icmp eq i64 %E, 0\n  %M_is_zero = icmp eq i64 %M, 0\n  %is_zero = and i1 %E_is_zero, %M_is_zero\n  br i1 %is_zero, label %zero, label %check_special\nzero:\n  %z0 = insertvalue { double, i64 } undef, double %x, 0\n  %z1 = insertvalue { double, i64 } %z0, i64 0, 1\n  ret { double, i64 } %z1\ncheck_special:\n  ; handle Inf/NaN: E==2047 -> {x,0}\n  %is_special = icmp eq i64 %E, 2047\n  br i1 %is_special, label %special, label %branch_norm\nspecial:\n  %s0 = insertvalue { double, i64 } undef, double %x, 0\n  %s1 = insertvalue { double, i64 } %s0, i64 0, 1\n  ret { double, i64 } %s1\nbranch_norm:\n  ; branch based on normal (E!=0) vs subnormal (E==0 && M!=0)\n  br i1 %E_is_zero, label %subnormal, label %normal\nnormal:\n  ; exp = E - 1022 ; frac = sign | (1022<<52) | M\n  %exp_n = sub i64 %E, 1022\n  %expbits_n = shl i64 1022, 52\n  %em_n = or i64 %expbits_n, %M\n  %fbits_n = or i64 %em_n, %sign\n  %frac_n = bitcast i64 %fbits_n to double\n  %n0 = insertvalue { double, i64 } undef, double %frac_n, 0\n  %n1 = insertvalue { double, i64 } %n0, i64 %exp_n, 1\n  ret { double, i64 } %n1\nsubnormal:\n  ; M != 0 here. Normalize: shift M left so that bit 51 is set; exp = h - 1073 where h = floor(log2(M))\n  %clz = call i64 @llvm.ctlz.i64(i64 %M, i1 false)\n  %h = sub i64 63, %clz\n  %sh = sub i64 51, %h\n  %Mshift = shl i64 %M, %sh\n  %mant = and i64 %Mshift, 4503599627370495\n  %exp_s = sub i64 %h, 1073\n  %expbits_s = shl i64 1022, 52\n  %em_s = or i64 %expbits_s, %mant\n  %fbits_s = or i64 %em_s, %sign\n  %frac_s = bitcast i64 %fbits_s to double\n  %snb0 = insertvalue { double, i64 } undef, double %frac_s, 0\n  %snb1 = insertvalue { double, i64 } %snb0, i64 %exp_s, 1\n  ret { double, i64 } %snb1\n}\n\n"
     // modf: {intpart, fracpart}
     s += "define { double, double } @ami_rt_math_modf(double %x) {\nentry:\n  %i = fptosi double %x to i64\n  %id = sitofp i64 %i to double\n  %f = fsub double %x, %id\n  %a0 = insertvalue { double, double } undef, double %id, 0\n  %a1 = insertvalue { double, double } %a0, double %f, 1\n  ret { double, double } %a1\n}\n\n"
     // Other helpers
@@ -136,7 +139,8 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "define double @ami_rt_math_nan() {\nentry:\n  ret double 0x7FF8000000000000\n}\n\n"
 
     // Remainder helper (IEEE style approximated via frem for bring-up)
-    s += "define double @ami_rt_math_remainder(double %x, double %y) {\nentry:\n  %r = frem double %x, %y\n  ret double %r\n}\n\n"
+    s += "define double @ami_rt_math_remainder(double %x, double %y) {\n" +
+        "entry:\n  ; NaN/Inf/zero checks\n  %x_nan = fcmp uno double %x, %x\n  %y_nan = fcmp uno double %y, %y\n  %y_zero = fcmp oeq double %y, 0.0\n  %ax = call double @llvm.fabs.f64(double %x)\n  %ay = call double @llvm.fabs.f64(double %y)\n  %x_inf = fcmp oeq double %ax, 0x7FF0000000000000\n  %y_inf = fcmp oeq double %ay, 0x7FF0000000000000\n  %bad1 = or i1 %x_nan, %y_nan\n  %bad2 = or i1 %bad1, %y_zero\n  %bad = or i1 %bad2, %x_inf\n  br i1 %bad, label %nan, label %cont\nnan:\n  ret double 0x7FF8000000000000\ncont:\n  br i1 %y_inf, label %retx, label %calc\nretx:\n  ret double %x\ncalc:\n  %q = fdiv double %x, %y\n  %n = call double @llvm.roundeven.f64(double %q)\n  %ny = fmul double %n, %y\n  %r = fsub double %x, %ny\n  ret double %r\n}\n\n"
 
     // Pow10 helper: compute 10^n for integer n
     s += "define double @ami_rt_math_pow10(i64 %n) {\n" +

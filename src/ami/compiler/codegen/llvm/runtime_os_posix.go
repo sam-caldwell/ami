@@ -24,6 +24,8 @@ func runtimeOSLL() string {
     // Enable: install trampoline for this signal via signal(2)
     s += "define void @ami_rt_os_signal_enable(i64 %sig) {\n" +
         "entry:\n  call void @ami_rt_posix_install_trampoline(i64 %sig)\n  ret void\n}\n\n"
-    s += "define void @ami_rt_os_signal_disable(i64 %sig) {\nentry:\n  ret void\n}\n\n"
+    // Disable: restore default handler for this signal (signal(sig, SIG_DFL))
+    s += "define void @ami_rt_os_signal_disable(i64 %sig) {\n" +
+        "entry:\n  %s32 = trunc i64 %sig to i32\n  %old = call ptr @signal(i32 %s32, ptr null)\n  ret void\n}\n\n"
     return s
 }

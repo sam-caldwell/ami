@@ -1,61 +1,31 @@
-package time
+package amitime
 
-import (
-    stdtime "time"
-    "sync"
-)
+import stdtime "time"
 
-// Duration is a Go-compatible duration type (nanoseconds).
+// Duration is an alias to Go's time.Duration for convenience.
 type Duration = stdtime.Duration
 
-// Time represents a time instant.
-type Time = stdtime.Time
+// Time wraps stdlib time.Time to provide AMI-friendly APIs.
+type Time struct{ t stdtime.Time }
 
-// Sleep pauses the current goroutine for at least the duration d.
+// Now returns the current wall-clock time.
+func Now() Time { return Time{t: stdtime.Now()} }
+
+// Sleep pauses the current goroutine for at least duration d.
 func Sleep(d Duration) { stdtime.Sleep(d) }
 
-// Now returns the current local time.
-func Now() Time { return stdtime.Now() }
+// Add returns a new Time advanced by duration d from t.
+func Add(t Time, d Duration) Time { return Time{t: t.t.Add(d)} }
 
-// Delta returns the duration t2 - t1.
-func Delta(t1, t2 Time) Duration { return t2.Sub(t1) }
+// Delta returns t2 - t1 as a Duration. Positive when t2 occurs after t1.
+func Delta(t1, t2 Time) Duration { return t2.t.Sub(t1.t) }
 
-// Add returns the time t advanced by duration d.
-func Add(t Time, d Duration) Time { return t.Add(d) }
+// FromUnix constructs a Time from seconds and nanoseconds since Unix epoch.
+func FromUnix(sec, nsec int64) Time { return Time{t: stdtime.Unix(sec, nsec)} }
 
-// Ticker delivers events at intervals.
-type Ticker struct {
-    t    *stdtime.Ticker
-    fn   func()
-    quit chan struct{}
-    stopOnce sync.Once
-}
+// Unix returns seconds since Unix epoch.
+func (t Time) Unix() int64 { return t.t.Unix() }
 
-// NewTicker returns a new Ticker for duration d.
-func NewTicker(d Duration) *Ticker {
-    return &Ticker{t: stdtime.NewTicker(d), quit: make(chan struct{})}
-}
+// UnixNano returns nanoseconds since Unix epoch.
+func (t Time) UnixNano() int64 { return t.t.UnixNano() }
 
-// Register sets the function to be executed on each tick.
-func (tk *Ticker) Register(f func()) { tk.fn = f }
-
-// Start begins executing the registered function every tick.
-func (tk *Ticker) Start() {
-    if tk == nil || tk.t == nil { return }
-    go func() {
-        for {
-            select {
-            case <-tk.t.C:
-                if tk.fn != nil { tk.fn() }
-            case <-tk.quit:
-                return
-            }
-        }
-    }()
-}
-
-// Stop stops the ticker.
-func (tk *Ticker) Stop() {
-    if tk == nil || tk.t == nil { return }
-    tk.stopOnce.Do(func(){ tk.t.Stop(); close(tk.quit) })
-}

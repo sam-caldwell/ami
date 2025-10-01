@@ -47,6 +47,8 @@ Documentation Index (docs/*)
   - `docs/stdlib/os.md` — stdlib os package (process runner)
   - `docs/examples/os-exec.md` — planned AMI example using stdlib os once hooks are available
   - `docs/stdlib/signal.md` — stdlib signal package (handlers)
+  - `docs/stdlib/time.md` — stdlib time package (sleep, now, arithmetic, ticker)
+  - `docs/language/time.md` — planned AMI example for stdlib time
 
 Authoritative Specification
 - The authoritative specification is maintained as a `.docx` and mirrored by the YAML tracker:

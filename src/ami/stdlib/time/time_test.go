@@ -1,34 +1,43 @@
-package time
+package amitime
 
 import (
     stdtime "time"
     "testing"
 )
 
-func TestNowDeltaAddUnix(t *testing.T) {
-    t1 := Now()
-    Sleep(10 * stdtime.Millisecond)
-    t2 := Now()
-    if Delta(t1, t2) <= 0 { t.Fatalf("Delta should be >0") }
-    t3 := Add(t1, 10*stdtime.Millisecond)
-    if t3.Sub(t1) != 10*stdtime.Millisecond { t.Fatalf("Add mismatch") }
-    if t1.Unix() <= 0 || t1.UnixNano() <= 0 { t.Fatalf("Unix timestamps should be positive") }
+func TestNow_CloseToStdlib(t *testing.T) {
+    before := stdtime.Now()
+    n := Now()
+    after := stdtime.Now()
+    if n.t.Before(before) || n.t.After(after.Add(2*stdtime.Second)) {
+        t.Fatalf("Now() outside expected bounds: before=%v now=%v after=%v", before, n.t, after)
+    }
 }
 
-func TestTicker_Start_Stop_Register(t *testing.T) {
-    var count int
-    tk := NewTicker(5 * stdtime.Millisecond)
-    tk.Register(func(){ count++ })
-    tk.Start()
+func TestSleep_Short(t *testing.T) {
+    start := stdtime.Now()
     Sleep(20 * stdtime.Millisecond)
-    tk.Stop()
-    if count == 0 { t.Fatalf("ticker did not fire") }
+    elapsed := stdtime.Since(start)
+    if elapsed < 15*stdtime.Millisecond {
+        t.Fatalf("sleep too short: %v", elapsed)
+    }
 }
 
-func TestTicker_Stop_Idempotent(t *testing.T) {
-    tk := NewTicker(2 * stdtime.Millisecond)
-    tk.Start()
-    // Call Stop twice; should not panic
-    tk.Stop()
-    tk.Stop()
+func TestAdd_And_Delta(t *testing.T) {
+    t0 := FromUnix(0, 0)
+    t1 := Add(t0, stdtime.Second)
+    if d := Delta(t0, t1); d != stdtime.Second {
+        t.Fatalf("Delta mismatch: got %v want 1s", d)
+    }
+    if sec := t1.Unix(); sec != 1 {
+        t.Fatalf("Unix mismatch: got %d want 1", sec)
+    }
 }
+
+func TestUnixNano(t *testing.T) {
+    t0 := FromUnix(1, 500)
+    if n := t0.UnixNano(); n <= 1e9 {
+        t.Fatalf("expected > 1e9 ns, got %d", n)
+    }
+}
+

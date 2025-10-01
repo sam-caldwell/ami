@@ -55,6 +55,19 @@ func RuntimeLL(triple string, withMain bool) string {
     // GPU blocking submit wrapper (returns null Error<any> handle as stub)
     s += "define ptr @ami_rt_gpu_blocking_submit(ptr %arg) {\nentry:\n  ret ptr null\n}\n\n"
 
+    // Metal runtime stubs for AMI-level lowering. Replace with real implementations later.
+    s += "define i1 @ami_rt_metal_available() {\nentry:\n  ret i1 0\n}\n\n"
+    s += "define ptr @ami_rt_metal_devices() {\nentry:\n  ret ptr null\n}\n\n"
+    s += "define ptr @ami_rt_metal_ctx_create(ptr %dev) {\nentry:\n  ret ptr null\n}\n\n"
+    s += "define void @ami_rt_metal_ctx_destroy(ptr %ctx) {\nentry:\n  ret void\n}\n\n"
+    s += "define ptr @ami_rt_metal_lib_compile(ptr %src) {\nentry:\n  ret ptr null\n}\n\n"
+    s += "define ptr @ami_rt_metal_pipe_create(ptr %lib, ptr %name) {\nentry:\n  ret ptr null\n}\n\n"
+    s += "define ptr @ami_rt_metal_alloc(i64 %n) {\nentry:\n  ret ptr null\n}\n\n"
+    s += "define void @ami_rt_metal_free(ptr %buf) {\nentry:\n  ret void\n}\n\n"
+    s += "define void @ami_rt_metal_copy_to_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
+    s += "define void @ami_rt_metal_copy_from_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
+    s += "define ptr @ami_rt_metal_dispatch_blocking(ptr %ctx, ptr %pipe, i64 %gx, i64 %gy, i64 %gz, i64 %tx, i64 %ty, i64 %tz) {\nentry:\n  ret ptr null\n}\n\n"
+
     // No-op ingress spawner stub; real implementation will create threads/processes per ingress trigger.
     s += "define void @ami_rt_spawn_ingress(ptr %name) {\nentry:\n  ret void\n}\n\n"
     // Signal registration: opaque handler tokens by signal (mod 64)

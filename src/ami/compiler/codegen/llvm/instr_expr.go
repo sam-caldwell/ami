@@ -34,6 +34,13 @@ func lowerExpr(e ir.Expr) string {
         // - Runtime helpers: use their true ABI regardless of whether result captured
         // - User functions: map via ABI, avoid raw ptr exposure when captured
         ret := "void"
+        // Precompute multi-result aggregate type when provided
+        aggRet := ""
+        if len(e.Results) > 1 {
+            var parts []string
+            for _, r := range e.Results { parts = append(parts, abiType(r.Type)) }
+            aggRet = "{" + strings.Join(parts, ", ") + "}"
+        }
         if strings.HasPrefix(e.Callee, "ami_rt_") {
             switch e.Callee {
             case "ami_rt_panic", "ami_rt_zeroize", "ami_rt_zeroize_owned":
@@ -66,6 +73,8 @@ func lowerExpr(e ir.Expr) string {
                 // fall back to result type when provided
                 if e.Result != nil { ret = mapType(e.Result.Type) } else { ret = "void" }
             }
+        } else if len(e.Results) > 1 {
+            ret = aggRet
         } else if e.Result != nil {
             // Avoid exposing raw pointers at the language ABI boundary for user functions
             rt := mapType(e.Result.Type)
@@ -93,6 +102,16 @@ func lowerExpr(e ir.Expr) string {
                 continue
             }
             args = append(args, fmt.Sprintf("%s %%%s", ty, a.ID))
+        }
+        if len(e.Results) > 1 {
+            // Aggregate call then extract results
+            aggID := "call_tup_" + e.Results[0].ID
+            var sb strings.Builder
+            fmt.Fprintf(&sb, "  %%%s = call %s @%s(%s)\n", aggID, ret, e.Callee, strings.Join(args, ", "))
+            for i, r := range e.Results {
+                fmt.Fprintf(&sb, "  %%%s = extractvalue %s %%%s, %d\n", r.ID, ret, aggID, i)
+            }
+            return sb.String()
         }
         if e.Result != nil && e.Result.ID != "" {
             return fmt.Sprintf("  %%%s = call %s @%s(%s)\n", e.Result.ID, ret, e.Callee, strings.Join(args, ", "))

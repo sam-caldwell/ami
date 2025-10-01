@@ -21,7 +21,13 @@ func lowerFunction(fn ir.Function) (string, error) {
         }
         ret = abiType(fn.Results[0].Type)
     default:
-        return "", fmt.Errorf("multi-result functions not supported in LLVM emitter scaffold")
+        // Aggregate return type: {T0, T1, ...}
+        var parts []string
+        for _, r := range fn.Results {
+            if isUnsafePointerType(r.Type) { return "", fmt.Errorf("unsafe pointer type in result: %s", r.Type) }
+            parts = append(parts, abiType(r.Type))
+        }
+        ret = "{" + strings.Join(parts, ", ") + "}"
     }
     // Params
     var params []string

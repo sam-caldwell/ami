@@ -179,6 +179,7 @@ func exprToJSON(e Expr) any {
     if e.Callee != "" { obj["callee"] = e.Callee }
     if len(e.Args) > 0 { obj["args"] = valuesToJSON(e.Args) }
     if e.Result != nil { obj["result"] = map[string]any{"id": e.Result.ID, "type": e.Result.Type} }
+    if len(e.Results) > 0 { obj["results"] = valuesToJSON(e.Results) }
     // Enrich call expressions with simple type signature hints for downstream phases.
     if e.Op == "call" {
         if len(e.Args) > 0 {
@@ -188,11 +189,13 @@ func exprToJSON(e Expr) any {
         } else {
             obj["argTypes"] = []any{}
         }
-        if e.Result != nil {
+        if len(e.Results) > 0 {
+            rt := make([]any, 0, len(e.Results))
+            for _, r := range e.Results { rt = append(rt, r.Type) }
+            obj["retTypes"] = rt
+        } else if e.Result != nil {
             obj["retTypes"] = []any{e.Result.Type}
-        } else {
-            obj["retTypes"] = []any{}
-        }
+        } else { obj["retTypes"] = []any{} }
         // Always include a signature block for calls in debug JSON
         sig := map[string]any{"params": []any{}, "results": []any{}}
         var ps []any
@@ -219,9 +222,9 @@ func exprToJSON(e Expr) any {
         rs := make([]any, 0, len(e.ResultTypes))
         if len(e.ResultTypes) > 0 {
             for _, r := range e.ResultTypes { rs = append(rs, r) }
-        } else if e.Result != nil {
-            rs = append(rs, e.Result.Type)
-        }
+        } else if len(e.Results) > 0 {
+            for _, r := range e.Results { rs = append(rs, r.Type) }
+        } else if e.Result != nil { rs = append(rs, e.Result.Type) }
         sig["params"] = ps
         sig["results"] = rs
         obj["sig"] = sig

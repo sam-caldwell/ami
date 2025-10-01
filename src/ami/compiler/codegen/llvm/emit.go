@@ -188,6 +188,28 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                         e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
                     case "ami_rt_gpu_blocking_submit":
                         e.RequireExtern("declare ptr @ami_rt_gpu_blocking_submit(ptr)")
+                    case "ami_rt_metal_available":
+                        e.RequireExtern("declare i1 @ami_rt_metal_available()")
+                    case "ami_rt_metal_devices":
+                        e.RequireExtern("declare ptr @ami_rt_metal_devices()")
+                    case "ami_rt_metal_ctx_create":
+                        e.RequireExtern("declare ptr @ami_rt_metal_ctx_create(ptr)")
+                    case "ami_rt_metal_ctx_destroy":
+                        e.RequireExtern("declare void @ami_rt_metal_ctx_destroy(ptr)")
+                    case "ami_rt_metal_lib_compile":
+                        e.RequireExtern("declare ptr @ami_rt_metal_lib_compile(ptr)")
+                    case "ami_rt_metal_pipe_create":
+                        e.RequireExtern("declare ptr @ami_rt_metal_pipe_create(ptr, ptr)")
+                    case "ami_rt_metal_alloc":
+                        e.RequireExtern("declare ptr @ami_rt_metal_alloc(i64)")
+                    case "ami_rt_metal_free":
+                        e.RequireExtern("declare void @ami_rt_metal_free(ptr)")
+                    case "ami_rt_metal_copy_to_device":
+                        e.RequireExtern("declare void @ami_rt_metal_copy_to_device(ptr, ptr, i64)")
+                    case "ami_rt_metal_copy_from_device":
+                        e.RequireExtern("declare void @ami_rt_metal_copy_from_device(ptr, ptr, i64)")
+                    case "ami_rt_metal_dispatch_blocking":
+                        e.RequireExtern("declare ptr @ami_rt_metal_dispatch_blocking(ptr, ptr, i64, i64, i64, i64, i64, i64)")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr

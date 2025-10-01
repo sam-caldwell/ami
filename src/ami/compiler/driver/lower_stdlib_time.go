@@ -135,12 +135,79 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         return ir.Expr{Op: "call", Callee: "ami_rt_signal_register", Args: args}, true
     }
     if strings.HasSuffix(name, ".BlockingSubmit") || name == "gpu.BlockingSubmit" {
-        // Lower to runtime GPU blocking submit wrapper. Result is Error<any> (opaque handle)
+        // If the sole argument is a call expression (e.g., gpu.MetalDispatchBlocking(...)),
+        // bypass wrapper and lower the inner call directly to preserve types and semantics.
+        if len(c.Args) == 1 {
+            if inner, ok := c.Args[0].(*ast.CallExpr); ok {
+                if ex, ok2 := lowerExpr(st, inner); ok2 {
+                    return ex, true
+                }
+            }
+        }
+        // Fallback: lower to runtime GPU blocking submit wrapper. Result is Error<any> (opaque handle)
         var args []ir.Value
         for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
         id := st.newTemp()
         res := &ir.Value{ID: id, Type: "Error<any>"}
         return ir.Expr{Op: "call", Callee: "ami_rt_gpu_blocking_submit", Args: args, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".MetalAvailable") || name == "gpu.MetalAvailable" {
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "bool"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_available", Result: res}, true
+    }
+    if strings.HasSuffix(name, ".MetalDevices") || name == "gpu.MetalDevices" {
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "slice<any>"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_devices", Result: res}, true
+    }
+    if strings.HasSuffix(name, ".MetalCreateContext") || name == "gpu.MetalCreateContext" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "Owned"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_ctx_create", Args: args, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".MetalDestroyContext") || name == "gpu.MetalDestroyContext" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_ctx_destroy", Args: args}, true
+    }
+    if strings.HasSuffix(name, ".MetalCompileLibrary") || name == "gpu.MetalCompileLibrary" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "Owned"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_lib_compile", Args: args, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".MetalCreatePipeline") || name == "gpu.MetalCreatePipeline" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "Owned"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_pipe_create", Args: args, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".MetalAlloc") || name == "gpu.MetalAlloc" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "Owned"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_alloc", Args: args, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".MetalFree") || name == "gpu.MetalFree" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_free", Args: args}, true
+    }
+    if strings.HasSuffix(name, ".MetalCopyToDevice") || name == "gpu.MetalCopyToDevice" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_copy_to_device", Args: args}, true
+    }
+    if strings.HasSuffix(name, ".MetalCopyFromDevice") || name == "gpu.MetalCopyFromDevice" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_copy_from_device", Args: args}, true
+    }
+    if strings.HasSuffix(name, ".MetalDispatchBlocking") || name == "gpu.MetalDispatchBlocking" {
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "Error<any>"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_metal_dispatch_blocking", Args: args, Result: res}, true
     }
     if strings.HasSuffix(name, ".Sleep") || name == "time.Sleep" {
         // Lower to runtime sleep (milliseconds). Result is void.

@@ -247,6 +247,13 @@ func lowerCallExpr(st *lowerState, c *ast.CallExpr) ir.Expr {
             if pn, ok := st.funcParamNames[c.Name]; ok { pNames = pn }
         }
     }
+    // Multi-result adaptation: when function signature declares multiple results,
+    // synthesize distinct temps and populate Expr.Results instead of single Result.
+    if len(rSig) > 1 {
+        var results []ir.Value
+        for i := range rSig { results = append(results, ir.Value{ID: st.newTemp(), Type: rSig[i]}) }
+        return ir.Expr{Op: "call", Callee: c.Name, Args: args, Results: results, ParamTypes: pSig, ParamNames: pNames, ResultTypes: rSig}
+    }
     res := &ir.Value{ID: id, Type: rtype}
     return ir.Expr{Op: "call", Callee: c.Name, Args: args, Result: res, ParamTypes: pSig, ParamNames: pNames, ResultTypes: rSig}
 }

@@ -6,16 +6,21 @@ import "github.com/sam-caldwell/ami/src/ami/compiler/source"
 // These enable AMI users to import packages like `time` and `signal` without providing implementations.
 func builtinStdlibPackages() []Package {
     var out []Package
-    // time package stubs (signatures only). Units: int parameters represent duration in milliseconds for Sleep/Add.
+    // time package stubs (signatures only).
     timeSrc := "package time\n" +
         "// AMI stdlib stubs (signatures only)\n" +
-        "// Duration values are integers (ms) for the purpose of stubs.\n" +
-        "func Sleep(d int) {}\n" +
+        "// Duration represents elapsed time (ns).\n" +
+        "func Sleep(d Duration) {}\n" +
         "func Now() (Time) {}\n" +
-        "func Add(t Time, d int) (Time) {}\n" +
+        "func Add(t Time, d Duration) (Time) {}\n" +
         "func Delta(a Time, b Time) (int64) {}\n" +
         "func Unix(t Time) (int64) {}\n" +
-        "func UnixNano(t Time) (int64) {}\n"
+        "func UnixNano(t Time) (int64) {}\n" +
+        // Ticker API surface (package-level functions; parser lacks method decls).\n" +
+        "func NewTicker(d Duration) (Ticker) {}\n" +
+        "func TickerStart(t Ticker) {}\n" +
+        "func TickerStop(t Ticker) {}\n" +
+        "func TickerRegister(t Ticker, fn any) {}\n"
     tfs := &source.FileSet{}
     tfs.AddFile("time.ami", timeSrc)
     out = append(out, Package{Name: "time", Files: tfs})
@@ -34,14 +39,12 @@ func builtinStdlibPackages() []Package {
     sfs.AddFile("signal.ami", sigSrc)
     out = append(out, Package{Name: "signal", Files: sfs})
 
-    // gpu package: top-level availability probes only (stubs). Additional APIs provided by Go stdlib.
+    // gpu package: top-level availability probes (signatures only)
     gpuSrc := "package gpu\n" +
         "// AMI stdlib stubs (signatures only)\n" +
         "func CudaAvailable() (bool) {}\n" +
         "func MetalAvailable() (bool) {}\n" +
-        "func OpenCLAvailable() (bool) {}\n" +
-        "// BlockingSubmit wraps GPU submission and blocks until completion, returning an Error<any>\n" +
-        "func BlockingSubmit(x any) (Error<any>) {}\n"
+        "func OpenCLAvailable() (bool) {}\n"
     gfs := &source.FileSet{}
     gfs.AddFile("gpu.ami", gpuSrc)
     out = append(out, Package{Name: "gpu", Files: gfs})

@@ -67,17 +67,23 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
                 continue
             }
             // compare element-wise and emit precise diagnostics, including generic arity when applicable
+            var mismatchIndices []int
             for i := range got {
                 expPos := diag.Position{}
                 if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
                 actPos := gpos[i]
-                if mismatch, base, wantN, gotN := isGenericArityMismatch(decl[i], got[i]); mismatch {
+                if mismatch, base, wantN, gotN := findGenericArityMismatchDeep(decl[i], got[i]); mismatch {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                    mismatchIndices = append(mismatchIndices, i)
                     continue
                 }
                 if !typesCompatible(decl[i], got[i]) {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_RESULT_MISMATCH", Message: "return type mismatch from call", Pos: &actPos, Data: map[string]any{"index": i, "expected": decl[i], "actual": got[i], "expectedPos": expPos}})
+                    mismatchIndices = append(mismatchIndices, i)
                 }
+            }
+            if len(mismatchIndices) > 1 {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TUPLE_MISMATCH_SUMMARY", Message: "multiple return elements mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}, Data: map[string]any{"count": len(mismatchIndices), "indices": mismatchIndices}})
             }
         }
     }

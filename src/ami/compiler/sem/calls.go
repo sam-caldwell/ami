@@ -89,7 +89,7 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
         pt := s.params[i]
         if pt == "" || pt == "any" || at == "any" { continue }
         // Prefer a specific generic arity mismatch diagnostic when applicable
-        if mismatch, base, wantN, gotN := isGenericArityMismatch(pt, at); mismatch {
+        if mismatch, base, wantN, gotN := findGenericArityMismatchDeep(pt, at); mismatch {
             p := epos(a)
             data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
             if i < len(s.paramNames) && s.paramNames[i] != "" { data["paramName"] = s.paramNames[i] }

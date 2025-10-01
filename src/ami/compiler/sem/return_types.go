@@ -38,19 +38,26 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
                 continue
             }
             // element-wise mismatch using compatibility rules
+            var mismatchIndices []int
             for i := range got {
                 // compute positions for precision
                 expPos := diag.Position{}
                 if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
                 actPos := gpos[i]
-                if mismatch, base, wantN, gotN := isGenericArityMismatch(decl[i], got[i]); mismatch {
+                if mismatch, base, wantN, gotN := findGenericArityMismatchDeep(decl[i], got[i]); mismatch {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                    mismatchIndices = append(mismatchIndices, i)
                     // continue checking remaining positions to surface multiple issues
                     continue
                 }
                 if !typesCompatible(decl[i], got[i]) {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch", Pos: &actPos, Data: map[string]any{"index": i, "expected": decl[i], "actual": got[i], "expectedPos": expPos}})
+                    mismatchIndices = append(mismatchIndices, i)
                 }
+            }
+            if len(mismatchIndices) > 1 {
+                // emit a summary aggregate alongside per-element diagnostics
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TUPLE_MISMATCH_SUMMARY", Message: "multiple return elements mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}, Data: map[string]any{"count": len(mismatchIndices), "indices": mismatchIndices}})
             }
         }
     }

@@ -1,6 +1,8 @@
 package sem
 
-import "strings"
+import (
+    "strings"
+)
 
 // genericBaseAndArity returns the generic base name and top-level argument count
 // for a textual type like "Owned<int>" or "map<string,int>". If the type is not
@@ -42,3 +44,63 @@ func isGenericArityMismatch(expected, actual string) (bool, string, int, int) {
     return false, eb, ea, aa
 }
 
+// findGenericArityMismatchDeep parses expected and actual types and recursively
+// searches for a generic arity mismatch at any nesting level. Returns the first
+// mismatch encountered (base name and arities). Falls back to top‑level textual
+// detection when parsing fails.
+func findGenericArityMismatchDeep(expected, actual string) (bool, string, int, int) {
+    // Text-based recursive scan that respects nested '<>' and splits top-level commas.
+    eb, eargs, eok := baseAndArgs(expected)
+    ab, aargs, aok := baseAndArgs(actual)
+    if !eok || !aok {
+        return isGenericArityMismatch(expected, actual)
+    }
+    if eb != ab { return false, "", 0, 0 }
+    if len(eargs) != len(aargs) { return true, eb, len(eargs), len(aargs) }
+    // Recurse into paired arguments
+    for i := range eargs {
+        if m, b, w, g := findGenericArityMismatchDeep(eargs[i], aargs[i]); m { return m, b, w, g }
+    }
+    return false, "", 0, 0
+}
+
+func baseAndArgs(s string) (string, []string, bool) {
+    s = strings.TrimSpace(s)
+    i := strings.IndexByte(s, '<')
+    if i < 0 || !strings.HasSuffix(s, ">") { return "", nil, false }
+    base := strings.TrimSpace(s[:i])
+    inner := s[i+1 : len(s)-1]
+    if strings.TrimSpace(inner) == "" { return base, []string{}, true }
+    parts := splitTop(inner)
+    return base, parts, true
+}
+
+func splitTop(s string) []string {
+    var parts []string
+    depth := 0
+    inQuote := byte(0)
+    last := 0
+    for i := 0; i < len(s); i++ {
+        c := s[i]
+        if inQuote != 0 {
+            if c == inQuote { inQuote = 0 }
+            continue
+        }
+        switch c {
+        case '\'', '"':
+            inQuote = c
+        case '<':
+            depth++
+        case '>':
+            if depth > 0 { depth-- }
+        case ',':
+            if depth == 0 {
+                parts = append(parts, strings.TrimSpace(s[last:i]))
+                last = i + 1
+            }
+        }
+    }
+    tail := strings.TrimSpace(s[last:])
+    if tail != "" { parts = append(parts, tail) }
+    return parts
+}

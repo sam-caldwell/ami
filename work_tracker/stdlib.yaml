@@ -83,7 +83,7 @@ stdlib:
 
           - id: E-1-1-6
             statement: |
-              As a user, I expect that AMI `io.FHO` type will have a .Length() method which will return the file size,
+              As a user, I expect the AMI `io.FHO` type will have a .Length() method which will return the file size,
               a .Pos() method which returns the current file position for read/write operations, a .Truncate() method
               used to truncate the file.
             dependencies: []
@@ -92,22 +92,25 @@ stdlib:
 
           - id: E-1-1-7
             statement: |
-              As a user, I expect that AMI `io.FHO` type will have a .Flush() method to flush file buffers to disk.
+              As a user, I expect the AMI `io.FHO` type will have a .Flush() method to flush file buffers to disk.
             dependencies: []
             status: ready
             tests: []
 
           - id: E-1-1-8
             statement: |
-              As a user, I expect that AMI `io` package will have a CreateTemp() function to create a temporary file
-              and return the `io.FHO` object used to manage the file content.
+              As a user, I expect the AMI `io` package will have a `CreateTemp([dir string][,suffix string])` function 
+              to create a temporary file and return the `io.FHO` object used to manage the file content; and the `dir`
+              directory string will be relative to the system temporary directory.
             dependencies: []
             status: ready
             tests: []
 
           - id: E-1-1-9
             statement: |
-              As a user, I expect that AMI
+              As a user, I expect the AMI `io` package will have a `CreateTempDir()` function to create a temporary
+              file and return the directory name (string); and the temporary directory will be created relative to the
+              system temporary directory.
             dependencies: []
             status: ready
             tests: []
@@ -117,7 +120,7 @@ stdlib:
         expectations:
           - id: E-1-2-1
             statement: |
-              As a user, I expect that AMI `io` package will have a special FHO called io.Stdin for reading from stdin;
+              As a user, I expect the AMI `io` package will have a special FHO called io.Stdin for reading from stdin;
               and this FHO will behave like any other FHO with all the same methods and properties.
             dependencies: []
             status: ready
@@ -125,7 +128,7 @@ stdlib:
 
           - id: E-1-2-2
             statement: |
-              As a user, I expect that AMI `io` package will have a special FHO called io.Stdout for reading from
+              As a user, I expect the AMI `io` package will have a special FHO called io.Stdout for reading from
               stdout; and this FHO will behave like any other FHO with all the same methods and properties.
             dependencies: []
             status: ready
@@ -133,7 +136,7 @@ stdlib:
 
           - id: E-1-2-3
             statement: |
-              As a user, I expect that AMI `io` package will have a special FHO called io.Stderr for reading from
+              As a user, I expect the AMI `io` package will have a special FHO called io.Stderr for reading from
               stderr; and this FHO will behave like any other FHO with all the same methods and properties.
             dependencies: []
             status: ready
@@ -144,7 +147,7 @@ stdlib:
         expectations:
           - id: E-1-3-1
             statement: |
-              As a user, I expect that AMI `io` package will have a special FHO, representing a network socket
+              As a user, I expect the AMI `io` package will have a special FHO, representing a network socket
               opened for input/output with methods and properties like a file FHO object.
             dependencies: []
             status: ready
@@ -152,7 +155,7 @@ stdlib:
 
           - id: E-1-3-2
             statement: |
-              As a user, I expect that AMI `io` package will have an .Open() function which will allow me to open
+              As a user, I expect the AMI `io` package will have an .Open() function which will allow me to open
               a network socket (FHO) to send traffic over a given protocol (e.g., ICMP, UDP, TCP) to a given host IP and 
               port.
             dependencies: []
@@ -161,7 +164,7 @@ stdlib:
 
           - id: E-1-3-3
             statement: |
-              As a user, I expect that AMI `io.FHO` object type will have a .Close() method to close the socket; a 
+              As a user, I expect the AMI `io.FHO` object type will have a .Close() method to close the socket; a 
               .Write() method so I can write messages to the socket buffer; a .Send() method to send the contents of
               the FHO buffer; and a .Listen() method which I can use to register a handler function which will be
               invoked to process any incoming network traffic.
@@ -171,7 +174,7 @@ stdlib:
 
           - id: E-1-3-4
             statement: |
-              As a user, I expect that AMI `io` package will have an `io.Hostname()` method which will return the 
+              As a user, I expect the AMI `io` package will have an `io.Hostname()` method which will return the 
               current hostname of the underlying system.
             dependencies: []
             status: ready
@@ -179,7 +182,7 @@ stdlib:
 
           - id: E-1-3-5
             statement: |
-              As a user, I expect that AMI `io` package will have an `io.Interfaces()` method which will list all
+              As a user, I expect the AMI `io` package will have an `io.Interfaces()` method which will list all
               network interfaces.
             dependencies: []
             status: ready
@@ -190,7 +193,7 @@ stdlib:
         expectations:
           - id: E-1-4-1
             statement: |
-              As a user, I expect that the AMI `io` package will enforce all I/O capabilities, as defined for
+              As a user, I expect the AMI `io` package will enforce all I/O capabilities, as defined for
               the pipeline and the POP paradigm generally; only Ingress or egress nodes can use the io package,
               and only ingress and egress nodes can use the I/O features specifically allowed in their capabilities
               attributes.

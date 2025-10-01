@@ -16,8 +16,14 @@ func runtimeOSLL() string {
         "entry:\n  %s64 = zext i32 %signum to i64\n  %tok = call i64 @ami_rt_signal_token_for(i64 %s64)\n  %fp = call ptr @ami_rt_get_handler_thunk(i64 %tok)\n  %isnull = icmp eq ptr %fp, null\n  br i1 %isnull, label %exit, label %call\n" +
         "call:\n  %cast = bitcast ptr %fp to void ()*\n  call void %cast()\n  br label %exit\n" +
         "exit:\n  ret void\n}\n\n"
-    // Stubs for enable/disable (no-ops now; wire to sigaction later)
-    s += "define void @ami_rt_os_signal_enable(i64 %sig) {\nentry:\n  ret void\n}\n\n"
+    // Provide a simple installer using POSIX signal(2) to hook the trampoline for a given signum.
+    // (sigaction struct varies across platforms; using signal keeps IR portable across darwin/linux/freebsd.)
+    s += "declare ptr @signal(i32, ptr)\n\n"
+    s += "define void @ami_rt_posix_install_trampoline(i64 %sig) {\n" +
+        "entry:\n  %s32 = trunc i64 %sig to i32\n  %fp = bitcast void (i32)* @ami_rt_posix_trampoline to ptr\n  %old = call ptr @signal(i32 %s32, ptr %fp)\n  ret void\n}\n\n"
+    // Enable: install trampoline for this signal via signal(2)
+    s += "define void @ami_rt_os_signal_enable(i64 %sig) {\n" +
+        "entry:\n  call void @ami_rt_posix_install_trampoline(i64 %sig)\n  ret void\n}\n\n"
     s += "define void @ami_rt_os_signal_disable(i64 %sig) {\nentry:\n  ret void\n}\n\n"
     return s
 }

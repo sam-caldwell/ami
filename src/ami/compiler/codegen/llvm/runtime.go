@@ -57,7 +57,7 @@ func RuntimeLL(triple string, withMain bool) string {
     // Signal registration: opaque handler tokens by signal (mod 64)
     s += "@ami_signal_handlers = private global [64 x i64] zeroinitializer\n\n"
     s += "define void @ami_rt_signal_register(i64 %sig, i64 %handler) {\n" +
-        "entry:\n  %idx = urem i64 %sig, 64\n  %slot = getelementptr [64 x i64], ptr @ami_signal_handlers, i64 0, i64 %idx\n  store i64 %handler, ptr %slot, align 8\n  ret void\n}\n\n"
+        "entry:\n  %idx = urem i64 %sig, 64\n  %slot = getelementptr [64 x i64], ptr @ami_signal_handlers, i64 0, i64 %idx\n  store i64 %handler, ptr %slot, align 8\n  ; ensure OS layer is enabled to deliver this signal (stubbed unless POSIX tag)\n  call void @ami_rt_os_signal_enable(i64 %sig)\n  ret void\n}\n\n"
 
     // Handler thunk registry: token → function pointer (ptr). Not exposed at language ABI boundary.
     s += "@ami_handler_thunks = private global [1024 x ptr] zeroinitializer\n\n"

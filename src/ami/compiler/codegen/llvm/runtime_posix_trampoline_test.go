@@ -13,6 +13,8 @@ func TestRuntime_Posix_Trampoline_IR_Present(t *testing.T) {
     wants := []string{
         "define i64 @ami_rt_signal_token_for(i64 %sig)",
         "define void @ami_rt_posix_trampoline(i32 %signum)",
+        "declare ptr @signal(i32, ptr)",
+        "define void @ami_rt_posix_install_trampoline(i64 %sig)",
         "define void @ami_rt_os_signal_enable(i64 %sig)",
         "define void @ami_rt_os_signal_disable(i64 %sig)",
     }
@@ -22,4 +24,3 @@ func TestRuntime_Posix_Trampoline_IR_Present(t *testing.T) {
         }
     }
 }
-

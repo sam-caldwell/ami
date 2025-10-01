@@ -186,6 +186,47 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         return ir.Expr{Op: "call", Callee: "ami_rt_time_unix", Args: args, Result: res}, true
     }
     // Future signal handler primitives: Install, Token
+    // OS signal hooks: Enable/Disable
+    if (name == "signal.Enable") || (st != nil && st.funcParams != nil && len(st.funcParams[name]) == 1 && st.funcParams[name][0] == "SignalType") {
+        var args []ir.Value
+        if len(c.Args) >= 1 {
+            switch s := c.Args[0].(type) {
+            case *ast.SelectorExpr:
+                var v int64
+                switch s.Sel {
+                case "SIGINT": v = 2
+                case "SIGTERM": v = 15
+                case "SIGHUP": v = 1
+                case "SIGQUIT": v = 3
+                }
+                if v != 0 { args = append(args, ir.Value{ID: "#"+strconv.FormatInt(v, 10), Type: "int64"}) }
+            }
+            if len(args) == 0 {
+                if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
+            }
+        }
+        return ir.Expr{Op: "call", Callee: "ami_rt_os_signal_enable", Args: args}, true
+    }
+    if (name == "signal.Disable") || (st != nil && st.funcParams != nil && len(st.funcParams[name]) == 1 && st.funcParams[name][0] == "SignalType") {
+        var args []ir.Value
+        if len(c.Args) >= 1 {
+            switch s := c.Args[0].(type) {
+            case *ast.SelectorExpr:
+                var v int64
+                switch s.Sel {
+                case "SIGINT": v = 2
+                case "SIGTERM": v = 15
+                case "SIGHUP": v = 1
+                case "SIGQUIT": v = 3
+                }
+                if v != 0 { args = append(args, ir.Value{ID: "#"+strconv.FormatInt(v, 10), Type: "int64"}) }
+            }
+            if len(args) == 0 {
+                if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
+            }
+        }
+        return ir.Expr{Op: "call", Callee: "ami_rt_os_signal_disable", Args: args}, true
+    }
     if (name == "signal.Install") || (st != nil && st.funcParams != nil && len(st.funcParams[name]) == 1 && st.funcParams[name][0] == "any" && (st.funcResults == nil || len(st.funcResults[name]) == 0)) {
         // args: (fn any)
         if len(c.Args) >= 1 {

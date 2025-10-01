@@ -25,11 +25,23 @@ func builtinStdlibPackages() []Package {
         "enum SignalType { SIGINT, SIGTERM, SIGHUP, SIGQUIT }\n" +
         "// Use 'any' for handler to avoid function-typed params in parser scaffold\n" +
         "func Register(sig SignalType, fn any) {}\n" +
+        "func Enable(sig SignalType) {}\n" +
+        "func Disable(sig SignalType) {}\n" +
         "// Future handler primitives:\n" +
         "func Install(fn any) {}\n" +
         "func Token(fn any) (int64) {}\n"
     sfs := &source.FileSet{}
     sfs.AddFile("signal.ami", sigSrc)
     out = append(out, Package{Name: "signal", Files: sfs})
+
+    // gpu package: top-level availability probes only (stubs). Additional APIs provided by Go stdlib.
+    gpuSrc := "package gpu\n" +
+        "// AMI stdlib stubs (signatures only)\n" +
+        "func CudaAvailable() (bool) {}\n" +
+        "func MetalAvailable() (bool) {}\n" +
+        "func OpenCLAvailable() (bool) {}\n"
+    gfs := &source.FileSet{}
+    gfs.AddFile("gpu.ami", gpuSrc)
+    out = append(out, Package{Name: "gpu", Files: gfs})
     return out
 }

@@ -59,11 +59,20 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                     // Handler is represented as an opaque i64 token (no raw ptr exposure)
                     e.RequireExtern("declare void @ami_rt_signal_register(i64, i64)")
                 }
+                if ex.Callee == "ami_rt_os_signal_enable" {
+                    e.RequireExtern("declare void @ami_rt_os_signal_enable(i64)")
+                }
+                if ex.Callee == "ami_rt_os_signal_disable" {
+                    e.RequireExtern("declare void @ami_rt_os_signal_disable(i64)")
+                }
                 if ex.Callee == "ami_rt_install_handler_thunk" {
                     e.RequireExtern("declare void @ami_rt_install_handler_thunk(i64, ptr)")
                 }
                 if ex.Callee == "ami_rt_get_handler_thunk" {
                     e.RequireExtern("declare ptr @ami_rt_get_handler_thunk(i64)")
+                }
+                if ex.Callee == "ami_rt_posix_install_trampoline" {
+                    e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
                 }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
@@ -97,6 +106,10 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                             e.RequireExtern("declare i64 @ami_rt_time_unix_nano(i64)")
                         case "ami_rt_signal_register":
                             e.RequireExtern("declare void @ami_rt_signal_register(i64, i64)")
+                        case "ami_rt_os_signal_enable":
+                            e.RequireExtern("declare void @ami_rt_os_signal_enable(i64)")
+                        case "ami_rt_os_signal_disable":
+                            e.RequireExtern("declare void @ami_rt_os_signal_disable(i64)")
                         case "ami_rt_install_handler_thunk":
                             e.RequireExtern("declare void @ami_rt_install_handler_thunk(i64, ptr)")
                         case "ami_rt_get_handler_thunk":
@@ -154,6 +167,8 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                         e.RequireExtern("declare void @ami_rt_install_handler_thunk(i64, ptr)")
                     case "ami_rt_get_handler_thunk":
                         e.RequireExtern("declare ptr @ami_rt_get_handler_thunk(i64)")
+                    case "ami_rt_posix_install_trampoline":
+                        e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
@@ -191,6 +206,8 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                             e.RequireExtern("declare void @ami_rt_install_handler_thunk(i64, ptr)")
                         case "ami_rt_get_handler_thunk":
                             e.RequireExtern("declare ptr @ami_rt_get_handler_thunk(i64)")
+                        case "ami_rt_posix_install_trampoline":
+                            e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
                         }
                     }
                 }

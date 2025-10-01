@@ -67,6 +67,10 @@ func collectExterns(m ir.Module) []string {
                         add("ami_rt_time_unix_nano")
                     case "ami_rt_signal_register":
                         add("ami_rt_signal_register")
+                    case "ami_rt_os_signal_enable":
+                        add("ami_rt_os_signal_enable")
+                    case "ami_rt_os_signal_disable":
+                        add("ami_rt_os_signal_disable")
                     case "ami_rt_install_handler_thunk":
                         add("ami_rt_install_handler_thunk")
                     case "ami_rt_get_handler_thunk":
@@ -105,6 +109,10 @@ func collectExterns(m ir.Module) []string {
                             add("ami_rt_time_unix_nano")
                         case "ami_rt_signal_register":
                             add("ami_rt_signal_register")
+                        case "ami_rt_os_signal_enable":
+                            add("ami_rt_os_signal_enable")
+                        case "ami_rt_os_signal_disable":
+                            add("ami_rt_os_signal_disable")
                         case "ami_rt_install_handler_thunk":
                             add("ami_rt_install_handler_thunk")
                         case "ami_rt_get_handler_thunk":

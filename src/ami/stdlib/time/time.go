@@ -2,6 +2,7 @@ package time
 
 import (
     stdtime "time"
+    "sync"
 )
 
 // Duration is a Go-compatible duration type (nanoseconds).
@@ -27,6 +28,7 @@ type Ticker struct {
     t    *stdtime.Ticker
     fn   func()
     quit chan struct{}
+    stopOnce sync.Once
 }
 
 // NewTicker returns a new Ticker for duration d.
@@ -53,5 +55,7 @@ func (tk *Ticker) Start() {
 }
 
 // Stop stops the ticker.
-func (tk *Ticker) Stop() { if tk != nil && tk.t != nil { tk.t.Stop(); close(tk.quit) } }
-
+func (tk *Ticker) Stop() {
+    if tk == nil || tk.t == nil { return }
+    tk.stopOnce.Do(func(){ tk.t.Stop(); close(tk.quit) })
+}

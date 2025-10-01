@@ -25,3 +25,10 @@ func TestTicker_Start_Stop_Register(t *testing.T) {
     if count == 0 { t.Fatalf("ticker did not fire") }
 }
 
+func TestTicker_Stop_Idempotent(t *testing.T) {
+    tk := NewTicker(2 * stdtime.Millisecond)
+    tk.Start()
+    // Call Stop twice; should not panic
+    tk.Stop()
+    tk.Stop()
+}

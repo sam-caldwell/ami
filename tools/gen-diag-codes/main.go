@@ -21,6 +21,7 @@ var (
     msgSimpleRe  = regexp.MustCompile(`Message:\s*\"([^\"]+)\"`)
     msgFmtRe     = regexp.MustCompile(`Message:\s*fmt\.Sprintf\(\"([^\"]+)\"`)
     dataVarRe    = regexp.MustCompile(`Data:\s*([a-zA-Z_][a-zA-Z0-9_]*)`)
+    mapIndexSet  = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\[\s*\"([^\"]+)\"\s*\]\s*=`)
 )
 
 func main() {
@@ -88,6 +89,18 @@ func main() {
                         if mapBraceDepth <= 0 {
                             inMapAssign = false
                             currentMapVar = ""
+                        }
+                    }
+                    // Track bracket index assignments like data["paramName"] = ...
+                    if m := mapIndexSet.FindStringSubmatch(line); m != nil && len(m) > 2 {
+                        varName := m[1]
+                        key := m[2]
+                        for i := len(recentMaps) - 1; i >= 0; i-- {
+                            if recentMaps[i].name == varName {
+                                if recentMaps[i].keys == nil { recentMaps[i].keys = map[string]struct{}{} }
+                                recentMaps[i].keys[key] = struct{}{}
+                                break
+                            }
                         }
                     }
                 }

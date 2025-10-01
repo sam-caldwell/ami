@@ -34,6 +34,7 @@ Documentation Index (docs/*)
   - `docs/ir-indices.md` — IR indices and determinism rules
   - `docs/runtime-kvstore.md` — runtime key/value store
   - `docs/runtime-tests.md` — runtime test patterns and harness
+  - `docs/language/signal.md` — planned AMI example for stdlib signal
 - Diagnostics and CI
   - `docs/diag-codes.md` — generated diagnostic codes and data keys (with examples)
   - `docs/merge-field-diagnostics.md` — merge/field diagnostics and patterns

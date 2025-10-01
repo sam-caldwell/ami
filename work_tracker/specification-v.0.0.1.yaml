@@ -1089,7 +1089,7 @@ stdlib:
             statement: |
               As a user, I expect the stdlib to have a built-in `os` package for interacting with the operating system.
             dependencies: []
-            status: ready
+            status: in progress
             tests: []
 
           - id: E-2-1-2
@@ -1106,8 +1106,9 @@ stdlib:
               program and return a os.Process object and error object; the os.Process object will be used to manage
               the process lifecycle; and the Exec() function will initialize but NOT start the new process.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/os/process_test.go
 
           - id: E-2-1-4
             statement: |
@@ -1116,16 +1117,18 @@ stdlib:
               interacting over stdin, a .Stdout() and .Stderr() method for obtaining process outputs on stdout and
               stderr, a .Pid() method for obtaining the process id, and a .Start() method to launch the process.
             dependencies: []
-            status: ready
-            tests: []
+            status: in progress
+            tests:
+              - src/ami/stdlib/os/process_test.go
 
           - id: E-2-1-5
             statement: |
               As a user, I expect the AMI `os.Process` .Start() method will accept an optional boolean value to 
               indicate whether it blocks or runs the executed process asynchronously.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/os/process_test.go
 
           - id: E-2-1-6
             statement: |

@@ -113,4 +113,12 @@ func main() {
         }
         fmt.Fprintln(of)
     }
+    // Append brief notes for readers
+    fmt.Fprintln(of)
+    fmt.Fprintln(of, "Notes:")
+    fmt.Fprintln(of, "- message sample: example literal or fmt.Sprintf format; dynamic parts omitted.")
+    fmt.Fprintln(of, "- data keys: union of keys seen across code occurrences.")
+    fmt.Fprintln(of, "- path/pathIdx: generic base nesting and argument indices, outer→inner.")
+    fmt.Fprintln(of, "- fieldPath: struct field traversal (e.g., Struct→a→Struct→b).")
+    fmt.Fprintln(of, "- argIndex/tupleIndex: top-level call argument/return position. Summary 'paths' include these redundantly per entry.")
 }

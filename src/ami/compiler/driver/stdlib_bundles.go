@@ -24,7 +24,10 @@ func builtinStdlibPackages() []Package {
     sigSrc := "package signal\n" +
         "enum SignalType { SIGINT, SIGTERM, SIGHUP, SIGQUIT }\n" +
         "// Use 'any' for handler to avoid function-typed params in parser scaffold\n" +
-        "func Register(sig SignalType, fn any) {}\n"
+        "func Register(sig SignalType, fn any) {}\n" +
+        "// Future handler primitives:\n" +
+        "func Install(fn any) {}\n" +
+        "func Token(fn any) (int64) {}\n"
     sfs := &source.FileSet{}
     sfs.AddFile("signal.ami", sigSrc)
     out = append(out, Package{Name: "signal", Files: sfs})

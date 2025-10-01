@@ -35,6 +35,27 @@ func handlerTokenImmediate(e ast.Expr) (string, bool) {
     return "", false
 }
 
+// handlerTokenValue computes the deterministic token value for a handler expression.
+func handlerTokenValue(e ast.Expr) (int64, bool) {
+    name := ""
+    switch v := e.(type) {
+    case *ast.IdentExpr:
+        name = v.Name
+    case *ast.SelectorExpr:
+        name = selectorText(v)
+    }
+    if name != "" {
+        h := fnv.New64a(); _, _ = h.Write([]byte(name))
+        return int64(h.Sum64()), true
+    }
+    off := exprOffset(e)
+    if off >= 0 {
+        h := fnv.New64a(); _, _ = h.Write([]byte("anon@" + strconv.Itoa(off)))
+        return int64(h.Sum64()), true
+    }
+    return 0, false
+}
+
 func selectorText(s *ast.SelectorExpr) string {
     if s == nil { return "" }
     left := ""
@@ -162,6 +183,47 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         }
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
         return ir.Expr{Op: "call", Callee: "ami_rt_time_unix", Args: args, Result: res}, true
+    }
+    // Future signal handler primitives: Install, Token
+    if strings.HasSuffix(name, ".Install") || name == "signal.Install" {
+        // args: (fn any)
+        if len(c.Args) >= 1 {
+            // compute handler token (deterministic)
+            tok, ok := handlerTokenValue(c.Args[0])
+            var args []ir.Value
+            if ok {
+                args = append(args, ir.Value{ID: "#"+strconv.FormatInt(tok, 10), Type: "int64"})
+            } else {
+                // fallback: hash zero
+                args = append(args, ir.Value{ID: "#0", Type: "int64"})
+            }
+            // function pointer symbol immediate for simple identifiers
+            switch v := c.Args[0].(type) {
+            case *ast.IdentExpr:
+                if v.Name != "" {
+                    args = append(args, ir.Value{ID: "#@"+v.Name, Type: "ptr"})
+                } else {
+                    args = append(args, ir.Value{ID: "#null", Type: "ptr"})
+                }
+            default:
+                args = append(args, ir.Value{ID: "#null", Type: "ptr"})
+            }
+            return ir.Expr{Op: "call", Callee: "ami_rt_install_handler_thunk", Args: args}, true
+        }
+        return ir.Expr{Op: "call", Callee: "ami_rt_install_handler_thunk", Args: []ir.Value{{ID: "#0", Type: "int64"}, {ID: "#null", Type: "ptr"}}}, true
+    }
+    if strings.HasSuffix(name, ".Token") || name == "signal.Token" {
+        if len(c.Args) >= 1 {
+            tok, ok := handlerTokenValue(c.Args[0])
+            id := st.newTemp()
+            res := &ir.Value{ID: id, Type: "int64"}
+            if ok {
+                return ir.Expr{Op: "lit:" + strconv.FormatInt(tok, 10), Result: res}, true
+            }
+            return ir.Expr{Op: "lit:0", Result: res}, true
+        }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
+        return ir.Expr{Op: "lit:0", Result: res}, true
     }
     return ir.Expr{}, false
 }

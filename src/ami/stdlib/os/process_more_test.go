@@ -100,3 +100,20 @@ func main(){ io.Copy(os.Stdout, os.Stdin) }`
         t.Fatalf("stdout mismatch: got %q want %q", got, msg)
     }
 }
+
+func TestStderr_Capture(t *testing.T) {
+    dir := t.TempDir()
+    src := `package main
+import "os"
+func main(){ os.Stderr.WriteString("oops\n") }`
+    file := filepath.Join(dir, "main.go")
+    if err := goos.WriteFile(file, []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    bin := filepath.Join(dir, "stderrbin")
+    if out, err2 := goexec.Command("go", "build", "-o", bin, file).CombinedOutput(); err2 != nil {
+        t.Fatalf("go build failed: %v (out=%s)", err2, string(out))
+    }
+    p, err := Exec(bin)
+    if err != nil { t.Fatalf("exec: %v", err) }
+    if err := p.Start(true); err != nil { t.Fatalf("start: %v", err) }
+    if s := string(p.Stderr()); !strings.Contains(s, "oops") { t.Fatalf("stderr capture failed: %q", s) }
+}

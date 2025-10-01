@@ -62,9 +62,20 @@ func lowerExpr(e ir.Expr) string {
         var args []string
         for _, a := range e.Args {
             ty := mapType(a.Type)
+            if strings.HasPrefix(a.ID, "#@") {
+                // Immediate function pointer symbol: ID "#@NAME" → ptr @NAME
+                args = append(args, fmt.Sprintf("%s @%s", ty, strings.TrimPrefix(a.ID, "#@")))
+                continue
+            }
             if strings.HasPrefix(a.ID, "#") {
-                // Immediate constant argument encoded as ID "#<literal>"
-                args = append(args, fmt.Sprintf("%s %s", ty, strings.TrimPrefix(a.ID, "#")))
+                // Immediate constant argument encoded as ID "#<literal>" (e.g., numbers, null)
+                lit := strings.TrimPrefix(a.ID, "#")
+                // special-case null pointer literal
+                if lit == "null" && ty == "ptr" {
+                    args = append(args, fmt.Sprintf("%s null", ty))
+                } else {
+                    args = append(args, fmt.Sprintf("%s %s", ty, lit))
+                }
                 continue
             }
             args = append(args, fmt.Sprintf("%s %%%s", ty, a.ID))

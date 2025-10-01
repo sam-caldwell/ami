@@ -1307,32 +1307,40 @@ stdlib:
               `NewTicker(d time.Duration)`; d uses `time.Duration` with Go-style units; the object executes a 
               registered function for every clock tick event.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/time/ticker_test.go
+              - src/ami/stdlib/time/ticker_more_test.go
 
           - id: E-5-2-2
             statement: |
               As a user, I expect the `time.Ticker` object will have a `.Start()` method to start the ticker generating
               tick events.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/time/ticker_test.go
+              - src/ami/stdlib/time/ticker_more_test.go
 
           - id: E-5-2-3
             statement: |
               As a user, I expect the `time.Ticker` object will have a `.Stop()` method to stop the ticker from 
               generating tick events.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/time/ticker_test.go
+              - src/ami/stdlib/time/ticker_more_test.go
 
           - id: E-5-2-4
             statement: |
               As a user, I expect the `time.Ticker` object will have a `.Register(f func())` method to execute for 
               each timer tick event.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/time/ticker_test.go
+              - src/ami/stdlib/time/ticker_more_test.go
 
   - id: S-6
     name: trigger package

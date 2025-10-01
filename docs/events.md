@@ -61,7 +61,7 @@ How to get started
 - Read the overview above, then open the `.docx` sections 1.7 and 2.2 for the precise definitions.
 - When writing pipeline code, document expected input/output shapes and any ordering/buffering assumptions.
 - Use `ami lint` to catch capability and pipeline policy issues early; `ami test` can assert parser‑level correctness
-today.
+  today.
 
 Notes
 - Until runtime execution tests are integrated, `ami test` focuses on parser‑level assertions. Contract execution

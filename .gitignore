@@ -9,3 +9,4 @@ tools/
 build/
 
 AGENTS.md
+.DS_Store

@@ -6,9 +6,9 @@ Scope: As of this update, the repository’s tracker (work_tracker/specification
 
 Known items
 
-- Cross‑cutting (in progress):
+- Cross‑cutting (status):
   - CC‑1 Coverage Gate: ≥0.80 coverage on changed packages. Action: maintain in CI and keep tests for new work.
-  - CC‑2 No raw pointers in public ABI: enforced via backend safety checks (LLVM emitter + tests). Continue to gate new backends by the same rule.
+  - CC‑2 No raw pointers in public ABI: enforced via backend safety checks (LLVM emitter + tests). Backends reject pointer params/results at function boundaries and map handle‑like types to i64 in public signatures. New backends must gate by the same rule.
 
 - Generics diagnostics (candidate enhancements):
   - Add E_GENERIC_ARITY_MISMATCH for wrong number of generic type arguments (e.g., Owned<>) to improve feedback beyond generic type mismatch.
@@ -26,4 +26,3 @@ Known items
 Status
 
 - The YAML tracker reflects current features and ready/completed statuses. This file will evolve as new diagnostics or CLI ergonomics are added.
-

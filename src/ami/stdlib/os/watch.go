@@ -1,7 +1,7 @@
 package os
 
 import (
-    goos "os"
+    amiio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
     "time"
 )
 
@@ -34,10 +34,10 @@ func Watch(path string, interval time.Duration) (<-chan WatchEvent, func()) {
     var lastMT time.Time
     var lastSz int64
     existed := false
-    if fi, err := goos.Stat(path); err == nil {
+    if fi, err := amiio.Stat(path); err == nil {
         existed = true
-        lastMT = fi.ModTime()
-        lastSz = fi.Size()
+        lastMT = fi.ModTime
+        lastSz = fi.Size
     }
     go func() {
         ticker := time.NewTicker(interval)
@@ -46,7 +46,7 @@ func Watch(path string, interval time.Duration) (<-chan WatchEvent, func()) {
         for {
             select {
             case <-ticker.C:
-                fi, err := goos.Stat(path)
+                fi, err := amiio.Stat(path)
                 if err != nil {
                     // treat not-exist as remove when it previously existed
                     if existed {
@@ -55,7 +55,7 @@ func Watch(path string, interval time.Duration) (<-chan WatchEvent, func()) {
                     }
                     continue
                 }
-                mt := fi.ModTime(); sz := fi.Size()
+                mt := fi.ModTime; sz := fi.Size
                 if !existed {
                     existed = true; lastMT = mt; lastSz = sz
                     out <- WatchEvent{Path: path, Op: OpCreate, ModTime: mt, Size: sz}
@@ -72,4 +72,3 @@ func Watch(path string, interval time.Duration) (<-chan WatchEvent, func()) {
     }()
     return out, func(){ close(stop) }
 }
-

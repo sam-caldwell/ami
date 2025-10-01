@@ -19,6 +19,9 @@ Notes
 - Memory reporting in `os.stats()` is best‑effort and may return `0` on some platforms.
 - Process control is subject to platform limits; treat `kill()` as best‑effort.
 
+I/O Gating
+- File and network access is governed by the `io` module’s capability policy. See docs/language/stdlib/io.md for details.
+
 Examples (AMI)
 - Echo stdin to stdout and capture output
   ```

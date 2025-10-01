@@ -7,6 +7,7 @@ import (
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
     amitrigger "github.com/sam-caldwell/ami/src/ami/stdlib/trigger"
     amitime "github.com/sam-caldwell/ami/src/ami/stdlib/time"
+    amiio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
 )
 
@@ -68,6 +69,10 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
     statsOut := make(chan StageStats, 16)
     forwardStats := func(info StageInfo, st rmerge.Stats){ if emit != nil { emit(info, st) }; statsOut <- StageStats{Stage: info, Stats: st} }
     var out <-chan ev.Event = in
+    // Align stdlib io capabilities with sandbox policy for the duration of this run.
+    prev := amiio.GetPolicy()
+    amiio.SetPolicy(amiio.Policy{AllowFS: opts.Sandbox.AllowFS, AllowNet: opts.Sandbox.AllowNet, AllowDevice: opts.Sandbox.AllowDevice})
+    defer amiio.SetPolicy(prev)
     // helper: transform pass-through with counters and DSL filtering/transforming
     runTransform := func(idx int, name string, prev <-chan ev.Event) <-chan ev.Event {
         next := make(chan ev.Event, 1024)

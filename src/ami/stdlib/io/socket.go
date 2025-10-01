@@ -21,6 +21,7 @@ type Socket struct {
 
 // OpenSocket opens a UDP socket bound to addr:port. ICMP/TCP are not implemented yet.
 func OpenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error) {
+    if err := guardNet(); err != nil { return nil, err }
     switch proto {
     case UDP:
         pc, err := net.ListenPacket("udp", net.JoinHostPort(addr, strconv.Itoa(int(port))))
@@ -40,6 +41,7 @@ func OpenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error) {
 // ConnectSocket is an alias for establishing a connected socket when supported.
 // Currently supports TCP. For UDP, returns an error (use OpenSocket + SendTo).
 func ConnectSocket(proto NetProtocol, host string, port uint16) (*Socket, error) {
+    if err := guardNet(); err != nil { return nil, err }
     switch proto {
     case TCP:
         return OpenSocket(TCP, host, port)
@@ -61,6 +63,7 @@ func ListenUDP(addr string, port uint16) (*Socket, error)   { return OpenSocket(
 // For UDP, this is equivalent to OpenSocket(UDP, addr, port).
 // For TCP, it binds and listens on addr:port for incoming connections.
 func ListenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error) {
+    if err := guardNet(); err != nil { return nil, err }
     switch proto {
     case UDP:
         return OpenSocket(UDP, addr, port)
@@ -77,6 +80,7 @@ func ListenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error) 
 
 // Write appends p to the internal buffer.
 func (s *Socket) Write(p []byte) (int, error) {
+    if err := guardNet(); err != nil { return 0, err }
     if s == nil || s.closed { return 0, ErrClosed }
     s.buf = append(s.buf, p...)
     return len(p), nil
@@ -84,6 +88,7 @@ func (s *Socket) Write(p []byte) (int, error) {
 
 // Send sends the buffered data for connected sockets. For UDP bound sockets, use SendTo.
 func (s *Socket) Send() error {
+    if err := guardNet(); err != nil { return err }
     if s == nil || s.closed { return ErrClosed }
     // TCP connected path
     if s.conn != nil {
@@ -98,6 +103,7 @@ func (s *Socket) Send() error {
 
 // SendTo transmits the buffered data to the given remote host:port for UDP.
 func (s *Socket) SendTo(host string, port uint16) error {
+    if err := guardNet(); err != nil { return err }
     if s == nil || s.closed { return ErrClosed }
     if s.proto != UDP || s.pc == nil { return errors.New("SendTo requires UDP listening socket") }
     if len(s.buf) == 0 { return nil }
@@ -110,6 +116,7 @@ func (s *Socket) SendTo(host string, port uint16) error {
 
 // Listen registers a handler that receives each incoming datagram on UDP sockets.
 func (s *Socket) Listen(handler func(b []byte)) error {
+    if err := guardNet(); err != nil { return err }
     if s == nil || s.closed { return ErrClosed }
     switch s.proto {
     case UDP:
@@ -169,6 +176,7 @@ func (s *Socket) Listen(handler func(b []byte)) error {
 
 // WriteTo sends p immediately to host:port on UDP listeners (non-buffered).
 func (s *Socket) WriteTo(host string, port uint16, p []byte) (int, error) {
+    if err := guardNet(); err != nil { return 0, err }
     if s == nil || s.closed { return 0, ErrClosed }
     if s.proto != UDP || s.pc == nil { return 0, errors.New("WriteTo requires UDP listening socket") }
     raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(int(port))))
@@ -179,6 +187,7 @@ func (s *Socket) WriteTo(host string, port uint16, p []byte) (int, error) {
 // Serve accepts TCP connections and invokes handler with a per-connection Socket.
 // It runs the accept loop in a goroutine and returns immediately.
 func (s *Socket) Serve(handler func(*Socket)) error {
+    if err := guardNet(); err != nil { return err }
     if s == nil || s.closed { return ErrClosed }
     if s.ln == nil || s.proto != TCP { return errors.New("Serve requires TCP listening socket") }
     go func() {
@@ -194,6 +203,7 @@ func (s *Socket) Serve(handler func(*Socket)) error {
 // Read reads from the socket into p. For TCP it reads from the connected stream.
 // For UDP it reads a single datagram into p (truncated if larger).
 func (s *Socket) Read(p []byte) (int, error) {
+    if err := guardNet(); err != nil { return 0, err }
     if s == nil || s.closed { return 0, ErrClosed }
     if s.conn != nil { return s.conn.Read(p) }
     if s.pc != nil {
@@ -206,6 +216,7 @@ func (s *Socket) Read(p []byte) (int, error) {
 // ReadFrom reads data and returns the number of bytes along with the remote address for UDP sockets.
 // For TCP connected sockets, it returns data with empty host and zero port.
 func (s *Socket) ReadFrom(p []byte) (int, string, uint16, error) {
+    if err := guardNet(); err != nil { return 0, "", 0, err }
     if s == nil || s.closed { return 0, "", 0, ErrClosed }
     if s.pc != nil {
         n, addr, err := s.pc.ReadFrom(p)
@@ -259,6 +270,7 @@ func (s *Socket) CloseWrite() error {
 
 // SetDeadline sets read and write deadlines.
 func (s *Socket) SetDeadline(t stdtime.Time) error {
+    if err := guardNet(); err != nil { return err }
     if s == nil || s.closed { return ErrClosed }
     switch {
     case s.conn != nil:
@@ -275,6 +287,7 @@ func (s *Socket) SetDeadline(t stdtime.Time) error {
 
 // SetReadDeadline sets the read deadline.
 func (s *Socket) SetReadDeadline(t stdtime.Time) error {
+    if err := guardNet(); err != nil { return err }
     if s == nil || s.closed { return ErrClosed }
     switch {
     case s.conn != nil:
@@ -291,6 +304,7 @@ func (s *Socket) SetReadDeadline(t stdtime.Time) error {
 
 // SetWriteDeadline sets the write deadline.
 func (s *Socket) SetWriteDeadline(t stdtime.Time) error {
+    if err := guardNet(); err != nil { return err }
     if s == nil || s.closed { return ErrClosed }
     switch {
     case s.conn != nil:
@@ -307,6 +321,7 @@ func (s *Socket) SetWriteDeadline(t stdtime.Time) error {
 // ServeContext is like Serve but will stop accepting when ctx is done.
 // It closes the underlying listener to unblock Accept.
 func (s *Socket) ServeContext(ctx stdctx.Context, handler func(*Socket)) error {
+    if err := guardNet(); err != nil { return err }
     if s == nil || s.closed { return ErrClosed }
     if s.ln == nil || s.proto != TCP { return errors.New("ServeContext requires TCP listening socket") }
     // stop the listener when ctx done

@@ -57,7 +57,13 @@ func lowerExpr(e ir.Expr) string {
         // Args
         var args []string
         for _, a := range e.Args {
-            args = append(args, fmt.Sprintf("%s %%%s", mapType(a.Type), a.ID))
+            ty := mapType(a.Type)
+            if strings.HasPrefix(a.ID, "#") {
+                // Immediate constant argument encoded as ID "#<literal>"
+                args = append(args, fmt.Sprintf("%s %s", ty, strings.TrimPrefix(a.ID, "#")))
+                continue
+            }
+            args = append(args, fmt.Sprintf("%s %%%s", ty, a.ID))
         }
         if e.Result != nil && e.Result.ID != "" {
             return fmt.Sprintf("  %%%s = call %s @%s(%s)\n", e.Result.ID, ret, e.Callee, strings.Join(args, ", "))

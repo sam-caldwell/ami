@@ -2,6 +2,8 @@ package driver
 
 import (
     "strings"
+    "hash/fnv"
+    "strconv"
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
@@ -16,17 +18,39 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     // Supported signal intrinsic: signal.Register(sig, fn)
     if strings.HasSuffix(name, ".Register") || name == "signal.Register" {
         var args []ir.Value
-        // arg0: signal enum → i64 token (ordinal or opaque id). We coerce to i64.
+        // arg0: signal enum → i64 immediate token. Prefer selector mapping for stability.
         if len(c.Args) >= 1 {
-            if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil {
-                args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})
+            switch s := c.Args[0].(type) {
+            case *ast.SelectorExpr:
+                // Map a few common signals; otherwise, fallback to lowered expr coercion.
+                var v int64
+                switch s.Sel {
+                case "SIGINT": v = 2
+                case "SIGTERM": v = 15
+                case "SIGHUP": v = 1
+                case "SIGQUIT": v = 3
+                default:
+                    if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil {
+                        args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})
+                    }
+                }
+                if v != 0 { args = append(args, ir.Value{ID: "#"+strconv.FormatInt(v, 10), Type: "int64"}) }
+            default:
+                if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil {
+                    args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})
+                }
             }
         }
-        // arg1: handler function reference → opaque handler token (i64) for safety
+        // arg1: handler function reference → opaque handler token (i64) with deterministic hash of function name
         if len(c.Args) >= 2 {
-            if ex, ok := lowerExpr(st, c.Args[1]); ok && ex.Result != nil {
-                // Represent handler refs as i64 tokens (no raw ptr exposure)
-                args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})
+            if id, ok := c.Args[1].(*ast.IdentExpr); ok && id.Name != "" {
+                h := fnv.New64a(); _, _ = h.Write([]byte(id.Name))
+                tok := int64(h.Sum64())
+                args = append(args, ir.Value{ID: "#"+strconv.FormatInt(tok, 10), Type: "int64"})
+            } else {
+                if ex, ok := lowerExpr(st, c.Args[1]); ok && ex.Result != nil {
+                    args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})
+                }
             }
         }
         return ir.Expr{Op: "call", Callee: "ami_rt_signal_register", Args: args}, true

@@ -70,7 +70,34 @@ func NetListen(proto amiio.NetProtocol, addr string, port uint16) (*NetListener,
         }
         return l, nil
     case amiio.UDP:
-        return nil, ErrNotImplemented
+        s, err := amiio.ListenSocket(amiio.UDP, addr, port)
+        if err != nil { return nil, err }
+        l := &NetListener{proto: amiio.UDP, sock: s, out: make(chan Event[NetMsg], 1024)}
+        // Spin a reader for datagrams capturing remote address metadata.
+        l.wg.Add(1)
+        go func(){
+            defer l.wg.Done()
+            buf := make([]byte, 64*1024)
+            for {
+                n, rh, rp, err := s.ReadFrom(buf)
+                if err != nil { return }
+                if n == 0 { continue }
+                lh, lp := splitHostPort(s.LocalAddr())
+                payload := make([]byte, n)
+                copy(payload, buf[:n])
+                l.out <- Event[NetMsg]{
+                    Value: NetMsg{
+                        Protocol:   amiio.UDP,
+                        Payload:    payload,
+                        RemoteHost: rh, RemotePort: rp,
+                        LocalHost:  lh, LocalPort:  lp,
+                        Time:       amitime.Now(),
+                    },
+                    Timestamp: amitime.Now(),
+                }
+            }
+        }()
+        return l, nil
     case amiio.ICMP:
         return nil, ErrNotImplemented
     default:
@@ -102,4 +129,3 @@ func splitHostPort(addr string) (string, uint16) {
     if p > 65535 { p = 65535 }
     return host, uint16(p)
 }
-

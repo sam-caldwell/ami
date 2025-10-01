@@ -203,6 +203,28 @@ func (s *Socket) Read(p []byte) (int, error) {
     return 0, errors.New("socket not readable")
 }
 
+// ReadFrom reads data and returns the number of bytes along with the remote address for UDP sockets.
+// For TCP connected sockets, it returns data with empty host and zero port.
+func (s *Socket) ReadFrom(p []byte) (int, string, uint16, error) {
+    if s == nil || s.closed { return 0, "", 0, ErrClosed }
+    if s.pc != nil {
+        n, addr, err := s.pc.ReadFrom(p)
+        if err != nil { return 0, "", 0, err }
+        if ua, ok := addr.(*net.UDPAddr); ok {
+            return n, ua.IP.String(), uint16(ua.Port), nil
+        }
+        // Fallback string parsing
+        host, portStr, _ := net.SplitHostPort(addr.String())
+        pnum, _ := strconv.Atoi(portStr)
+        return n, host, uint16(pnum), nil
+    }
+    if s.conn != nil {
+        n, err := s.conn.Read(p)
+        return n, "", 0, err
+    }
+    return 0, "", 0, errors.New("socket not readable")
+}
+
 // LocalAddr returns the local address string of the socket.
 func (s *Socket) LocalAddr() string {
     if s == nil { return "" }

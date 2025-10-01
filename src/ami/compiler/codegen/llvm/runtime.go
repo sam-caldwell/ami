@@ -54,6 +54,8 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "declare i64 @llvm.umin.i64(i64, i64)\n\n"
     // No-op ingress spawner stub; real implementation will create threads/processes per ingress trigger.
     s += "define void @ami_rt_spawn_ingress(ptr %name) {\nentry:\n  ret void\n}\n\n"
+    // No-op signal register stub for bring-up (deterministic metadata hook)
+    s += "define void @ami_rt_signal_register(i64 %sig, i64 %handler) {\nentry:\n  ret void\n}\n\n"
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }

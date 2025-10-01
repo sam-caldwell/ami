@@ -19,7 +19,6 @@ import (
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
-    atrigger "github.com/sam-caldwell/ami/src/ami/stdlib/trigger"
     aio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
 )
 
@@ -105,64 +104,23 @@ func newRunCmd() *cobra.Command {
                 if stats { go emitStage(rexec.StageInfo{Name: "Collect", Kind: "collect", Index: collectIndex}, *s) }
                 out = oc
             } else {
-                var oc <-chan ev.Event
-                if stats {
-                    outCh, sc, err := eng.RunPipelineWithStats(ctx, module, pipeline, in, emitStage, filterExpr, transformExpr, rexec.ExecOptions{SourceType: srcType, TimerInterval: parseRate(rate), TimerCount: count})
-                    if err != nil { return err }
-                    oc = outCh
-                    stageStats = sc
-                } else {
-                    outCh, err := eng.RunPipeline(ctx, module, pipeline, in)
-                    if err != nil { return err }
-                    oc = outCh
+                opts := rexec.ExecOptions{SourceType: srcType, TimerInterval: parseRate(rate), TimerCount: count}
+                if srcType == "net.tcp" {
+                    opts.NetProtocol = aio.TCP
+                    opts.NetAddr = netAddr
+                    opts.NetPort = uint16(netPort)
                 }
-                out = oc
+                outCh, sc, err := eng.RunPipelineWithStats(ctx, module, pipeline, in, emitStage, filterExpr, transformExpr, opts)
+                if err != nil { return err }
+                out = outCh
+                stageStats = sc
             }
             // Source: file/stdin or timer
             done := make(chan struct{})
             switch srcType {
-            case "timer":
-                d := 100 * time.Millisecond
-                if rate != "" {
-                    if strings.Contains(rate, "/s") {
-                        // events per second
-                        nstr := strings.TrimSuffix(rate, "/s")
-                        if n, err := strconv.Atoi(nstr); err == nil && n > 0 { d = time.Second / time.Duration(n) }
-                    } else if rdur, err := time.ParseDuration(rate); err == nil { d = rdur }
-                }
-                go func(){
-                    max := count
-                    for i := 0; max == 0 || i < max; i++ {
-                        in <- ev.Event{Payload: map[string]any{"i": i, "ts": time.Now().UTC()}}
-                        time.Sleep(d)
-                    }
-                    close(in); close(done)
-                }()
-            case "net.tcp":
-                if netAddr == "" { netAddr = "127.0.0.1" }
-                if netPort < 0 || netPort > 65535 { return fmt.Errorf("invalid --net-port: %d", netPort) }
-                l, err := atrigger.NetListen(aio.TCP, netAddr, uint16(netPort))
-                if err != nil { return err }
-                go func(){
-                    defer close(in)
-                    defer close(done)
-                    defer l.Close()
-                    for {
-                        select {
-                        case nm := <-l.Events():
-                            payload := map[string]any{
-                                "protocol": string(nm.Value.Protocol),
-                                "payload":  nm.Value.Payload,
-                                "remote":   map[string]any{"host": nm.Value.RemoteHost, "port": nm.Value.RemotePort},
-                                "local":    map[string]any{"host": nm.Value.LocalHost, "port": nm.Value.LocalPort},
-                                "ts":       time.Unix(nm.Value.Time.Unix(), nm.Value.Time.UnixNano()-nm.Value.Time.Unix()*1_000_000_000).UTC(),
-                            }
-                            in <- ev.Event{Payload: payload}
-                        case <-ctx.Done():
-                            return
-                        }
-                    }
-                }()
+            case "timer", "net.tcp":
+                // handled by executor; no local input producer
+                go func(){ close(done) }()
             default:
                 var r *bufio.Scanner
                 if eventsPath == "" || eventsPath == "-" { r = bufio.NewScanner(os.Stdin) } else { f, err := os.Open(eventsPath); if err != nil { return err }; defer f.Close(); r = bufio.NewScanner(f) }

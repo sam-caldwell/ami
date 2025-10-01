@@ -8,6 +8,7 @@ Core Targets
 - `make clean`: remove and recreate the `build/` directory.
 - `make lint`: run `go vet` across all packages.
 - `make test`: run all tests `go test -v ./...`.
+- `make zip`: create a repository snapshot zip `build/repo.zip` (tracked files only).
 - `make bench`: run CLI microbenchmarks for `ami` subcommands.
   - Variables:
     - `BENCH`: benchmark selector (default `BenchmarkAMI_Subcommands`).
@@ -32,4 +33,3 @@ Utilities
 Notes
 - All targets operate within the repository root. The CLI is built from `./src/cmd/ami` and outputs to `./build/ami`.
 - Benchmarks run isolated sandboxes for CLI subcommands; see `src/cmd/ami/bench_subcommands_test.go` for details.
-

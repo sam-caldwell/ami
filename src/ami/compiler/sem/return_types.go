@@ -64,7 +64,7 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
                 for _, i := range mismatchIndices {
                     if i < len(decl) && i < len(got) {
                         if m, p, idx, fp, b, _, _ := findGenericArityMismatchWithFields(decl[i], got[i]); m {
-                            paths = append(paths, map[string]any{"index": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
+                            paths = append(paths, map[string]any{"index": i, "tupleIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
                         }
                     }
                 }

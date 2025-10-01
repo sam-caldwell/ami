@@ -145,6 +145,34 @@ func (s *Socket) Listen(handler func(b []byte)) error {
     }
 }
 
+// Read reads from the socket into p. For TCP it reads from the connected stream.
+// For UDP it reads a single datagram into p (truncated if larger).
+func (s *Socket) Read(p []byte) (int, error) {
+    if s == nil || s.closed { return 0, ErrClosed }
+    if s.conn != nil { return s.conn.Read(p) }
+    if s.pc != nil {
+        n, _, err := s.pc.ReadFrom(p)
+        return n, err
+    }
+    return 0, errors.New("socket not readable")
+}
+
+// LocalAddr returns the local address string of the socket.
+func (s *Socket) LocalAddr() string {
+    if s == nil { return "" }
+    if s.conn != nil && s.conn.LocalAddr() != nil { return s.conn.LocalAddr().String() }
+    if s.pc != nil && s.pc.LocalAddr() != nil { return s.pc.LocalAddr().String() }
+    if s.ln != nil && s.ln.Addr() != nil { return s.ln.Addr().String() }
+    return ""
+}
+
+// RemoteAddr returns the remote address string for connected sockets (TCP). Empty for UDP listeners.
+func (s *Socket) RemoteAddr() string {
+    if s == nil { return "" }
+    if s.conn != nil && s.conn.RemoteAddr() != nil { return s.conn.RemoteAddr().String() }
+    return ""
+}
+
 // Close closes the socket.
 func (s *Socket) Close() error {
     if s == nil || s.closed { return nil }

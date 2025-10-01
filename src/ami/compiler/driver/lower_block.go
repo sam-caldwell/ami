@@ -30,6 +30,8 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
         switch v := s.(type) {
         case *ast.IfStmt:
             // Lower condition
+            // Emit any nested call expressions used as arguments inside the condition before the condition itself
+            emitNestedCallArgs(st, v.Cond, &out)
             if ex, ok := lowerExpr(st, v.Cond); ok {
                 if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
                 cid := ""
@@ -179,6 +181,20 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                         break
                     }
                 }
+                // General var with initializer: ensure initializer expression and any nested call-arguments are emitted.
+                if v.Init != nil {
+                    // First, declare the var so it exists for subsequent assign
+                    out = append(out, lowerStmtVar(st, v))
+                    // Emit nested call arguments (one or more levels) before lowering the initializer itself
+                    emitNestedCallArgs(st, v.Init, &out)
+                    // Now lower the initializer and assign to the variable
+                    if ex, ok := lowerExpr(st, v.Init); ok {
+                        if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 || len(ex.Results) > 0 { out = append(out, ex) }
+                        if ex.Result != nil { out = append(out, ir.Assign{DestID: v.Name, Src: *ex.Result}) }
+                    }
+                    break
+                }
+                // No initializer: just declare the var
                 out = append(out, lowerStmtVar(st, v))
             }
         case *ast.AssignStmt:
@@ -231,6 +247,10 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                     break
                 }
             }
+            // When RHS is a call, emit any nested call arguments before lowering RHS
+            if _, isCall := v.Value.(*ast.CallExpr); isCall {
+                emitNestedCallArgs(st, v.Value, &out)
+            }
             // If destination variable is Owned, wrap RHS via owned_new before assign (copy-on-new)
             if st != nil && st.varTypes != nil {
                 if dtype := st.varTypes[v.Name]; dtype == "Owned" || (len(dtype) >= 6 && dtype[:6] == "Owned<") {
@@ -282,20 +302,34 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                 }
             }
             // fallback to simple assign if not handled
-            out = append(out, lowerStmtAssign(st, v))
+            // Lower RHS and then assign
+            if ex, ok := lowerExpr(st, v.Value); ok && ex.Result != nil {
+                if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 || len(ex.Results) > 0 { out = append(out, ex) }
+                out = append(out, ir.Assign{DestID: v.Name, Src: *ex.Result})
+            } else {
+                out = append(out, lowerStmtAssign(st, v))
+            }
         case *ast.ReturnStmt:
             // Materialize return expressions with short-circuit semantics when needed.
             var vals []ir.Value
             for i, e := range v.Results {
                 var val ir.Value
                 var ok bool
+                // If returning a call expression, ensure its nested call-arguments are emitted first
+                if _, isCall := e.(*ast.CallExpr); isCall {
+                    emitNestedCallArgs(st, e, &out)
+                }
                 if needsShortCircuit(e) {
                     val, ok = lowerValueSC(st, e, &out, &extras, &nextID)
                 } else {
-                    if ex, ok2 := lowerExpr(st, e); ok2 && ex.Result != nil {
-                        if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
-                        val = *ex.Result
-                        ok = true
+                    if ex, ok2 := lowerExpr(st, e); ok2 {
+                        if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 || len(ex.Results) > 0 { out = append(out, ex) }
+                        if ex.Result != nil { val = *ex.Result; ok = true }
+                        if !ok && len(ex.Results) > 0 {
+                            // When call returns multiple values, append all to return vector directly
+                            vals = append(vals, ex.Results...)
+                            continue
+                        }
                     }
                 }
                 if !ok { continue }
@@ -361,10 +395,42 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                     // Compute value for its side effect (calls) with short-circuit args
                     if _, ok := lowerValueSC(st, v.X, &out, &extras, &nextID); ok { /* done */ }
                 } else {
+                    // Emit nested call arguments (if any) before lowering the expression itself
+                    if _, isCall := v.X.(*ast.CallExpr); isCall {
+                        emitNestedCallArgs(st, v.X, &out)
+                    }
                     if e, ok := lowerExpr(st, v.X); ok { out = append(out, e) }
                 }
             }
         }
     }
     return out, extras
+}
+
+// emitNestedCallArgs lowers and emits any nested call expressions used as arguments
+// within the provided expression, ensuring they appear before the outer expression.
+// This is needed so that argument temporaries are defined before use when lowering
+// function calls like f(g(x), h(y)).
+func emitNestedCallArgs(st *lowerState, e ast.Expr, out *[]ir.Instruction) {
+    // Recurse through call arguments; do not emit the top-level call here.
+    var walkArgs func(ast.Expr)
+    walkArgs = func(x ast.Expr) {
+        if ce, ok := x.(*ast.CallExpr); ok {
+            // First, descend into grandchildren
+            for _, a := range ce.Args { walkArgs(a) }
+            // Then, emit this call so its result is available for parent
+            if ex, ok2 := lowerExpr(st, ce); ok2 {
+                if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 || len(ex.Results) > 0 {
+                    *out = append(*out, ex)
+                }
+            }
+            return
+        }
+        // For non-call nodes that contain expressions (e.g., selector or binary),
+        // add cases here as language grows. Currently only calls need eager emission.
+    }
+    // Start by locating the immediate call (if any) and walking its args
+    if ce, ok := e.(*ast.CallExpr); ok {
+        for _, a := range ce.Args { walkArgs(a) }
+    }
 }

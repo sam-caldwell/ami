@@ -3,6 +3,8 @@ package driver
 import (
     "fmt"
     "strconv"
+    stdtime "time"
+    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
@@ -46,8 +48,7 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
         res := &ir.Value{ID: v.Name, Type: typ}
         return ir.Expr{Op: "ident", Args: nil, Result: res}, true
     case *ast.SelectorExpr:
-        // Minimal support for enum-like selectors (e.g., signal.SIGINT)
-        // Map known signal names to stable integer literals for runtime ABI.
+        // Recognize enum-like signal selectors; otherwise resolve to receiver's base value.
         sel := v.Sel
         switch sel {
         case "SIGINT":
@@ -63,7 +64,14 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
             id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
             return ir.Expr{Op: "lit:3", Result: res}, true
         default:
-            // Fallback: treat as identifier of unknown type
+            // Lower the left side and project to a defined SSA value so selector receivers
+            // like a.b.c can reference an existing value (the base of the chain).
+            if lx, ok := lowerExpr(st, v.X); ok && lx.Result != nil {
+                // Preserve the base value id and type; treat selection as an alias.
+                res := &ir.Value{ID: lx.Result.ID, Type: lx.Result.Type}
+                return ir.Expr{Op: "ident", Result: res}, true
+            }
+            // Fallback: unknown selector chain → opaque ident
             id := st.newTemp()
             res := &ir.Value{ID: id, Type: "any"}
             return ir.Expr{Op: "ident", Result: res}, true
@@ -75,8 +83,18 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
         return ir.Expr{Op: fmt.Sprintf("lit:%q", v.Value), Result: res}, true
     case *ast.NumberLit:
         id := st.newTemp()
-        res := &ir.Value{ID: id, Type: "int"}
-        return ir.Expr{Op: fmt.Sprintf("lit:%s", v.Text), Result: res}, true
+        lit := v.Text
+        typ := "int"
+        if strings.ContainsAny(lit, ".eE") { typ = "float64" }
+        res := &ir.Value{ID: id, Type: typ}
+        return ir.Expr{Op: fmt.Sprintf("lit:%s", lit), Result: res}, true
+    case *ast.DurationLit:
+        // Parse duration text using Go's parser; represent as int64 nanoseconds literal.
+        d, err := stdtime.ParseDuration(v.Text)
+        if err != nil { return ir.Expr{}, false }
+        id := st.newTemp()
+        res := &ir.Value{ID: id, Type: "int64"}
+        return ir.Expr{Op: fmt.Sprintf("lit:%d", int64(d)), Result: res}, true
     case *ast.CallExpr:
         // Recognize AMI stdlib intrinsics for lowering
         if ex, ok := lowerStdlibCall(st, v); ok {

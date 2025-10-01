@@ -64,6 +64,30 @@ func findGenericArityMismatchDeep(expected, actual string) (bool, string, int, i
     return false, "", 0, 0
 }
 
+// findGenericArityMismatchDeepPath is like findGenericArityMismatchDeep but also returns
+// a path of generic base names from the outermost to the mismatching base.
+func findGenericArityMismatchDeepPath(expected, actual string) (bool, []string, string, int, int) {
+    eb, eargs, eok := baseAndArgs(expected)
+    ab, aargs, aok := baseAndArgs(actual)
+    if !eok || !aok {
+        if m, b, w, g := isGenericArityMismatch(expected, actual); m {
+            return true, nil, b, w, g
+        }
+        return false, nil, "", 0, 0
+    }
+    if eb != ab { return false, nil, "", 0, 0 }
+    if len(eargs) != len(aargs) { return true, []string{eb}, eb, len(eargs), len(aargs) }
+    for i := range eargs {
+        if m, p, b, w, g := findGenericArityMismatchDeepPath(eargs[i], aargs[i]); m {
+            // prepend current base
+            path := append([]string{eb}, p...)
+            if len(path) == 0 { path = []string{eb} }
+            return true, path, b, w, g
+        }
+    }
+    return false, nil, "", 0, 0
+}
+
 func baseAndArgs(s string) (string, []string, bool) {
     s = strings.TrimSpace(s)
     i := strings.IndexByte(s, '<')

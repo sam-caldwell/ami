@@ -89,9 +89,9 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
         pt := s.params[i]
         if pt == "" || pt == "any" || at == "any" { continue }
         // Prefer a specific generic arity mismatch diagnostic when applicable
-        if mismatch, base, wantN, gotN := findGenericArityMismatchDeep(pt, at); mismatch {
+        if mismatch, path, base, wantN, gotN := findGenericArityMismatchDeepPath(pt, at); mismatch {
             p := epos(a)
-            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
+            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "path": path, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
             if i < len(s.paramNames) && s.paramNames[i] != "" { data["paramName"] = s.paramNames[i] }
             if i < len(s.paramTypePos) { data["expectedPos"] = s.paramTypePos[i] }
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})

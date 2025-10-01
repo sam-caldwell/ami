@@ -3,6 +3,7 @@ generated: 2025-09-30T00:00:00Z
 authority:
   docx: docs/Asynchronous Machine Interface.docx
 notes:
+  - Changes should be committed to git with each work item performed.
   - Expectations are grouped by `ami` subcommand, then by feature.
   - Where present, `docx` lists relevant sections from the authoritative document.
   - Status mapping: done→complete, todo→ready, partial/checklisted→in progress.
@@ -22,7 +23,6 @@ notes:
       - documentation: `docs/`
       - AMI examples: `examples/`
       - End-to-End tests: `tests/`
-
 
 subcommands:
   - id: C-1

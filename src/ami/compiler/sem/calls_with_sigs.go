@@ -76,9 +76,9 @@ func checkCallWithSigsWithResults(c *ast.CallExpr, params map[string][]string, r
         at := inferExprTypeWithEnvAndResults(a, vars, results)
         pt := sigp[i]
         if pt == "" || pt == "any" || at == "any" { continue }
-        if mismatch, base, wantN, gotN := findGenericArityMismatchDeep(pt, at); mismatch {
+        if mismatch, path, base, wantN, gotN := findGenericArityMismatchDeepPath(pt, at); mismatch {
             p := epos(a)
-            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
+            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "path": path, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
             if v, ok := paramPos[c.Name]; ok && i < len(v) { data["expectedPos"] = v[i] }
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
             continue

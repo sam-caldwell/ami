@@ -24,6 +24,7 @@ func TestConnectSocket_TCP_Works_UDP_Fails(t *testing.T) {
     select { case <-done: case <-time.After(200*time.Millisecond): t.Fatalf("server no accept") }
 
     if _, err := ConnectSocket(UDP, "127.0.0.1", 0); err == nil { t.Fatalf("expected udp connect error") }
+    if _, err := ConnectSocket(ICMP, "127.0.0.1", 0); err == nil { t.Fatalf("expected icmp connect error") }
 }
 
 func TestWriteTo_UDP(t *testing.T) {
@@ -66,4 +67,3 @@ func TestServe_TCP_AcceptsAndHandlerCanWrite(t *testing.T) {
     if err != nil { t.Fatalf("read: %v", err) }
     if string(buf[:n]) != "hi" { t.Fatalf("got %q", string(buf[:n])) }
 }
-

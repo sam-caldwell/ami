@@ -4,6 +4,8 @@ import (
     "errors"
     "net"
     "strconv"
+    stdtime "time"
+    stdctx "context"
 )
 
 // Socket is a lightweight network handle with buffered writes.
@@ -215,6 +217,79 @@ func (s *Socket) RemoteAddr() string {
     if s == nil { return "" }
     if s.conn != nil && s.conn.RemoteAddr() != nil { return s.conn.RemoteAddr().String() }
     return ""
+}
+
+// CloseRead closes the read side of a TCP connection.
+func (s *Socket) CloseRead() error {
+    if s == nil || s.closed { return ErrClosed }
+    if s.conn == nil { return errors.New("CloseRead requires TCP connection") }
+    if tc, ok := s.conn.(*net.TCPConn); ok { return tc.CloseRead() }
+    return errors.New("CloseRead not supported for this connection")
+}
+
+// CloseWrite closes the write side of a TCP connection.
+func (s *Socket) CloseWrite() error {
+    if s == nil || s.closed { return ErrClosed }
+    if s.conn == nil { return errors.New("CloseWrite requires TCP connection") }
+    if tc, ok := s.conn.(*net.TCPConn); ok { return tc.CloseWrite() }
+    return errors.New("CloseWrite not supported for this connection")
+}
+
+// SetDeadline sets read and write deadlines.
+func (s *Socket) SetDeadline(t stdtime.Time) error {
+    if s == nil || s.closed { return ErrClosed }
+    switch {
+    case s.conn != nil:
+        return s.conn.SetDeadline(t)
+    case s.pc != nil:
+        return s.pc.SetDeadline(t)
+    case s.ln != nil:
+        if tl, ok := s.ln.(*net.TCPListener); ok { return tl.SetDeadline(t) }
+        return errors.New("deadline not supported for this listener")
+    default:
+        return errors.New("no underlying socket")
+    }
+}
+
+// SetReadDeadline sets the read deadline.
+func (s *Socket) SetReadDeadline(t stdtime.Time) error {
+    if s == nil || s.closed { return ErrClosed }
+    switch {
+    case s.conn != nil:
+        return s.conn.SetReadDeadline(t)
+    case s.pc != nil:
+        return s.pc.SetReadDeadline(t)
+    case s.ln != nil:
+        if tl, ok := s.ln.(*net.TCPListener); ok { return tl.SetDeadline(t) }
+        return errors.New("read deadline not supported for this listener")
+    default:
+        return errors.New("no underlying socket")
+    }
+}
+
+// SetWriteDeadline sets the write deadline.
+func (s *Socket) SetWriteDeadline(t stdtime.Time) error {
+    if s == nil || s.closed { return ErrClosed }
+    switch {
+    case s.conn != nil:
+        return s.conn.SetWriteDeadline(t)
+    case s.pc != nil:
+        return s.pc.SetWriteDeadline(t)
+    case s.ln != nil:
+        return errors.New("write deadline not supported for listener")
+    default:
+        return errors.New("no underlying socket")
+    }
+}
+
+// ServeContext is like Serve but will stop accepting when ctx is done.
+// It closes the underlying listener to unblock Accept.
+func (s *Socket) ServeContext(ctx stdctx.Context, handler func(*Socket)) error {
+    if s == nil || s.closed { return ErrClosed }
+    if s.ln == nil || s.proto != TCP { return errors.New("ServeContext requires TCP listening socket") }
+    // stop the listener when ctx done
+    go func(){ <-ctx.Done(); _ = s.Close() }()
+    return s.Serve(handler)
 }
 
 // Close closes the socket.

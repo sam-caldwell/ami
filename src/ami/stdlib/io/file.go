@@ -5,6 +5,7 @@ import (
     "errors"
     "os"
     "path/filepath"
+    "net"
     "strings"
     "time"
 )
@@ -180,3 +181,44 @@ var (
     Stdout = &FHO{f: os.Stdout, name: "stdout", stdio: true}
     Stderr = &FHO{f: os.Stderr, name: "stderr", stdio: true}
 )
+
+// NetProtocol represents supported network protocols for sockets.
+type NetProtocol string
+
+const (
+    TCP  NetProtocol = "TCP"
+    UDP  NetProtocol = "UDP"
+    ICMP NetProtocol = "ICMP"
+)
+
+// Hostname returns the current system hostname.
+func Hostname() (string, error) { return os.Hostname() }
+
+// NetInterface is a minimal description of a network interface.
+type NetInterface struct {
+    Index int
+    Name  string
+    MTU   int
+    Flags string
+    Addrs []string
+}
+
+// Interfaces lists available network interfaces.
+func Interfaces() ([]NetInterface, error) {
+    ifs, err := net.Interfaces()
+    if err != nil { return nil, err }
+    out := make([]NetInterface, 0, len(ifs))
+    for _, iface := range ifs {
+        addrs, _ := iface.Addrs()
+        as := make([]string, 0, len(addrs))
+        for _, a := range addrs { as = append(as, a.String()) }
+        out = append(out, NetInterface{
+            Index: iface.Index,
+            Name:  iface.Name,
+            MTU:   iface.MTU,
+            Flags: iface.Flags.String(),
+            Addrs: as,
+        })
+    }
+    return out, nil
+}

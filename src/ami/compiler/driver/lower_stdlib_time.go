@@ -134,6 +134,14 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         }
         return ir.Expr{Op: "call", Callee: "ami_rt_signal_register", Args: args}, true
     }
+    if strings.HasSuffix(name, ".BlockingSubmit") || name == "gpu.BlockingSubmit" {
+        // Lower to runtime GPU blocking submit wrapper. Result is Error<any> (opaque handle)
+        var args []ir.Value
+        for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
+        id := st.newTemp()
+        res := &ir.Value{ID: id, Type: "Error<any>"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_gpu_blocking_submit", Args: args, Result: res}, true
+    }
     if strings.HasSuffix(name, ".Sleep") || name == "time.Sleep" {
         // Lower to runtime sleep (milliseconds). Result is void.
         var args []ir.Value

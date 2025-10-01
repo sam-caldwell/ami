@@ -13,7 +13,19 @@ func lowerExpr(e ir.Expr) string {
     if strings.HasPrefix(e.Op, "lit:") {
         if e.Result != nil && e.Result.ID != "" {
             val := strings.TrimPrefix(e.Op, "lit:")
-            // Only lower integer literals here; floating is deferred.
+            // Choose lowering based on requested result type.
+            ty := mapType(e.Result.Type)
+            if ty == "i1" { // boolean literal
+                if val == "0" || strings.EqualFold(val, "false") {
+                    return fmt.Sprintf("  %%%s = icmp ne i1 0, 1\n", e.Result.ID) // always false
+                }
+                return fmt.Sprintf("  %%%s = icmp eq i1 0, 0\n", e.Result.ID) // always true
+            }
+            if ty == "double" { // float literal (scaffold)
+                if val == "0" || val == "0.0" { return fmt.Sprintf("  %%%s = fadd double 0.0, 0.0\n", e.Result.ID) }
+                return fmt.Sprintf("  %%%s = fadd double 0.0, %s\n", e.Result.ID, val)
+            }
+            // default integer path
             return fmt.Sprintf("  %%%s = add i64 0, %s\n", e.Result.ID, val)
         }
     }
@@ -89,12 +101,10 @@ func lowerExpr(e ir.Expr) string {
     op := strings.ToLower(e.Op)
     switch op {
     case "select":
-        // Ternary select: cond ? v1 : v2
+        // Retained for backward compatibility; prefer CFG + PHI now.
         if len(e.Args) >= 3 && e.Result != nil && e.Result.ID != "" {
-            // type of selected values
             ty := mapType(e.Result.Type)
             if ty == "void" || ty == "" { ty = mapType(e.Args[1].Type) }
-            // condition is boolean i1
             return fmt.Sprintf("  %%%s = select i1 %%%s, %s %%%s, %s %%%s\n",
                 e.Result.ID, e.Args[0].ID, ty, e.Args[1].ID, ty, e.Args[2].ID)
         }

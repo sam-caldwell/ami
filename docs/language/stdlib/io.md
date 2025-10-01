@@ -30,3 +30,13 @@ io.ResetPolicy()
 Notes
 - Defaults allow all; the runtime sets policy based on sandbox options before executing a pipeline.
 - Errors are synchronous at the callsite to keep behavior deterministic and easy to test.
+
+Ingress/Egress Allowed Ops
+- Ingress: `Stdin`, `FileRead`, `DirectoryList`, `FileStat`, `FileSeek`.
+- Egress: `Stdout`, `Stderr`, `FileWrite`, `FileCreate`, `FileDelete`, `FileTruncate`, `FileAppend`, `FileChmod`, `FileStat`, `DirectoryCreate`, `DirectoryDelete`, `TempFileCreate`, `TempDirectoryCreate`, `FileRead`, `FileChown`, `FileSeek`.
+- Lint rule enforces `io.*` steps appear only as the first (ingress) or last (egress) node, and checks operation family against the allowed set above.
+
+Network
+- Ingress: `NetListen` (bind/listen/accept) — allowed at ingress.
+- Egress: `NetConnect` (connect/dial) and `NetUdpSend`, `NetTcpSend`, `NetIcmpSend` (send/sendto) — allowed at egress.
+- Trust: Under `#pragma trust level=untrusted`, network operations are flagged (`E_TRUST_VIOLATION`).

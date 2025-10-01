@@ -52,6 +52,9 @@ func RuntimeLL(triple string, withMain bool) string {
         "gcont:\n  %ginext = add i64 %gi, 1\n  br label %gloop\n" +
         "gexit:\n  ; perform zeroize + free, then record handle\n  %p = call ptr @ami_rt_owned_ptr(ptr %h)\n  %n = call i64 @ami_rt_owned_len(ptr %h)\n  call void @ami_rt_zeroize(ptr %p, i64 %n)\n  call void @free(ptr %p)\n  call void @free(ptr %h)\n  %idx1 = load i64, ptr @ami_released_idx, align 8\n  %slot = urem i64 %idx1, %cap\n  %rt = getelementptr [256 x ptr], ptr @ami_released_tab, i64 0, i64 %slot\n  store ptr %h, ptr %rt, align 8\n  %idx2 = add i64 %idx1, 1\n  store i64 %idx2, ptr @ami_released_idx, align 8\n  ret void\n}\n\n"
     s += "declare i64 @llvm.umin.i64(i64, i64)\n\n"
+    // GPU blocking submit wrapper (returns null Error<any> handle as stub)
+    s += "define ptr @ami_rt_gpu_blocking_submit(ptr %arg) {\nentry:\n  ret ptr null\n}\n\n"
+
     // No-op ingress spawner stub; real implementation will create threads/processes per ingress trigger.
     s += "define void @ami_rt_spawn_ingress(ptr %name) {\nentry:\n  ret void\n}\n\n"
     // Signal registration: opaque handler tokens by signal (mod 64)

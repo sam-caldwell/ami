@@ -74,6 +74,9 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                 if ex.Callee == "ami_rt_posix_install_trampoline" {
                     e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
                 }
+                if ex.Callee == "ami_rt_gpu_blocking_submit" {
+                    e.RequireExtern("declare ptr @ami_rt_gpu_blocking_submit(ptr)")
+                }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
                     if strings.ToLower(ex.Op) == "call" {
@@ -169,6 +172,8 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                         e.RequireExtern("declare ptr @ami_rt_get_handler_thunk(i64)")
                     case "ami_rt_posix_install_trampoline":
                         e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
+                    case "ami_rt_gpu_blocking_submit":
+                        e.RequireExtern("declare ptr @ami_rt_gpu_blocking_submit(ptr)")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr

@@ -289,13 +289,28 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     var stmts []ast.Stmt
                     if len(pd.Stmts) > 0 { stmts = pd.Stmts } else if pd.Body != nil { stmts = pd.Body.Stmts }
                     // Backpressure hints: scan step call names and attributes
-                    for _, s := range stmts {
+                    lastIdx := len(stmts) - 1
+                    for i, s := range stmts {
                         st, ok := s.(*ast.StepStmt); if !ok { continue }
                         // Capability (I/O) check: forbid io.* nodes outside ingress/egress
                         lname := strings.ToLower(st.Name)
-                        if strings.HasPrefix(lname, "io.") && lname != "ingress" && lname != "egress" {
-                            d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
-                            if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                        if strings.HasPrefix(lname, "io.") {
+                            // Enforce position: only first (ingress) or last (egress)
+                            if i != 0 && i != lastIdx {
+                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
+                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                            } else {
+                                // Position-specific capability families
+                                pos := "ingress"; if i == lastIdx { pos = "egress" }
+                                if pos == "ingress" && !ioAllowedIngress(lname) {
+                                    d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io operation not allowed in ingress node", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"op": lname}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                }
+                                if pos == "egress" && !ioAllowedEgress(lname) {
+                                    d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io operation not allowed in egress node", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"op": lname}}
+                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                                }
+                            }
                         }
                         // Capability declaration required for io.* even when positionally allowed
                         if strings.HasPrefix(lname, "io.") {
@@ -627,6 +642,58 @@ func walkExpr(e ast.Expr, fn func(ast.Expr)) {
     case *ast.SelectorExpr:
         if n.X != nil { walkExpr(n.X, fn) }
     }
+}
+
+// ioAllowedIngress returns true if the io.* operation is permitted in an ingress node
+// per capability families: Stdin, FileRead, DirectoryList, FileStat, FileSeek.
+func ioAllowedIngress(op string) bool {
+    // normalize
+    s := strings.ToLower(op)
+    // Stdin
+    if strings.Contains(s, ".stdin") { return true }
+    // NetListen (ingress source): listen/bind/accept families
+    if strings.Contains(s, ".listen") || strings.Contains(s, ".bind") || strings.Contains(s, ".accept") {
+        return true
+    }
+    // FileRead
+    if strings.Contains(s, ".read") && !strings.Contains(s, ".readwrite") { return true }
+    if strings.Contains(s, ".open") && !strings.Contains(s, ".write") { return true }
+    // DirectoryList
+    if strings.Contains(s, ".ls") || strings.Contains(s, ".listdir") || strings.Contains(s, ".readdir") || strings.Contains(s, ".dirlist") { return true }
+    // FileStat
+    if strings.Contains(s, ".stat") { return true }
+    // FileSeek
+    if strings.Contains(s, ".seek") { return true }
+    return false
+}
+
+// ioAllowedEgress returns true if the io.* operation is permitted in an egress node
+// per capability families: Stdout, Stderr, FileWrite, FileCreate, FileDelete, FileTruncate,
+// FileAppend, FileChmod, FileStat, DirectoryCreate, DirectoryDelete, TempFileCreate,
+// TempDirectoryCreate, FileRead, FileChown, FileSeek.
+func ioAllowedEgress(op string) bool {
+    s := strings.ToLower(op)
+    // Stdout/Stderr
+    if strings.Contains(s, ".stdout") || strings.Contains(s, ".stderr") { return true }
+    // NetConnect (egress sink): connect/dial families
+    if strings.Contains(s, ".connect") || strings.Contains(s, ".dial") { return true }
+    // NetUdpSend / NetTcpSend / NetIcmpSend (egress sink): send families with protocol hints
+    if strings.Contains(s, ".send") || strings.Contains(s, ".sendto") {
+        if strings.Contains(s, "udp") || strings.Contains(s, "tcp") || strings.Contains(s, "icmp") { return true }
+        // If protocol unspecified, still consider send as an egress network op
+        return true
+    }
+    // FileWrite/Append
+    if strings.Contains(s, ".write") || strings.Contains(s, ".append") { return true }
+    // FileCreate/Delete/Truncate/Chmod/Chown
+    if strings.Contains(s, ".create") || strings.Contains(s, ".delete") || strings.Contains(s, ".truncate") || strings.Contains(s, ".chmod") || strings.Contains(s, ".chown") { return true }
+    // FileStat/Read/Seek
+    if strings.Contains(s, ".stat") || strings.Contains(s, ".read") || strings.Contains(s, ".seek") { return true }
+    // DirectoryCreate/Delete
+    if strings.Contains(s, ".mkdir") || strings.Contains(s, ".mkdirall") || strings.Contains(s, ".dircreate") || strings.Contains(s, ".rmdir") || strings.Contains(s, ".dirdelete") { return true }
+    // Temp file/dir creation
+    if strings.Contains(s, ".tempfile") || strings.Contains(s, ".createtemp") || strings.Contains(s, ".tempdir") || strings.Contains(s, ".createtempdir") { return true }
+    return false
 }
 
 // collectMutateWrappedReleases returns keys of release calls that are wrapped in mutate().

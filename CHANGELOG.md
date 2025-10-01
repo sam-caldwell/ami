@@ -14,6 +14,8 @@ The format is based on Keep a Changelog, and this project adheres to semantic ve
   - Workflow: `.github/workflows/ci.yml` runs `go vet`, `go test`, and the coverage gate.
 - Diagnostics: alias‑qualified call `expectedPos` tests for cross‑package calls.
 - Docs: `docs/diag-codes.md` notes Optional/Union support for arity `path/fieldPath` traversal.
+- Stdlib os: process runner API (`Exec`, `Process.Start/Kill/Status/Stdin/Stdout/Stderr/Pid`) and `GetSystemStats()`.
+  - Tests under `src/ami/stdlib/os/*_test.go`; docs at `docs/stdlib/os.md`.
 
 ### Changed
 - Cross‑cutting statuses: Marked CC‑1, CC‑2, CC‑3 as COMPLETE in the tracker and gaps doc.
@@ -25,4 +27,3 @@ The format is based on Keep a Changelog, and this project adheres to semantic ve
 
 ### Notes
 - The coverage gate ignores common generated/testdata paths (testdata, generated, mocks, zz_generated, *_mock.go) by default and supports custom excludes via `EXTRA_EXCLUDES`.
-

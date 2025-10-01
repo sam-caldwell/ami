@@ -1,6 +1,6 @@
 # math
 
-The `math` stdlib package provides AMI’s language‑level mathematical functions and constants. The AMI runtime implements these in Go and mirrors Go's `math` semantics to ensure deterministic behavior and IEEE‑754 alignment. All functions operate on `float64` unless otherwise noted.
+The `math` stdlib package provides AMI’s language‑level mathematical functions and constants. AMI lowers `math` calls directly to LLVM intrinsics or portable runtime helpers (emitted as LLVM IR) to ensure deterministic behavior and IEEE‑754 alignment across platforms. All functions operate on `float64` unless otherwise noted.
 
 - Basics: `Abs(x)`, `Max(x, y)`, `Min(x, y)`
 - Rounding: `Ceil(x)`, `Floor(x)`, `Trunc(x)`, `Round(x)`, `RoundToEven(x)`
@@ -20,10 +20,11 @@ Constants match Go's definitions: `Pi`, `E`, `Phi`, `Sqrt2`, `Ln2`, `Ln10`, `Log
 Usage (AMI)
 
 - Import as `math` in AMI source; call like `math.Abs(x)`.
-- The underlying runtime is opaque to AMI users; only AMI’s `math` surface is considered stable.
+- Calls lower to LLVM: single‑result map to intrinsics (e.g., `llvm.sqrt.f64`, `llvm.maxnum.f64`); multi‑result
+  (`Sincos`, `Frexp`, `Modf`) lower to runtime helpers returning aggregates and are consumed via `extractvalue`.
 
 Semantics
 
-- NaN/Inf: Functions propagate `NaN`/`Inf` as in Go's `math`. `Inf(+1)` is `+Inf`, `Inf(-1)` is `-Inf`.
-- Remainder vs Mod: `Mod(x, y)` has the sign of `x`; `Remainder(x, y)` implements IEEE‑754 remainder (`x - n*y` where `n` is the nearest integer to `x/y`, ties to even).
-- Determinism: All operations are thin wrappers over Go's `math` package and follow its corner‑case behavior.
+- NaN/Inf: Functions propagate `NaN`/`Inf` consistent with Go's `math`. `Inf(+1)` is `+Inf`, `Inf(-1)` is `-Inf`.
+- Remainder vs Mod: `Mod(x, y)` has the sign of `x` (emitted as `frem`); `Remainder(x, y)` uses a portable runtime helper implementing IEEE‑754 semantics.
+- Determinism: Lowering is via LLVM intrinsics where available and portable helper IR otherwise; corner cases follow Go's `math`.

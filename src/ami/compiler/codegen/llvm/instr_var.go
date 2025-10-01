@@ -9,4 +9,3 @@ import (
 func lowerVar(v ir.Var) string {
     return fmt.Sprintf("  ; var %s : %s as %%%s\n", v.Name, mapType(v.Type), v.Result.ID)
 }
-

@@ -85,6 +85,8 @@ func RuntimeLL(triple string, withMain bool) string {
         s += "declare void @ami_rt_metal_copy_to_device(ptr, ptr, i64)\n"
         s += "declare void @ami_rt_metal_copy_from_device(ptr, ptr, i64)\n"
         s += "declare ptr @ami_rt_metal_dispatch_blocking(ptr, ptr, i64, i64, i64, i64, i64, i64)\n\n"
+        // Ex variant with explicit argument binding arrays
+        s += "declare ptr @ami_rt_metal_dispatch_blocking_ex(ptr, ptr, i64, i64, i64, i64, i64, i64, ptr, i64, ptr, ptr, i64*)\n\n"
     } else {
         s += "define i1 @ami_rt_metal_available() {\nentry:\n  ret i1 0\n}\n\n"
         s += "define ptr @ami_rt_metal_devices() {\nentry:\n  ret ptr null\n}\n\n"
@@ -97,6 +99,7 @@ func RuntimeLL(triple string, withMain bool) string {
         s += "define void @ami_rt_metal_copy_to_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
         s += "define void @ami_rt_metal_copy_from_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
         s += "define ptr @ami_rt_metal_dispatch_blocking(ptr %ctx, ptr %pipe, i64 %gx, i64 %gy, i64 %gz, i64 %tx, i64 %ty, i64 %tz) {\nentry:\n  ret ptr null\n}\n\n"
+        s += "define ptr @ami_rt_metal_dispatch_blocking_ex(ptr %ctx, ptr %pipe, i64 %gx, i64 %gy, i64 %gz, i64 %tx, i64 %ty, i64 %tz, ptr %kinds, i64 %argc, ptr %bufs, ptr %bytes, i64* %lens) {\nentry:\n  ret ptr null\n}\n\n"
     }
 
     // String/Slice length helpers (scaffold): return 0 until full ABI is wired.
@@ -162,9 +165,23 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "define double @ami_rt_math_dim(double %x, double %y) {\n" +
         "entry:\n  %sub = fsub double %x, %y\n  %lt0 = fcmp olt double %sub, 0.0\n  %res = select i1 %lt0, double 0.0, double %sub\n  ret double %res\n}\n\n"
     s += "define double @ami_rt_math_logb(double %x) {\n" +
-        "entry:\n  ret double 0.0\n}\n\n"
+        "entry:\n  %bits = bitcast double %x to i64\n  %abits = and i64 %bits, 0x7FFFFFFFFFFFFFFF\n  %iszero = icmp eq i64 %abits, 0\n  br i1 %iszero, label %ret_zero, label %checkinf\n" +
+        "ret_zero:\n  ret double 0xFFF0000000000000\n" +
+        "checkinf:\n  %expfield = lshr i64 %bits, 52\n  %exp = and i64 %expfield, 2047\n  %mant = and i64 %bits, 4503599627370495\n  %isexpmax = icmp eq i64 %exp, 2047\n  br i1 %isexpmax, label %inf_or_nan, label %normal_or_sub\n" +
+        "inf_or_nan:\n  %ismantzero = icmp eq i64 %mant, 0\n  br i1 %ismantzero, label %ret_pos_inf, label %ret_nan\n" +
+        "ret_pos_inf:\n  ret double 0x7FF0000000000000\n" +
+        "ret_nan:\n  ret double 0x7FF8000000000000\n" +
+        "normal_or_sub:\n  %isnorm = icmp ne i64 %exp, 0\n  br i1 %isnorm, label %ret_norm, label %subnorm\n" +
+        "ret_norm:\n  %unbiased = sub i64 %exp, 1023\n  %d = sitofp i64 %unbiased to double\n  ret double %d\n" +
+        "subnorm:\n  %frac = and i64 %bits, 4503599627370495\n  %sh = shl i64 %frac, 12\n  %lz = call i64 @llvm.ctlz.i64(i64 %sh, i1 false)\n  %tmp = add i64 %lz, 1022\n  %unbiased2 = sub i64 0, %tmp\n  %d2 = sitofp i64 %unbiased2 to double\n  ret double %d2\n}\n\n"
     s += "define i64 @ami_rt_math_ilogb(double %x) {\n" +
-        "entry:\n  ret i64 0\n}\n\n"
+        "entry:\n  %bits = bitcast double %x to i64\n  %abits = and i64 %bits, 0x7FFFFFFFFFFFFFFF\n  %iszero = icmp eq i64 %abits, 0\n  br i1 %iszero, label %ret_min, label %checkinf2\n" +
+        "ret_min:\n  ret i64 -9223372036854775808\n" +
+        "checkinf2:\n  %expfield = lshr i64 %bits, 52\n  %exp = and i64 %expfield, 2047\n  %mant = and i64 %bits, 4503599627370495\n  %isexpmax = icmp eq i64 %exp, 2047\n  br i1 %isexpmax, label %ret_max, label %normal_or_sub2\n" +
+        "ret_max:\n  ret i64 9223372036854775807\n" +
+        "normal_or_sub2:\n  %isnorm = icmp ne i64 %exp, 0\n  br i1 %isnorm, label %ret_norm2, label %subnorm2\n" +
+        "ret_norm2:\n  %unbiased = sub i64 %exp, 1023\n  ret i64 %unbiased\n" +
+        "subnorm2:\n  %frac = and i64 %bits, 4503599627370495\n  %sh = shl i64 %frac, 12\n  %lz = call i64 @llvm.ctlz.i64(i64 %sh, i1 false)\n  %tmp = add i64 %lz, 1022\n  %unbiased2 = sub i64 0, %tmp\n  ret i64 %unbiased2\n}\n\n"
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }

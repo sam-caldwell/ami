@@ -182,6 +182,13 @@ func MetalDispatch(ctx Context, p Pipeline, grid, threadsPerGroup [3]uint32, arg
             if len(x) == 0 { return nil, 0, false }
             p := C.CBytes(x)
             return p, C.ulong(len(x)), true
+        case []int8:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x))
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
         case []float32:
             if len(x) == 0 { return nil, 0, false }
             nbytes := C.ulong(len(x) * 4)
@@ -196,6 +203,20 @@ func MetalDispatch(ctx Context, p Pipeline, grid, threadsPerGroup [3]uint32, arg
             if p == nil { return nil, 0, false }
             C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
             return p, nbytes, true
+        case []uint16:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x) * 2)
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
+        case []int16:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x) * 2)
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
         case []uint32:
             if len(x) == 0 { return nil, 0, false }
             nbytes := C.ulong(len(x) * 4)
@@ -206,6 +227,20 @@ func MetalDispatch(ctx Context, p Pipeline, grid, threadsPerGroup [3]uint32, arg
         case []int32:
             if len(x) == 0 { return nil, 0, false }
             nbytes := C.ulong(len(x) * 4)
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
+        case []uint64:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x) * 8)
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
+        case []int64:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x) * 8)
             p := C.malloc(nbytes)
             if p == nil { return nil, 0, false }
             C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)

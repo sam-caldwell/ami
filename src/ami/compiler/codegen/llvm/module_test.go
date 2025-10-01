@@ -86,6 +86,27 @@ func TestEmitLLVM_MultiBlockAndUnknownOp(t *testing.T) {
     }
 }
 
+func TestEmitLLVM_MultiResultCall_Extractvalue(t *testing.T) {
+    // A call returning an aggregate should emit extractvalue for each result.
+    f := ir.Function{
+        Name:    "C",
+        Params:  []ir.Value{{ID: "x", Type: "float64"}},
+        Results: []ir.Value{},
+        Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{
+            ir.Expr{Op: "call", Callee: "ami_rt_math_sincos", Args: []ir.Value{{ID: "x", Type: "float64"}}, Results: []ir.Value{{ID: "s", Type: "float64"}, {ID: "c", Type: "float64"}}},
+            ir.Return{},
+        }}},
+    }
+    out, err := EmitModuleLLVM(ir.Module{Package: "app", Functions: []ir.Function{f}})
+    if err != nil { t.Fatalf("emit: %v", err) }
+    if !strings.Contains(out, "call { double, double } @ami_rt_math_sincos") {
+        t.Fatalf("missing aggregate call: %s", out)
+    }
+    if !strings.Contains(out, "extractvalue { double, double } %call_tup_") {
+        t.Fatalf("missing extractvalue from aggregate: %s", out)
+    }
+}
+
 func TestEmitLLVM_ComparisonsAndIntLiteral(t *testing.T) {
     // %t1 = lit:42 ; ret t1
     f1 := ir.Function{ Name: "L", Results: []ir.Value{{Type: "int"}}, Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{

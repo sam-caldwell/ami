@@ -268,10 +268,9 @@ func lowerSelectorField(st *lowerState, s *ast.SelectorExpr) (ir.Expr, bool) {
     if fts == "Time" { rtype = "int64" }
     id := st.newTemp()
     res := &ir.Value{ID: id, Type: rtype}
-    // Provide the base as an argument for potential future codegen; mark as int64
-    // when projecting Time handles for better downstream compatibility.
+    // Provide the base as an argument for potential future codegen; keep original
+    // base type text so codegen can compute field offsets/layout.
     bargType := st.varTypes[baseIdent]
-    if fts == "Time" { bargType = "int64" }
     arg := ir.Value{ID: baseIdent, Type: bargType}
     // Encode field name into the op for debug purposes: field.<path>
     return ir.Expr{Op: "field." + path, Args: []ir.Value{arg}, Result: res}, true

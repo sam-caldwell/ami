@@ -4,6 +4,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     "fmt"
+    "strings"
 )
 
 // lowerBlock lowers a function body block into a sequence of IR instructions.
@@ -435,5 +436,35 @@ func emitNestedCallArgs(st *lowerState, e ast.Expr, out *[]ir.Instruction) {
     // Start by locating the immediate call (if any) and walking its args
     if ce, ok := e.(*ast.CallExpr); ok {
         for _, a := range ce.Args { walkArgs(a) }
+    }
+}
+
+// maybeEmitMethodRecv detects method-form calls (name contains '.' and zero args)
+// and emits a receiver projection (field.<path>) prior to the call so that the
+// receiver value is defined. The synthesized temporary is cached in st.methodRecv
+// keyed by the callee name for later retrieval by lowering.
+func maybeEmitMethodRecv(st *lowerState, c *ast.CallExpr, out *[]ir.Instruction) {
+    if st == nil || c == nil { return }
+    if len(c.Args) != 0 { return }
+    name := c.Name
+    if name == "" { return }
+    if !strings.Contains(name, ".") { return }
+    // Separate receiver chain and method
+    last := strings.LastIndex(name, ".")
+    recv := name[:last]
+    method := name[last+1:]
+    if method == "" || recv == "" { return }
+    // Build selector AST for receiver chain from dotted name.
+    parts := strings.Split(recv, ".")
+    var x ast.Expr = &ast.IdentExpr{Name: parts[0]}
+    for i := 1; i < len(parts); i++ { x = &ast.SelectorExpr{X: x, Sel: parts[i]} }
+    sel, _ := x.(*ast.SelectorExpr)
+    if sel == nil { return }
+    if ex, ok := lowerSelectorField(st, sel); ok {
+        // Emit the projection and cache the temp for this method call name
+        *out = append(*out, ex)
+        if ex.Result != nil {
+            st.methodRecv[name] = irValue{id: ex.Result.ID, typ: ex.Result.Type}
+        }
     }
 }

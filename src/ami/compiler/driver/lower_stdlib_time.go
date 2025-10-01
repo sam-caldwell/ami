@@ -93,6 +93,12 @@ func exprOffset(e ast.Expr) int {
 // Currently supports only simple identifier receivers (no selector chains).
 func synthesizeMethodRecvArg(st *lowerState, fullName string) (ir.Value, bool) {
     if st == nil || fullName == "" { return ir.Value{}, false }
+    // Prefer a cached receiver projection if one was emitted earlier.
+    if st.methodRecv != nil {
+        if v, ok := st.methodRecv[fullName]; ok {
+            return ir.Value{ID: v.id, Type: v.typ}, true
+        }
+    }
     i := strings.LastIndex(fullName, ".")
     if i <= 0 { return ir.Value{}, false }
     recv := fullName[:i]

@@ -1665,6 +1665,20 @@ stdlib:
             dependencies: [F-11-23, F-11-22, F-11-11]
             status: ready
             tests: []
+          - id: E-8-1-2
+            statement: |
+              As a user, I expect that if the compiler detects a program imports the `gpu` package and uses it in an AMI
+              program, the compiler will generate LLVM code which will execute at program startup to detect the GPU type
+              on a host running the program; the program should use this global GPU detection to ensure the binary
+              executable invokes the proper GPU facilities (e.g. CUDA, Apple Metal, etc.); the compiler/optimizer should
+              eliminate certain GPU facilities known to be impossible.  For example: when compiling a darwin/arm64
+              binary, the compiler would only include Apple Metal, while compiling for darwin/amd64, ROCm support would
+              be necessary.  Likewise, when compiling linux/amd64, CUDA or ROCm would be supported possibilities. Any
+              resulting binary should have runtime conditional logic to enable/disable the detected GPU platform.
+            dependencies: [F-8-1]
+            status: ready
+            tests: []
+
 
       - id: F-8-2
         name: CUDA Backend (Cuda*)

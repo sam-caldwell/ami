@@ -5,6 +5,7 @@ import (
     "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
+    "github.com/sam-caldwell/ami/src/ami/compiler/types"
 )
 
 // lowerExpr emits expression instructions; supports call in scaffold.
@@ -31,17 +32,37 @@ func lowerExpr(e ir.Expr) string {
     }
     // Field projection: op form "field.<path>"; define a result of appropriate type.
     if strings.HasPrefix(e.Op, "field.") {
-        if e.Result != nil && e.Result.ID != "" {
+        // Use base argument type to compute layout offsets when possible
+        if e.Result != nil && e.Result.ID != "" && len(e.Args) >= 1 {
+            base := e.Args[0]
+            baseTy := base.Type
+            path := strings.TrimPrefix(e.Op, "field.")
+            if t, err := types.Parse(baseTy); err == nil {
+                if offSlots, _, ok := fieldOffsetSlots(t, path); ok {
+                    off := offSlots * 8
+                    // Compute GEP to the field slot
+                    gid := "gep_" + e.Result.ID
+                    var b strings.Builder
+                    fmt.Fprintf(&b, "  %%%s = getelementptr i8, ptr %%%s, i64 %d\n", gid, base.ID, off)
+                    // Load leaf value typed by result
+                    rty := mapType(e.Result.Type)
+                    if rty == "" || rty == "void" { rty = "i64" }
+                    fmt.Fprintf(&b, "  %%%s = load %s, ptr %%%s\n", e.Result.ID, rty, gid)
+                    return b.String()
+                }
+            }
+            // Fallback when layout unknown: produce safe zero/empty values
             ty := mapType(e.Result.Type)
             switch ty {
+            case "i1":
+                return fmt.Sprintf("  %%%s = icmp ne i1 0, 1\n", e.Result.ID)
             case "i64":
-                // Synthesize a numeric value (zero) to materialize the SSA value.
                 return fmt.Sprintf("  %%%s = add i64 0, 0\n", e.Result.ID)
+            case "double":
+                return fmt.Sprintf("  %%%s = fadd double 0.0, 0.0\n", e.Result.ID)
             case "ptr":
-                // Produce a null pointer GEP to define a pointer-typed result.
                 return fmt.Sprintf("  %%%s = getelementptr i8, ptr null, i64 0\n", e.Result.ID)
             default:
-                // Default to integer 64-bit when unknown
                 return fmt.Sprintf("  %%%s = add i64 0, 0\n", e.Result.ID)
             }
         }

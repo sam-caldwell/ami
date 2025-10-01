@@ -191,6 +191,7 @@ const (
     ICMP NetProtocol = "ICMP"
 )
 
+
 // Hostname returns the current system hostname.
 func Hostname() (string, error) { return os.Hostname() }
 

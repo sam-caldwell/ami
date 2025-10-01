@@ -1180,24 +1180,27 @@ stdlib:
               As a user, I expect the AMI os package to have a .GetEnv() method which will return the value of an
               environment variable given the environment variable name.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/os/env_test.go
 
           - id: E-3-1-2
             statement: |
               As a user, I expect the AMI os package to have a .SetEnv() method which will set the value of an
               environment variable given the environment variable name.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/os/env_test.go
 
           - id: E-3-1-3
             statement: |
               As a user, I expect the AMI os package to have a .ListEnv() method which will return a list of 
               environment variable names (not their values).
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/os/env_test.go
 
   - id: S-4
     name: signal package
@@ -1333,7 +1336,7 @@ stdlib:
               As a user, I expect the `time.Ticker` object will have a `.Stop()` method to stop the ticker from 
               generating tick events.
             dependencies: []
-            status: complete
+            status: completetrac
             tests:
               - src/ami/stdlib/time/ticker_test.go
 

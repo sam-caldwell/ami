@@ -39,6 +39,8 @@ func main() {
             inRec := false
             braceDepth := 0
             var recBuf strings.Builder
+            // Track recent message variables assigned from fmt.Sprintf or literals
+            recentMsgs := map[string]string{}
             // Track most recent map[string]any assignments to variables (e.g., `data := map[string]any{...}`)
             type mapAssign struct{ name string; keys map[string]struct{} }
             var currentMapVar string
@@ -58,6 +60,18 @@ func main() {
                 }
                 // Track variable map assignments like `data := map[string]any{ ... }`
                 if !inRec {
+                    // Track message var := fmt.Sprintf("...") or := "literal"
+                    if idx := strings.Index(line, ":="); idx > 0 {
+                        name := strings.TrimSpace(line[:idx])
+                        rhs := strings.TrimSpace(line[idx+2:])
+                        if j := strings.Index(rhs, "fmt.Sprintf(\""); j >= 0 {
+                            rest := rhs[j+len("fmt.Sprintf(\""):]
+                            if k := strings.Index(rest, "\""); k >= 0 && name != "" { recentMsgs[name] = rest[:k] }
+                        } else if strings.HasPrefix(rhs, "\"") {
+                            lit := rhs[1:]
+                            if k := strings.Index(lit, "\""); k >= 0 && name != "" { recentMsgs[name] = lit[:k] }
+                        }
+                    }
                     // Start of assignment
                     if !inMapAssign && strings.Contains(line, ":= map[string]any{") {
                         // Extract var name before ':='
@@ -140,6 +154,24 @@ func main() {
                                 if _, seen := samples[code]; !seen { samples[code] = sm[1] }
                             } else if sm := msgSimpleRe.FindStringSubmatch(content); sm != nil {
                                 if _, seen := samples[code]; !seen { samples[code] = sm[1] }
+                            } else {
+                                // Variable form: Message: ident
+                                // crude scan for 'Message:' and an identifier token
+                                if i := strings.Index(content, "Message:"); i >= 0 {
+                                    tail := strings.TrimSpace(content[i+len("Message:"):])
+                                    if tail != "" {
+                                        // cut at first comma or newline/brace
+                                        cut := len(tail)
+                                        if j := strings.IndexAny(tail, ",}\n"); j >= 0 { cut = j }
+                                        ident := strings.TrimSpace(tail[:cut])
+                                        // ensure it's an identifier (not quoted)
+                                        if ident != "" && !strings.HasPrefix(ident, "\"") {
+                                            if s, ok := recentMsgs[ident]; ok {
+                                                if _, seen := samples[code]; !seen { samples[code] = s }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         // reset

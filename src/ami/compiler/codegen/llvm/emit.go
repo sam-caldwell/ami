@@ -37,6 +37,9 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                 if ex.Callee == "ami_rt_zeroize_owned" {
                     e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
                 }
+                if ex.Callee == "ami_rt_sleep_ms" {
+                    e.RequireExtern("declare void @ami_rt_sleep_ms(i64)")
+                }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
                     if strings.ToLower(ex.Op) == "call" {
@@ -55,6 +58,8 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                             e.RequireExtern("declare ptr @ami_rt_owned_new(i8*, i64)")
                         case "ami_rt_zeroize_owned":
                             e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
+                        case "ami_rt_sleep_ms":
+                            e.RequireExtern("declare void @ami_rt_sleep_ms(i64)")
                         }
                     }
                 }
@@ -90,6 +95,8 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                         e.RequireExtern("declare ptr @ami_rt_owned_new(i8*, i64)")
                     case "ami_rt_zeroize_owned":
                         e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
+                    case "ami_rt_sleep_ms":
+                        e.RequireExtern("declare void @ami_rt_sleep_ms(i64)")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
@@ -109,6 +116,8 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                             e.RequireExtern("declare ptr @ami_rt_owned_new(i8*, i64)")
                         case "ami_rt_zeroize_owned":
                             e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
+                        case "ami_rt_sleep_ms":
+                            e.RequireExtern("declare void @ami_rt_sleep_ms(i64)")
                         }
                     }
                 }

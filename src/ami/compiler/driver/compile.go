@@ -26,6 +26,13 @@ func joinCSV(ss []string) string { if len(ss)==0 { return "" }; out := ss[0]; fo
 // into IR suitable for debug inspection. When opts.Debug is true, it writes
 // per-unit IR JSON under build/debug/ir/<package>/<unit>.ir.json.
 func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, []diag.Record) {
+    // Inject builtin AMI stdlib packages (stubs) if not present
+    have := map[string]bool{}
+    for _, p := range pkgs { have[p.Name] = true }
+    std := builtinStdlibPackages()
+    for _, bp := range std {
+        if !have[bp.Name] { pkgs = append(pkgs, bp) }
+    }
     var arts Artifacts
     var outDiags []diag.Record
     var manifestPkgs []bmPackage

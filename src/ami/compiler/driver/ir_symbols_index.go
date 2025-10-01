@@ -53,6 +53,8 @@ func collectExterns(m ir.Module) []string {
                         add("ami_rt_owned_new")
                     case "ami_rt_zeroize_owned":
                         add("ami_rt_zeroize_owned")
+                    case "ami_rt_sleep_ms":
+                        add("ami_rt_sleep_ms")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     // Include deferred calls in extern set
@@ -73,6 +75,8 @@ func collectExterns(m ir.Module) []string {
                             add("ami_rt_owned_new")
                         case "ami_rt_zeroize_owned":
                             add("ami_rt_zeroize_owned")
+                        case "ami_rt_sleep_ms":
+                            add("ami_rt_sleep_ms")
                         }
                     }
                 }

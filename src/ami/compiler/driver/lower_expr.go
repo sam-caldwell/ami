@@ -33,6 +33,10 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
         res := &ir.Value{ID: id, Type: "int"}
         return ir.Expr{Op: fmt.Sprintf("lit:%s", v.Text), Result: res}, true
     case *ast.CallExpr:
+        // Recognize AMI stdlib intrinsics for lowering
+        if ex, ok := lowerStdlibCall(st, v); ok {
+            return ex, true
+        }
         ex := lowerCallExpr(st, v)
         return ex, true
     case *ast.UnaryExpr:

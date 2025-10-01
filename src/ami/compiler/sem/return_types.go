@@ -49,8 +49,10 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
                     mismatchIndices = append(mismatchIndices, i)
                     // continue checking remaining positions to surface multiple issues
                     continue
-                } else if mismatch, path, pathIdx, base, wantN, gotN := findGenericArityMismatchDeepPath(decl[i], got[i]); mismatch {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                } else if mismatch, path, pathIdx, fieldPath, base, wantN, gotN := findGenericArityMismatchDeepPathTextFields(decl[i], got[i]); mismatch {
+                    data := map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}
+                    if len(fieldPath) > 0 { data["fieldPath"] = fieldPath }
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: data})
                     mismatchIndices = append(mismatchIndices, i)
                     continue
                 }

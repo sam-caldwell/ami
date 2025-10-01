@@ -84,9 +84,10 @@ func checkCallWithSigsWithResults(c *ast.CallExpr, params map[string][]string, r
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
             mismatchIdx = append(mismatchIdx, i)
             continue
-        } else if mismatch, path, pathIdx, base, wantN, gotN := findGenericArityMismatchDeepPath(pt, at); mismatch {
+        } else if mismatch, path, pathIdx, fieldPath, base, wantN, gotN := findGenericArityMismatchDeepPathTextFields(pt, at); mismatch {
             p := epos(a)
             data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "path": path, "pathIdx": pathIdx, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
+            if len(fieldPath) > 0 { data["fieldPath"] = fieldPath }
             if v, ok := paramPos[c.Name]; ok && i < len(v) { data["expectedPos"] = v[i] }
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
             mismatchIdx = append(mismatchIdx, i)
@@ -108,8 +109,10 @@ func checkCallWithSigsWithResults(c *ast.CallExpr, params map[string][]string, r
             at := inferExprTypeWithEnvAndResults(c.Args[i], vars, results)
             if m, p, idx, fp, b, _, _ := findGenericArityMismatchWithFields(pt, at); m {
                 paths = append(paths, map[string]any{"argIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
-            } else if m2, p2, idx2, b2, _, _ := findGenericArityMismatchDeepPath(pt, at); m2 {
-                paths = append(paths, map[string]any{"argIndex": i, "base": b2, "path": p2, "pathIdx": idx2})
+            } else if m2, p2, idx2, fp2, b2, _, _ := findGenericArityMismatchDeepPathTextFields(pt, at); m2 {
+                e := map[string]any{"argIndex": i, "base": b2, "path": p2, "pathIdx": idx2}
+                if len(fp2) > 0 { e["fieldPath"] = fp2 }
+                paths = append(paths, e)
             }
         }
         data := map[string]any{"count": len(mismatchIdx), "indices": mismatchIdx, "callee": c.Name}

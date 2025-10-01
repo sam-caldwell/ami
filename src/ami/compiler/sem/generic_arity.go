@@ -179,3 +179,107 @@ func splitTop(s string) []string {
     if tail != "" { parts = append(parts, tail) }
     return parts
 }
+
+// findGenericArityMismatchDeepPathTextFields attempts to discover a generic arity
+// mismatch and return both generic path/pathIdx and a textual struct fieldPath
+// without relying on types.Parse. It handles simple Struct{...} and Optional<...>
+// text forms and delegates generic path detection to findGenericArityMismatchDeepPath
+// when not within a struct field.
+func findGenericArityMismatchDeepPathTextFields(expected, actual string) (bool, []string, []int, []string, string, int, int) {
+    // Optional wrappers
+    if be, argsE, okE := baseAndArgs(expected); okE && be == "Optional" && len(argsE) == 1 {
+        if ba, argsA, okA := baseAndArgs(actual); okA && ba == "Optional" && len(argsA) == 1 {
+            return findGenericArityMismatchDeepPathTextFields(argsE[0], argsA[0])
+        }
+    }
+    // Struct traversal
+    if isStructText(expected) && isStructText(actual) {
+        ef, okE := parseStructFieldsText(expected)
+        af, okA := parseStructFieldsText(actual)
+        if okE && okA {
+            // common fields in stable order
+            keys := make([]string, 0)
+            for k := range ef { if _, ok := af[k]; ok { keys = append(keys, k) } }
+            sort.Strings(keys)
+            for _, k := range keys {
+                einner := ef[k]
+                ainner := af[k]
+                if m, p, idx, fp, b, w, g := findGenericArityMismatchDeepPathTextFields(einner, ainner); m {
+                    // prepend Struct → field
+                    return true, p, idx, append([]string{"Struct", k}, fp...), b, w, g
+                }
+                if m2, p2, idx2, b2, w2, g2 := findGenericArityMismatchDeepPath(einner, ainner); m2 {
+                    return true, p2, idx2, []string{"Struct", k}, b2, w2, g2
+                }
+            }
+        }
+    }
+    // Fallback to generic deep path detection without fieldPath
+    if m, p, idx, b, w, g := findGenericArityMismatchDeepPath(expected, actual); m {
+        return true, p, idx, nil, b, w, g
+    }
+    return false, nil, nil, nil, "", 0, 0
+}
+
+func isStructText(s string) bool {
+    s = strings.TrimSpace(s)
+    return strings.HasPrefix(s, "Struct{") && strings.HasSuffix(s, "}")
+}
+
+func parseStructFieldsText(s string) (map[string]string, bool) {
+    s = strings.TrimSpace(s)
+    if !isStructText(s) { return nil, false }
+    body := s[len("Struct{") : len(s)-1]
+    out := map[string]string{}
+    if strings.TrimSpace(body) == "" { return out, true }
+    parts := splitTopAllText(body)
+    for _, p := range parts {
+        if i := strings.IndexByte(p, ':'); i > 0 {
+            name := strings.TrimSpace(p[:i])
+            ty := strings.TrimSpace(p[i+1:])
+            if name != "" { out[name] = ty }
+        } else {
+            return nil, false
+        }
+    }
+    return out, true
+}
+
+// splitTopAllText splits on commas at top level, respecting nested '<>', '{}', '()' and quotes.
+func splitTopAllText(s string) []string {
+    var parts []string
+    depthAngle, depthBrace, depthParen := 0, 0, 0
+    inQuote := byte(0)
+    last := 0
+    for i := 0; i < len(s); i++ {
+        c := s[i]
+        if inQuote != 0 {
+            if c == inQuote { inQuote = 0 }
+            continue
+        }
+        switch c {
+        case '\'', '"':
+            inQuote = c
+        case '<':
+            depthAngle++
+        case '>':
+            if depthAngle > 0 { depthAngle-- }
+        case '{':
+            depthBrace++
+        case '}':
+            if depthBrace > 0 { depthBrace-- }
+        case '(':
+            depthParen++
+        case ')':
+            if depthParen > 0 { depthParen-- }
+        case ',':
+            if depthAngle == 0 && depthBrace == 0 && depthParen == 0 {
+                parts = append(parts, strings.TrimSpace(s[last:i]))
+                last = i + 1
+            }
+        }
+    }
+    tail := strings.TrimSpace(s[last:])
+    if tail != "" { parts = append(parts, tail) }
+    return parts
+}

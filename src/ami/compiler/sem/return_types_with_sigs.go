@@ -72,8 +72,10 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
                 expPos := diag.Position{}
                 if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
                 actPos := gpos[i]
-                if mismatch, path, pathIdx, base, wantN, gotN := findGenericArityMismatchDeepPath(decl[i], got[i]); mismatch {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                if mismatch, path, pathIdx, fieldPath, base, wantN, gotN := findGenericArityMismatchDeepPathTextFields(decl[i], got[i]); mismatch {
+                    data := map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}
+                    if len(fieldPath) > 0 { data["fieldPath"] = fieldPath }
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: data})
                     mismatchIndices = append(mismatchIndices, i)
                     continue
                 }
@@ -88,6 +90,10 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
                     if i < len(decl) && i < len(got) {
                         if m, p, idx, fp, b, _, _ := findGenericArityMismatchWithFields(decl[i], got[i]); m {
                             paths = append(paths, map[string]any{"index": i, "tupleIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
+                        } else if m2, p2, idx2, fp2, b2, _, _ := findGenericArityMismatchDeepPathTextFields(decl[i], got[i]); m2 {
+                            e := map[string]any{"index": i, "tupleIndex": i, "base": b2, "path": p2, "pathIdx": idx2}
+                            if len(fp2) > 0 { e["fieldPath"] = fp2 }
+                            paths = append(paths, e)
                         }
                     }
                 }

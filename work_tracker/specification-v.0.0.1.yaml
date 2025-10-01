@@ -25,6 +25,10 @@ notes:
       - documentation: `docs/`
       - AMI examples: `examples/`
       - End-to-End tests: `tests/`
+  - `Event<T>`: conceptual generic carrying `value T` and `timestamp time.Time`; used by trigger emissions and similar.
+  - `io.FHO`: file/stream handle abstraction; methods return `(n int, err error)` where applicable; after `.Close()` all operations fail with an error indicating a closed handle.
+  - `time.Duration`: Go-compatible duration; integer nanoseconds with human string forms like `300ms`, `5s`, `2h45m`.
+  - `io.NetProtocol`: enum of network protocols used by socket APIs; values include `TCP`, `UDP`, `ICMP`.
 
 subcommands:
   - id: C-1
@@ -893,3 +897,747 @@ cross_cutting:
       statement: |
         All memory must be allocated and managed in an RAII compliant manner.
       status: complete
+
+stdlib:
+  - id: S-1
+    name: io package
+    features:
+      - id: F-1-1
+        name: Stdlib File Input / Output
+        expectations:
+          - id: E-1-1-1
+            statement: |
+              As a user, I expect the stdlib to have a built-in `io` package for file input and output.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-2
+            statement: |
+              As a user, I expect that AMI `io` package will have a file handle object (FHO) representing a file and 
+              its underlying file handle.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-3
+            statement: |
+              As a user, I expect the AMI `io` package to have an `io.OpenFile(...)` function comparable to Go's
+              `os.Open(...)`, except that it returns an `io.FHO` and error object rather than a file handle pointer.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-4
+            statement: |
+              As a user, I expect that AMI `io.FHO` type will manage all file I/O for its given file; the io.FHO 
+              will have a .Close() method to close the file/handle, after which it should be freed in memory and 
+              unusable; the io.FHO object should have .Read(), .ReadBytes(), .Write(), .WriteBytes(), .Seek() and 
+              other such functions as needed to perform file I/O.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-5
+            statement: |
+              As a user, I expect `io.FHO` operations to be safe and deterministic: after .Close(), any subsequent
+              .Read(), .ReadBytes(), .Write(), .WriteBytes(), .Seek(), .Flush(), or .Truncate() call must fail with an
+              error indicating the handle is closed; .Read()/.Write() return the number of bytes processed and a 
+              non-nil error on partial operations; and .Seek(offset, whence) follows standard POSIX whence semantics.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-6
+            statement: |
+              As a user, I expect the AMI `io.FHO` type will have a .Length() method which will return the file size,
+              a .Pos() method which returns the current file position for read/write operations, a .Truncate() method
+              used to truncate the file.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-7
+            statement: |
+              As a user, I expect the AMI `io.FHO` type will have a .Flush() method to flush file buffers to disk.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-8
+            statement: |
+              As a user, I expect the AMI `io` package will have a `CreateTemp([dir string][,suffix string])` function 
+              to create a temporary file and return the `io.FHO` object used to manage the file content; and the `dir`
+              directory string will be relative to the system temporary directory.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-9
+            statement: |
+              As a user, I expect the AMI `io` package will have a `CreateTempDir()` function to create a temporary
+              directory and return the directory path (string); and the temporary directory will be created relative to
+              the system temporary directory.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-10
+            statement: |
+              As a user, I expect the AMI `io` package will have a Stat(fileName string) function which will return
+              a struct containing the file information about the given fileName.
+            dependencies: []
+            status: ready
+            tests: []
+
+      - id: F-1-2
+        name: Stdlib Console Input / Output
+        expectations:
+          - id: E-1-2-1
+            statement: |
+              As a user, I expect the AMI `io` package will have a special FHO called io.Stdin for reading from stdin;
+              and this FHO will behave like any other FHO with all the same methods and properties.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-2-2
+            statement: |
+              As a user, I expect the AMI `io` package will have a special FHO called io.Stdout for writing to
+              stdout; and this FHO will behave like any other FHO with all the same methods and properties.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-2-3
+            statement: |
+              As a user, I expect the AMI `io` package will have a special FHO called io.Stderr for writing to
+              stderr; and this FHO will behave like any other FHO with all the same methods and properties.
+            dependencies: []
+            status: ready
+            tests: []
+
+      - id: F-1-3
+        name: Stdlib Network Input / Output
+        expectations:
+          - id: E-1-3-1
+            statement: |
+              As a user, I expect the AMI `io` package will provide a network `io.Socket` handle type that is
+              equivalent to an `io.FHO`, representing a socket opened for input/output with the same methods and
+              properties as a file `io.FHO` where applicable.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-3-2
+            statement: |
+              As a user, I expect the AMI `io` package will have an `io.OpenSocket(proto io.NetProtocol, addr string, port uint16)`
+              function to open a network socket handle (FHO-equivalent) for a given protocol (e.g., ICMP, UDP, TCP), host IP,
+              and port.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-3-3
+            statement: |
+              As a user, I expect the AMI `io.Socket` handle to support .Close() to close the socket; .Write() to
+              write messages to the socket buffer; .Send() to send buffered contents; and .Listen() to register a
+              handler invoked for incoming network traffic, mirroring `io.FHO` semantics where applicable.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-3-4
+            statement: |
+              As a user, I expect the AMI `io` package will have an `io.Hostname()` method which will return the 
+              current hostname of the underlying system.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-3-5
+            statement: |
+              As a user, I expect the AMI `io` package will have an `io.Interfaces()` method which will list all
+              network interfaces.
+            dependencies: []
+            status: ready
+            tests: []
+
+      - id: F-1-4
+        name: I/O POP Capability Enforcement
+        expectations:
+          - id: E-1-4-1
+            statement: |
+              As a user, I expect the AMI `io` package will enforce all I/O capabilities, as defined for
+              the pipeline and the POP paradigm generally; only Ingress or egress nodes can use the io package,
+              and only ingress and egress nodes can use the I/O features specifically allowed in their capabilities
+              attributes.
+            dependencies: [F-11-23]
+            status: ready
+            tests: []
+
+  - id: S-2
+    name: os package exec()
+    features:
+      - id: F-2-1
+        name: Stdlib Operating System Interface (Process Runner)
+        expectations:
+          - id: E-2-1-1
+            statement: |
+              As a user, I expect the stdlib to have a built-in `os` package for interacting with the operating system.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-2
+            statement: |
+              As a user, I expect the AMI `os` package will have a `Process` object type used to represent a process
+              spawned by the program; the os.Process type will be used to manage the process lifecycle.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-3
+            statement: |
+              As a user, I expect the AMI `os` package will have an `Exec()` which will initialize a given external 
+              program and return a os.Process object and error object; the os.Process object will be used to manage
+              the process lifecycle; and the Exec() function will initialize but NOT start the new process.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-4
+            statement: |
+              As a user, I expect the AMI `os.Process` object type will have a .Kill() method to immediately terminate
+              the process, a .Status() method to return process state information (as a struct), a .Stdin() method for
+              interacting over stdin, a .Stdout() and .Stderr() method for obtaining process outputs on stdout and
+              stderr, a .Pid() method for obtaining the process id, and a .Start() method to launch the process.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-5
+            statement: |
+              As a user, I expect the AMI `os.Process` .Start() method will accept an optional boolean value to indicate
+              whether it blocks or runs the executed process asynchronously.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-6
+            statement: |
+              As a user, I expect that AMI `os` package will have an `os.SystemStats()` method return a struct
+              describing the system's hardware.
+            dependencies: []
+            status: ready
+            tests: []
+
+  - id: S-3
+    name: os package (general)
+    features:
+      - id: F-3-1
+        name: environment variable
+        expectations:
+          - id: E-3-1-1
+            statement: |
+              As a user, I expect the AMI os package to have a .GetEnv() method which will return the value of an
+              environment variable given the environment variable name.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-3-1-2
+            statement: |
+              As a user, I expect the AMI os package to have a .SetEnv() method which will set the value of an
+              environment variable given the environment variable name.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-3-1-3
+            statement: |
+              As a user, I expect the AMI os package to have a .ListEnv() method which will return a list of 
+              environment variable names (not their values).
+            dependencies: []
+            status: ready
+            tests: []
+
+  - id: S-4
+    name: signal package
+    features:
+      - id: F-4-1
+        name: signal handler
+        expectations:
+          - id: E-4-1-1
+            statement: |
+              As a user, I expect there to be an AMI 'signal' package which will provide signal handling facilities.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-4-1-2
+            statement: |
+              As a user, I expect there to be a built-in `SignalType` enum data type representing each operating 
+              system signal (e.g., SIGINT, SIGTERM, etc.).
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-4-1-3
+            statement: |
+              As a user, I expect there to be a `signal.Register(sig SignalType, fn func())` function which will 
+              register a signal handler function for a given os signal.
+            dependencies: []
+            status: ready
+            tests: []
+
+  - id: S-5
+    name: time package
+    features:
+      - id: F-5-1
+        name: time handler
+        expectations:
+          - id: E-5-1-1
+            statement: |
+              As a user, I expect there to be an AMI 'time' package which will provide time clock facilities
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-2
+            statement: |
+              As a user, I expect there to be a `time.Sleep(d time.Duration)` function which will cause the program to
+              sleep for duration d; `time.Duration` follows Go's pattern and units (ns, us, ms, s, m, h).
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-3
+            statement: |
+              As a user, I expect there to be a `time.Time` object representing a time/date value.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-4
+            statement: |
+              As a user, I expect there to be a `time.Now()` function which will return the current `time.Time` object
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-5
+            statement: |
+              As a user, I expect there to be a `time.Delta(t1, t2 time.Time)` function which will return the time
+              difference between t1 and t2.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-6
+            statement: |
+              As a user, I expect there to be a `time.Add(t time.Time, d time.Duration)` function which will return
+              the time t advanced by duration d.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-7
+            statement: |
+              As a user, I expect the `time.Time` object to have a .Unix() method which returns a unix timestamp in
+              seconds.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-8
+            statement: |
+              As a user, I expect the `time.Time` object to have a .UnixNano() method which returns a unix timestamp in
+              nanoseconds.
+            dependencies: []
+            status: ready
+            tests: []
+
+      - id: F-5-2
+        name: time handler
+        expectations:
+          - id: E-5-2-1
+            statement: |
+              As a user, I expect the `time` package will have a `Ticker` object returned by 
+              `NewTicker(d time.Duration)`; d uses `time.Duration` with Go-style units; the object executes a 
+              registered function for every clock tick event.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-2-2
+            statement: |
+              As a user, I expect the `time.Ticker` object will have a `.Start()` method to start the ticker generating
+              tick events.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-2-3
+            statement: |
+              As a user, I expect the `time.Ticker` object will have a `.Stop()` method to stop the ticker from 
+              generating tick events.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-2-4
+            statement: |
+              As a user, I expect the `time.Ticker` object will have a `.Register(f func())` method to execute for 
+              each timer tick event.
+            dependencies: []
+            status: ready
+            tests: []
+
+  - id: S-6
+    name: trigger package
+    features:
+      - id: F-6-1
+        name: trigger facility for ingress nodes.
+        expectations:
+          - id: E-6-1-1
+            statement: |
+              As a user, I expect AMI to have a built-in `trigger` package which will provide trigger event facilities
+              for Ingress node `in` attribute.
+            dependencies: [F-11-11, F-11-23]
+            status: ready
+            tests: []
+
+      - id: F-6-2
+        name: trigger facility for Time-based events
+        expectations:
+          - id: E-6-2-1
+            statement: |
+              As a user, I expect AMI to have a `trigger.Timer(d time.Duration)` method which will emit an
+              Event<time.Time> object every d units of time; `time.Duration` follows Go's pattern and units.
+            dependencies: [F-11-23]
+            status: ready
+            tests: []
+
+          - id: E-6-2-2
+            statement: |
+              As a user, I expect AMI to have a `trigger.Schedule(t time.Time)` method which will emit an 
+              Event<time.Time> object at t time.
+            dependencies: [F-11-23]
+            status: ready
+            tests: []
+
+      - id: F-6-3
+        name: trigger facility for Filesystem Events
+        expectations:
+          - id: E-6-3-1
+            statement: |
+              As a user, I expect AMI to have a `trigger.FsEvent` enum representing a generic set of inotify events
+              common to linux, windows and MacOS platforms.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-6-3-2
+            statement: |
+              As a user, I expect AMI to have a `trigger.FileEvent` object containing a file handle object (FHO),
+              the `trigger.FsEvent` and event timestamp.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-6-3-4
+            statement: |
+              As a user, I expect AMI to have a `trigger.FsNotify(path string, t trigger.FsEvent)` method which will 
+              emit an `Event<trigger.FileEvent>` object when a file system operation of type `trigger.FsEvent` occurs 
+              on the given `path`,
+            dependencies: [F-11-23]
+            status: ready
+            tests: []
+
+      - id: F-6-4
+        name: trigger facility for Network Events
+        expectations:
+          - id: E-6-4-1
+            statement: |
+              As a user, I expect AMI to have a `trigger.NetListen(proto io.NetProtocol, addr string, port uint16)`
+              method which will emit an `Event<trigger.NetMsg>` object when a network message is received; where
+              `trigger.NetMsg` will contain the contents of a network message and timestamp.
+            dependencies: [F-11-23]
+            status: ready
+            tests: []
+
+          - id: E-6-4-2
+            statement: |
+              As a user, I expect AMI to define a `trigger.NetMsg` object containing the message payload, protocol,
+              remote and local addresses/ports, and an event timestamp.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-6-4-3
+            statement: |
+              As a user, I expect `trigger.NetListen(...)` emissions to include enough metadata for handlers to route by
+              protocol or address and to be compatible with backpressure policies in the runtime event pipeline.
+            dependencies: [F-11-23, F-11-24]
+            status: ready
+            tests: []
+
+  - id: S-7
+    name: math package
+    features:
+      - id: F-7-1
+        name: Core Float Math
+        expectations:
+          - id: E-7-1-1
+            statement: |
+              As a user, I expect a stdlib `math` package modeled on Go's math as a baseline, operating on `float64`
+              with deterministic behavior across platforms and consistent with the AMI authoritative semantics.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-1-2
+            statement: |
+              As a user, I expect `math.Abs(x float64) float64`, `math.Max(x, y float64) float64`, and
+              `math.Min(x, y float64) float64` to behave like Go, including NaN propagation rules.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-1-3
+            statement: |
+              As a user, I expect rounding helpers `math.Ceil(x)`, `math.Floor(x)`, `math.Trunc(x)`, and
+              `math.Round(x)`, `math.RoundToEven(x)` to be available with Go-aligned semantics.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-1-4
+            statement: |
+              As a user, I expect `math.Mod(x, y float64) float64` to match Go semantics (sign of result follows x),
+              and `math.Remainder(x, y float64) float64` to implement IEEE 754 remainder.
+            dependencies: []
+            status: ready
+            tests: []
+
+      - id: F-7-2
+        name: Exp, Log, Pow, Sqrt
+        expectations:
+          - id: E-7-2-1
+            statement: |
+              As a user, I expect exponentials `math.Exp(x)`, `math.Expm1(x)`, and `math.Exp2(x)` to be provided with
+              Go-compatible edge-case handling (Inf, NaN).
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-2-2
+            statement: |
+              As a user, I expect logarithms `math.Log(x)`, `math.Log10(x)`, `math.Log1p(x)`, and `math.Log2(x)` with
+              Go-compatible domains and NaN/Inf behavior.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-2-3
+            statement: |
+              As a user, I expect `math.Pow(x, y) float64`, `math.Pow10(n int) float64`, and `math.Sqrt(x) float64`
+              with the same corner-case handling as Go (including negative, zero, Inf, and NaN inputs).
+            dependencies: []
+            status: ready
+            tests: []
+
+      - id: F-7-3
+        name: Trigonometric and Hyperbolic
+        expectations:
+          - id: E-7-3-1
+            statement: |
+              As a user, I expect trigonometric functions `math.Sin`, `math.Cos`, `math.Tan`, and combined `math.Sincos`
+              with Go-compatible precision and special case behavior.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-3-2
+            statement: |
+              As a user, I expect inverse trig functions `math.Asin`, `math.Acos`, `math.Atan`, and `math.Atan2` with
+              Go-aligned range and domain semantics.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-3-3
+            statement: |
+              As a user, I expect hyperbolic functions `math.Sinh`, `math.Cosh`, and `math.Tanh` with Go-compatible
+              edge-case handling.
+            dependencies: []
+            status: ready
+            tests: []
+
+      - id: F-7-4
+        name: Special Values and Classification
+        expectations:
+          - id: E-7-4-1
+            statement: |
+              As a user, I expect `math.NaN() float64` and `math.Inf(sign int) float64` to construct special values,
+              and that operations propagate NaN/Inf consistent with IEEE‑754 and Go's behavior.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-4-2
+            statement: |
+              As a user, I expect classification and manipulation helpers: `math.IsNaN(x)`, `math.IsInf(x, sign)`,
+              `math.Signbit(x)`, `math.Copysign(x, y)`, and `math.Nextafter(x, y)`.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-7-4-3
+            statement: |
+              As a user, I expect decomposition helpers `math.Frexp(x) (frac float64, exp int)`,
+              `math.Ldexp(frac float64, exp int) float64`, and `math.Modf(x) (intPart, fracPart float64)`.
+            dependencies: []
+            status: ready
+            tests: []
+
+      - id: F-7-5
+        name: Mathematical Constants
+        expectations:
+          - id: E-7-5-1
+            statement: |
+              As a user, I expect common constants aligned with Go: `math.Pi`, `math.E`, `math.Phi`, `math.Sqrt2`,
+              `math.Ln2`, `math.Ln10`, `math.Log2E`, and `math.Log10E`.
+            dependencies: []
+            status: ready
+            tests: []
+
+  - id: S-8
+    name: gpu package
+    features:
+      - id: F-8-1
+        name: GPU Kernel Execution (Transform)
+        expectations:
+          - id: E-8-1-1
+            statement: |
+              As a user, I expect a stdlib `gpu` package that enables Transform nodes to execute GPU kernels with
+              deterministic integration into the runtime scheduler and event model.
+            dependencies: [F-11-23, F-11-22, F-11-11]
+            status: ready
+            tests: []
+
+      - id: F-8-2
+        name: CUDA Backend (Cuda*)
+        expectations:
+          - id: E-8-2-1
+            statement: |
+              As a user, I expect CUDA discovery helpers: `gpu.CudaAvailable() bool` and `gpu.CudaDevices() []gpu.Device`.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-8-2-2
+            statement: |
+              As a user, I expect context management: `gpu.CudaCreateContext(dev gpu.Device) (gpu.Context, error)` and
+              `gpu.CudaDestroyContext(ctx gpu.Context) error` with Owned<T> semantics.
+            dependencies: [F-11-21]
+            status: ready
+            tests: []
+
+          - id: E-8-2-3
+            statement: |
+              As a user, I expect buffer and transfer APIs: `gpu.CudaAlloc(n int) (gpu.Buffer, error)`,
+              `gpu.CudaFree(buf gpu.Buffer) error`, `gpu.CudaMemcpyHtoD(dst gpu.Buffer, src []byte) error`, and
+              `gpu.CudaMemcpyDtoH(dst []byte, src gpu.Buffer) error`.
+            dependencies: [F-11-21]
+            status: ready
+            tests: []
+
+          - id: E-8-2-4
+            statement: |
+              As a user, I expect kernel APIs: `gpu.CudaLoadModule(ptx string) (gpu.Module, error)`,
+              `gpu.CudaGetKernel(mod gpu.Module, name string) (gpu.Kernel, error)`, and
+              `gpu.CudaLaunchKernel(ctx gpu.Context, k gpu.Kernel, grid, block [3]uint32, sharedMem uint32, args ...any) error`.
+            dependencies: [F-11-21]
+            status: ready
+            tests: []
+
+      - id: F-8-3
+        name: Apple Metal Backend (Metal*)
+        expectations:
+          - id: E-8-3-1
+            statement: |
+              As a user, I expect Metal discovery helpers: `gpu.MetalAvailable() bool` and `gpu.MetalDevices() []gpu.Device`.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-8-3-2
+            statement: |
+              As a user, I expect context management: `gpu.MetalCreateContext(dev gpu.Device) (gpu.Context, error)` and
+              `gpu.MetalDestroyContext(ctx gpu.Context) error` with Owned<T> semantics.
+            dependencies: [F-11-21]
+            status: ready
+            tests: []
+
+          - id: E-8-3-3
+            statement: |
+              As a user, I expect shader and pipeline APIs: `gpu.MetalCompileLibrary(src string) (gpu.Library, error)`,
+              `gpu.MetalCreatePipeline(lib gpu.Library, name string) (gpu.Pipeline, error)`, and
+              `gpu.MetalDispatch(ctx gpu.Context, p gpu.Pipeline, grid, threadsPerGroup [3]uint32, args ...any) error`.
+            dependencies: [F-11-21]
+            status: ready
+            tests: []
+
+          - id: E-8-3-4
+            statement: |
+              As a user, I expect buffer and transfer APIs: `gpu.MetalAlloc(n int) (gpu.Buffer, error)`,
+              `gpu.MetalFree(buf gpu.Buffer) error`, `gpu.MetalCopyToDevice(dst gpu.Buffer, src []byte) error`, and
+              `gpu.MetalCopyFromDevice(dst []byte, src gpu.Buffer) error`.
+            dependencies: [F-11-21]
+            status: ready
+            tests: []
+
+      - id: F-8-4
+        name: OpenCL Backend (OpenCL*)
+        expectations:
+          - id: E-8-4-1
+            statement: |
+              As a user, I expect OpenCL discovery helpers: `gpu.OpenCLAvailable() bool` and `gpu.OpenCLPlatforms() []gpu.Platform` with device enumeration.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-8-4-2
+            statement: |
+              As a user, I expect context, buffers, and kernels: `gpu.OpenCLCreateContext(p gpu.Platform) (gpu.Context, error)`,
+              `gpu.OpenCLAlloc(n int) (gpu.Buffer, error)`, `gpu.OpenCLFree(buf gpu.Buffer) error`,
+              `gpu.OpenCLBuildProgram(src string) (gpu.Program, error)`, `gpu.OpenCLGetKernel(prog gpu.Program, name string) (gpu.Kernel, error)`,
+              and `gpu.OpenCLLaunchKernel(ctx gpu.Context, k gpu.Kernel, global, local [3]size_t, args ...any) error`.
+            dependencies: [F-11-21]
+            status: ready
+            tests: []
+
+      - id: F-8-5
+        name: Common Opaque Handles and Ownership
+        expectations:
+          - id: E-8-5-1
+            statement: |
+              As a user, I expect common opaque types `gpu.Context`, `gpu.Buffer`, `gpu.Module/Library`,
+              `gpu.Program`, `gpu.Kernel/Pipeline`, `gpu.Device/Platform` to follow Owned<T> semantics with
+              zeroization on release and deterministic erroring on double-free.
+            dependencies: [F-11-21]
+            status: ready
+            tests: []
+
+      - id: F-8-6
+        name: Determinism, Scheduling, and Diagnostics
+        expectations:
+          - id: E-8-6-1
+            statement: |
+              As a user, I expect GPU operations to integrate deterministically with the runtime scheduler and event
+              model; backend availability is probed explicitly, and launches produce clear diagnostics on failure.
+            dependencies: [F-11-23, F-11-22]
+            status: ready
+            tests: []

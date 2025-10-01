@@ -1203,7 +1203,7 @@ stdlib:
               - src/ami/stdlib/os/env_test.go
 
   - id: S-4
-    name: signal package
+    name: signal package (AMI stdlib)
     features:
       - id: F-4-1
         name: signal handler
@@ -1212,30 +1212,27 @@ stdlib:
             statement: |
               As a user, I expect there to be an AMI 'signal' package which will provide signal handling facilities.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/signal/signal_test.go
+            status: ready
+            tests: []
 
           - id: E-4-1-2
             statement: |
               As a user, I expect there to be a built-in `SignalType` enum data type representing each operating 
               system signal (e.g., SIGINT, SIGTERM, etc.).
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/signal/signal_test.go
+            status: ready
+            tests: []
 
           - id: E-4-1-3
             statement: |
               As a user, I expect there to be a `signal.Register(sig SignalType, fn func())` function which will 
               register a signal handler function for a given os signal.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/signal/signal_test.go
+            status: ready
+            tests: []
 
   - id: S-5
-    name: time package
+    name: time package (AMI stdlib)
     features:
       - id: F-5-1
         name: time handler
@@ -1244,70 +1241,62 @@ stdlib:
             statement: |
               As a user, I expect there to be an AMI 'time' package which will provide time clock facilities
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/time_test.go
+            status: ready
+            tests: []
 
           - id: E-5-1-2
             statement: |
               As a user, I expect there to be a `time.Sleep(d time.Duration)` function which will cause the program to
               sleep for duration d; `time.Duration` follows Go's pattern and units (ns, us, ms, s, m, h).
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/time_test.go
+            status: ready
+            tests: []
 
           - id: E-5-1-3
             statement: |
               As a user, I expect there to be a `time.Time` object representing a time/date value.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/time_test.go
+            status: ready
+            tests: []
 
           - id: E-5-1-4
             statement: |
               As a user, I expect there to be a `time.Now()` function which will return the current `time.Time` object
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/time_test.go
+            status: ready
+            tests: []
 
           - id: E-5-1-5
             statement: |
               As a user, I expect there to be a `time.Delta(t1, t2 time.Time)` function which will return the time
               difference between t1 and t2.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/time_test.go
+            status: ready
+            tests: []
 
           - id: E-5-1-6
             statement: |
               As a user, I expect there to be a `time.Add(t time.Time, d time.Duration)` function which will return
               the time t advanced by duration d.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/time_test.go
+            status: ready
+            tests: []
 
           - id: E-5-1-7
             statement: |
               As a user, I expect the `time.Time` object to have a .Unix() method which returns a unix timestamp in
               seconds.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/time_test.go
+            status: ready
+            tests: []
 
           - id: E-5-1-8
             statement: |
               As a user, I expect the `time.Time` object to have a .UnixNano() method which returns a unix timestamp in
               nanoseconds.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/time_test.go
+            status: ready
+            tests: []
 
       - id: F-5-2
         name: time handler
@@ -1318,36 +1307,32 @@ stdlib:
               `NewTicker(d time.Duration)`; d uses `time.Duration` with Go-style units; the object executes a 
               registered function for every clock tick event.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/ticker_test.go
+            status: ready
+            tests: []
 
           - id: E-5-2-2
             statement: |
               As a user, I expect the `time.Ticker` object will have a `.Start()` method to start the ticker generating
               tick events.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/ticker_test.go
+            status: ready
+            tests: []
 
           - id: E-5-2-3
             statement: |
               As a user, I expect the `time.Ticker` object will have a `.Stop()` method to stop the ticker from 
               generating tick events.
             dependencies: []
-            status: completetrac
-            tests:
-              - src/ami/stdlib/time/ticker_test.go
+            status: ready
+            tests: []
 
           - id: E-5-2-4
             statement: |
               As a user, I expect the `time.Ticker` object will have a `.Register(f func())` method to execute for 
               each timer tick event.
             dependencies: []
-            status: complete
-            tests:
-              - src/ami/stdlib/time/ticker_test.go
+            status: ready
+            tests: []
 
   - id: S-6
     name: trigger package

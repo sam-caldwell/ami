@@ -24,6 +24,14 @@ Known items
 - Diagnostics reference upkeep:
   - `docs/diag-codes.md` can be regenerated with `make gen-diag-codes`. Keep in sync after introducing new diagnostic codes.
 
+AMI stdlib status and plan
+- signal/time: Go prototypes exist under `src/ami/stdlib/{signal,time}` but are not AMI stdlib implementations. The AMI stdlib must be provided as language-level packages or intrinsics available to `.ami` code.
+  - Action: Revert S-4 (signal) and S-5 (time) to `ready` in the tracker.
+  - Plan:
+    - Define AMI package surfaces (signatures) for `signal` and `time` in `.ami` terms.
+    - Add compiler hooks or intrinsic lowering so that `signal.Register`, `time.Sleep`, `time.Now`, etc. are callable from `.ami` and lower to runtime/platform primitives.
+    - Provide `.ami` stubs and tests that import and use these packages, validating parser/semantics → IR lowering paths.
+
 Status
 
 - The YAML tracker reflects current features and ready/completed statuses. This file will evolve as new diagnostics or CLI ergonomics are added.

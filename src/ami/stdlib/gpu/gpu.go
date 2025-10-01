@@ -42,7 +42,12 @@ func (c *Context) Release() error {
     if c == nil || !c.valid {
         return ErrInvalidHandle
     }
+    // backend-specific teardown
+    if c.backend == "metal" && c.ctxId > 0 {
+        metalDestroyContextByID(c.ctxId)
+    }
     c.backend = ""
+    c.ctxId = 0
     c.valid = false
     return nil
 }
@@ -60,8 +65,12 @@ func (b *Buffer) Release() error {
     if b == nil || !b.valid {
         return ErrInvalidHandle
     }
+    if b.backend == "metal" && b.bufId > 0 {
+        metalFreeBufferByID(b.bufId)
+    }
     b.backend = ""
     b.n = 0
+    b.bufId = 0
     b.valid = false
     return nil
 }
@@ -96,7 +105,9 @@ type Library struct{
 
 func (l *Library) Release() error {
     if l == nil || !l.valid { return ErrInvalidHandle }
+    if l.libId > 0 { metalReleaseLibrary(l.libId) }
     l.valid = false
+    l.libId = 0
     return nil
 }
 
@@ -108,7 +119,9 @@ type Pipeline struct{
 
 func (p *Pipeline) Release() error {
     if p == nil || !p.valid { return ErrInvalidHandle }
+    if p.pipeId > 0 { metalReleasePipeline(p.pipeId) }
     p.valid = false
+    p.pipeId = 0
     return nil
 }
 

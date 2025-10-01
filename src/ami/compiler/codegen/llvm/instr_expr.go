@@ -42,6 +42,8 @@ func lowerExpr(e ir.Expr) string {
                 ret = "void"
             case "ami_rt_owned_len":
                 ret = "i64"
+            case "ami_rt_string_len", "ami_rt_slice_len":
+                ret = "i64"
             case "ami_rt_alloc", "ami_rt_owned_ptr", "ami_rt_owned_new":
                 ret = "ptr"
             case "ami_rt_sleep_ms":

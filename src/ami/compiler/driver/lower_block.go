@@ -77,8 +77,46 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
         case *ast.VarDecl:
             // Owned ABI: unconditional copy-on-new for Owned variables with initializers.
             if v.Type != "" && (v.Type == "Owned" || (len(v.Type) >= 6 && v.Type[:6] == "Owned<")) && v.Init != nil {
-                // lower initializer first
-                if ex, ok := lowerExpr(st, v.Init); ok {
+                // Short-circuit aware lowering for initializer
+                if needsShortCircuit(v.Init) {
+                    // produce the chosen value
+                    val, ok := lowerValueSC(st, v.Init, &out, &extras, &nextID)
+                    if ok {
+                        var data ir.Value
+                        var lenVal ir.Value
+                        // Determine length depending on source kind
+                        // If existing Owned handle, derive via runtime helpers
+                        if val.Type == "Owned" || (len(val.Type) >= 6 && val.Type[:6] == "Owned<") {
+                            // ptr
+                            ptmp := st.newTemp(); pres := &ir.Value{ID: ptmp, Type: "ptr"}
+                            out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_ptr", Args: []ir.Value{val}, Result: pres})
+                            data = *pres
+                            // len
+                            ltmp := st.newTemp(); lres := &ir.Value{ID: ltmp, Type: "int64"}
+                            out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_len", Args: []ir.Value{val}, Result: lres})
+                            lenVal = *lres
+                        } else if val.Type == "string" {
+                            data = val
+                            ltmp := st.newTemp(); lres := &ir.Value{ID: ltmp, Type: "int64"}
+                            out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_string_len", Args: []ir.Value{val}, Result: lres})
+                            lenVal = *lres
+                        } else if len(val.Type) >= 6 && val.Type[:6] == "slice<" { // slice<T>
+                            data = val
+                            ltmp := st.newTemp(); lres := &ir.Value{ID: ltmp, Type: "int64"}
+                            out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_slice_len", Args: []ir.Value{val}, Result: lres})
+                            lenVal = *lres
+                        }
+                        if lenVal.ID != "" {
+                            hid := st.newTemp(); hres := &ir.Value{ID: hid, Type: "Owned"}
+                            out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, lenVal}, Result: hres})
+                            // emit var using the owned handle
+                            res := ir.Value{ID: v.Name, Type: v.Type}
+                            out = append(out, ir.Var{Name: v.Name, Type: v.Type, Init: hres, Result: res})
+                            if st != nil && st.varTypes != nil && v.Name != "" { st.varTypes[v.Name] = v.Type }
+                            break
+                        }
+                    }
+                } else if ex, ok := lowerExpr(st, v.Init); ok {
                     if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
                     var data ir.Value
                     var lenVal ir.Value

@@ -160,6 +160,16 @@ void AmiMetalFreeBuffer(int bufId) {
     [gBufTab removeObjectForKey:@(bufId)];
 }
 
+void AmiMetalReleaseLibrary(int libId) {
+    ensureTabs();
+    [gLibTab removeObjectForKey:@(libId)];
+}
+
+void AmiMetalReleasePipeline(int pipeId) {
+    ensureTabs();
+    [gPipeTab removeObjectForKey:@(pipeId)];
+}
+
 int AmiMetalCopyToDevice(int bufId, const void* src, unsigned long n, char** err) {
     ensureTabs();
     NSDictionary *ent = gBufTab[@(bufId)];

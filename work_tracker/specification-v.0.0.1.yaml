@@ -1569,6 +1569,89 @@ stdlib:
             status: ready
             tests: []
 
+      - id: F-8
+        name: Multi-Result IR/LLVM and Full math Lowering
+        expectations:
+          - id: E-8-1
+            statement: |
+              As a compiler engineer, I expect the IR to represent multi-result expressions and calls by extending
+              `ir.Expr` with `Results []ir.Value` (retaining `Result *ir.Value` for single returns) and updating
+              IR JSON encoding to include multi-result signatures for calls.
+            dependencies: []
+            status: ready
+            tests:
+              - src/ami/compiler/ir/encode_expr_call_test.go
+
+          - id: E-8-2
+            statement: |
+              As a compiler engineer, I expect lowering to produce `Expr.Results` for multi-result calls using
+              known function signatures, and for `return` lowering to collect/expand multi-result expressions so that
+              `ir.Return{Values: ...}` receives the correct arity and types.
+            dependencies: [F-8-1]
+            status: ready
+            tests:
+              - src/ami/compiler/driver/return_tuple_aggregate_summary_test.go
+              - src/ami/compiler/driver/return_tuple_mixed_summary_paths_test.go
+
+          - id: E-8-3
+            statement: |
+              As a backend engineer, I expect the LLVM emitter to support multi-result functions by emitting
+              aggregate return types `{T0,T1,...}`, constructing returns via `insertvalue`, and consuming call results
+              via `extractvalue`. Calls with multiple results emit `call {…}` then `extractvalue` into SSA temps.
+              User function ABIs must not expose raw pointers; pointer-like types map to safe integer or opaque
+              handles as appropriate.
+            dependencies: [F-8-1]
+            status: ready
+            tests:
+              - src/ami/compiler/codegen/llvm/module_test.go
+              - src/ami/compiler/codegen/llvm/cond_phi_test.go
+
+          - id: E-8-4
+            statement: |
+              As a language implementer, I expect stdlib `math` lowering to be end-to-end without stubs:
+              single-result functions map to LLVM intrinsics (e.g., `llvm.fabs.f64`, `llvm.minnum.f64`, `llvm.maxnum.f64`,
+              `llvm.ceil.f64`, `llvm.floor.f64`, `llvm.trunc.f64`, `llvm.exp.f64`, `llvm.exp2.f64`, `llvm.log.f64`,
+              `llvm.log2.f64`, `llvm.log10.f64`, `llvm.sqrt.f64`, `llvm.pow.f64`, `llvm.sin.f64`, `llvm.cos.f64`,
+              `llvm.tan.f64`, `llvm.sinh.f64`, `llvm.cosh.f64`, `llvm.tanh.f64`, `llvm.copysign.f64`,
+              `llvm.nextafter.f64`), and multi-result functions `Sincos`, `Frexp`, and `Modf` lower to either
+              intrinsics/IR sequences or runtime helpers returning aggregates.
+            dependencies: [F-7-1, F-7-2, F-7-3, F-7-4, F-7-5, F-8-1, F-8-3]
+            status: ready
+            tests:
+              - src/ami/compiler/driver/time_intrinsics_llvm_test.go
+              - src/ami/stdlib/math/math_test.go
+
+          - id: E-8-5
+            statement: |
+              As a runtime engineer, I expect deterministic runtime helpers for math multi-returns when intrinsics
+              are insufficient or to ensure portability: `ami_rt_math_sincos(double)->{double,double}`,
+              `ami_rt_math_frexp(double)->{double,i64}`, and `ami_rt_math_modf(double)->{double,double}` implemented
+              in `runtime.ll` using portable IR and LLVM intrinsics where possible.
+            dependencies: [F-8-3]
+            status: ready
+            tests:
+              - src/ami/compiler/codegen/llvm/runtime_roundtrip_test.go
+
+          - id: E-8-6
+            statement: |
+              As a maintainer, I expect removal of `math` builtin stubs and any codegen skips: the compiler should
+              import and fully lower/emit `math` without relying on stub packages.
+            dependencies: [F-8-1, F-8-3, F-8-4]
+            status: ready
+            tests: []
+
+          - id: E-8-7
+            statement: |
+              As a developer, I expect comprehensive tests and documentation for the new capabilities: IR encode tests
+              for multi-result calls, LLVM emission tests for aggregate returns and `extractvalue`, and e2e compile
+              tests covering `math.Sincos`, `math.Frexp`, and `math.Modf`. Update `docs/language/stdlib/math.md` to
+              reflect deterministic behavior and implementation notes.
+            dependencies: [F-8-1, F-8-3, F-8-4]
+            status: ready
+            tests:
+              - src/ami/compiler/codegen/llvm/module_test.go
+              - tests/e2e (new cases TBD)
+
   - id: S-8
     name: gpu package
     features:

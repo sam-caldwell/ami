@@ -28,6 +28,12 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                 if ex.Callee == "ami_rt_owned_len" {
                     e.RequireExtern("declare i64 @ami_rt_owned_len(ptr)")
                 }
+                if ex.Callee == "ami_rt_string_len" {
+                    e.RequireExtern("declare i64 @ami_rt_string_len(ptr)")
+                }
+                if ex.Callee == "ami_rt_slice_len" {
+                    e.RequireExtern("declare i64 @ami_rt_slice_len(ptr)")
+                }
                 if ex.Callee == "ami_rt_owned_ptr" {
                     e.RequireExtern("declare ptr @ami_rt_owned_ptr(ptr)")
                 }
@@ -89,6 +95,10 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                             e.RequireExtern("declare void @ami_rt_zeroize(ptr, i64)")
                         case "ami_rt_owned_len":
                             e.RequireExtern("declare i64 @ami_rt_owned_len(ptr)")
+                        case "ami_rt_string_len":
+                            e.RequireExtern("declare i64 @ami_rt_string_len(ptr)")
+                        case "ami_rt_slice_len":
+                            e.RequireExtern("declare i64 @ami_rt_slice_len(ptr)")
                         case "ami_rt_owned_ptr":
                             e.RequireExtern("declare ptr @ami_rt_owned_ptr(ptr)")
                         case "ami_rt_owned_new":

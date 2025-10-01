@@ -26,6 +26,8 @@ int AmiMetalDispatch(int ctxId, int pipeId,
                      unsigned int tx, unsigned int ty, unsigned int tz,
                      const int* bufIds, int bufCount, char** err);
 void AmiMetalFreeBuffer(int bufId);
+void AmiMetalReleaseLibrary(int libId);
+void AmiMetalReleasePipeline(int pipeId);
 
 // Extended dispatch supporting scalar arguments via setBytes. For each arg index:
 // kinds[i] == 0 -> use bufIds[i] with setBuffer; kinds[i] == 1 -> use bytesPtrs[i]/bytesLens[i] with setBytes.
@@ -63,6 +65,12 @@ func MetalDevices() []Device {
     }
     return out
 }
+
+// internal helpers for Go-level Release()
+func metalReleaseLibrary(id int) { C.AmiMetalReleaseLibrary(C.int(id)) }
+func metalReleasePipeline(id int) { C.AmiMetalReleasePipeline(C.int(id)) }
+func metalDestroyContextByID(id int) { C.AmiMetalContextDestroy(C.int(id)) }
+func metalFreeBufferByID(id int) { C.AmiMetalFreeBuffer(C.int(id)) }
 
 // MetalCreateContext uses device index to create a context (device+queue).
 func MetalCreateContext(dev Device) (Context, error) {

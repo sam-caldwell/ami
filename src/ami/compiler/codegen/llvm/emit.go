@@ -166,6 +166,10 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                         e.RequireExtern("declare i64 @ami_rt_time_unix_nano(i64)")
                     case "ami_rt_signal_register":
                         e.RequireExtern("declare void @ami_rt_signal_register(i64, i64)")
+                    case "ami_rt_os_signal_enable":
+                        e.RequireExtern("declare void @ami_rt_os_signal_enable(i64)")
+                    case "ami_rt_os_signal_disable":
+                        e.RequireExtern("declare void @ami_rt_os_signal_disable(i64)")
                     case "ami_rt_install_handler_thunk":
                         e.RequireExtern("declare void @ami_rt_install_handler_thunk(i64, ptr)")
                     case "ami_rt_get_handler_thunk":

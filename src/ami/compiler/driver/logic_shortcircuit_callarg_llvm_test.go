@@ -9,11 +9,10 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
 )
 
-// Ensure ternary conditional lowers with short-circuit control flow (no eager select).
-func TestLower_Ternary_Emits_CondBr_InLLVM(t *testing.T) {
+func TestLower_Logic_CallArg_ShortCircuitLLVM(t *testing.T) {
     ws := workspace.Workspace{}
     fs := &source.FileSet{}
-    src := "package app\nfunc F() (int){ var a int; var b int; return (a == 1) ? b : 2 }\n"
+    src := "package app\nfunc G(x bool){}\nfunc F(){ var a bool; var b bool; G(a || b) }\n"
     fs.AddFile("u.ami", src)
     pkgs := []Package{{Name: "app", Files: fs}}
     _, _ = Compile(ws, pkgs, Options{Debug: true, EmitLLVMOnly: true})
@@ -21,7 +20,7 @@ func TestLower_Ternary_Emits_CondBr_InLLVM(t *testing.T) {
     b, err := os.ReadFile(ll)
     if err != nil { t.Fatalf("read llvm: %v", err) }
     s := string(b)
-    if !strings.Contains(s, "br i1 ") {
-        t.Fatalf("missing conditional branch in LLVM output:\n%s", s)
-    }
+    if !strings.Contains(s, "br i1 ") { t.Fatalf("missing cond br for || arg:\n%s", s) }
+    if !strings.Contains(s, "call void @G") { t.Fatalf("missing call to G:\n%s", s) }
 }
+

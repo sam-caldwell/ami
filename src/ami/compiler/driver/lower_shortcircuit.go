@@ -131,14 +131,18 @@ func lowerValueSC(st *lowerState, e ast.Expr, out *[]ir.Instruction, extras *[]i
             }
         }
         // Determine result type from signatures if available
-        rtype := "any"
+        var res *ir.Value
         if st != nil && st.funcResults != nil {
-            if rs, ok := st.funcResults[v.Name]; ok && len(rs) > 0 && rs[0] != "" { rtype = rs[0] }
+            if rs, ok := st.funcResults[v.Name]; ok && len(rs) > 0 && rs[0] != "" {
+                id := st.newTemp()
+                res = &ir.Value{ID: id, Type: rs[0]}
+            } else {
+                res = nil // void call
+            }
         }
-        id := st.newTemp()
-        res := &ir.Value{ID: id, Type: rtype}
         *out = append(*out, ir.Expr{Op: "call", Callee: v.Name, Args: args, Result: res})
-        return *res, true
+        if res != nil { return *res, true }
+        return ir.Value{}, true
     default:
         // generic eager lowering; safe for literals/idents/unary
         ex, ok := lowerExpr(st, e)
@@ -147,4 +151,3 @@ func lowerValueSC(st *lowerState, e ast.Expr, out *[]ir.Instruction, extras *[]i
         return *ex.Result, true
     }
 }
-

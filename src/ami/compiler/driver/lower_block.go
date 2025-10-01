@@ -175,6 +175,13 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                     return out, extras
                 }
             }
+            // Generic short-circuit evaluation on RHS for assignments when not Owned-specialized
+            if needsShortCircuit(v.Value) {
+                if val, ok := lowerValueSC(st, v.Value, &out, &extras, &nextID); ok {
+                    out = append(out, ir.Assign{DestID: v.Name, Src: val})
+                    break
+                }
+            }
             // If destination variable is Owned, wrap RHS via owned_new before assign (copy-on-new)
             if st != nil && st.varTypes != nil {
                 if dtype := st.varTypes[v.Name]; dtype == "Owned" || (len(dtype) >= 6 && dtype[:6] == "Owned<") {
@@ -228,56 +235,64 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
             // fallback to simple assign if not handled
             out = append(out, lowerStmtAssign(st, v))
         case *ast.ReturnStmt:
-            // Materialize return expressions so literals/ops appear as EXPR before RETURN
+            // Materialize return expressions with short-circuit semantics when needed.
             var vals []ir.Value
             for i, e := range v.Results {
-                if ex, ok := lowerExpr(st, e); ok {
-                    if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
-                    // If returning Owned, wrap into handle (copy-on-new); prefer literal length when known
-                    if st != nil && st.currentFn != "" {
-                        if rts, ok2 := st.funcResults[st.currentFn]; ok2 && i < len(rts) {
-                            rt := rts[i]
-                            if rt == "Owned" || (len(rt) >= 6 && rt[:6] == "Owned<") {
-                                // Determine data and length
-                                var data ir.Value
-                                var lenVal ir.Value
-                                switch lit := e.(type) {
-                                case *ast.StringLit:
-                                    l := len(lit.Value)
-                                    lenID := st.newTemp(); lres := &ir.Value{ID: lenID, Type: "int64"}
-                                    out = append(out, ir.Expr{Op: fmt.Sprintf("lit:%d", l), Result: lres})
+                var val ir.Value
+                var ok bool
+                if needsShortCircuit(e) {
+                    val, ok = lowerValueSC(st, e, &out, &extras, &nextID)
+                } else {
+                    if ex, ok2 := lowerExpr(st, e); ok2 && ex.Result != nil {
+                        if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
+                        val = *ex.Result
+                        ok = true
+                    }
+                }
+                if !ok { continue }
+                // Owned return copy-on-new
+                if st != nil && st.currentFn != "" {
+                    if rts, ok2 := st.funcResults[st.currentFn]; ok2 && i < len(rts) {
+                        rt := rts[i]
+                        if rt == "Owned" || (len(rt) >= 6 && rt[:6] == "Owned<") {
+                            var data ir.Value
+                            var lenVal ir.Value
+                            switch lit := e.(type) {
+                            case *ast.StringLit:
+                                l := len(lit.Value)
+                                lenID := st.newTemp(); lres := &ir.Value{ID: lenID, Type: "int64"}
+                                out = append(out, ir.Expr{Op: fmt.Sprintf("lit:%d", l), Result: lres})
+                                lenVal = *lres
+                                data = val
+                            case *ast.SliceLit:
+                                l := len(lit.Elems)
+                                lenID := st.newTemp(); lres := &ir.Value{ID: lenID, Type: "int64"}
+                                out = append(out, ir.Expr{Op: fmt.Sprintf("lit:%d", l), Result: lres})
+                                lenVal = *lres
+                                data = val
+                            default:
+                                // derive ptr/len when returning an Owned handle
+                                if val.Type == "Owned" || (len(val.Type) >= 6 && val.Type[:6] == "Owned<") {
+                                    // ptr
+                                    ptmp := st.newTemp(); pres := &ir.Value{ID: ptmp, Type: "ptr"}
+                                    out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_ptr", Args: []ir.Value{val}, Result: pres})
+                                    data = *pres
+                                    // len
+                                    ltmp := st.newTemp(); lres := &ir.Value{ID: ltmp, Type: "int64"}
+                                    out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_len", Args: []ir.Value{val}, Result: lres})
                                     lenVal = *lres
-                                    if ex.Result != nil { data = *ex.Result } else { data = ir.Value{ID: "", Type: "ptr"} }
-                                case *ast.SliceLit:
-                                    l := len(lit.Elems)
-                                    lenID := st.newTemp(); lres := &ir.Value{ID: lenID, Type: "int64"}
-                                    out = append(out, ir.Expr{Op: fmt.Sprintf("lit:%d", l), Result: lres})
-                                    lenVal = *lres
-                                    if ex.Result != nil { data = *ex.Result } else { data = ir.Value{ID: "", Type: "ptr"} }
-                                default:
-                                    if ex.Result != nil && (ex.Result.Type == "Owned" || (len(ex.Result.Type) >= 6 && ex.Result.Type[:6] == "Owned<")) {
-                                        src := *ex.Result
-                                        // ptr
-                                        ptmp := st.newTemp(); pres := &ir.Value{ID: ptmp, Type: "ptr"}
-                                        out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_ptr", Args: []ir.Value{src}, Result: pres})
-                                        data = *pres
-                                        // len
-                                        ltmp := st.newTemp(); lres := &ir.Value{ID: ltmp, Type: "int64"}
-                                        out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_len", Args: []ir.Value{src}, Result: lres})
-                                        lenVal = *lres
-                                    }
                                 }
-                                if lenVal.ID != "" {
-                                    hid := st.newTemp(); hres := &ir.Value{ID: hid, Type: "Owned"}
-                                    out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, lenVal}, Result: hres})
-                                    vals = append(vals, *hres)
-                                    continue
-                                }
+                            }
+                            if lenVal.ID != "" {
+                                hid := st.newTemp(); hres := &ir.Value{ID: hid, Type: "Owned"}
+                                out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, lenVal}, Result: hres})
+                                vals = append(vals, *hres)
+                                continue
                             }
                         }
                     }
-                    if ex.Result != nil { vals = append(vals, *ex.Result) }
                 }
+                vals = append(vals, val)
             }
             out = append(out, ir.Return{Values: vals})
         case *ast.DeferStmt:
@@ -293,8 +308,11 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                     out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_zeroize_owned", Args: []ir.Value{argv}})
                 }
             } else {
-                if e, ok := lowerExpr(st, v.X); ok {
-                    out = append(out, e)
+                if needsShortCircuit(v.X) {
+                    // Compute value for its side effect (calls) with short-circuit args
+                    if _, ok := lowerValueSC(st, v.X, &out, &extras, &nextID); ok { /* done */ }
+                } else {
+                    if e, ok := lowerExpr(st, v.X); ok { out = append(out, e) }
                 }
             }
         }

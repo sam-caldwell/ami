@@ -25,10 +25,12 @@ notes:
       - documentation: `docs/`
       - AMI examples: `examples/`
       - End-to-End tests: `tests/`
-  - `Event<T>`: conceptual generic carrying `value T` and `timestamp time.Time`; used by trigger emissions and similar.
-  - `io.FHO`: file/stream handle abstraction; methods return `(n int, err error)` where applicable; after `.Close()` all operations fail with an error indicating a closed handle.
-  - `time.Duration`: Go-compatible duration; integer nanoseconds with human string forms like `300ms`, `5s`, `2h45m`.
-  - `io.NetProtocol`: enum of network protocols used by socket APIs; values include `TCP`, `UDP`, `ICMP`.
+  - Event<T>: conceptual generic carrying `value T` and `timestamp time.Time`; used by trigger emissions and similar.
+  - io.FHO: |
+      file/stream handle abstraction; methods return `(n int, err error)` where applicable; after `.Close()` all 
+      operations fail with an error indicating a closed handle.
+  - time.Duration: Go-compatible duration; integer nanoseconds with human string forms like `300ms`, `5s`, `2h45m`.
+  - io.NetProtocol: enum of network protocols used by socket APIs; values include `TCP`, `UDP`, `ICMP`.
 
 subcommands:
   - id: C-1
@@ -72,9 +74,9 @@ subcommands:
         expectations:
           - id: E-2-1
             statement: |
-              As a project author, I expect `ami init` to create a default `ami.workspace` with the AMI workspace schema, 
-              seed current `os/arch`, and create target and source directories idempotently, with `--force` only 
-              adding missing fields.
+              As a project author, I expect `ami init` to create a default `ami.workspace` with the AMI workspace 
+              schema, seed current `os/arch`, and create target and source directories idempotently, with `--force` 
+              only adding missing fields.
             dependencies: []
             status: complete
             tests:
@@ -298,8 +300,8 @@ subcommands:
         expectations:
           - id: E-9-5-2.3.2
             statement: |
-              As an AMI programmer, I expect lint to enforce explicit mutation markers and reject unmarked mutations with
-              `E_MUT_ASSIGN_UNMARKED` and related diagnostics.
+              As an AMI programmer, I expect lint to enforce explicit mutation markers and reject unmarked mutations 
+              with `E_MUT_ASSIGN_UNMARKED` and related diagnostics.
             dependencies: []
             status: complete
 
@@ -412,8 +414,8 @@ subcommands:
         expectations:
           - id: E-11-9-1.1.5
             statement: |
-              As a compiler engineer, I expect multiple Ingress() entrypoints per package with ingress-first/egress-last
-              ordering and error pipeline routing per docx semantics.
+              As a compiler engineer, I expect multiple Ingress() entrypoints per package with 
+              ingress-first/egress-last ordering and error pipeline routing per docx semantics.
             dependencies: [F-11-10, F-9-3]
             status: complete
             docx: ["1.1.5", "1.1.8"]
@@ -443,8 +445,8 @@ subcommands:
         expectations:
           - id: E-11-12-1.4
             statement: |
-              As a runtime engineer, I expect IR and build artifacts to carry concurrency and scheduling hints honored by
-              the runtime scheduler deterministically.
+              As a runtime engineer, I expect IR and build artifacts to carry concurrency and scheduling hints honored
+              by the runtime scheduler deterministically.
             dependencies: [F-11-10]
             status: complete
             docx: ["1.4.4", "1.4.5", "1.4.6"]
@@ -454,8 +456,8 @@ subcommands:
         expectations:
           - id: E-11-13-1.2.5
             statement: |
-              As a runtime engineer, I expect edge buffer capacities and policies {block, dropOldest, dropNewest} to be
-              encoded and validated with deterministic behavior.
+              As a runtime engineer, I expect edge buffer capacities and policies {block, dropOldest, dropNewest} to 
+              be encoded and validated with deterministic behavior.
             dependencies: [F-11-10]
             status: complete
 
@@ -464,8 +466,8 @@ subcommands:
         expectations:
           - id: E-11-14-1.3.4
             statement: |
-              As a user, I expect type‑safe cross‑package composition with explicit version binding and capability/trust
-              boundaries enforced at build/link time.
+              As a user, I expect type‑safe cross‑package composition with explicit version binding and 
+              capability/trust boundaries enforced at build/link time.
             dependencies: [F-9-3]
             status: complete
 
@@ -494,8 +496,8 @@ subcommands:
         expectations:
           - id: E-11-17-1.10
             statement: |
-              As a compiler engineer, I expect structured blocks and phis in IR preserving positions for diagnostics and
-              codegen.
+              As a compiler engineer, I expect structured blocks and phis in IR preserving positions for diagnostics 
+              and codegen.
             dependencies: [F-11-10]
             status: complete
 
@@ -504,8 +506,8 @@ subcommands:
         expectations:
           - id: E-11-18
             statement: |
-              As a backend engineer, I expect deterministic LLVM emission for control flow and extended expressions while
-              preserving memory‑safety guarantees.
+              As a backend engineer, I expect deterministic LLVM emission for control flow and extended expressions 
+              while preserving memory‑safety guarantees.
             dependencies: [F-11-17]
             status: complete
             docx: ["1.8.4"]
@@ -661,8 +663,8 @@ subcommands:
         expectations:
           - id: E-11-31
             statement: |
-              As a security engineer, I expect a policy and implementation for zeroization across Owned<T>, buffers, and
-              node‑state with redacted observability.
+              As a security engineer, I expect a policy and implementation for zeroization across Owned<T>, buffers, 
+              and node‑state with redacted observability.
             dependencies: [F-11-21]
             status: complete
             docx: ["1.9.1"]
@@ -688,8 +690,8 @@ subcommands:
         expectations:
           - id: E-11-33-2.1
             statement: |
-              As a language user, I expect generic constraints (e.g., any) and conservative unification across calls/returns with
-              stable diagnostics (E_TYPE_UNINFERRED/E_TYPE_AMBIGUOUS) per §2.1.*.
+              As a language user, I expect generic constraints (e.g., any) and conservative unification across 
+              calls/returns with stable diagnostics (E_TYPE_UNINFERRED/E_TYPE_AMBIGUOUS) per §2.1.*.
             dependencies: [F-11-15]
             status: complete
             tests:
@@ -704,8 +706,8 @@ subcommands:
         expectations:
           - id: E-11-34-2.1
             statement: |
-              As a language user, I expect container element/key inference, tuple returns, and propagation through Event<T>/Error<E>
-              with conservative generic compatibility and stable positions in diagnostics per §2.1.*.
+              As a language user, I expect container element/key inference, tuple returns, and propagation through 
+              Event<T>/Error<E> with conservative generic compatibility and stable positions in diagnostics per §2.1.*.
             dependencies: [F-11-15]
             status: complete
             tests:
@@ -1031,8 +1033,9 @@ stdlib:
 
           - id: E-1-3-2
             statement: |
-              As a user, I expect the AMI `io` package will have an `io.OpenSocket(proto io.NetProtocol, addr string, port uint16)`
-              function to open a network socket handle (FHO-equivalent) for a given protocol (e.g., ICMP, UDP, TCP), host IP,
+              As a user, I expect the AMI `io` package will have an `io.OpenSocket(proto io.NetProtocol, addr string,
+              port uint16)` function to open a network socket handle (FHO-equivalent) for a given protocol (e.g., ICMP,
+              UDP, TCP), host IP,
               and port.
             dependencies: []
             status: ready
@@ -1118,8 +1121,8 @@ stdlib:
 
           - id: E-2-1-5
             statement: |
-              As a user, I expect the AMI `os.Process` .Start() method will accept an optional boolean value to indicate
-              whether it blocks or runs the executed process asynchronously.
+              As a user, I expect the AMI `os.Process` .Start() method will accept an optional boolean value to 
+              indicate whether it blocks or runs the executed process asynchronously.
             dependencies: []
             status: ready
             tests: []
@@ -1377,8 +1380,8 @@ stdlib:
 
           - id: E-6-4-3
             statement: |
-              As a user, I expect `trigger.NetListen(...)` emissions to include enough metadata for handlers to route by
-              protocol or address and to be compatible with backpressure policies in the runtime event pipeline.
+              As a user, I expect `trigger.NetListen(...)` emissions to include enough metadata for handlers to route
+              by protocol or address and to be compatible with backpressure policies in the runtime event pipeline.
             dependencies: [F-11-23, F-11-24]
             status: ready
             tests: []
@@ -1453,8 +1456,8 @@ stdlib:
         expectations:
           - id: E-7-3-1
             statement: |
-              As a user, I expect trigonometric functions `math.Sin`, `math.Cos`, `math.Tan`, and combined `math.Sincos`
-              with Go-compatible precision and special case behavior.
+              As a user, I expect trigonometric functions `math.Sin`, `math.Cos`, `math.Tan`, and combined 
+              `math.Sincos` with Go-compatible precision and special case behavior.
             dependencies: []
             status: ready
             tests: []
@@ -1532,7 +1535,8 @@ stdlib:
         expectations:
           - id: E-8-2-1
             statement: |
-              As a user, I expect CUDA discovery helpers: `gpu.CudaAvailable() bool` and `gpu.CudaDevices() []gpu.Device`.
+              As a user, I expect CUDA discovery helpers: `gpu.CudaAvailable() bool` and `gpu.CudaDevices() 
+              []gpu.Device`.
             dependencies: []
             status: ready
             tests: []
@@ -1558,7 +1562,8 @@ stdlib:
             statement: |
               As a user, I expect kernel APIs: `gpu.CudaLoadModule(ptx string) (gpu.Module, error)`,
               `gpu.CudaGetKernel(mod gpu.Module, name string) (gpu.Kernel, error)`, and
-              `gpu.CudaLaunchKernel(ctx gpu.Context, k gpu.Kernel, grid, block [3]uint32, sharedMem uint32, args ...any) error`.
+              `gpu.CudaLaunchKernel(ctx gpu.Context, k gpu.Kernel, grid, block [3]uint32, sharedMem uint32, 
+              args ...any) error`.
             dependencies: [F-11-21]
             status: ready
             tests: []
@@ -1568,7 +1573,8 @@ stdlib:
         expectations:
           - id: E-8-3-1
             statement: |
-              As a user, I expect Metal discovery helpers: `gpu.MetalAvailable() bool` and `gpu.MetalDevices() []gpu.Device`.
+              As a user, I expect Metal discovery helpers: `gpu.MetalAvailable() bool` and 
+              `gpu.MetalDevices() []gpu.Device`.
             dependencies: []
             status: ready
             tests: []
@@ -1604,17 +1610,19 @@ stdlib:
         expectations:
           - id: E-8-4-1
             statement: |
-              As a user, I expect OpenCL discovery helpers: `gpu.OpenCLAvailable() bool` and `gpu.OpenCLPlatforms() []gpu.Platform` with device enumeration.
+              As a user, I expect OpenCL discovery helpers: `gpu.OpenCLAvailable() bool` and 
+              `gpu.OpenCLPlatforms() []gpu.Platform` with device enumeration.
             dependencies: []
             status: ready
             tests: []
 
           - id: E-8-4-2
             statement: |
-              As a user, I expect context, buffers, and kernels: `gpu.OpenCLCreateContext(p gpu.Platform) (gpu.Context, error)`,
-              `gpu.OpenCLAlloc(n int) (gpu.Buffer, error)`, `gpu.OpenCLFree(buf gpu.Buffer) error`,
-              `gpu.OpenCLBuildProgram(src string) (gpu.Program, error)`, `gpu.OpenCLGetKernel(prog gpu.Program, name string) (gpu.Kernel, error)`,
-              and `gpu.OpenCLLaunchKernel(ctx gpu.Context, k gpu.Kernel, global, local [3]size_t, args ...any) error`.
+              As a user, I expect context, buffers, and kernels: `gpu.OpenCLCreateContext(p gpu.Platform) 
+              (gpu.Context, error)`, `gpu.OpenCLAlloc(n int) (gpu.Buffer, error)`, `gpu.OpenCLFree(buf gpu.Buffer) 
+              error`,`gpu.OpenCLBuildProgram(src string) (gpu.Program, error)`, `gpu.OpenCLGetKernel(prog gpu.Program, 
+              name string) (gpu.Kernel, error)`, and `gpu.OpenCLLaunchKernel(ctx gpu.Context, k gpu.Kernel, global, 
+              local [3]size_t, args ...any) error`.
             dependencies: [F-11-21]
             status: ready
             tests: []

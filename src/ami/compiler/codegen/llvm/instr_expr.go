@@ -39,7 +39,7 @@ func lowerExpr(e ir.Expr) string {
         if len(e.Results) > 1 {
             var parts []string
             for _, r := range e.Results { parts = append(parts, abiType(r.Type)) }
-            aggRet = "{" + strings.Join(parts, ", ") + "}"
+            aggRet = "{ " + strings.Join(parts, ", ") + " }"
         }
         if strings.HasPrefix(e.Callee, "ami_rt_") {
             switch e.Callee {
@@ -71,7 +71,16 @@ func lowerExpr(e ir.Expr) string {
                 ret = "ptr"
             default:
                 // fall back to result type when provided
-                if e.Result != nil { ret = mapType(e.Result.Type) } else { ret = "void" }
+                if len(e.Results) > 1 {
+                    // Multi-result runtime calls return an aggregate
+                    var parts []string
+                    for _, r := range e.Results { parts = append(parts, abiType(r.Type)) }
+                    ret = "{ " + strings.Join(parts, ", ") + " }"
+                } else if e.Result != nil {
+                    ret = mapType(e.Result.Type)
+                } else {
+                    ret = "void"
+                }
             }
         } else if len(e.Results) > 1 {
             ret = aggRet
@@ -121,6 +130,16 @@ func lowerExpr(e ir.Expr) string {
     // Basic arithmetic scaffold
     op := strings.ToLower(e.Op)
     switch op {
+    case "frem":
+        if len(e.Args) >= 2 {
+            ty := "double"
+            if e.Result != nil && e.Result.Type != "" { ty = mapType(e.Result.Type) }
+            if e.Result != nil && e.Result.ID != "" {
+                return fmt.Sprintf("  %%%s = frem %s %%%s, %%%s\n", e.Result.ID, ty, e.Args[0].ID, e.Args[1].ID)
+            }
+            return fmt.Sprintf("  frem %s %%%s, %%%s\n", ty, e.Args[0].ID, e.Args[1].ID)
+        }
+        return "  ; expr frem\n"
     case "select":
         // Retained for backward compatibility; prefer CFG + PHI now.
         if len(e.Args) >= 3 && e.Result != nil && e.Result.ID != "" {
@@ -172,7 +191,12 @@ func lowerExpr(e ir.Expr) string {
         case "div":
             if ty == "double" { mnem = "fdiv" } else { mnem = "sdiv" }
         case "mod":
-            if ty == "double" { return "  ; expr mod-unsupported-double\n" }
+            if ty == "double" {
+                if e.Result != nil && len(e.Args) >= 2 {
+                    return fmt.Sprintf("  %%%s = frem double %%%s, %%%s\n", e.Result.ID, e.Args[0].ID, e.Args[1].ID)
+                }
+                return "  ; expr frem-double\n"
+            }
             mnem = "srem"
         }
         if e.Result != nil && e.Result.ID != "" && len(e.Args) >= 2 {

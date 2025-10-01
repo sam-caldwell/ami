@@ -9,7 +9,7 @@ import (
 func lowerFuncDeclWithSCC(fn *ast.FuncDecl, funcResMap, funcParamMap map[string][]string, funcParamNames map[string][]string, sccSet map[string]bool) ir.Function {
     var params []ir.Value
     var outResults []ir.Value
-    st := &lowerState{varTypes: map[string]string{}, funcResults: funcResMap, funcParams: funcParamMap, funcParamNames: funcParamNames, currentFn: fn.Name}
+    st := &lowerState{varTypes: map[string]string{}, funcResults: funcResMap, funcParams: funcParamMap, funcParamNames: funcParamNames, currentFn: fn.Name, methodRecv: map[string]irValue{}}
     for _, p := range fn.Params {
         params = append(params, ir.Value{ID: p.Name, Type: p.Type})
         if p.Name != "" && p.Type != "" { st.varTypes[p.Name] = p.Type }

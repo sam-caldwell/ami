@@ -396,8 +396,11 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                     if _, ok := lowerValueSC(st, v.X, &out, &extras, &nextID); ok { /* done */ }
                 } else {
                     // Emit nested call arguments (if any) before lowering the expression itself
-                    if _, isCall := v.X.(*ast.CallExpr); isCall {
+                    if ce, isCall := v.X.(*ast.CallExpr); isCall {
+                        // Emit any nested calls
                         emitNestedCallArgs(st, v.X, &out)
+                        // Additionally, synthesize receiver projections for method-form calls
+                        maybeEmitMethodRecv(st, ce, &out)
                     }
                     if e, ok := lowerExpr(st, v.X); ok { out = append(out, e) }
                 }

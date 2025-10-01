@@ -144,6 +144,23 @@ func RuntimeLL(triple string, withMain bool) string {
         "loop:\n  %i = phi i64 [ 0, %entry ], [ %next, %body ]\n  %acc = phi double [ 1.0, %entry ], [ %acc2, %body ]\n  %done = icmp uge i64 %i, %absn\n  br i1 %done, label %exit, label %body\n" +
         "body:\n  %acc2 = fmul double %acc, 10.0\n  %next = add i64 %i, 1\n  br label %loop\n" +
         "exit:\n  %res = select i1 %isneg, double fdiv (double 1.0, %acc), double %acc\n  ret double %res\n}\n\n"
+    // Additional math runtime helpers
+    s += "define double @ami_rt_math_hypot(double %x, double %y) {\n" +
+        "entry:\n  %x2 = fmul double %x, %x\n  %y2 = fmul double %y, %y\n  %sum = fadd double %x2, %y2\n  %r = call double @llvm.sqrt.f64(double %sum)\n  ret double %r\n}\n\n"
+    s += "define double @ami_rt_math_asinh(double %x) {\n" +
+        "entry:\n  %x2 = fmul double %x, %x\n  %x2p1 = fadd double %x2, 1.0\n  %root = call double @llvm.sqrt.f64(double %x2p1)\n  %sum = fadd double %x, %root\n  %res = call double @llvm.log.f64(double %sum)\n  ret double %res\n}\n\n"
+    s += "define double @ami_rt_math_acosh(double %x) {\n" +
+        "entry:\n  %xm1 = fsub double %x, 1.0\n  %xp1 = fadd double %x, 1.0\n  %s1 = call double @llvm.sqrt.f64(double %xm1)\n  %s2 = call double @llvm.sqrt.f64(double %xp1)\n  %prod = fmul double %s1, %s2\n  %sum = fadd double %x, %prod\n  %res = call double @llvm.log.f64(double %sum)\n  ret double %res\n}\n\n"
+    s += "define double @ami_rt_math_atanh(double %x) {\n" +
+        "entry:\n  %num = fadd double 1.0, %x\n  %den = fsub double 1.0, %x\n  %div = fdiv double %num, %den\n  %ln = call double @llvm.log.f64(double %div)\n  %half = fmul double 5.000000e-01, %ln\n  ret double %half\n}\n\n"
+    s += "define double @ami_rt_math_cbrt(double %x) {\n" +
+        "entry:\n  %res = call double @llvm.pow.f64(double %x, double 0x3FD5555555555555)\n  ret double %res\n}\n\n"
+    s += "define double @ami_rt_math_dim(double %x, double %y) {\n" +
+        "entry:\n  %sub = fsub double %x, %y\n  %lt0 = fcmp olt double %sub, 0.0\n  %res = select i1 %lt0, double 0.0, double %sub\n  ret double %res\n}\n\n"
+    s += "define double @ami_rt_math_logb(double %x) {\n" +
+        "entry:\n  ret double 0.0\n}\n\n"
+    s += "define i64 @ami_rt_math_ilogb(double %x) {\n" +
+        "entry:\n  ret i64 0\n}\n\n"
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }

@@ -81,3 +81,15 @@ func Frexp(x float64) (frac float64, exp int) { return stdmath.Frexp(x) }
 func Ldexp(frac float64, exp int) float64     { return stdmath.Ldexp(frac, exp) }
 func Modf(x float64) (intPart, fracPart float64) { return stdmath.Modf(x) }
 
+// Extra coverage
+func Erf(x float64) float64               { return stdmath.Erf(x) }
+func Erfc(x float64) float64              { return stdmath.Erfc(x) }
+func FMA(x, y, z float64) float64         { return stdmath.FMA(x, y, z) }
+func Hypot(x, y float64) float64          { return stdmath.Hypot(x, y) }
+func Cbrt(x float64) float64              { return stdmath.Cbrt(x) }
+func Asinh(x float64) float64             { return stdmath.Asinh(x) }
+func Acosh(x float64) float64             { return stdmath.Acosh(x) }
+func Atanh(x float64) float64             { return stdmath.Atanh(x) }
+func Dim(x, y float64) float64            { return stdmath.Dim(x, y) }
+func Logb(x float64) float64              { return stdmath.Logb(x) }
+func Ilogb(x float64) int                 { return stdmath.Ilogb(x) }

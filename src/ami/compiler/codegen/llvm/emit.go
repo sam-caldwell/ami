@@ -93,6 +93,30 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                 if ex.Callee == "ami_rt_math_pow10" {
                     e.RequireExtern("declare double @ami_rt_math_pow10(i64)")
                 }
+                if ex.Callee == "ami_rt_math_asinh" {
+                    e.RequireExtern("declare double @ami_rt_math_asinh(double)")
+                }
+                if ex.Callee == "ami_rt_math_acosh" {
+                    e.RequireExtern("declare double @ami_rt_math_acosh(double)")
+                }
+                if ex.Callee == "ami_rt_math_atanh" {
+                    e.RequireExtern("declare double @ami_rt_math_atanh(double)")
+                }
+                if ex.Callee == "ami_rt_math_cbrt" {
+                    e.RequireExtern("declare double @ami_rt_math_cbrt(double)")
+                }
+                if ex.Callee == "ami_rt_math_hypot" {
+                    e.RequireExtern("declare double @ami_rt_math_hypot(double, double)")
+                }
+                if ex.Callee == "ami_rt_math_dim" {
+                    e.RequireExtern("declare double @ami_rt_math_dim(double, double)")
+                }
+                if ex.Callee == "ami_rt_math_logb" {
+                    e.RequireExtern("declare double @ami_rt_math_logb(double)")
+                }
+                if ex.Callee == "ami_rt_math_ilogb" {
+                    e.RequireExtern("declare i64 @ami_rt_math_ilogb(double)")
+                }
                 if ex.Callee == "ami_rt_math_inf" {
                     e.RequireExtern("declare double @ami_rt_math_inf(i64)")
                 }
@@ -176,9 +200,9 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
     if triple != "" { e.SetTargetTriple(triple) }
     // Collect externs based on usage (same as EmitModuleLLVM)
     for _, f := range m.Functions {
-        for _, b := range f.Blocks {
-            for _, ins := range b.Instr {
-                if ex, ok := ins.(ir.Expr); ok {
+                for _, b := range f.Blocks {
+                    for _, ins := range b.Instr {
+                        if ex, ok := ins.(ir.Expr); ok {
                     op := strings.ToLower(ex.Op)
                     if op == "panic" { e.RequireExtern("declare void @ami_rt_panic(i32)") }
                     if op == "alloc" || ex.Callee == "ami_rt_alloc" { e.RequireExtern("declare ptr @ami_rt_alloc(i64)") }
@@ -278,12 +302,28 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                             e.RequireExtern("declare void @ami_rt_install_handler_thunk(i64, ptr)")
                         case "ami_rt_get_handler_thunk":
                             e.RequireExtern("declare ptr @ami_rt_get_handler_thunk(i64)")
-                        case "ami_rt_posix_install_trampoline":
-                            e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
+                            case "ami_rt_posix_install_trampoline":
+                                e.RequireExtern("declare void @ami_rt_posix_install_trampoline(i64)")
+                            case "ami_rt_math_asinh":
+                                e.RequireExtern("declare double @ami_rt_math_asinh(double)")
+                            case "ami_rt_math_acosh":
+                                e.RequireExtern("declare double @ami_rt_math_acosh(double)")
+                            case "ami_rt_math_atanh":
+                                e.RequireExtern("declare double @ami_rt_math_atanh(double)")
+                            case "ami_rt_math_cbrt":
+                                e.RequireExtern("declare double @ami_rt_math_cbrt(double)")
+                            case "ami_rt_math_hypot":
+                                e.RequireExtern("declare double @ami_rt_math_hypot(double, double)")
+                            case "ami_rt_math_dim":
+                                e.RequireExtern("declare double @ami_rt_math_dim(double, double)")
+                            case "ami_rt_math_logb":
+                                e.RequireExtern("declare double @ami_rt_math_logb(double)")
+                            case "ami_rt_math_ilogb":
+                                e.RequireExtern("declare i64 @ami_rt_math_ilogb(double)")
+                            }
                         }
                     }
                 }
-            }
         }
     }
     for _, f := range m.Functions {

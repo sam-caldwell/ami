@@ -57,9 +57,7 @@ func (t *Ticker) Stop() {
     if !t.started { t.mu.Unlock(); return }
     close(t.stopCh)
     t.started = false
-    t.handlers = t.handlers // keep handlers for potential restart
     t.mu.Unlock()
 }
 
 func safe(f func()) { defer func(){ _ = recover() }(); if f != nil { f() } }
-

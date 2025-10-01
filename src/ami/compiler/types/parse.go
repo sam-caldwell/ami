@@ -51,10 +51,16 @@ func Parse(s string) (Type, error) {
             }
             return Union{Alts: alts}, nil
         default:
-            if len(parts) != 1 { return nil, fmt.Errorf("%s requires one type arg", base) }
-            a, err := Parse(parts[0])
-            if err != nil { return nil, err }
-            return Generic{Name: base, Args: []Type{a}}, nil
+            // For unknown bases, accept one or more type arguments to support nested
+            // arity analysis (e.g., Owned<int,string>). Parse each arg recursively.
+            if len(parts) == 0 { return Generic{Name: base}, nil }
+            args := make([]Type, 0, len(parts))
+            for _, p := range parts {
+                a, err := Parse(p)
+                if err != nil { return nil, err }
+                args = append(args, a)
+            }
+            return Generic{Name: base, Args: args}, nil
         }
     }
     // Struct{field:type,...}

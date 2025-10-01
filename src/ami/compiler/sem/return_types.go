@@ -44,10 +44,14 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
                 expPos := diag.Position{}
                 if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
                 actPos := gpos[i]
-                if mismatch, path, pathIdx, base, wantN, gotN := findGenericArityMismatchDeepPath(decl[i], got[i]); mismatch {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                if mismatch, path, pathIdx, fieldPath, base, wantN, gotN := findGenericArityMismatchWithFields(decl[i], got[i]); mismatch {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "fieldPath": fieldPath, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
                     mismatchIndices = append(mismatchIndices, i)
                     // continue checking remaining positions to surface multiple issues
+                    continue
+                } else if mismatch, path, pathIdx, base, wantN, gotN := findGenericArityMismatchDeepPath(decl[i], got[i]); mismatch {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                    mismatchIndices = append(mismatchIndices, i)
                     continue
                 }
                 if !typesCompatible(decl[i], got[i]) {

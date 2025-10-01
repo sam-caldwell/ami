@@ -427,7 +427,7 @@ trigger:
     name: trigger package
     features:
       - id: T-1-1
-        name: Ingress Node Trigger Processing Facility
+        name: trigger facility for ingress nodes.
         expectations:
           - id: E-1-1-1
             statement: |
@@ -437,25 +437,79 @@ trigger:
             status: ready
             tests: []
 
-          - id: E-1-1-2
+      - id: T-1-2
+        name: trigger facility for Time-based events
+        expectations:
+          - id: E-1-2-1
             statement: |
-              As a user, I expect AMI to have a `trigger.Timer()` method consistent with the .docx
+              As a user, I expect AMI to have a `trigger.Timer(n time.duration)` method which will emit an
+              Event<time.Time> object every n units of time.
             dependencies: []
             status: ready
             tests: []
 
-          - id: E-1-1-3
+          - id: E-1-2-2
             statement: |
-              As a user, I expect AMI to have a built-in `trigger` package which will provide trigger event facilities
-              for Ingress node `in` attribute.
+              As a user, I expect AMI to have a `trigger.Schedule(t time.Time)` method which will emit an 
+              Event<time.Time> object at t time.
             dependencies: []
             status: ready
             tests: []
 
-          - id: E-1-1-4
+      - id: T-1-3
+        name: trigger facility for Filesystem Events
+        expectations:
+          - id: E-1-3-1
             statement: |
-              As a user, I expect AMI to have a built-in `trigger` package which will provide trigger event facilities
-              for Ingress node `in` attribute.
+              As a user, I expect AMI to have a `trigger.FsEvent` enum representing a generic set of inotify events
+              common to linux, windows and MacOS platforms.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-3-2
+            statement: |
+              As a user, I expect AMI to have a `trigger.FileEvent` object containing a file handle object (FHO),
+              the `trigger.FsEvent` and event timestamp.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-3-4
+            statement: |
+              As a user, I expect AMI to have a `trigger.FsNotify(path string, t trigger.FsEvent)` method which will 
+              emit an `Event<trigger.FileEvent>` object when a file system operation of type `trigger.FsEvent` occurs 
+              on the given `path`,
+            dependencies: []
+            status: ready
+            tests: []
+
+
+      - id: T-1-4
+        name: trigger facility for Network Events
+        expectations:
+          - id: E-1-4-1
+            statement: |
+              As a user, I expect AMI to have a `trigger.NetListen(proto io.netProtocol, addr string, port uint16)`
+              method which will emit an `Event<trigger.NetMsg>` object when a network message is received; where
+              `trigger.NetMsg` will contain the contents of a network message and timestamp.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-4-2
+            statement: |
+              As a user, I expect AMI to have a `trigger.FileEvent` object containing a file handle object (FHO),
+              the `trigger.FsEvent` and event timestamp.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-4-3
+            statement: |
+              As a user, I expect AMI to have a `trigger.FsNotify(path string, t trigger.FsEvent)` method which will 
+              emit an `Event<trigger.FileEvent>` object when a file system operation of type `trigger.FsEvent` occurs 
+              on the given `path`,
             dependencies: []
             status: ready
             tests: []

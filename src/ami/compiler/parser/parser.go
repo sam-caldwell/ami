@@ -362,6 +362,40 @@ func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position
             typePos = p.cur.Pos
             typ = p.cur.Lexeme
             p.next()
+            // Capture Struct{...} types fully
+            if typ == "Struct" && p.cur.Kind == token.LBraceSym {
+                startOff := typePos.Offset
+                depthBrace := 0
+                depthAngle := 0
+                var lastBraceOff int
+                for {
+                    if p.cur.Kind == token.EOF { break }
+                    switch p.cur.Kind {
+                    case token.LBraceSym:
+                        depthBrace++
+                    case token.RBraceSym:
+                        if depthBrace > 0 { depthBrace-- }
+                        lastBraceOff = p.cur.Pos.Offset
+                        p.next()
+                        if depthBrace == 0 { goto doneParamStruct }
+                        continue
+                    case token.Lt:
+                        depthAngle++
+                    case token.Shl:
+                        depthAngle += 2
+                    case token.Gt:
+                        if depthAngle > 0 { depthAngle-- }
+                    case token.Shr:
+                        if depthAngle >= 2 { depthAngle -= 2 }
+                    }
+                    p.next()
+                }
+            doneParamStruct:
+                src := p.s.FileContent()
+                if lastBraceOff > startOff && lastBraceOff+1 <= len(src) {
+                    typ = src[startOff : lastBraceOff+1]
+                }
+            }
             // If generic arguments follow, capture full "Base<...>" from source
             if p.cur.Kind == token.Lt || p.cur.Kind == token.Shl {
                 startOff := typePos.Offset
@@ -420,6 +454,40 @@ func (p *Parser) parseResultList() ([]ast.Result, source.Position, source.Positi
         rtype := p.cur.Lexeme
         rtypePos := rpos
         p.next()
+        // Capture Struct{...} results
+        if rtype == "Struct" && p.cur.Kind == token.LBraceSym {
+            startOff := rtypePos.Offset
+            depthBrace := 0
+            depthAngle := 0
+            var lastBraceOff int
+            for {
+                if p.cur.Kind == token.EOF { break }
+                switch p.cur.Kind {
+                case token.LBraceSym:
+                    depthBrace++
+                case token.RBraceSym:
+                    if depthBrace > 0 { depthBrace-- }
+                    lastBraceOff = p.cur.Pos.Offset
+                    p.next()
+                    if depthBrace == 0 { goto doneResultStruct }
+                    continue
+                case token.Lt:
+                    depthAngle++
+                case token.Shl:
+                    depthAngle += 2
+                case token.Gt:
+                    if depthAngle > 0 { depthAngle-- }
+                case token.Shr:
+                    if depthAngle >= 2 { depthAngle -= 2 }
+                }
+                p.next()
+            }
+        doneResultStruct:
+            src := p.s.FileContent()
+            if lastBraceOff > startOff && lastBraceOff+1 <= len(src) {
+                rtype = src[startOff : lastBraceOff+1]
+            }
+        }
         if p.cur.Kind == token.Lt || p.cur.Kind == token.Shl {
             startOff := rpos.Offset
             depth := 0
@@ -542,6 +610,40 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                 tname = p.cur.Lexeme
                 tpos = p.cur.Pos
                 p.next()
+                // Capture Struct{...} var types fully
+                if tname == "Struct" && p.cur.Kind == token.LBraceSym {
+                    startOff := tpos.Offset
+                    depthBrace := 0
+                    depthAngle := 0
+                    var lastBraceOff int
+                    for {
+                        if p.cur.Kind == token.EOF { break }
+                        switch p.cur.Kind {
+                        case token.LBraceSym:
+                            depthBrace++
+                        case token.RBraceSym:
+                            if depthBrace > 0 { depthBrace-- }
+                            lastBraceOff = p.cur.Pos.Offset
+                            p.next()
+                            if depthBrace == 0 { goto doneVarStruct3 }
+                            continue
+                        case token.Lt:
+                            depthAngle++
+                        case token.Shl:
+                            depthAngle += 2
+                        case token.Gt:
+                            if depthAngle > 0 { depthAngle-- }
+                        case token.Shr:
+                            if depthAngle >= 2 { depthAngle -= 2 }
+                        }
+                        p.next()
+                    }
+                doneVarStruct3:
+                    src := p.s.FileContent()
+                    if lastBraceOff > startOff && lastBraceOff+1 <= len(src) {
+                        tname = src[startOff : lastBraceOff+1]
+                    }
+                }
                 // Capture optional generic arguments like '<T[,U]>' preserving nested forms
                 if p.cur.Kind == token.Lt || p.cur.Kind == token.Shl {
                     startOff := tpos.Offset
@@ -1387,7 +1489,7 @@ func (p *Parser) isTypeName(k token.Kind) bool {
         token.KwBool, token.KwByte, token.KwInt, token.KwInt8, token.KwInt16, token.KwInt32, token.KwInt64, token.KwInt128,
         token.KwUint, token.KwUint8, token.KwUint16, token.KwUint32, token.KwUint64, token.KwUint128,
         token.KwFloat32, token.KwFloat64, token.KwStringTy, token.KwRune,
-        token.KwSlice, token.KwSet, token.KwMap,
+        token.KwSlice, token.KwSet, token.KwMap, token.KwStruct,
         token.KwEvent, token.KwError:
         return true
     default:

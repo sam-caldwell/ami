@@ -130,6 +130,31 @@ func arityMismatchInTypesWithFields(et, at types.Type) (bool, []string, []int, [
             }
         }
         return false, nil, nil, nil, "", 0, 0
+    case types.Union:
+        av, ok := at.(types.Union); if !ok { return false, nil, nil, nil, "", 0, 0 }
+        // Try to find a pair of alts that reveals a mismatch; prefer matching by top-level constructor kind.
+        for _, ealt := range ev.Alts {
+            // prefer same kind
+            for _, aalt := range av.Alts {
+                switch ee := ealt.(type) {
+                case types.Struct:
+                    if aa, ok := aalt.(types.Struct); ok {
+                        if m, p, idx, fp, b, w, g := arityMismatchInTypesWithFields(ee, aa); m { return true, p, idx, fp, b, w, g }
+                    }
+                case types.Optional:
+                    if aa, ok := aalt.(types.Optional); ok {
+                        if m, p, idx, fp, b, w, g := arityMismatchInTypesWithFields(ee, aa); m { return true, p, idx, fp, b, w, g }
+                    }
+                case types.Generic:
+                    if aa, ok := aalt.(types.Generic); ok && ee.Name == aa.Name {
+                        if m, p, idx, fp, b, w, g := arityMismatchInTypesWithFields(ee, aa); m { return true, p, idx, fp, b, w, g }
+                    }
+                default:
+                    if m, p, idx, fp, b, w, g := arityMismatchInTypesWithFields(ee, aalt); m { return true, p, idx, fp, b, w, g }
+                }
+            }
+        }
+        return false, nil, nil, nil, "", 0, 0
     case types.Named:
         name := ev.Name
         if name == "any" || (len(name) == 1 && name[0] >= 'A' && name[0] <= 'Z') { return false, nil, nil, nil, "", 0, 0 }

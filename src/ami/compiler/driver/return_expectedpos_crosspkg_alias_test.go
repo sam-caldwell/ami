@@ -1,0 +1,35 @@
+package driver
+
+import (
+    "testing"
+    "github.com/sam-caldwell/ami/src/ami/compiler/source"
+    "github.com/sam-caldwell/ami/src/ami/workspace"
+    "github.com/sam-caldwell/ami/src/schemas/diag"
+)
+
+// Cross-package alias-qualified: import lib as l and return l.Producer(); ensure expectedPos points to app F result type.
+func TestCompile_CrossPackageAlias_ReturnExpectedPos_FromDecl(t *testing.T) {
+    ws := workspace.Workspace{}
+
+    libfs := &source.FileSet{}
+    libfs.AddFile("lib1.ami", "package lib\nfunc Producer() (Owned<int,string>, Error<int,string>) { return }\n")
+
+    appfs := &source.FileSet{}
+    appfs.AddFile("app1.ami", "package app\nimport l \"lib\"\nfunc F() (Owned<T>, Error<E>) { return l.Producer() }\n")
+
+    pkgs := []Package{{Name: "lib", Files: libfs}, {Name: "app", Files: appfs}}
+    _, diags := Compile(ws, pkgs, Options{Debug: false})
+    found := false
+    for _, d := range diags {
+        if d.Code != "E_GENERIC_ARITY_MISMATCH" || d.Data == nil { continue }
+        var idx int
+        if v, ok := d.Data["index"].(int); ok { idx = v } else if vf, ok := d.Data["index"].(float64); ok { idx = int(vf) }
+        if idx != 1 { continue }
+        if ep, ok := d.Data["expectedPos"].(diag.Position); ok {
+            if ep.Line != 3 { t.Fatalf("expected app F result line 3; got %d (diag=%+v)", ep.Line, d) }
+            found = true
+        }
+    }
+    if !found { t.Fatalf("missing cross-package alias expectedPos diag: %+v", diags) }
+}
+

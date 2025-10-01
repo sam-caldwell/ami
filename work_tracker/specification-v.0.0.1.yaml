@@ -3,6 +3,7 @@ generated: 2025-09-30T00:00:00Z
 authority:
   docx: docs/Asynchronous Machine Interface.docx
 notes:
+  - Any build artifacts, logs or other runtime or test files should be stored in `build/`
   - Changes should be committed to git with each work item performed.
   - Expectations are grouped by `ami` subcommand, then by feature.
   - Where present, `docx` lists relevant sections from the authoritative document.
@@ -19,6 +20,7 @@ notes:
       - errors to stderr
       - JSON lines for streaming
   - directory layout:
+      - build directory: `build/`
       - source code: `src/`
       - documentation: `docs/`
       - AMI examples: `examples/`
@@ -887,3 +889,7 @@ cross_cutting:
       statement: |
         No public ABI may expose raw pointers; enforce via codegen safety assertions and tests.
       status: in progress
+    - id: CC-3
+      statement: |
+        All memory must be allocated and managed in an RAII compliant manner.
+      status: ready

@@ -265,7 +265,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             attachFile(sem.AnalyzeReturnInference(af))
             attachFile(sem.AnalyzeReturnTypesWithSigs(af, resultSigs))
             attachFile(sem.AnalyzeRAII(af))
-            attachFile(sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs, paramPos))
+            attachFile(sem.AnalyzeCallsWithSigs(af, paramSigs, resultSigs, paramPos, paramNames))
             attachFile(sem.AnalyzePackageAndImports(af))
             // IR/codegen-stage capability check (complements semantics layer)
             attachFile(analyzeCapabilityIR(af))

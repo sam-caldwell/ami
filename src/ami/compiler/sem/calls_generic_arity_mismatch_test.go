@@ -14,7 +14,7 @@ func TestCalls_GenericArityMismatch_ProducesSpecificDiag(t *testing.T) {
     af, _ := p.ParseFile()
     params := map[string][]string{"H": {"Owned<T>"}}
     results := map[string][]string{"H": {}, "Producer": {"Owned<int,string>"}}
-    ds := AnalyzeCallsWithSigs(af, params, results, nil)
+    ds := AnalyzeCallsWithSigs(af, params, results, nil, nil)
     found := false
     for _, d := range ds { if d.Code == "E_GENERIC_ARITY_MISMATCH" { found = true } }
     if !found { t.Fatalf("expected E_GENERIC_ARITY_MISMATCH; got %+v", ds) }

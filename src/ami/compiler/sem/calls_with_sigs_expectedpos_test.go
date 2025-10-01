@@ -17,7 +17,7 @@ func TestCallsWithSigs_ExpectedPos_IncludesParamTypeLocation(t *testing.T) {
     af, _ := p.ParseFileCollect()
     params := map[string][]string{"Callee": {"string", "int"}}
     results := map[string][]string{"Callee": {}}
-    ds := AnalyzeCallsWithSigs(af, params, results, nil)
+    ds := AnalyzeCallsWithSigs(af, params, results, nil, nil)
     if len(ds) == 0 { t.Fatalf("expected diagnostics, got none") }
     // Find the mismatch for arg index 1 (second arg), and verify expectedPos is present
     found := false

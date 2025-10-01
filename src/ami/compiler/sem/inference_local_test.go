@@ -27,6 +27,6 @@ func TestTypeInference_LocalVarFromInitializer_PassesToCallArgs(t *testing.T) {
     // collect params/results for calls-with-sigs
     params := map[string][]string{"G": {"int"}}
     results := map[string][]string{"G": {}}
-    ds := AnalyzeCallsWithSigs(af, params, results, nil)
+    ds := AnalyzeCallsWithSigs(af, params, results, nil, nil)
     for _, d := range ds { if d.Code == "E_CALL_ARG_TYPE_MISMATCH" { t.Fatalf("unexpected mismatch: %+v", ds) } }
 }

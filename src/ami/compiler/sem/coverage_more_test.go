@@ -30,7 +30,7 @@ func TestAnalyzeCallsWithSigs_Errors(t *testing.T) {
     p := parser.New(f)
     af, _ := p.ParseFile()
     params := map[string][]string{"H": {"int", "int"}}
-    ds := AnalyzeCallsWithSigs(af, params, nil, nil)
+    ds := AnalyzeCallsWithSigs(af, params, nil, nil, nil)
     // Expect at least one arity mismatch and one type mismatch
     if len(ds) < 2 { t.Fatalf("expected multiple call diags, got: %+v", ds) }
 }

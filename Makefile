@@ -20,6 +20,8 @@ lint: ## Run go vet across all packages
 	go vet -v ./...
 
 test: ## Run all tests (go test -v ./...)
+	# Enforce single-test-per-file convention in parser tests
+	bash ./scripts/check-single-test-per-file.sh src/ami/compiler/parser
 	go test -v ./...
 
 coverage-short: ## Fast coverage on CLI (filters heavy tests) + sanity on schemas

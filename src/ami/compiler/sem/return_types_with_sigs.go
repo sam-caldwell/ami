@@ -17,6 +17,7 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
         fn, ok := d.(*ast.FuncDecl)
         if !ok || fn.Body == nil { continue }
         decl := make([]string, len(fn.Results))
+        funcName := fn.Name
         for i, r := range fn.Results { decl[i] = r.Type }
         // Build a simple local type env from params, var decls, and assignments.
         env := buildLocalEnv(fn)
@@ -73,14 +74,14 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
                 if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
                 actPos := gpos[i]
                 if mismatch, path, pathIdx, fieldPath, base, wantN, gotN := findGenericArityMismatchDeepPathTextFields(decl[i], got[i]); mismatch {
-                    data := map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}
+                    data := map[string]any{"function": funcName, "index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}
                     if len(fieldPath) > 0 { data["fieldPath"] = fieldPath }
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: data})
                     mismatchIndices = append(mismatchIndices, i)
                     continue
                 }
                 if !typesCompatible(decl[i], got[i]) {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_RESULT_MISMATCH", Message: "return type mismatch from call", Pos: &actPos, Data: map[string]any{"index": i, "expected": decl[i], "actual": got[i], "expectedPos": expPos}})
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_RESULT_MISMATCH", Message: "return type mismatch from call", Pos: &actPos, Data: map[string]any{"function": funcName, "index": i, "expected": decl[i], "actual": got[i], "expectedPos": expPos}})
                     mismatchIndices = append(mismatchIndices, i)
                 }
             }
@@ -88,16 +89,18 @@ func AnalyzeReturnTypesWithSigs(f *ast.File, results map[string][]string) []diag
                 var paths []map[string]any
                 for _, i := range mismatchIndices {
                     if i < len(decl) && i < len(got) {
+                        expPos := diag.Position{}
+                        if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
                         if m, p, idx, fp, b, _, _ := findGenericArityMismatchWithFields(decl[i], got[i]); m {
-                            paths = append(paths, map[string]any{"index": i, "tupleIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
+                            paths = append(paths, map[string]any{"index": i, "tupleIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp, "expectedPos": expPos})
                         } else if m2, p2, idx2, fp2, b2, _, _ := findGenericArityMismatchDeepPathTextFields(decl[i], got[i]); m2 {
-                            e := map[string]any{"index": i, "tupleIndex": i, "base": b2, "path": p2, "pathIdx": idx2}
+                            e := map[string]any{"index": i, "tupleIndex": i, "base": b2, "path": p2, "pathIdx": idx2, "expectedPos": expPos}
                             if len(fp2) > 0 { e["fieldPath"] = fp2 }
                             paths = append(paths, e)
                         }
                     }
                 }
-                data := map[string]any{"count": len(mismatchIndices), "indices": mismatchIndices}
+                data := map[string]any{"function": funcName, "count": len(mismatchIndices), "indices": mismatchIndices}
                 if len(paths) > 0 { data["paths"] = paths }
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TUPLE_MISMATCH_SUMMARY", Message: "multiple return elements mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}, Data: data})
             }

@@ -17,6 +17,7 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
         fn, ok := d.(*ast.FuncDecl)
         if !ok { continue }
         decl := make([]string, len(fn.Results))
+        funcName := fn.Name
         for i, r := range fn.Results { decl[i] = r.Type }
         // scan body for return statements
         if fn.Body == nil { continue }
@@ -45,19 +46,19 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
                 if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
                 actPos := gpos[i]
                 if mismatch, path, pathIdx, fieldPath, base, wantN, gotN := findGenericArityMismatchWithFields(decl[i], got[i]); mismatch {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "fieldPath": fieldPath, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: map[string]any{"function": funcName, "index": i, "base": base, "path": path, "pathIdx": pathIdx, "fieldPath": fieldPath, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}})
                     mismatchIndices = append(mismatchIndices, i)
                     // continue checking remaining positions to surface multiple issues
                     continue
                 } else if mismatch, path, pathIdx, fieldPath, base, wantN, gotN := findGenericArityMismatchDeepPathTextFields(decl[i], got[i]); mismatch {
-                    data := map[string]any{"index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}
+                    data := map[string]any{"function": funcName, "index": i, "base": base, "path": path, "pathIdx": pathIdx, "expected": decl[i], "actual": got[i], "expectedArity": wantN, "actualArity": gotN, "expectedPos": expPos}
                     if len(fieldPath) > 0 { data["fieldPath"] = fieldPath }
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &actPos, Data: data})
                     mismatchIndices = append(mismatchIndices, i)
                     continue
                 }
                 if !typesCompatible(decl[i], got[i]) {
-                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch", Pos: &actPos, Data: map[string]any{"index": i, "expected": decl[i], "actual": got[i], "expectedPos": expPos}})
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TYPE_MISMATCH", Message: "return type mismatch", Pos: &actPos, Data: map[string]any{"function": funcName, "index": i, "expected": decl[i], "actual": got[i], "expectedPos": expPos}})
                     mismatchIndices = append(mismatchIndices, i)
                 }
             }
@@ -65,12 +66,14 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
                 var paths []map[string]any
                 for _, i := range mismatchIndices {
                     if i < len(decl) && i < len(got) {
+                        expPos := diag.Position{}
+                        if i < len(fn.Results) { expPos = diag.Position{Line: fn.Results[i].Pos.Line, Column: fn.Results[i].Pos.Column, Offset: fn.Results[i].Pos.Offset} }
                         if m, p, idx, fp, b, _, _ := findGenericArityMismatchWithFields(decl[i], got[i]); m {
-                            paths = append(paths, map[string]any{"index": i, "tupleIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
+                            paths = append(paths, map[string]any{"index": i, "tupleIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp, "expectedPos": expPos})
                         }
                     }
                 }
-                data := map[string]any{"count": len(mismatchIndices), "indices": mismatchIndices}
+                data := map[string]any{"function": funcName, "count": len(mismatchIndices), "indices": mismatchIndices}
                 if len(paths) > 0 { data["paths"] = paths }
                 // emit a summary aggregate alongside per-element diagnostics
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TUPLE_MISMATCH_SUMMARY", Message: "multiple return elements mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}, Data: data})

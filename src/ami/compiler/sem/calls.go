@@ -126,10 +126,13 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
             pt := s.params[i]
             at := inferExprTypeWithVars(c.Args[i], vars)
             if m, p, idx, fp, b, _, _ := findGenericArityMismatchWithFields(pt, at); m {
-                paths = append(paths, map[string]any{"argIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
+                e := map[string]any{"argIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp}
+                if i < len(s.paramTypePos) { e["expectedPos"] = s.paramTypePos[i] }
+                paths = append(paths, e)
             } else if m2, p2, idx2, fp2, b2, _, _ := findGenericArityMismatchDeepPathTextFields(pt, at); m2 {
                 e := map[string]any{"argIndex": i, "base": b2, "path": p2, "pathIdx": idx2}
                 if len(fp2) > 0 { e["fieldPath"] = fp2 }
+                if i < len(s.paramTypePos) { e["expectedPos"] = s.paramTypePos[i] }
                 paths = append(paths, e)
             }
         }

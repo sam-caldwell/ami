@@ -4,6 +4,7 @@ import (
     "testing"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
+    "strings"
 )
 
 // Driver-level: pointer-like param (pointer<int>) should cause backend emission error (E_LLVM_EMIT).
@@ -14,7 +15,15 @@ func TestCompile_ABI_EmitError_OnPointerParam(t *testing.T) {
     pkgs := []Package{{Name: "app", Files: fs}}
     _, diags := Compile(ws, pkgs, Options{Debug: true})
     found := false
-    for _, d := range diags { if d.Code == "E_LLVM_EMIT" { found = true; break } }
+    for _, d := range diags {
+        if d.Code == "E_LLVM_EMIT" {
+            if !strings.Contains(strings.ToLower(d.Message), "unsafe pointer type in param") {
+                t.Fatalf("expected E_LLVM_EMIT message to contain 'unsafe pointer type in param'; got %q", d.Message)
+            }
+            found = true
+            break
+        }
+    }
     if !found { t.Fatalf("expected E_LLVM_EMIT for pointer-like param; got %+v", diags) }
 }
 
@@ -26,7 +35,14 @@ func TestCompile_ABI_EmitError_OnPointerResult(t *testing.T) {
     pkgs := []Package{{Name: "app", Files: fs}}
     _, diags := Compile(ws, pkgs, Options{Debug: true})
     found := false
-    for _, d := range diags { if d.Code == "E_LLVM_EMIT" { found = true; break } }
+    for _, d := range diags {
+        if d.Code == "E_LLVM_EMIT" {
+            if !strings.Contains(strings.ToLower(d.Message), "unsafe pointer type in result") {
+                t.Fatalf("expected E_LLVM_EMIT message to contain 'unsafe pointer type in result'; got %q", d.Message)
+            }
+            found = true
+            break
+        }
+    }
     if !found { t.Fatalf("expected E_LLVM_EMIT for pointer-like result; got %+v", diags) }
 }
-

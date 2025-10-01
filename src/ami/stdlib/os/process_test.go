@@ -1,4 +1,4 @@
-package amios
+package os
 
 import (
     "bytes"
@@ -27,6 +27,8 @@ func TestExecAndStart_Async_StatusCompletes(t *testing.T) {
     p, err := Exec("go", "env", "GOOS")
     if err != nil { t.Fatalf("exec: %v", err) }
     if err := p.Start(false); err != nil { t.Fatalf("start(async): %v", err) }
+    // Close stdin early to avoid exec goroutine blocking when the program does not read stdin.
+    if w, err := p.Stdin(); err == nil { _ = w.Close() }
     if pid := p.Pid(); pid <= 0 { t.Fatalf("expected pid > 0 after start, got %d", pid) }
     // Poll for completion up to 2s
     deadline := time.Now().Add(2 * time.Second)
@@ -48,4 +50,3 @@ func TestExecAndStart_Async_StatusCompletes(t *testing.T) {
     }
     t.Fatalf("process did not complete in time; status: %+v", p.Status())
 }
-

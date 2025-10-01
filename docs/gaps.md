@@ -19,7 +19,7 @@ Known items
   - exec.SandboxPolicy exists for simulated runtime tests. Consider adding `ami run` flags to allow specifying fs/net/device capability policies for examples and demos.
 
 - Examples/docs cohesion:
-  - Minimal POP example validated in tests (multi‑target). `examples/simple` and `examples/complex` are available; docs/examples.md describes usage. Optionally add a short POP quickstart snippet referencing `examples/simple`.
+  - Minimal POP example validated in tests (multi‑target). `examples/simple` and `examples/complex` are available; docs/toolchain/examples.md describes usage. Optionally add a short POP quickstart snippet referencing `examples/simple`.
 
 - Diagnostics reference upkeep:
   - `docs/diag-codes.md` can be regenerated with `make gen-diag-codes`. Keep in sync after introducing new diagnostic codes.

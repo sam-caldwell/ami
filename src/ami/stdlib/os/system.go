@@ -1,7 +1,7 @@
-package amios
+package os
 
 import (
-    "os"
+    goos "os"
     "os/exec"
     "runtime"
     "strconv"
@@ -23,7 +23,7 @@ func GetSystemStats() SystemStats {
     // Try to get total memory by platform
     switch runtime.GOOS {
     case "linux":
-        if b, err := os.ReadFile("/proc/meminfo"); err == nil {
+        if b, err := goos.ReadFile("/proc/meminfo"); err == nil {
             // Look for "MemTotal:       16341656 kB"
             lines := strings.Split(string(b), "\n")
             for _, ln := range lines {

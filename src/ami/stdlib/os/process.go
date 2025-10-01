@@ -1,4 +1,4 @@
-package amios
+package os
 
 import (
     "bytes"
@@ -32,6 +32,8 @@ func Exec(program string, args ...string) (*Process, error) {
     pr, pw := io.Pipe()
     c.Stdin = pr
     p.stdin = pw
+    // Apply platform process attributes (e.g., setpgid on Unix)
+    applySysProcAttr(c)
     return p, nil
 }
 
@@ -45,6 +47,8 @@ func (p *Process) Start(block bool) error {
     p.started = true
     p.mu.Unlock()
     if block {
+        // Close stdin writer to avoid childStdin goroutine blocking during Run when no input is required.
+        if p.stdin != nil { _ = p.stdin.Close() }
         if err := p.cmd.Run(); err != nil {
             if ee := exitCodeFromError(err); ee != nil { p.setExitCode(*ee) }
             return err
@@ -61,6 +65,8 @@ func (p *Process) Start(block bool) error {
 // Kill terminates the process immediately.
 func (p *Process) Kill() error {
     if p == nil || p.cmd == nil || p.cmd.Process == nil { return errInvalidProcess }
+    // Attempt to kill the entire process group when supported (e.g., Unix setpgid)
+    if err := killProcessGroup(p.cmd.Process); err == nil { return nil }
     return p.cmd.Process.Kill()
 }
 

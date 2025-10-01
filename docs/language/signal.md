@@ -26,6 +26,5 @@ pipeline P(){
 ```
 
 Notes
-- `signal.Register` takes a `SignalType` (e.g., `SIGINT`, `SIGTERM`) and a handler function.
+- `signal.register` takes a `SignalType` (e.g., `SIGINT`, `SIGTERM`) and a handler function.
 - Handlers run sequentially when a matching signal arrives.
-- See `docs/stdlib/signal.md` for the concrete Go API and behavior.

@@ -863,7 +863,7 @@ subcommands:
         expectations:
           - id: E-14-1
             statement: |
-              As a user, I expect `ami help` to display embedded content sourced from `docs/help-guide/**/*.md` via 
+              As a user, I expect `ami help` to display embedded content sourced from `docs/toolchain/help-guide/**/*.md` via 
               `go:embed` with consistent formatting and paging behavior.
             dependencies: []
             status: complete

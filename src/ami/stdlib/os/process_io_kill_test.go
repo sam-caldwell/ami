@@ -1,7 +1,7 @@
-package amios
+package os
 
 import (
-    "os"
+    goos "os"
     "path/filepath"
     "os/exec"
     "strings"
@@ -21,7 +21,7 @@ func main(){
   io.Copy(os.Stdout, os.Stdin)
 }`
     file := filepath.Join(dir, "main.go")
-    if err := os.WriteFile(file, []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    if err := goos.WriteFile(file, []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
     p, err := Exec("go", "run", file)
     if err != nil { t.Fatalf("exec: %v", err) }
     if err := p.Start(false); err != nil { t.Fatalf("start: %v", err) }
@@ -59,7 +59,7 @@ func main(){
   time.Sleep(10 * time.Second)
 }`
     file := filepath.Join(dir, "main.go")
-    if err := os.WriteFile(file, []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
+    if err := goos.WriteFile(file, []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
     bin := filepath.Join(dir, "sleepbin")
     // Build the binary to avoid killing only the go tool process
     if out, err := exec.Command("go", "build", "-o", bin, file).CombinedOutput(); err != nil {

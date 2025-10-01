@@ -28,4 +28,4 @@ pipeline P(){
 Notes
 - `time.Sleep(d)` accepts a duration value (e.g., `100ms`, `1s`).
 - `time.Now()` returns a `time.Time` value; `time.Add(t, d)` adds a duration; `time.Delta(t1, t2)` returns the difference.
-- See `docs/stdlib/time.md` for the concrete Go API and behavior.
+- See `docs/language/stdlib/time.md` for the concrete Go API and behavior.

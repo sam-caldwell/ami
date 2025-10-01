@@ -1,88 +1,78 @@
 # Stdlib: io (Files, Stdio, Network)
 
-The `io` stdlib package provides deterministic file handles and basic networking utilities, including UDP/TCP sockets.
+The `io` module provides deterministic file handles and basic networking utilities, including UDP/TCP sockets, for AMI programs.
 
-API (Go package `io`)
+API (AMI module `io`)
 
-File handles (`FHO`)
-- `type FHO`: file/stream handle that ensures operations after `Close()` fail with `ErrClosed`.
-- `Open(name string) (*FHO, error)`: open existing file read‑only.
-- `Create(name string) (*FHO, error)`: create or truncate for write.
-- `OpenFile(name string, flag int, perm os.FileMode) (*FHO, error)`: general open.
-- `(*FHO).Read(p []byte) (int, error)`, `(*FHO).Write(p []byte) (int, error)`; aliases `ReadBytes`, `WriteBytes`.
-- `(*FHO).Seek(offset int64, whence int) (int64, error)`, `(*FHO).Pos() (int64, error)`.
-- `(*FHO).Length() (int64, error)`, `(*FHO).Truncate(n int64) error`, `(*FHO).Flush() error` (fsync).
-- `(*FHO).Name() string`: last known path (safe after close).
-- `(*FHO).Close() error`: idempotent close; marks handle closed. Further ops return `ErrClosed`.
+- Files
+  - `func io.open(path string) (File, error)` — open existing file read‑only.
+  - `func io.create(path string) (File, error)` — create or truncate for write.
+  - `func io.openFile(path string, flag int, perm int) (File, error)` — general open (flags like read/write/append).
+  - `method File.read(n int) (bytes, error)`; `method File.write(b bytes) (int, error)`.
+  - `method File.seek(offset int64, whence int) (int64, error)`; `method File.pos() (int64, error)`.
+  - `method File.len() (int64, error)`; `method File.truncate(n int64) error`; `method File.flush() error`.
+  - `method File.name() string`; `method File.close() error` — operations after close return `ErrClosed`.
+  - Stdio: `io.stdin`, `io.stdout`, `io.stderr` (special `File` handles; `close()` marks closed but does not close the process stdio).
 
-Stdio wrappers
-- `var Stdin, Stdout, Stderr *FHO`: safe wrappers. `Close()` marks closed but does not close process stdio.
+- Temp/stat & host info
+  - `func io.createTemp([dir], [dir,suffix]) (File, error)`; `func io.createTempDir() (string, error)`.
+  - `type FileInfo { name string, size int64, mode int, modTime Time, isDir bool }`.
+  - `func io.stat(path string) (FileInfo, error)` — file metadata snapshot.
+  - `func io.hostname() (string, error)` — system hostname.
+  - `type NetInterface { index int, name string, mtu int, flags string, addrs slice<string> }`.
+  - `func io.interfaces() (slice<NetInterface>, error)` — list interfaces and addresses.
 
-Temp and stat helpers
-- `CreateTemp([dir], [dir,suffix]) (*FHO, error)`: create temp file under `os.TempDir()` (optionally under subdir and/or with suffix).
-- `CreateTempDir() (string, error)`: create unique temp directory under `os.TempDir()`.
-- `type FileInfo { Name string; Size int64; Mode os.FileMode; ModTime time.Time; IsDir bool }`.
-- `Stat(path string) (FileInfo, error)`: simplified `os.Stat`.
-
-Host/network info
-- `Hostname() (string, error)`: system hostname.
-- `type NetInterface { Index int; Name string; MTU int; Flags string; Addrs []string }`.
-- `Interfaces() ([]NetInterface, error)`: list available interfaces and addresses.
-
-Sockets
-- `type NetProtocol = string`: one of `TCP`, `UDP`, `ICMP` (ICMP not implemented).
-- `type Socket`: UDP/TCP abstraction with buffered writes and simple receive handlers.
-- `OpenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error)`:
-  - UDP: bind a datagram socket on `addr:port` (use `0` for ephemeral). Use `Write` + `SendTo` to transmit.
-  - TCP: connect to `addr:port`. Use `Write` + `Send` to transmit.
-- `ListenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error)`:
-  - UDP: same as `OpenSocket(UDP, ...)` (bound listener).
-  - TCP: create a listening server socket on `addr:port` for incoming connections.
-- `(*Socket).Write(p []byte) (int, error)`: buffer bytes for next send.
-- `(*Socket).Send() error`: send buffered bytes (TCP connected sockets). Not supported for UDP listeners.
-- `(*Socket).SendTo(host string, port uint16) error`: UDP send to remote for UDP listeners.
-- `(*Socket).Listen(handler func([]byte)) error`: register a callback for each received message.
-- `(*Socket).Close() error`: idempotent close. Further ops return `ErrClosed`.
+- Sockets
+  - `const io.TCP, io.UDP` (ICMP not implemented).
+  - `type Socket` — UDP/TCP abstraction with buffered writes and receive handlers.
+  - `func io.openSocket(proto string, addr string, port int) (Socket, error)` —
+    - UDP: bind `addr:port` (use `0` for ephemeral); use `write` + `sendTo` to transmit.
+    - TCP: connect to `addr:port`; use `write` + `send` to transmit.
+  - `func io.listenSocket(proto string, addr string, port int) (Socket, error)` —
+    - UDP: same as `openSocket(UDP, ...)` (bound listener).
+    - TCP: create a listening server socket on `addr:port` for incoming connections.
+  - `method Socket.write(b bytes) (int, error)`; `method Socket.send() error`; `method Socket.sendTo(host string, port int) error` (UDP);
+    `method Socket.listen(handler func(bytes)) error`; `method Socket.close() error`.
 
 Notes
 - `ErrClosed` is returned by file and socket methods after the handle is closed.
-- UDP listeners cannot use `Send()`; use `SendTo()` with a remote address.
-- TCP `Listen(handler)` supports both server sockets (accept loop) and connected client sockets (read loop).
+- UDP listeners cannot use `send()`; use `sendTo()` with a remote address.
+- TCP `listen(handler)` supports both server sockets (accept loop) and connected client sockets (read loop).
 
-Examples
+Examples (AMI)
 - File round‑trip
-  ```go
-  f, _ := io.Create("/tmp/demo.txt")
-  _, _ = f.Write([]byte("hello"))
-  _ = f.Flush()
-  _ = f.Close()
-  f2, _ := io.Open("/tmp/demo.txt")
-  buf := make([]byte, 8)
-  n, _ := f2.Read(buf)
-  _ = f2.Close()
-  _ = n
   ```
+  import io
+  var f, _ = io.create("/tmp/demo.txt")
+  _, _ = f.write(stringToBytes("hello"))
+  _ = f.flush()
+  _ = f.close()
+  var f2, _ = io.open("/tmp/demo.txt")
+  var b, _ = f2.read(8)
+  _ = f2.close()
+  ```
+
 - UDP send/receive
-  ```go
-  // Listener on fixed port (example)
-  const port uint16 = 9000
-  srv, _ := io.OpenSocket(io.UDP, "127.0.0.1", port)
-  _ = srv.Listen(func(b []byte){ /* handle b */ })
-
-  // Client
-  cli, _ := io.OpenSocket(io.UDP, "127.0.0.1", 0)
-  _, _ = cli.Write([]byte("ping"))
-  _ = cli.SendTo("127.0.0.1", port)
   ```
+  import io
+  var port = 9000
+  var srv, _ = io.openSocket(io.UDP, "127.0.0.1", port)
+  _ = srv.listen(func(msg bytes){ /* handle msg */ })
+
+  var cli, _ = io.openSocket(io.UDP, "127.0.0.1", 0)
+  _, _ = cli.write(stringToBytes("ping"))
+  _ = cli.sendTo("127.0.0.1", port)
+  ```
+
 - TCP client and simple server
-  ```go
-  // Server on fixed port (example)
-  const port uint16 = 9100
-  srv, _ := io.ListenSocket(io.TCP, "127.0.0.1", port)
-  _ = srv.Listen(func(b []byte){ /* handle incoming */ })
-
-  // Client connect and send
-  c, _ := io.OpenSocket(io.TCP, "127.0.0.1", port)
-  _, _ = c.Write([]byte("hello"))
-  _ = c.Send()
   ```
+  import io
+  var port = 9100
+  var srv, _ = io.listenSocket(io.TCP, "127.0.0.1", port)
+  _ = srv.listen(func(b bytes){ /* handle incoming */ })
+
+  var c, _ = io.openSocket(io.TCP, "127.0.0.1", port)
+  _, _ = c.write(stringToBytes("hello"))
+  _ = c.send()
+  ```
+

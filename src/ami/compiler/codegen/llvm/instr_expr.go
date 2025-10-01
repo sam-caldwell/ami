@@ -30,6 +30,18 @@ func lowerExpr(e ir.Expr) string {
                 ret = "i64"
             case "ami_rt_alloc", "ami_rt_owned_ptr", "ami_rt_owned_new":
                 ret = "ptr"
+            case "ami_rt_sleep_ms":
+                ret = "void"
+            case "ami_rt_time_now":
+                ret = "i64"
+            case "ami_rt_time_add":
+                ret = "i64"
+            case "ami_rt_time_delta":
+                ret = "i64"
+            case "ami_rt_time_unix":
+                ret = "i64"
+            case "ami_rt_time_unix_nano":
+                ret = "i64"
             default:
                 // fall back to result type when provided
                 if e.Result != nil { ret = mapType(e.Result.Type) } else { ret = "void" }

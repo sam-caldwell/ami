@@ -19,6 +19,8 @@ import (
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
+    atrigger "github.com/sam-caldwell/ami/src/ami/stdlib/trigger"
+    aio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
 )
 
 func newRunCmd() *cobra.Command {
@@ -37,6 +39,8 @@ func newRunCmd() *cobra.Command {
     var format string
     var filterExpr string
     var transformExpr string
+    var netAddr string
+    var netPort int
     cmd := &cobra.Command{
         Use:   "run",
         Short: "Simulate a pipeline with merge Collect nodes using IR + runtime executor",
@@ -134,6 +138,31 @@ func newRunCmd() *cobra.Command {
                     }
                     close(in); close(done)
                 }()
+            case "net.tcp":
+                if netAddr == "" { netAddr = "127.0.0.1" }
+                if netPort < 0 || netPort > 65535 { return fmt.Errorf("invalid --net-port: %d", netPort) }
+                l, err := atrigger.NetListen(aio.TCP, netAddr, uint16(netPort))
+                if err != nil { return err }
+                go func(){
+                    defer close(in)
+                    defer close(done)
+                    defer l.Close()
+                    for {
+                        select {
+                        case nm := <-l.Events():
+                            payload := map[string]any{
+                                "protocol": string(nm.Value.Protocol),
+                                "payload":  nm.Value.Payload,
+                                "remote":   map[string]any{"host": nm.Value.RemoteHost, "port": nm.Value.RemotePort},
+                                "local":    map[string]any{"host": nm.Value.LocalHost, "port": nm.Value.LocalPort},
+                                "ts":       time.Unix(nm.Value.Time.Unix(), nm.Value.Time.UnixNano()-nm.Value.Time.Unix()*1_000_000_000).UTC(),
+                            }
+                            in <- ev.Event{Payload: payload}
+                        case <-ctx.Done():
+                            return
+                        }
+                    }
+                }()
             default:
                 var r *bufio.Scanner
                 if eventsPath == "" || eventsPath == "-" { r = bufio.NewScanner(os.Stdin) } else { f, err := os.Open(eventsPath); if err != nil { return err }; defer f.Close(); r = bufio.NewScanner(f) }
@@ -215,9 +244,11 @@ func newRunCmd() *cobra.Command {
     cmd.Flags().StringVar(&timeout, "timeout", "", "overall run timeout (e.g., 5s, 1m)")
     cmd.Flags().BoolVar(&stats, "stats", false, "print a summary of outputs and duration")
     cmd.Flags().IntVar(&collectIndex, "collect-index", -1, "run only the specified Collect step index (default: chain all)")
-    cmd.Flags().StringVar(&srcType, "source", "auto", "event source: auto|file|timer")
+    cmd.Flags().StringVar(&srcType, "source", "auto", "event source: auto|file|timer|net.tcp")
     cmd.Flags().StringVar(&rate, "rate", "", "timer rate (e.g., 10/s or 100ms)")
     cmd.Flags().IntVar(&count, "count", 0, "timer events to emit (0=unlimited)")
+    cmd.Flags().StringVar(&netAddr, "net-addr", "127.0.0.1", "network listen address (for source=net.tcp)")
+    cmd.Flags().IntVar(&netPort, "net-port", 0, "network listen port (0=auto) (for source=net.tcp)")
     cmd.Flags().StringVar(&sink, "sink", "stdout", "sink: stdout|file")
     cmd.Flags().StringVar(&sinkPath, "sink-path", "", "sink file path when --sink=file")
     cmd.Flags().StringVar(&format, "format", "jsonl", "output format: jsonl|pretty")

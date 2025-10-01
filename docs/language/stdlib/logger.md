@@ -1,59 +1,43 @@
 # Stdlib: logger (Pipelines and Sinks)
 
-The `logger` stdlib package provides a buffered pipeline that batches writes to a sink with a configurable backpressure policy and optional JSON field redaction for `log.v1` records.
+The `logger` module provides buffered pipelines that batch writes to a sink with a configurable backpressure policy and optional JSON field redaction for `log.v1` records.
 
-API (Go package `logger`)
-- Backpressure policy: `type BackpressurePolicy` with values `Block`, `DropNewest`, `DropOldest`.
-- `type Sink` interface: `Start() error`, `Write(line []byte) error`, `Close() error`.
-- Built‑in sinks:
-  - `NewFileSink(path string, perm os.FileMode) *FileSink`: append lines to a file, creating parents.
-  - `NewStdoutSink(w io.Writer) *StdoutSink`, `NewStderrSink(w io.Writer) *StderrSink`.
-- `type Config`:
-  - `Capacity int`: channel capacity; `0` means synchronous handoff.
-  - `BatchMax int`: flush when this many lines are buffered.
-  - `FlushInterval time.Duration`: periodic flush; `0` disables time‑based flush.
-  - `Policy BackpressurePolicy`: when the queue is full.
-  - `Sink Sink`: destination.
-  - Redaction (applies to `log.v1` JSON lines only):
-    - `JSONAllowKeys []string`: optional allowlist (keep only these fields).
-    - `JSONDenyKeys []string`: optional denylist (drop these fields).
-    - `JSONRedactKeys []string`: redact exact keys to `"[REDACTED]"`.
-    - `JSONRedactPrefixes []string`: redact any field with a matching key prefix.
-- `NewPipeline(cfg Config) *Pipeline`: create an unstarted pipeline.
-- `(*Pipeline).Start() error`: start background loop; initializes sink.
-- `(*Pipeline).Enqueue(line []byte) error`: queue a line (policy‑dependent on full queue).
-- `(*Pipeline).Close()`: stop loop, drain queue, flush remaining, and close sink.
-- `type Stats { Enqueued, Written, Dropped, Batches, Flushes int64 }`; `(*Pipeline).Stats() Stats`.
+API (AMI module `logger`)
+- Backpressure policy constants: `logger.block`, `logger.dropNewest`, `logger.dropOldest`.
+- Sinks:
+  - `func logger.file(path string, perm int) Sink`
+  - `func logger.stdout() Sink`, `func logger.stderr() Sink`
+- `type PipelineConfig { capacity int, batchMax int, flushIntervalMs int, policy string, sink Sink, redact { allow slice<string>, deny slice<string>, keys slice<string>, prefixes slice<string> } }`
+- `func logger.pipeline(cfg PipelineConfig) Pipeline`
+- `method Pipeline.start() error`, `method Pipeline.enqueue(line bytes) error`, `method Pipeline.close()`
+- `method Pipeline.stats() { enqueued int, written int, dropped int, batches int, flushes int }`
 
 Notes
 - Time‑based flushing (`FlushInterval`) and size‑based flushing (`BatchMax`) can be combined.
 - Redaction runs only when a line parses as a `log.v1` JSON record (see `schemas/log`); other lines bypass redaction.
 - `DropNewest` and `DropOldest` increment the `Dropped` counter on policy‑based drops.
 
-Examples
+Examples (AMI)
 - File pipeline with batching and redaction
-  ```go
-  fs := logger.NewFileSink("build/debug/activity.log", 0)
-  p := logger.NewPipeline(logger.Config{
-      Capacity: 1024,
-      BatchMax: 64,
-      FlushInterval: 250 * time.Millisecond,
-      Policy: logger.Block,
-      Sink:   fs,
-      JSONRedactKeys:     []string{"password"},
-      JSONRedactPrefixes: []string{"secret.", "meta."},
+  ```
+  import logger
+  var p = logger.pipeline({
+    capacity: 1024,
+    batchMax: 64,
+    flushIntervalMs: 250,
+    policy: logger.block,
+    sink: logger.file("build/debug/activity.log", 0o644),
+    redact: { keys: ["password"], prefixes: ["secret.", "meta."] },
   })
-  _ = p.Start()
-  _ = p.Enqueue([]byte("{\"schema\":\"log.v1\",\"timestamp\":\"...\",\"level\":\"info\",\"message\":\"ok\",\"fields\":{\"password\":\"x\",\"meta.token\":\"y\"}}\n"))
-  p.Close()
-  st := p.Stats()
-  _ = st
+  _ = p.start()
+  _ = p.enqueue(stringToBytes("{\"schema\":\"log.v1\",\"timestamp\":\"...\",\"level\":\"info\",\"message\":\"ok\",\"fields\":{\"password\":\"x\",\"meta.token\":\"y\"}}\n"))
+  p.close()
+  var st = p.stats()
   ```
 - Stdout sink without batching
-  ```go
-  p := logger.NewPipeline(logger.Config{Capacity: 0, BatchMax: 1, Sink: logger.NewStdoutSink(nil)})
-  _ = p.Start()
-  _ = p.Enqueue([]byte("hello\n"))
-  p.Close()
   ```
-
+  var p = logger.pipeline({capacity: 0, batchMax: 1, sink: logger.stdout()})
+  _ = p.start()
+  _ = p.enqueue(stringToBytes("hello\n"))
+  p.close()
+  ```

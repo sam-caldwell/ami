@@ -55,6 +55,16 @@ func collectExterns(m ir.Module) []string {
                         add("ami_rt_zeroize_owned")
                     case "ami_rt_sleep_ms":
                         add("ami_rt_sleep_ms")
+                    case "ami_rt_time_now":
+                        add("ami_rt_time_now")
+                    case "ami_rt_time_add":
+                        add("ami_rt_time_add")
+                    case "ami_rt_time_delta":
+                        add("ami_rt_time_delta")
+                    case "ami_rt_time_unix":
+                        add("ami_rt_time_unix")
+                    case "ami_rt_time_unix_nano":
+                        add("ami_rt_time_unix_nano")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     // Include deferred calls in extern set
@@ -77,6 +87,16 @@ func collectExterns(m ir.Module) []string {
                             add("ami_rt_zeroize_owned")
                         case "ami_rt_sleep_ms":
                             add("ami_rt_sleep_ms")
+                        case "ami_rt_time_now":
+                            add("ami_rt_time_now")
+                        case "ami_rt_time_add":
+                            add("ami_rt_time_add")
+                        case "ami_rt_time_delta":
+                            add("ami_rt_time_delta")
+                        case "ami_rt_time_unix":
+                            add("ami_rt_time_unix")
+                        case "ami_rt_time_unix_nano":
+                            add("ami_rt_time_unix_nano")
                         }
                     }
                 }

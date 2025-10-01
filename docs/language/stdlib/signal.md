@@ -1,11 +1,11 @@
 # Stdlib: signal
 
-The `signal` stdlib package provides basic signal handling.
+The `signal` module provides basic process signal handling for AMI programs.
 
-API (Go package `amsignal`)
-- `type SignalType`: enum-like type for common signals (`SIGINT`, `SIGTERM`, `SIGHUP`, `SIGQUIT`).
-- `Register(sig SignalType, fn func())`: register a handler for a signal (multiple handlers allowed).
-- `Reset()`: test helper to clear handlers and stop notifications.
+API (AMI module `signal`)
+- `type SignalType` — enum‑like type for common signals (`SIGINT`, `SIGTERM`, `SIGHUP`, `SIGQUIT`).
+- `func signal.register(sig SignalType, fn func())` — register a handler (multiple handlers allowed).
+- `func signal.reset()` — test helper to clear handlers and stop notifications.
 
 Notes
 - Handlers are invoked sequentially when a registered signal arrives.
@@ -14,9 +14,11 @@ Notes
   - On Unix-like systems, signals map to their syscall equivalents.
 - Only catchable signals should be used with `Register`.
 
-Examples
-```go
-amsignal.Register(amsignal.SIGINT, func(){
+Examples (AMI)
+```
+import signal
+
+signal.register(SIGINT, func(){
   // cleanup work
 })
 ```

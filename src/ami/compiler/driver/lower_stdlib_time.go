@@ -19,6 +19,50 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
         return ir.Expr{Op: "call", Callee: "ami_rt_sleep_ms", Args: args}, true
     }
+    if strings.HasSuffix(name, ".Now") || name == "time.Now" {
+        // Result is a time handle (opaque i64); use AMI type "Time" for tracking
+        id := st.newTemp()
+        res := &ir.Value{ID: id, Type: "Time"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_time_now", Result: res}, true
+    }
+    if strings.HasSuffix(name, ".Add") || name == "time.Add" {
+        // Args: (Time handle, d ms)
+        var args []ir.Value
+        if len(c.Args) >= 1 {
+            if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil {
+                // coerce time handle to int64 for runtime ABI
+                args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})
+            }
+        }
+        if len(c.Args) >= 2 {
+            if ex, ok := lowerExpr(st, c.Args[1]); ok && ex.Result != nil { args = append(args, *ex.Result) }
+        }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "Time"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_time_add", Args: args, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".Delta") || name == "time.Delta" {
+        var args []ir.Value
+        for i := 0; i < len(c.Args) && i < 2; i++ {
+            if ex, ok := lowerExpr(st, c.Args[i]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
+        }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_time_delta", Args: args, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".UnixNano") || name == "time.UnixNano" {
+        var args []ir.Value
+        if len(c.Args) >= 1 {
+            if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
+        }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_time_unix_nano", Args: args, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".Unix") || name == "time.Unix" {
+        var args []ir.Value
+        if len(c.Args) >= 1 {
+            if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
+        }
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_time_unix", Args: args, Result: res}, true
+    }
     return ir.Expr{}, false
 }
-

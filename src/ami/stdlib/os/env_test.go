@@ -1,17 +1,17 @@
-package amios
+package os
 
 import (
-    "os"
+    goos "os"
     "strings"
     "testing"
 )
 
 func TestEnv_GetSetList(t *testing.T) {
-    name := "AMI_TEST_ENV_" + strings.ReplaceAll(os.Getenv("RANDOM"), " ", "")
+    name := "AMI_TEST_ENV_" + strings.ReplaceAll(goos.Getenv("RANDOM"), " ", "")
     if name == "AMI_TEST_ENV_" { name = "AMI_TEST_ENV_STATIC" }
 
     // Ensure unset or cleared baseline
-    _ = os.Unsetenv(name)
+    _ = goos.Unsetenv(name)
     if val := GetEnv(name); val != "" { t.Fatalf("expected empty before set, got %q", val) }
 
     if err := SetEnv(name, "value1"); err != nil { t.Fatalf("setenv: %v", err) }
@@ -25,4 +25,3 @@ func TestEnv_GetSetList(t *testing.T) {
     for _, k := range ListEnv() { if k == name { found = true; break } }
     if !found { t.Fatalf("ListEnv missing %s", name) }
 }
-

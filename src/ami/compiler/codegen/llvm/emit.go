@@ -40,6 +40,21 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                 if ex.Callee == "ami_rt_sleep_ms" {
                     e.RequireExtern("declare void @ami_rt_sleep_ms(i64)")
                 }
+                if ex.Callee == "ami_rt_time_now" {
+                    e.RequireExtern("declare i64 @ami_rt_time_now()")
+                }
+                if ex.Callee == "ami_rt_time_add" {
+                    e.RequireExtern("declare i64 @ami_rt_time_add(i64, i64)")
+                }
+                if ex.Callee == "ami_rt_time_delta" {
+                    e.RequireExtern("declare i64 @ami_rt_time_delta(i64, i64)")
+                }
+                if ex.Callee == "ami_rt_time_unix" {
+                    e.RequireExtern("declare i64 @ami_rt_time_unix(i64)")
+                }
+                if ex.Callee == "ami_rt_time_unix_nano" {
+                    e.RequireExtern("declare i64 @ami_rt_time_unix_nano(i64)")
+                }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
                     if strings.ToLower(ex.Op) == "call" {
@@ -60,6 +75,16 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                             e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
                         case "ami_rt_sleep_ms":
                             e.RequireExtern("declare void @ami_rt_sleep_ms(i64)")
+                        case "ami_rt_time_now":
+                            e.RequireExtern("declare i64 @ami_rt_time_now()")
+                        case "ami_rt_time_add":
+                            e.RequireExtern("declare i64 @ami_rt_time_add(i64, i64)")
+                        case "ami_rt_time_delta":
+                            e.RequireExtern("declare i64 @ami_rt_time_delta(i64, i64)")
+                        case "ami_rt_time_unix":
+                            e.RequireExtern("declare i64 @ami_rt_time_unix(i64)")
+                        case "ami_rt_time_unix_nano":
+                            e.RequireExtern("declare i64 @ami_rt_time_unix_nano(i64)")
                         }
                     }
                 }
@@ -97,6 +122,16 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                         e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
                     case "ami_rt_sleep_ms":
                         e.RequireExtern("declare void @ami_rt_sleep_ms(i64)")
+                    case "ami_rt_time_now":
+                        e.RequireExtern("declare i64 @ami_rt_time_now()")
+                    case "ami_rt_time_add":
+                        e.RequireExtern("declare i64 @ami_rt_time_add(i64, i64)")
+                    case "ami_rt_time_delta":
+                        e.RequireExtern("declare i64 @ami_rt_time_delta(i64, i64)")
+                    case "ami_rt_time_unix":
+                        e.RequireExtern("declare i64 @ami_rt_time_unix(i64)")
+                    case "ami_rt_time_unix_nano":
+                        e.RequireExtern("declare i64 @ami_rt_time_unix_nano(i64)")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
@@ -118,6 +153,16 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
                             e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
                         case "ami_rt_sleep_ms":
                             e.RequireExtern("declare void @ami_rt_sleep_ms(i64)")
+                        case "ami_rt_time_now":
+                            e.RequireExtern("declare i64 @ami_rt_time_now()")
+                        case "ami_rt_time_add":
+                            e.RequireExtern("declare i64 @ami_rt_time_add(i64, i64)")
+                        case "ami_rt_time_delta":
+                            e.RequireExtern("declare i64 @ami_rt_time_delta(i64, i64)")
+                        case "ami_rt_time_unix":
+                            e.RequireExtern("declare i64 @ami_rt_time_unix(i64)")
+                        case "ami_rt_time_unix_nano":
+                            e.RequireExtern("declare i64 @ami_rt_time_unix_nano(i64)")
                         }
                     }
                 }

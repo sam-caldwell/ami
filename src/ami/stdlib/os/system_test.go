@@ -1,4 +1,4 @@
-package amios
+package os
 
 import (
     "runtime"

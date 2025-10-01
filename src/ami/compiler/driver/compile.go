@@ -293,12 +293,7 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                     if len(kept) > 0 { m.Functions = kept }
                 }
             }
-            // Skip codegen/emit for builtin stdlib stub packages; they provide signatures only.
-            if !have[p.Name] {
-                if opts.Log != nil { opts.Log("unit.skip.codegen", map[string]any{"pkg": p.Name, "unit": unit, "reason": "builtin stdlib"}) }
-                if opts.Log != nil { opts.Log("unit.end", map[string]any{"pkg": p.Name, "unit": unit}) }
-                continue
-            }
+            // Proceed with codegen for all packages; stdlib lowering uses intrinsics/runtime helpers.
             if opts.Debug {
                 if s, err := writeSourcesDebug(p.Name, unit, af); err == nil { bmu.Sources = s }
                 // accumulate resolved sources payload for top-level summary

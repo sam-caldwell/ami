@@ -93,6 +93,8 @@ func exprOffset(e ast.Expr) int {
 func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     if c == nil { return ir.Expr{}, false }
     name := c.Name
+    // math stdlib mapping first
+    if ex, ok := lowerStdlibMath(st, c); ok { return ex, true }
     // Normalize alias-qualified call by suffix when possible
     // Supported time intrinsics: time.Sleep(d)
     // Supported signal intrinsic: signal.Register(sig, fn)
@@ -341,6 +343,46 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         }
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
         return ir.Expr{Op: "lit:0", Result: res}, true
+    }
+    // math package: map to LLVM intrinsics for float64
+    if strings.HasPrefix(name, "math.") {
+        callee := ""
+        switch name {
+        case "math.Sqrt": callee = "llvm.sqrt.f64"
+        case "math.Abs":  callee = "llvm.fabs.f64"
+        case "math.Exp":  callee = "llvm.exp.f64"
+        case "math.Exp2": callee = "llvm.exp2.f64"
+        case "math.Log":  callee = "llvm.log.f64"
+        case "math.Log10": callee = "llvm.log10.f64"
+        case "math.Log2":  callee = "llvm.log2.f64"
+        case "math.Floor": callee = "llvm.floor.f64"
+        case "math.Ceil":  callee = "llvm.ceil.f64"
+        case "math.Trunc": callee = "llvm.trunc.f64"
+        case "math.Round": callee = "llvm.round.f64"
+        case "math.RoundToEven": callee = "llvm.roundeven.f64"
+        case "math.Pow":  callee = "llvm.pow.f64"
+        }
+        if callee != "" {
+            var args []ir.Value
+            for _, a := range c.Args {
+                if ex, ok := lowerExpr(st, a); ok && ex.Result != nil {
+                    args = append(args, ir.Value{ID: ex.Result.ID, Type: "float64"})
+                }
+            }
+            id := st.newTemp(); res := &ir.Value{ID: id, Type: "float64"}
+            return ir.Expr{Op: "call", Callee: callee, Args: args, Result: res}, true
+        }
+        if name == "math.Max" || name == "math.Min" {
+            var args []ir.Value
+            for _, a := range c.Args {
+                if ex, ok := lowerExpr(st, a); ok && ex.Result != nil {
+                    args = append(args, ir.Value{ID: ex.Result.ID, Type: "float64"})
+                }
+            }
+            id := st.newTemp(); res := &ir.Value{ID: id, Type: "float64"}
+            cal := "llvm.maxnum.f64"; if name == "math.Min" { cal = "llvm.minnum.f64" }
+            return ir.Expr{Op: "call", Callee: cal, Args: args, Result: res}, true
+        }
     }
     return ir.Expr{}, false
 }

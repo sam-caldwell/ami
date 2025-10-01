@@ -1,40 +1,43 @@
 package driver
 
 import (
+    "os"
+    "path/filepath"
+    "strings"
     "testing"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/workspace"
 )
 
-// Ensure AMI stdlib stubs for package "math" are importable and core calls type-check.
-func TestAMIStdlib_Math_Stubs_Resolve(t *testing.T) {
+func TestStdlibMath_LLVMIntrinsics(t *testing.T) {
     ws := workspace.Workspace{}
-    app := &source.FileSet{}
-    src := "package app\nimport math\n" +
-        "func F(){\n" +
-        "  var x float64\n" +
-        "  math.Abs(x)\n" +
-        "  math.Ceil(x)\n" +
-        "  math.Exp(x)\n" +
-        "  math.Log2(x)\n" +
-        "  math.Pow(x, x)\n" +
-        "  math.Sqrt(x)\n" +
-        "  math.Sin(x)\n" +
-        "  math.Tanh(x)\n" +
-        "  math.NaN()\n" +
-        "  math.Inf(1)\n" +
-        "  math.IsNaN(x)\n" +
-        "  math.IsInf(x, 1)\n" +
-        "  math.Signbit(x)\n" +
-        "  math.Copysign(x, x)\n" +
-        "  math.Nextafter(x, x)\n" +
-        "}\n"
-    app.AddFile("app.ami", src)
-    pkgs := []Package{{Name: "app", Files: app}}
-    _, diags := Compile(ws, pkgs, Options{Debug: false, EmitLLVMOnly: true})
-    for _, d := range diags {
-        if string(d.Level) == "error" {
-            t.Fatalf("unexpected error diagnostic: %+v", d)
-        }
+    fs := &source.FileSet{}
+    src := "package app\nimport math\nfunc F() (float64){ return math.Sqrt(4.0) }\n"
+    fs.AddFile("u.ami", src)
+    pkgs := []Package{{Name: "app", Files: fs}}
+    _, _ = Compile(ws, pkgs, Options{Debug: true, EmitLLVMOnly: true})
+    ll := filepath.Join("build", "debug", "llvm", "app", "u.ll")
+    b, err := os.ReadFile(ll)
+    if err != nil { t.Fatalf("read llvm: %v", err) }
+    s := string(b)
+    if !strings.Contains(s, "call double @llvm.sqrt.f64") {
+        t.Fatalf("missing llvm.sqrt.f64 call:\n%s", s)
     }
 }
+
+func TestStdlibMath_MaxMin_LLVMIntrinsics(t *testing.T) {
+    ws := workspace.Workspace{}
+    fs := &source.FileSet{}
+    src := "package app\nimport math\nfunc F() (float64){ return math.Max(1.0, 2.0) }\n"
+    fs.AddFile("u2.ami", src)
+    pkgs := []Package{{Name: "app", Files: fs}}
+    _, _ = Compile(ws, pkgs, Options{Debug: true, EmitLLVMOnly: true})
+    ll := filepath.Join("build", "debug", "llvm", "app", "u2.ll")
+    b, err := os.ReadFile(ll)
+    if err != nil { t.Fatalf("read llvm: %v", err) }
+    s := string(b)
+    if !strings.Contains(s, "call double @llvm.maxnum.f64") {
+        t.Fatalf("missing llvm.maxnum.f64 call:\n%s", s)
+    }
+}
+

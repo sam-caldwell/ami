@@ -88,6 +88,17 @@ func lowerExpr(e ir.Expr) string {
     // Basic arithmetic scaffold
     op := strings.ToLower(e.Op)
     switch op {
+    case "select":
+        // Ternary select: cond ? v1 : v2
+        if len(e.Args) >= 3 && e.Result != nil && e.Result.ID != "" {
+            // type of selected values
+            ty := mapType(e.Result.Type)
+            if ty == "void" || ty == "" { ty = mapType(e.Args[1].Type) }
+            // condition is boolean i1
+            return fmt.Sprintf("  %%%s = select i1 %%%s, %s %%%s, %s %%%s\n",
+                e.Result.ID, e.Args[0].ID, ty, e.Args[1].ID, ty, e.Args[2].ID)
+        }
+        return "  ; expr select\n"
     case "load":
         // load <ty>, ptr %p
         if e.Result != nil && e.Result.ID != "" && len(e.Args) >= 1 {

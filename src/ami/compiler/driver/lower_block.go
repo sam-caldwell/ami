@@ -133,6 +133,48 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                 out = append(out, lowerStmtVar(st, v))
             }
         case *ast.AssignStmt:
+            // Ternary conditional assignment: x = (cond ? a : b)
+            if c, ok := v.Value.(*ast.ConditionalExpr); ok {
+                // Lower condition first and branch to then/else blocks, assigning in each.
+                if ex, ok := lowerExpr(st, c.Cond); ok {
+                    if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { out = append(out, ex) }
+                    cid := ""
+                    if ex.Result != nil { cid = ex.Result.ID }
+                    thenName := fmt.Sprintf("then%d", nextID)
+                    elseName := fmt.Sprintf("else%d", nextID)
+                    joinName := fmt.Sprintf("join%d", nextID)
+                    nextID++
+                    out = append(out, ir.CondBr{Cond: ir.Value{ID: cid, Type: "bool"}, TrueLabel: thenName, FalseLabel: elseName})
+                    // then block: lower then-expr and assign
+                    tInstr := []ir.Instruction{}
+                    if tx, ok := lowerExpr(st, c.Then); ok {
+                        if tx.Op != "" || tx.Callee != "" || len(tx.Args) > 0 { tInstr = append(tInstr, tx) }
+                        if tx.Result != nil { tInstr = append(tInstr, ir.Assign{DestID: v.Name, Src: *tx.Result}) }
+                    }
+                    tInstr = append(tInstr, ir.Goto{Label: joinName})
+                    extras = append(extras, ir.Block{Name: thenName, Instr: tInstr})
+                    // else block
+                    eInstr := []ir.Instruction{}
+                    if exx, ok := lowerExpr(st, c.Else); ok {
+                        if exx.Op != "" || exx.Callee != "" || len(exx.Args) > 0 { eInstr = append(eInstr, exx) }
+                        if exx.Result != nil { eInstr = append(eInstr, ir.Assign{DestID: v.Name, Src: *exx.Result}) }
+                    }
+                    eInstr = append(eInstr, ir.Goto{Label: joinName})
+                    extras = append(extras, ir.Block{Name: elseName, Instr: eInstr})
+                    // Lower the remainder of statements into the join block
+                    var rest *ast.BlockStmt
+                    if i+1 < len(b.Stmts) { rest = &ast.BlockStmt{Stmts: b.Stmts[i+1:]} }
+                    joinInstr := []ir.Instruction{}
+                    var joinExtra []ir.Block
+                    if rest != nil {
+                        joinInstr, joinExtra = lowerBlockCFG(st, rest, nextID)
+                        nextID += len(joinExtra) + 1
+                    }
+                    extras = append(extras, ir.Block{Name: joinName, Instr: joinInstr})
+                    extras = append(extras, joinExtra...)
+                    return out, extras
+                }
+            }
             // If destination variable is Owned, wrap RHS via owned_new before assign (copy-on-new)
             if st != nil && st.varTypes != nil {
                 if dtype := st.varTypes[v.Name]; dtype == "Owned" || (len(dtype) >= 6 && dtype[:6] == "Owned<") {

@@ -34,7 +34,8 @@ Notation: EBNF with `?` for optional and `*` for repetition.
 - returnStmt = "return", (expr (",", expr)*)? .
 - exprStmt = expr .
 
-- expr = callExpr | basicLit | ident | containerLit | binaryExpr .
+- expr = conditionalExpr | callExpr | basicLit | ident | containerLit | binaryExpr .
+- conditionalExpr = expr, "?", expr, ":", expr . // right-associative, lowest precedence
 - callExpr = dottedIdent, "(", (expr (",", expr)*)? ")".
 - dottedIdent = ident, (".", ident)* .
 - basicLit = number | string .
@@ -52,4 +53,3 @@ Notation: EBNF with `?` for optional and `*` for repetition.
 - edge = ident, "->", ident ";"? .
 
 - ident, number, string are scanner‑provided tokens with the usual definitions.
-

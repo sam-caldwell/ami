@@ -15,6 +15,28 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
     // Attempt constant folding first for simpler expressions.
     if fe := foldConst(e); fe != nil { e = fe }
     switch v := e.(type) {
+    case *ast.ConditionalExpr:
+        // Lower condition, then and else branches into a single SSA select.
+        cx, okc := lowerExpr(st, v.Cond)
+        tx, okt := lowerExpr(st, v.Then)
+        ex, oke := lowerExpr(st, v.Else)
+        if !okc || !okt || !oke {
+            return ir.Expr{}, false
+        }
+        // Determine a conservative result type: prefer exact match, else 'any'.
+        rtype := "any"
+        if tx.Result != nil && ex.Result != nil {
+            if tx.Result.Type == ex.Result.Type && tx.Result.Type != "" {
+                rtype = tx.Result.Type
+            }
+        }
+        id := st.newTemp()
+        res := &ir.Value{ID: id, Type: rtype}
+        args := []ir.Value{}
+        if cx.Result != nil { args = append(args, *cx.Result) }
+        if tx.Result != nil { args = append(args, *tx.Result) }
+        if ex.Result != nil { args = append(args, *ex.Result) }
+        return ir.Expr{Op: "select", Args: args, Result: res}, true
     case *ast.IdentExpr:
         // ident references a previously defined value; use tracked type when known
         typ := "any"

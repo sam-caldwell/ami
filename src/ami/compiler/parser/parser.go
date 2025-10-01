@@ -736,7 +736,7 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                 continue
             }
             left := p.parseIdentExpr(name, npos)
-            expr := p.parseBinaryRHS(left, 1)
+            expr := p.parseWithTernary(left, 1)
             es := &ast.ExprStmt{Pos: ePos(expr), X: expr, Leading: leading}
             stmts = append(stmts, es)
             if p.cur.Kind == token.SemiSym { p.next() }
@@ -787,7 +787,7 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         } else {
             p.next()
         }
-        return p.parseBinaryRHS(inner, minPrec), true
+        return p.parseWithTernary(inner, minPrec), true
     case token.Bang:
         // unary logical not
         pos := p.cur.Pos
@@ -796,7 +796,7 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         rhs, ok := p.parseExprPrec(6)
         if !ok { return nil, false }
         u := &ast.UnaryExpr{Pos: pos, Op: token.Bang, X: rhs}
-        return p.parseBinaryRHS(u, minPrec), true
+        return p.parseWithTernary(u, minPrec), true
     case token.Minus:
         // unary negation
         pos := p.cur.Pos
@@ -804,7 +804,7 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         rhs, ok := p.parseExprPrec(6)
         if !ok { return nil, false }
         u := &ast.UnaryExpr{Pos: pos, Op: token.Minus, X: rhs}
-        return p.parseBinaryRHS(u, minPrec), true
+        return p.parseWithTernary(u, minPrec), true
     case token.TildeSym:
         // unary bitwise not
         pos := p.cur.Pos
@@ -812,13 +812,13 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         rhs, ok := p.parseExprPrec(6)
         if !ok { return nil, false }
         u := &ast.UnaryExpr{Pos: pos, Op: token.TildeSym, X: rhs}
-        return p.parseBinaryRHS(u, minPrec), true
+        return p.parseWithTernary(u, minPrec), true
     case token.Ident, token.KwSlice, token.KwSet, token.KwMap:
         name := p.cur.Lexeme
         npos := p.cur.Pos
         p.next()
         left := p.parseIdentExpr(name, npos)
-        return p.parseBinaryRHS(left, minPrec), true
+        return p.parseWithTernary(left, minPrec), true
     case token.String:
         v := p.cur.Lexeme
         pos := p.cur.Pos
@@ -826,13 +826,13 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         if len(v) >= 2 { v = v[1:len(v)-1] }
         p.next()
         left := ast.Expr(&ast.StringLit{Pos: pos, Value: v})
-        return p.parseBinaryRHS(left, minPrec), true
+        return p.parseWithTernary(left, minPrec), true
     case token.Number:
         t := p.cur.Lexeme
         pos := p.cur.Pos
         p.next()
         left := ast.Expr(&ast.NumberLit{Pos: pos, Text: t})
-        return p.parseBinaryRHS(left, minPrec), true
+        return p.parseWithTernary(left, minPrec), true
     default:
         return nil, false
     }
@@ -868,6 +868,8 @@ func ePos(e ast.Expr) source.Position {
         return v.Pos
     case *ast.BinaryExpr:
         return v.Pos
+    case *ast.ConditionalExpr:
+        return v.Pos
     case *ast.SliceLit:
         return v.Pos
     case *ast.SetLit:
@@ -879,6 +881,35 @@ func ePos(e ast.Expr) source.Position {
     default:
         return source.Position{}
     }
+}
+
+// parseWithTernary continues parsing binary RHS with precedence and then
+// recognizes the conditional operator: cond ? then : else. The ternary has
+// the lowest precedence and is right-associative.
+func (p *Parser) parseWithTernary(left ast.Expr, minPrec int) ast.Expr {
+    // First, consume any binary operators per precedence table.
+    left = p.parseBinaryRHS(left, minPrec)
+    // Then, check for conditional operator.
+    if p.cur.Kind == token.QuestionSym {
+        // consume '?'
+        p.next()
+        // parse 'then' expression
+        thenExpr, ok := p.parseExprPrec(1)
+        if !ok {
+            return left
+        }
+        // expect ':'
+        if p.cur.Kind != token.ColonSym {
+            return left
+        }
+        p.next()
+        elseExpr, ok := p.parseExprPrec(1)
+        if !ok {
+            return left
+        }
+        return &ast.ConditionalExpr{Pos: ePos(left), Cond: left, Then: thenExpr, Else: elseExpr}
+    }
+    return left
 }
 
 // parseIdentExpr parses an identifier-led expression where the initial ident

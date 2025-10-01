@@ -7,7 +7,6 @@ import (
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
     amitrigger "github.com/sam-caldwell/ami/src/ami/stdlib/trigger"
     amitime "github.com/sam-caldwell/ami/src/ami/stdlib/time"
-    amiio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
 )
 
@@ -106,7 +105,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
             hasTimer := false
             for _, n := range nodes { if n == "Timer" { hasTimer = true; break } }
             // Use timer when explicitly requested, or when present in edges and source=auto
-            if opts.SourceType == "timer" || (hasTimer && opts.SourceType == "auto") {
+            if hasTimer {
                 if err := sandboxCheck(opts.Sandbox, "device"); err != nil { return nil, nil, err }
                 ch := make(chan ev.Event, 1024)
                 var st rmerge.Stats
@@ -128,37 +127,6 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                         }
                     }
                     close(ch); forwardStats(StageInfo{Name:"Timer", Kind:"ingress", Index:0}, st)
-                }()
-                cur = ch
-            } else if opts.SourceType == "net.tcp" {
-                if err := sandboxCheck(opts.Sandbox, "net"); err != nil { return nil, nil, err }
-                addr := opts.NetAddr; if addr == "" { addr = "127.0.0.1" }
-                proto := opts.NetProtocol; if proto == "" { proto = amiio.TCP }
-                l, err := amitrigger.NetListen(proto, addr, opts.NetPort)
-                if err != nil { return nil, nil, err }
-                ch := make(chan ev.Event, 1024)
-                var st rmerge.Stats
-                go func(){
-                    defer l.Close()
-                    for {
-                        select {
-                        case <-ctx.Done():
-                            close(ch)
-                            forwardStats(StageInfo{Name:"NetListen", Kind:"ingress", Index:0}, st)
-                            return
-                        case nm := <-l.Events():
-                            st.Enqueued++
-                            payload := map[string]any{
-                                "protocol": string(nm.Value.Protocol),
-                                "payload":  nm.Value.Payload,
-                                "remote":   map[string]any{"host": nm.Value.RemoteHost, "port": nm.Value.RemotePort},
-                                "local":    map[string]any{"host": nm.Value.LocalHost, "port": nm.Value.LocalPort},
-                                "ts":       toStdTime(nm.Value.Time),
-                            }
-                            ch <- ev.Event{Payload: payload}
-                            st.Emitted++
-                        }
-                    }
                 }()
                 cur = ch
             } else {
@@ -195,63 +163,8 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
     }
     // Fallback: IR collect order with transform stubs as identity
     var cur <-chan ev.Event
-    if opts.SourceType == "timer" {
-        if err := sandboxCheck(opts.Sandbox, "device"); err != nil { return nil, nil, err }
-        ch := make(chan ev.Event, 1024)
-        var st rmerge.Stats
-        go func(){
-            tCh, stop := amitrigger.Timer(amitime.Duration(opts.TimerInterval))
-            defer stop()
-            i := 0
-            for {
-                if opts.TimerCount > 0 && i >= opts.TimerCount { break }
-                select {
-                case <-ctx.Done():
-                    break
-                case tm := <-tCh:
-                    st.Enqueued++
-                    ch <- ev.Event{Payload: map[string]any{"i": i, "ts": toStdTime(tm.Value)}}
-                    st.Emitted++
-                    i++
-                }
-            }
-            close(ch); forwardStats(StageInfo{Name:"Timer", Kind:"ingress", Index:0}, st)
-        }()
-        cur = ch
-    } else if opts.SourceType == "net.tcp" {
-        if err := sandboxCheck(opts.Sandbox, "net"); err != nil { return nil, nil, err }
-        addr := opts.NetAddr; if addr == "" { addr = "127.0.0.1" }
-        proto := opts.NetProtocol; if proto == "" { proto = amiio.TCP }
-        l, err := amitrigger.NetListen(proto, addr, opts.NetPort)
-        if err != nil { return nil, nil, err }
-        ch := make(chan ev.Event, 1024)
-        var st rmerge.Stats
-        go func(){
-            defer l.Close()
-            for {
-                select {
-                case <-ctx.Done():
-                    close(ch)
-                    forwardStats(StageInfo{Name:"NetListen", Kind:"ingress", Index:0}, st)
-                    return
-                case nm := <-l.Events():
-                    st.Enqueued++
-                    payload := map[string]any{
-                        "protocol": string(nm.Value.Protocol),
-                        "payload":  nm.Value.Payload,
-                        "remote":   map[string]any{"host": nm.Value.RemoteHost, "port": nm.Value.RemotePort},
-                        "local":    map[string]any{"host": nm.Value.LocalHost, "port": nm.Value.LocalPort},
-                        "ts":       toStdTime(nm.Value.Time),
-                    }
-                    ch <- ev.Event{Payload: payload}
-                    st.Emitted++
-                }
-            }
-        }()
-        cur = ch
-    } else {
-        cur = runIngress(out)
-    }
+    // Rely on IR-defined ingress; do not synthesize sources here
+    cur = runIngress(out)
     cIdx := 0
     for _, p := range m.Pipelines {
         if p.Name != pipeline { continue }

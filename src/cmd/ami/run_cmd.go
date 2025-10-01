@@ -19,7 +19,6 @@ import (
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
     "github.com/sam-caldwell/ami/src/ami/workspace"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
-    aio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
 )
 
 func newRunCmd() *cobra.Command {
@@ -38,8 +37,6 @@ func newRunCmd() *cobra.Command {
     var format string
     var filterExpr string
     var transformExpr string
-    var netAddr string
-    var netPort int
     cmd := &cobra.Command{
         Use:   "run",
         Short: "Simulate a pipeline with merge Collect nodes using IR + runtime executor",
@@ -104,23 +101,39 @@ func newRunCmd() *cobra.Command {
                 if stats { go emitStage(rexec.StageInfo{Name: "Collect", Kind: "collect", Index: collectIndex}, *s) }
                 out = oc
             } else {
-                opts := rexec.ExecOptions{SourceType: srcType, TimerInterval: parseRate(rate), TimerCount: count}
-                if srcType == "net.tcp" {
-                    opts.NetProtocol = aio.TCP
-                    opts.NetAddr = netAddr
-                    opts.NetPort = uint16(netPort)
+                var oc <-chan ev.Event
+                if stats {
+                    outCh, sc, err := eng.RunPipelineWithStats(ctx, module, pipeline, in, emitStage, filterExpr, transformExpr, rexec.ExecOptions{SourceType: srcType, TimerInterval: parseRate(rate), TimerCount: count})
+                    if err != nil { return err }
+                    oc = outCh
+                    stageStats = sc
+                } else {
+                    outCh, err := eng.RunPipeline(ctx, module, pipeline, in)
+                    if err != nil { return err }
+                    oc = outCh
                 }
-                outCh, sc, err := eng.RunPipelineWithStats(ctx, module, pipeline, in, emitStage, filterExpr, transformExpr, opts)
-                if err != nil { return err }
-                out = outCh
-                stageStats = sc
+                out = oc
             }
             // Source: file/stdin or timer
             done := make(chan struct{})
             switch srcType {
-            case "timer", "net.tcp":
-                // handled by executor; no local input producer
-                go func(){ close(done) }()
+            case "timer":
+                d := 100 * time.Millisecond
+                if rate != "" {
+                    if strings.Contains(rate, "/s") {
+                        // events per second
+                        nstr := strings.TrimSuffix(rate, "/s")
+                        if n, err := strconv.Atoi(nstr); err == nil && n > 0 { d = time.Second / time.Duration(n) }
+                    } else if rdur, err := time.ParseDuration(rate); err == nil { d = rdur }
+                }
+                go func(){
+                    max := count
+                    for i := 0; max == 0 || i < max; i++ {
+                        in <- ev.Event{Payload: map[string]any{"i": i, "ts": time.Now().UTC()}}
+                        time.Sleep(d)
+                    }
+                    close(in); close(done)
+                }()
             default:
                 var r *bufio.Scanner
                 if eventsPath == "" || eventsPath == "-" { r = bufio.NewScanner(os.Stdin) } else { f, err := os.Open(eventsPath); if err != nil { return err }; defer f.Close(); r = bufio.NewScanner(f) }
@@ -202,11 +215,9 @@ func newRunCmd() *cobra.Command {
     cmd.Flags().StringVar(&timeout, "timeout", "", "overall run timeout (e.g., 5s, 1m)")
     cmd.Flags().BoolVar(&stats, "stats", false, "print a summary of outputs and duration")
     cmd.Flags().IntVar(&collectIndex, "collect-index", -1, "run only the specified Collect step index (default: chain all)")
-    cmd.Flags().StringVar(&srcType, "source", "auto", "event source: auto|file|timer|net.tcp")
+    cmd.Flags().StringVar(&srcType, "source", "auto", "event source: auto|file|timer")
     cmd.Flags().StringVar(&rate, "rate", "", "timer rate (e.g., 10/s or 100ms)")
     cmd.Flags().IntVar(&count, "count", 0, "timer events to emit (0=unlimited)")
-    cmd.Flags().StringVar(&netAddr, "net-addr", "127.0.0.1", "network listen address (for source=net.tcp)")
-    cmd.Flags().IntVar(&netPort, "net-port", 0, "network listen port (0=auto) (for source=net.tcp)")
     cmd.Flags().StringVar(&sink, "sink", "stdout", "sink: stdout|file")
     cmd.Flags().StringVar(&sinkPath, "sink-path", "", "sink file path when --sink=file")
     cmd.Flags().StringVar(&format, "format", "jsonl", "output format: jsonl|pretty")

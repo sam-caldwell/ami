@@ -8,6 +8,65 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
 
+// handlerTokenImmediate returns an immediate ID ("#<num>") representing a deterministic
+// token for a handler expression. Supports identifiers and selector expressions (alias-qualified).
+// For any other form (future: lambdas), falls back to a stable position-based token.
+func handlerTokenImmediate(e ast.Expr) (string, bool) {
+    name := ""
+    switch v := e.(type) {
+    case *ast.IdentExpr:
+        name = v.Name
+    case *ast.SelectorExpr:
+        // Flatten selector chain to text, e.g., pkg.Func or a.b.c
+        name = selectorText(v)
+    }
+    if name != "" {
+        h := fnv.New64a(); _, _ = h.Write([]byte(name))
+        tok := int64(h.Sum64())
+        return "#" + strconv.FormatInt(tok, 10), true
+    }
+    // Fallback: use position offset to create a deterministic token within the file
+    off := exprOffset(e)
+    if off >= 0 {
+        h := fnv.New64a(); _, _ = h.Write([]byte("anon@" + strconv.Itoa(off)))
+        tok := int64(h.Sum64())
+        return "#" + strconv.FormatInt(tok, 10), true
+    }
+    return "", false
+}
+
+func selectorText(s *ast.SelectorExpr) string {
+    if s == nil { return "" }
+    left := ""
+    switch v := s.X.(type) {
+    case *ast.IdentExpr:
+        left = v.Name
+    case *ast.SelectorExpr:
+        left = selectorText(v)
+    default:
+        left = "?"
+    }
+    if left == "" { left = "?" }
+    return left + "." + s.Sel
+}
+
+func exprOffset(e ast.Expr) int {
+    switch v := e.(type) {
+    case *ast.IdentExpr:
+        return v.Pos.Offset
+    case *ast.CallExpr:
+        return v.Pos.Offset
+    case *ast.SelectorExpr:
+        return v.Pos.Offset
+    case *ast.StringLit:
+        return v.Pos.Offset
+    case *ast.NumberLit:
+        return v.Pos.Offset
+    default:
+        return -1
+    }
+}
+
 // lowerStdlibCall recognizes AMI stdlib calls and lowers them to runtime intrinsics
 // or optimized IR forms. It returns (expr, true) when handled.
 func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
@@ -41,12 +100,10 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
                 }
             }
         }
-        // arg1: handler function reference → opaque handler token (i64) with deterministic hash of function name
+        // arg1: handler function reference → opaque handler token (i64) with deterministic hash of name
         if len(c.Args) >= 2 {
-            if id, ok := c.Args[1].(*ast.IdentExpr); ok && id.Name != "" {
-                h := fnv.New64a(); _, _ = h.Write([]byte(id.Name))
-                tok := int64(h.Sum64())
-                args = append(args, ir.Value{ID: "#"+strconv.FormatInt(tok, 10), Type: "int64"})
+            if tokID, ok := handlerTokenImmediate(c.Args[1]); ok {
+                args = append(args, ir.Value{ID: tokID, Type: "int64"})
             } else {
                 if ex, ok := lowerExpr(st, c.Args[1]); ok && ex.Result != nil {
                     args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"})

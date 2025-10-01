@@ -26,5 +26,6 @@ pipeline P(){
 ```
 
 Notes
-- `signal.register` takes a `SignalType` (e.g., `SIGINT`, `SIGTERM`) and a handler function.
-- Handlers run sequentially when a matching signal arrives.
+- `signal.Register` takes a `SignalType` (e.g., `SIGINT`, `SIGTERM`) and a handler function.
+- `signal.Enable`/`Disable` are optional, explicit OS hooks; `Register` enables OS delivery implicitly in the runtime.
+- Advanced users can call `signal.Install` and `signal.Token` to preinstall handler thunks and exchange tokens deterministically.

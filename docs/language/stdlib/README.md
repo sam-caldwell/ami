@@ -5,6 +5,7 @@ This directory documents the AMI language standard library modules. These module
 - os: process runner, system info, and environment
 - io: files, stdio wrappers, hostname/interfaces, UDP/TCP sockets
 - time: sleep/now/duration arithmetic and a simple ticker
+- signal: process signal registration, enable/disable hooks
 - logger: buffered pipelines with backpressure and JSON redaction
 - enum: descriptor‑driven helpers for generated enums
 
@@ -13,5 +14,6 @@ Open a module guide:
 - ./os.md
 - ./io.md
 - ./time.md
+- ./signal.md
 - ./logger.md
 - ./enum.md

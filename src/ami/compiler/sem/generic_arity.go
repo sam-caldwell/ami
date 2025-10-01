@@ -1,7 +1,9 @@
 package sem
 
 import (
+    "sort"
     "strings"
+    "github.com/sam-caldwell/ami/src/ami/compiler/types"
 )
 
 // genericBaseAndArity returns the generic base name and top-level argument count
@@ -71,9 +73,11 @@ func findGenericArityMismatchDeepPath(expected, actual string) (bool, []string, 
     eb, eargs, eok := baseAndArgs(expected)
     ab, aargs, aok := baseAndArgs(actual)
     if !eok || !aok {
-        if m, b, w, g := isGenericArityMismatch(expected, actual); m {
-            return true, nil, nil, b, w, g
+        // attempt typed detection (handles Struct)
+        if m, path, pathIdx, _, b, w, g := findGenericArityMismatchWithFields(expected, actual); m {
+            return true, path, pathIdx, b, w, g
         }
+        if m, b, w, g := isGenericArityMismatch(expected, actual); m { return true, nil, nil, b, w, g }
         return false, nil, nil, "", 0, 0
     }
     if eb != ab { return false, nil, nil, "", 0, 0 }
@@ -87,6 +91,52 @@ func findGenericArityMismatchDeepPath(expected, actual string) (bool, []string, 
         }
     }
     return false, nil, nil, "", 0, 0
+}
+
+// findGenericArityMismatchWithFields parses both sides and finds a nested generic arity mismatch.
+// Returns a path of generic bases, their argument indices per level, and a struct field path when applicable.
+func findGenericArityMismatchWithFields(expected, actual string) (bool, []string, []int, []string, string, int, int) {
+    et, eerr := types.Parse(expected)
+    at, aerr := types.Parse(actual)
+    if eerr != nil || aerr != nil { return false, nil, nil, nil, "", 0, 0 }
+    return arityMismatchInTypesWithFields(et, at)
+}
+
+func arityMismatchInTypesWithFields(et, at types.Type) (bool, []string, []int, []string, string, int, int) {
+    switch ev := et.(type) {
+    case types.Generic:
+        av, ok := at.(types.Generic); if !ok { return false, nil, nil, nil, "", 0, 0 }
+        if ev.Name != av.Name { return false, nil, nil, nil, "", 0, 0 }
+        if len(ev.Args) != len(av.Args) { return true, []string{ev.Name}, []int{}, nil, ev.Name, len(ev.Args), len(av.Args) }
+        for i := range ev.Args {
+            if m, p, idx, fp, b, w, g := arityMismatchInTypesWithFields(ev.Args[i], av.Args[i]); m {
+                return true, append([]string{ev.Name}, p...), append([]int{i}, idx...), fp, b, w, g
+            }
+        }
+        return false, nil, nil, nil, "", 0, 0
+    case types.Optional:
+        av, ok := at.(types.Optional); if !ok { return false, nil, nil, nil, "", 0, 0 }
+        return arityMismatchInTypesWithFields(ev.Inner, av.Inner)
+    case types.Struct:
+        av, ok := at.(types.Struct); if !ok { return false, nil, nil, nil, "", 0, 0 }
+        // check common fields deterministically
+        keys := make([]string, 0, len(ev.Fields))
+        for k := range ev.Fields { if _, ok := av.Fields[k]; ok { keys = append(keys, k) } }
+        sort.Strings(keys)
+        for _, k := range keys {
+            if m, p, idx, fp, b, w, g := arityMismatchInTypesWithFields(ev.Fields[k], av.Fields[k]); m {
+                // prepend struct marker and field name
+                return true, p, idx, append([]string{"Struct", k}, fp...), b, w, g
+            }
+        }
+        return false, nil, nil, nil, "", 0, 0
+    case types.Named:
+        name := ev.Name
+        if name == "any" || (len(name) == 1 && name[0] >= 'A' && name[0] <= 'Z') { return false, nil, nil, nil, "", 0, 0 }
+        return false, nil, nil, nil, "", 0, 0
+    default:
+        return false, nil, nil, nil, "", 0, 0
+    }
 }
 
 func baseAndArgs(s string) (string, []string, bool) {

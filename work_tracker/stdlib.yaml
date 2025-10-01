@@ -364,14 +364,14 @@ stdlib:
             status: ready
             tests: []
 
-          - id: E-2-1-6
+          - id: E-5-1-6
             statement: |
               As a user, I expect there to be a `time.Add(t1, t2 time.Time)` function which will return t1 + t2.
             dependencies: []
             status: ready
             tests: []
 
-          - id: E-2-1-7
+          - id: E-5-1-7
             statement: |
               As a user,I expect the `time.Time` object to have a .Unix() method which returns a unix timestamp in
               seconds.
@@ -379,7 +379,7 @@ stdlib:
             status: ready
             tests: []
 
-          - id: E-2-1-8
+          - id: E-5-1-8
             statement: |
               As a user,I expect the `time.Time` object to have a .UnixNano() method which returns a unix timestamp in
               nano seconds.
@@ -387,13 +387,75 @@ stdlib:
             status: ready
             tests: []
 
-          - id: E-2-1-9
+      - id: F-5-2
+        name: time handler
+        expectations:
+          - id: E-5-2-1
             statement: |
-              As a user,I expect the `time` package will have a `Ticker` object returned by `NewTicker(d duration)`;
-              the Ticker object will have a `.Start()` method to start the ticker generating tick events; the `Ticker`
-              object will have a `.Stop()` method to stop the ticker from generating tick events; the `Ticker` object
-              will have a `.Register(f func())` method for registering the function which will be executed for every
-              timer tick.
+              As a user, I expect the `time` package will have a `Ticker` object returned by `NewTicker(d duration)`;
+              the object executes a registered function for every clock tick event.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-2-2
+            statement: |
+              As a user, I expect the `time.Ticker` object will have a `.Start()` method to start the ticker generating
+              tick events.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-2-3
+            statement: |
+              As a user, I expect the `time.Ticker` object will have a `.Stop()` method to stop the ticker from 
+              generating tick events.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-2-4
+            statement: |
+              As a user, I expect the `time.Ticker` object will have a `.Register(f func())` method to execute for 
+              each timer tick event.
+            dependencies: []
+            status: ready
+            tests: []
+
+trigger:
+  - id: T-1
+    name: trigger package
+    features:
+      - id: T-1-1
+        name: Ingress Node Trigger Processing Facility
+        expectations:
+          - id: E-1-1-1
+            statement: |
+              As a user, I expect AMI to have a built-in `trigger` package which will provide trigger event facilities
+              for Ingress node `in` attribute.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-2
+            statement: |
+              As a user, I expect AMI to have a `trigger.Timer()` method consistent with the .docx
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-3
+            statement: |
+              As a user, I expect AMI to have a built-in `trigger` package which will provide trigger event facilities
+              for Ingress node `in` attribute.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-4
+            statement: |
+              As a user, I expect AMI to have a built-in `trigger` package which will provide trigger event facilities
+              for Ingress node `in` attribute.
             dependencies: []
             status: ready
             tests: []

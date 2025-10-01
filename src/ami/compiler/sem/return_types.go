@@ -56,8 +56,18 @@ func AnalyzeReturnTypes(f *ast.File) []diag.Record {
                 }
             }
             if len(mismatchIndices) > 1 {
+                var paths []map[string]any
+                for _, i := range mismatchIndices {
+                    if i < len(decl) && i < len(got) {
+                        if m, p, idx, fp, b, _, _ := findGenericArityMismatchWithFields(decl[i], got[i]); m {
+                            paths = append(paths, map[string]any{"index": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
+                        }
+                    }
+                }
+                data := map[string]any{"count": len(mismatchIndices), "indices": mismatchIndices}
+                if len(paths) > 0 { data["paths"] = paths }
                 // emit a summary aggregate alongside per-element diagnostics
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TUPLE_MISMATCH_SUMMARY", Message: "multiple return elements mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}, Data: map[string]any{"count": len(mismatchIndices), "indices": mismatchIndices}})
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_RETURN_TUPLE_MISMATCH_SUMMARY", Message: "multiple return elements mismatch", Pos: &diag.Position{Line: rs.Pos.Line, Column: rs.Pos.Column, Offset: rs.Pos.Offset}, Data: data})
             }
         }
     }

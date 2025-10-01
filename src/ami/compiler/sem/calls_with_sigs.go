@@ -77,7 +77,14 @@ func checkCallWithSigsWithResults(c *ast.CallExpr, params map[string][]string, r
         at := inferExprTypeWithEnvAndResults(a, vars, results)
         pt := sigp[i]
         if pt == "" || pt == "any" || at == "any" { continue }
-        if mismatch, path, pathIdx, base, wantN, gotN := findGenericArityMismatchDeepPath(pt, at); mismatch {
+        if mismatch, path, pathIdx, fieldPath, base, wantN, gotN := findGenericArityMismatchWithFields(pt, at); mismatch {
+            p := epos(a)
+            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "path": path, "pathIdx": pathIdx, "fieldPath": fieldPath, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
+            if v, ok := paramPos[c.Name]; ok && i < len(v) { data["expectedPos"] = v[i] }
+            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
+            mismatchIdx = append(mismatchIdx, i)
+            continue
+        } else if mismatch, path, pathIdx, base, wantN, gotN := findGenericArityMismatchDeepPath(pt, at); mismatch {
             p := epos(a)
             data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "path": path, "pathIdx": pathIdx, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
             if v, ok := paramPos[c.Name]; ok && i < len(v) { data["expectedPos"] = v[i] }
@@ -95,7 +102,19 @@ func checkCallWithSigsWithResults(c *ast.CallExpr, params map[string][]string, r
         }
     }
     if len(mismatchIdx) > 1 {
-        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARGS_MISMATCH_SUMMARY", Message: "multiple call arguments mismatch", Pos: &diag.Position{Line: c.Pos.Line, Column: c.Pos.Column, Offset: c.Pos.Offset}, Data: map[string]any{"count": len(mismatchIdx), "indices": mismatchIdx, "callee": c.Name}})
+        var paths []map[string]any
+        for _, i := range mismatchIdx {
+            pt := sigp[i]
+            at := inferExprTypeWithEnvAndResults(c.Args[i], vars, results)
+            if m, p, idx, fp, b, _, _ := findGenericArityMismatchWithFields(pt, at); m {
+                paths = append(paths, map[string]any{"argIndex": i, "base": b, "path": p, "pathIdx": idx, "fieldPath": fp})
+            } else if m2, p2, idx2, b2, _, _ := findGenericArityMismatchDeepPath(pt, at); m2 {
+                paths = append(paths, map[string]any{"argIndex": i, "base": b2, "path": p2, "pathIdx": idx2})
+            }
+        }
+        data := map[string]any{"count": len(mismatchIdx), "indices": mismatchIdx, "callee": c.Name}
+        if len(paths) > 0 { data["paths"] = paths }
+        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARGS_MISMATCH_SUMMARY", Message: "multiple call arguments mismatch", Pos: &diag.Position{Line: c.Pos.Line, Column: c.Pos.Column, Offset: c.Pos.Offset}, Data: data})
     }
     return out
 }

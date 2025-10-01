@@ -12,6 +12,7 @@ type Socket struct {
     proto  NetProtocol
     pc     net.PacketConn // UDP bound socket
     conn   net.Conn       // TCP connected socket
+    ln     net.Listener   // TCP listening socket
     buf    []byte
     closed bool
 }
@@ -27,6 +28,24 @@ func OpenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error) {
         c, err := net.Dial("tcp", net.JoinHostPort(addr, strconv.Itoa(int(port))))
         if err != nil { return nil, err }
         return &Socket{proto: TCP, conn: c}, nil
+    case ICMP:
+        return nil, errors.New("ICMP not implemented")
+    default:
+        return nil, errors.New("unknown protocol")
+    }
+}
+
+// ListenSocket creates a listening socket for the given protocol.
+// For UDP, this is equivalent to OpenSocket(UDP, addr, port).
+// For TCP, it binds and listens on addr:port for incoming connections.
+func ListenSocket(proto NetProtocol, addr string, port uint16) (*Socket, error) {
+    switch proto {
+    case UDP:
+        return OpenSocket(UDP, addr, port)
+    case TCP:
+        ln, err := net.Listen("tcp", net.JoinHostPort(addr, strconv.Itoa(int(port))))
+        if err != nil { return nil, err }
+        return &Socket{proto: TCP, ln: ln}, nil
     case ICMP:
         return nil, errors.New("ICMP not implemented")
     default:
@@ -85,18 +104,42 @@ func (s *Socket) Listen(handler func(b []byte)) error {
         }()
         return nil
     case TCP:
-        if s.conn == nil { return errors.New("Listen requires TCP connected socket") }
-        go func() {
-            buf := make([]byte, 64*1024)
-            for {
-                n, err := s.conn.Read(buf)
-                if err != nil { return }
-                cp := make([]byte, n)
-                copy(cp, buf[:n])
-                handler(cp)
-            }
-        }()
-        return nil
+        // TCP server listener
+        if s.ln != nil {
+            go func() {
+                for {
+                    c, err := s.ln.Accept()
+                    if err != nil { return }
+                    go func(conn net.Conn){
+                        defer conn.Close()
+                        buf := make([]byte, 64*1024)
+                        for {
+                            n, err := conn.Read(buf)
+                            if err != nil { return }
+                            cp := make([]byte, n)
+                            copy(cp, buf[:n])
+                            handler(cp)
+                        }
+                    }(c)
+                }
+            }()
+            return nil
+        }
+        // TCP connected socket
+        if s.conn != nil {
+            go func() {
+                buf := make([]byte, 64*1024)
+                for {
+                    n, err := s.conn.Read(buf)
+                    if err != nil { return }
+                    cp := make([]byte, n)
+                    copy(cp, buf[:n])
+                    handler(cp)
+                }
+            }()
+            return nil
+        }
+        return errors.New("Listen requires TCP connected or listening socket")
     default:
         return errors.New("unsupported protocol")
     }

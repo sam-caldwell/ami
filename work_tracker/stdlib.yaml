@@ -292,22 +292,108 @@ stdlib:
             status: ready
             tests: [ ]
 
-  - id: S-3
+  - id: S-4
     name: signal package
     features:
-      - id: F-2-1
+      - id: F-4-1
         name: signal handler
         expectations:
-          - id: E-2-1-1
+          - id: E-4-1-1
             statement: |
               As a user, I expect there to be an AMI 'signal' package which will provide signal handling facilities.
             dependencies: []
             status: ready
             tests: []
-          - id: E-2-1-1
+
+          - id: E-4-1-2
+            statement: |
+              As a user, I expect there to be a built-in `signalType` enum data type representing each operating 
+              system signal (e.g., SIGINT, SIGTERM, etc.).
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-4-1-3
             statement: |
               As a user, I expect there to be a `signal.Register(signal signalType, func())` function which will 
-              register a signal handler function for a given signal
+              register a signal handler function for a given os signal.
+            dependencies: []
+            status: ready
+            tests: []
+
+  - id: S-5
+    name: time package
+    features:
+      - id: F-5-1
+        name: time handler
+        expectations:
+          - id: E-5-1-1
+            statement: |
+              As a user, I expect there to be an AMI 'time' package which will provide time clock facilities
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-2
+            statement: |
+              As a user, I expect there to be a 'time.Sleep(n uint)' function which will cause the program to sleep
+              for n milliseconds.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-3
+            statement: |
+              As a user, I expect there to be a `time.Time` object representing a time/date value.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-4
+            statement: |
+              As a user, I expect there to be a `time.Now()` function which will return the current `time.Time` object
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-5-1-5
+            statement: |
+              As a user, I expect there to be a `time.Delta(t1, t2 time.Time)` function which will return the time
+              difference between t1 and t2.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-6
+            statement: |
+              As a user, I expect there to be a `time.Add(t1, t2 time.Time)` function which will return t1 + t2.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-7
+            statement: |
+              As a user,I expect the `time.Time` object to have a .Unix() method which returns a unix timestamp in
+              seconds.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-8
+            statement: |
+              As a user,I expect the `time.Time` object to have a .UnixNano() method which returns a unix timestamp in
+              nano seconds.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-2-1-9
+            statement: |
+              As a user,I expect the `time` package will have a `Ticker` object returned by `NewTicker(d duration)`;
+              the Ticker object will have a `.Start()` method to start the ticker generating tick events; the `Ticker`
+              object will have a `.Stop()` method to stop the ticker from generating tick events; the `Ticker` object
+              will have a `.Register(f func())` method for registering the function which will be executed for every
+              timer tick.
             dependencies: []
             status: ready
             tests: []

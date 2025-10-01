@@ -84,17 +84,19 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
         return out
     }
     // type checks
+    var mismatchIdx []int
     for i, a := range c.Args {
         at := inferExprTypeWithVars(a, vars)
         pt := s.params[i]
         if pt == "" || pt == "any" || at == "any" { continue }
         // Prefer a specific generic arity mismatch diagnostic when applicable
-        if mismatch, path, base, wantN, gotN := findGenericArityMismatchDeepPath(pt, at); mismatch {
+        if mismatch, path, pathIdx, base, wantN, gotN := findGenericArityMismatchDeepPath(pt, at); mismatch {
             p := epos(a)
-            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "path": path, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
+            data := map[string]any{"argIndex": i, "callee": c.Name, "base": base, "path": path, "pathIdx": pathIdx, "expected": pt, "actual": at, "expectedArity": wantN, "actualArity": gotN}
             if i < len(s.paramNames) && s.paramNames[i] != "" { data["paramName"] = s.paramNames[i] }
             if i < len(s.paramTypePos) { data["expectedPos"] = s.paramTypePos[i] }
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_GENERIC_ARITY_MISMATCH", Message: "generic type argument count mismatch", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
+            mismatchIdx = append(mismatchIdx, i)
             continue
         }
         if !typesCompatible(pt, at) {
@@ -104,7 +106,11 @@ func checkCall(c *ast.CallExpr, funcs map[string]sig, vars map[string]string, no
             if i < len(s.paramNames) && s.paramNames[i] != "" { data["paramName"] = s.paramNames[i] }
             if i < len(s.paramTypePos) { data["expectedPos"] = s.paramTypePos[i] }
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARG_TYPE_MISMATCH", Message: msg, Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}, Data: data})
+            mismatchIdx = append(mismatchIdx, i)
         }
+    }
+    if len(mismatchIdx) > 1 {
+        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CALL_ARGS_MISMATCH_SUMMARY", Message: "multiple call arguments mismatch", Pos: &diag.Position{Line: c.Pos.Line, Column: c.Pos.Column, Offset: c.Pos.Offset}, Data: map[string]any{"count": len(mismatchIdx), "indices": mismatchIdx, "callee": c.Name}})
     }
     return out
 }

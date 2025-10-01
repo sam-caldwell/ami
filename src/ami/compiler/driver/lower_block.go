@@ -130,6 +130,17 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                     break
                 }
             } else {
+                // Non-Owned var: allow short-circuit initializer
+                if v.Init != nil && needsShortCircuit(v.Init) {
+                    if val, ok := lowerValueSC(st, v.Init, &out, &extras, &nextID); ok {
+                        vtype := v.Type
+                        if vtype == "" { vtype = val.Type }
+                        res := ir.Value{ID: v.Name, Type: vtype}
+                        out = append(out, ir.Var{Name: v.Name, Type: vtype, Init: &val, Result: res})
+                        if st != nil && st.varTypes != nil && v.Name != "" && vtype != "" { st.varTypes[v.Name] = vtype }
+                        break
+                    }
+                }
                 out = append(out, lowerStmtVar(st, v))
             }
         case *ast.AssignStmt:

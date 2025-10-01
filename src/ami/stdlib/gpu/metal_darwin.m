@@ -216,3 +216,45 @@ int AmiMetalDispatch(int ctxId, int pipeId,
     [cb waitUntilCompleted];
     return 0;
 }
+
+int AmiMetalDispatchEx(int ctxId, int pipeId,
+                       unsigned int gx, unsigned int gy, unsigned int gz,
+                       unsigned int tx, unsigned int ty, unsigned int tz,
+                       const int* kinds, int argCount,
+                       const int* bufIds,
+                       const char** bytesPtrs, const unsigned long* bytesLens,
+                       char** err) {
+    ensureTabs();
+    NSDictionary *ctx = gCtxTab[@(ctxId)];
+    NSDictionary *p = gPipeTab[@(pipeId)];
+    if (!ctx || !p) return -1;
+    id<MTLDevice> devCtx = ctx[@"dev"];
+    id<MTLCommandQueue> q = ctx[@"q"];
+    id<MTLDevice> devP = p[@"dev"];
+    if (devCtx != devP) { if (err) *err = strdup("device mismatch"); return -2; }
+    id<MTLComputePipelineState> ps = p[@"ps"];
+    id<MTLCommandBuffer> cb = [q commandBuffer];
+    id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+    [enc setComputePipelineState:ps];
+    for (int i = 0; i < argCount; i++) {
+        int kind = kinds ? kinds[i] : 0;
+        if (kind == 0) {
+            NSDictionary *be = gBufTab[@(bufIds ? bufIds[i] : 0)];
+            if (!be) { [enc endEncoding]; return -3; }
+            id<MTLBuffer> b = be[@"buf"];
+            [enc setBuffer:b offset:0 atIndex:(NSUInteger)i];
+        } else {
+            const void *ptr = bytesPtrs ? bytesPtrs[i] : NULL;
+            unsigned long n = bytesLens ? bytesLens[i] : 0;
+            if (ptr == NULL || n == 0) { [enc endEncoding]; return -4; }
+            [enc setBytes:ptr length:n atIndex:(NSUInteger)i];
+        }
+    }
+    MTLSize grid = MTLSizeMake(gx, gy, gz);
+    MTLSize tpg = MTLSizeMake(tx ? tx : 1, ty ? ty : 1, tz ? tz : 1);
+    [enc dispatchThreads:grid threadsPerThreadgroup:tpg];
+    [enc endEncoding];
+    [cb commit];
+    [cb waitUntilCompleted];
+    return 0;
+}

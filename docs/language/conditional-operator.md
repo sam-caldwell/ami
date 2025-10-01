@@ -13,4 +13,4 @@ Examples
 Notes
 - Parentheses around `cond` or branches are optional but can improve clarity.
 - Nested conditionals associate to the right: `a ? b : c ? d : e` parses as `a ? b : (c ? d : e)`.
-- Evaluation: In assignment statements, only the selected branch runs (no side effects from the unselected branch). Other expression positions currently lower to a `select` in the debug backend; avoid side effects in branches there until full short‑circuit lowering is applied uniformly.
+- Evaluation: Short‑circuiting applies uniformly. Only the selected branch executes; unselected branches have no side effects across assignments, returns, call arguments, and initializers.

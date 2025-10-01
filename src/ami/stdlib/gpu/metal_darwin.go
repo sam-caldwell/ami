@@ -26,6 +26,16 @@ int AmiMetalDispatch(int ctxId, int pipeId,
                      unsigned int tx, unsigned int ty, unsigned int tz,
                      const int* bufIds, int bufCount, char** err);
 void AmiMetalFreeBuffer(int bufId);
+
+// Extended dispatch supporting scalar arguments via setBytes. For each arg index:
+// kinds[i] == 0 -> use bufIds[i] with setBuffer; kinds[i] == 1 -> use bytesPtrs[i]/bytesLens[i] with setBytes.
+int AmiMetalDispatchEx(int ctxId, int pipeId,
+                       unsigned int gx, unsigned int gy, unsigned int gz,
+                       unsigned int tx, unsigned int ty, unsigned int tz,
+                       const int* kinds, int argCount,
+                       const int* bufIds,
+                       char** bytesPtrs, unsigned long* bytesLens,
+                       char** err);
 */
 import "C"
 import (
@@ -146,25 +156,71 @@ func MetalCopyFromDevice(dst []byte, src Buffer) error {
     return nil
 }
 
-// MetalDispatch binds buffers in order and dispatches, blocking on completion.
+// MetalDispatch binds buffers or scalar arguments in order and dispatches, blocking on completion.
+// Supported scalars: int32/int64/uint32/uint64/float32/float64. Scalars are passed via setBytes.
 func MetalDispatch(ctx Context, p Pipeline, grid, threadsPerGroup [3]uint32, args ...any) error {
     if ctx.backend != "metal" || !ctx.valid || ctx.ctxId <= 0 { return ErrInvalidHandle }
     if !p.valid || p.pipeId <= 0 { return ErrInvalidHandle }
-    // Collect buffer IDs from args; only Buffer is supported for now.
-    bufIds := make([]C.int, 0, len(args))
+    kinds := make([]C.int, len(args))
+    bufIds := make([]C.int, len(args))
+    cBytePtrs := make([]*C.char, len(args))
+    byteLens := make([]C.ulong, len(args))
+    // Track C allocations to free after dispatch
+    var cAllocs []unsafe.Pointer
+    toBytes := func(v any) (unsafe.Pointer, C.ulong, bool) {
+        switch x := v.(type) {
+        case int32:
+            p := C.CBytes((*[4]byte)(unsafe.Pointer(&x))[:])
+            return p, 4, true
+        case uint32:
+            p := C.CBytes((*[4]byte)(unsafe.Pointer(&x))[:])
+            return p, 4, true
+        case int64:
+            p := C.CBytes((*[8]byte)(unsafe.Pointer(&x))[:])
+            return p, 8, true
+        case uint64:
+            p := C.CBytes((*[8]byte)(unsafe.Pointer(&x))[:])
+            return p, 8, true
+        case float32:
+            p := C.CBytes((*[4]byte)(unsafe.Pointer(&x))[:])
+            return p, 4, true
+        case float64:
+            p := C.CBytes((*[8]byte)(unsafe.Pointer(&x))[:])
+            return p, 8, true
+        }
+        return nil, 0, false
+    }
     for i, a := range args {
-        b, ok := a.(Buffer)
-        if !ok { return fmt.Errorf("gpu: MetalDispatch arg %d not Buffer", i) }
-        if b.backend != "metal" || !b.valid || b.bufId <= 0 { return ErrInvalidHandle }
-        bufIds = append(bufIds, C.int(b.bufId))
+        if b, ok := a.(Buffer); ok {
+            if b.backend != "metal" || !b.valid || b.bufId <= 0 { return ErrInvalidHandle }
+            kinds[i] = 0
+            bufIds[i] = C.int(b.bufId)
+            continue
+        }
+        if p, n, ok := toBytes(a); ok {
+            kinds[i] = 1
+            cBytePtrs[i] = (*C.char)(p)
+            byteLens[i] = n
+            cAllocs = append(cAllocs, p)
+            continue
+        }
+        return fmt.Errorf("gpu: MetalDispatch arg %d unsupported type", i)
     }
     var cerr *C.char
+    var pkinds *C.int
     var pbuf *C.int
+    var pbytes **C.char
+    var plens *C.ulong
+    if len(kinds) > 0 { pkinds = &kinds[0] }
     if len(bufIds) > 0 { pbuf = &bufIds[0] }
-    r := int(C.AmiMetalDispatch(C.int(ctx.ctxId), C.int(p.pipeId),
+    if len(cBytePtrs) > 0 { pbytes = (**C.char)(unsafe.Pointer(&cBytePtrs[0])) }
+    if len(byteLens) > 0 { plens = &byteLens[0] }
+    r := int(C.AmiMetalDispatchEx(C.int(ctx.ctxId), C.int(p.pipeId),
         C.uint(grid[0]), C.uint(grid[1]), C.uint(grid[2]),
         C.uint(threadsPerGroup[0]), C.uint(threadsPerGroup[1]), C.uint(threadsPerGroup[2]),
-        pbuf, C.int(len(bufIds)), &cerr))
+        pkinds, C.int(len(kinds)), pbuf, pbytes, plens, &cerr))
+    // Free any C allocations for setBytes
+    for _, p := range cAllocs { C.free(p) }
     if r != 0 {
         if cerr != nil { return errors.New(C.GoString(cerr)) }
         return ErrUnavailable

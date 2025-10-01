@@ -1,118 +1,110 @@
-package signal
+package amsignal
 
 import (
-    ossignal "os/signal"
     "os"
+    gosignal "os/signal"
+    "runtime"
     "sync"
     "syscall"
-    "errors"
 )
 
-// SignalType is an enum of supported OS signals.
-type SignalType string
+// SignalType is an enum of OS signals supported by Register.
+type SignalType int
 
 const (
-    SIGHUP  SignalType = "SIGHUP"
-    SIGINT  SignalType = "SIGINT"
-    SIGQUIT SignalType = "SIGQUIT"
-    SIGTERM SignalType = "SIGTERM"
-    SIGUSR1 SignalType = "SIGUSR1"
-    SIGUSR2 SignalType = "SIGUSR2"
-    SIGALRM SignalType = "SIGALRM"
-    SIGCHLD SignalType = "SIGCHLD"
-    SIGPIPE SignalType = "SIGPIPE"
-    // Note: SIGKILL and SIGSTOP cannot be caught or handled; Register returns error for them.
-    SIGKILL SignalType = "SIGKILL"
-    SIGSTOP SignalType = "SIGSTOP"
+    SIGINT SignalType = iota + 1
+    SIGTERM
+    SIGHUP
+    SIGQUIT
 )
+
+// toOSSignal maps SignalType to a concrete os.Signal for the current platform.
+func toOSSignal(s SignalType) os.Signal {
+    switch s {
+    case SIGINT:
+        // On Windows, Interrupt is the closest
+        if runtime.GOOS == "windows" { return os.Interrupt }
+        return syscall.SIGINT
+    case SIGTERM:
+        if runtime.GOOS == "windows" { return os.Kill }
+        return syscall.SIGTERM
+    case SIGHUP:
+        if runtime.GOOS == "windows" { return os.Kill }
+        return syscall.SIGHUP
+    case SIGQUIT:
+        if runtime.GOOS == "windows" { return os.Kill }
+        return syscall.SIGQUIT
+    default:
+        if runtime.GOOS == "windows" { return os.Kill }
+        return syscall.SIGTERM
+    }
+}
 
 var (
     mu       sync.Mutex
-    started  bool
+    once     sync.Once
     ch       chan os.Signal
-    // callbacks mapped by SignalType
-    cbs      = map[SignalType][]func(){}
+    handlers = map[SignalType][]func(){}
 )
 
-// Register registers a handler function to be invoked when the given signal is received.
-// Returns an error if the signal is not supported (e.g., SIGKILL, SIGSTOP).
-func Register(sig SignalType, fn func()) error {
-    osSig, ok := toOSSignal(sig)
-    if !ok { return errors.New("unsupported signal: " + string(sig)) }
+// Register installs fn as a handler for the given signal. Multiple handlers may be
+// registered per signal. Handlers are invoked sequentially when a signal arrives.
+func Register(sig SignalType, fn func()) {
     mu.Lock()
     defer mu.Unlock()
-    if !started {
-        ch = make(chan os.Signal, 8)
-        go dispatch()
-        started = true
-    }
-    // subscribe the channel to this signal
-    ossignal.Notify(ch, osSig)
-    cbs[sig] = append(cbs[sig], fn)
-    return nil
+    handlers[sig] = append(handlers[sig], fn)
+    // ensure goroutine started once; subscribe for signals we know about
+    once.Do(start)
+    gosignal.Notify(ch, toOSSignal(sig))
 }
 
-func dispatch() {
-    for s := range ch {
-        sig := fromOSSignal(s)
-        mu.Lock()
-        handlers := append([]func(){}, cbs[sig]...)
-        mu.Unlock()
-        for _, h := range handlers { if h != nil { h() } }
-    }
+// start initializes the shared signal channel and dispatcher loop.
+func start() {
+    ch = make(chan os.Signal, 4)
+    go func() {
+        for s := range ch {
+            // Map os.Signal back to our enum set
+            st := fromOSSignal(s)
+            if st == 0 { continue }
+            mu.Lock()
+            fns := append([]func(){}, handlers[st]...)
+            mu.Unlock()
+            for _, f := range fns { safeCall(f) }
+        }
+    }()
 }
 
-// toOSSignal maps a SignalType to the platform os.Signal. Returns false if unsupported.
-func toOSSignal(s SignalType) (os.Signal, bool) {
-    switch s {
-    case SIGHUP:
-        return syscall.SIGHUP, true
-    case SIGINT:
-        return syscall.SIGINT, true
-    case SIGQUIT:
-        return syscall.SIGQUIT, true
-    case SIGTERM:
-        return syscall.SIGTERM, true
-    case SIGUSR1:
-        return syscall.SIGUSR1, true
-    case SIGUSR2:
-        return syscall.SIGUSR2, true
-    case SIGALRM:
-        return syscall.SIGALRM, true
-    case SIGCHLD:
-        return syscall.SIGCHLD, true
-    case SIGPIPE:
-        return syscall.SIGPIPE, true
-    case SIGKILL, SIGSTOP:
-        return nil, false
-    default:
-        return nil, false
-    }
+func safeCall(f func()) {
+    defer func(){ _ = recover() }()
+    if f != nil { f() }
 }
 
-// fromOSSignal converts an os.Signal back into a SignalType where possible.
+// fromOSSignal best-effort conversion from os.Signal to SignalType for our set.
 func fromOSSignal(s os.Signal) SignalType {
     switch s {
-    case syscall.SIGHUP:
-        return SIGHUP
-    case syscall.SIGINT:
+    case os.Interrupt, syscall.SIGINT:
         return SIGINT
-    case syscall.SIGQUIT:
-        return SIGQUIT
     case syscall.SIGTERM:
         return SIGTERM
-    case syscall.SIGUSR1:
-        return SIGUSR1
-    case syscall.SIGUSR2:
-        return SIGUSR2
-    case syscall.SIGALRM:
-        return SIGALRM
-    case syscall.SIGCHLD:
-        return SIGCHLD
-    case syscall.SIGPIPE:
-        return SIGPIPE
-    default:
-        return ""
+    case syscall.SIGHUP:
+        return SIGHUP
+    case syscall.SIGQUIT:
+        return SIGQUIT
     }
+    return 0
+}
+
+// Reset clears all registered handlers and stops notifications (for tests).
+func Reset() {
+    mu.Lock()
+    defer mu.Unlock()
+    for st := range handlers { handlers[st] = nil }
+    if ch != nil {
+        gosignal.Stop(ch)
+        close(ch)
+        ch = nil
+    }
+    // allow re-init
+    once = sync.Once{}
 }
 

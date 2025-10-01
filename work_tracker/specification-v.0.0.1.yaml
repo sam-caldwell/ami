@@ -3,6 +3,7 @@ generated: 2025-09-30T00:00:00Z
 authority:
   docx: docs/Asynchronous Machine Interface.docx
 notes:
+  - AMI language-specific documentation should be kept in docs/language/
   - All work will be performed on the main branch.
   - Any build artifacts, logs or other runtime or test files should be stored in `build/`
   - Changes should be committed to git with each work item performed.
@@ -1183,24 +1184,27 @@ stdlib:
             statement: |
               As a user, I expect there to be an AMI 'signal' package which will provide signal handling facilities.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/signal/signal_test.go
 
           - id: E-4-1-2
             statement: |
               As a user, I expect there to be a built-in `SignalType` enum data type representing each operating 
               system signal (e.g., SIGINT, SIGTERM, etc.).
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/signal/signal_test.go
 
           - id: E-4-1-3
             statement: |
               As a user, I expect there to be a `signal.Register(sig SignalType, fn func())` function which will 
               register a signal handler function for a given os signal.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/signal/signal_test.go
 
   - id: S-5
     name: time package

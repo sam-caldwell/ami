@@ -12,6 +12,26 @@ import (
 
 // ErrClosed is returned when an operation occurs on a closed handle.
 var ErrClosed = errors.New("io.FHO: handle is closed")
+// ErrCapabilityDenied is returned when an operation is blocked by I/O capability policy.
+var ErrCapabilityDenied = errors.New("io: capability denied")
+
+// Policy controls I/O capability enforcement for stdlib io. Defaults allow all.
+type Policy struct { AllowFS, AllowNet, AllowDevice bool }
+
+var current Policy = Policy{AllowFS: true, AllowNet: true, AllowDevice: true}
+
+// SetPolicy sets the current I/O capability policy (global, test/runtime scoped).
+func SetPolicy(p Policy) { current = p }
+
+// GetPolicy returns the current I/O capability policy.
+func GetPolicy() Policy { return current }
+
+// ResetPolicy restores the default permissive policy.
+func ResetPolicy() { current = Policy{AllowFS: true, AllowNet: true, AllowDevice: true} }
+
+func guardFS() error { if !current.AllowFS { return ErrCapabilityDenied }; return nil }
+func guardNet() error { if !current.AllowNet { return ErrCapabilityDenied }; return nil }
+func guardDevice() error { if !current.AllowDevice { return ErrCapabilityDenied }; return nil }
 
 // FHO is a file/stream handle abstraction for deterministic I/O semantics.
 // Methods mirror Go's file operations but return (n int, err error) where applicable.
@@ -24,6 +44,7 @@ type FHO struct {
 
 // Open opens an existing file for reading (like os.Open).
 func Open(name string) (*FHO, error) {
+    if err := guardFS(); err != nil { return nil, err }
     f, err := os.Open(name)
     if err != nil { return nil, err }
     return &FHO{f: f, name: f.Name()}, nil
@@ -31,6 +52,7 @@ func Open(name string) (*FHO, error) {
 
 // Create creates or truncates a file for writing (like os.Create).
 func Create(name string) (*FHO, error) {
+    if err := guardFS(); err != nil { return nil, err }
     f, err := os.Create(name)
     if err != nil { return nil, err }
     return &FHO{f: f, name: f.Name()}, nil
@@ -38,6 +60,7 @@ func Create(name string) (*FHO, error) {
 
 // OpenFile is a general opener (like os.OpenFile) returning an FHO.
 func OpenFile(name string, flag int, perm os.FileMode) (*FHO, error) {
+    if err := guardFS(); err != nil { return nil, err }
     f, err := os.OpenFile(name, flag, perm)
     if err != nil { return nil, err }
     return &FHO{f: f, name: f.Name()}, nil
@@ -56,6 +79,7 @@ func (h *FHO) Close() error {
 
 func (h *FHO) ensure() (*os.File, error) {
     if h == nil || h.f == nil { return nil, ErrClosed }
+    if err := guardFS(); err != nil { return nil, err }
     return h.f, nil
 }
 
@@ -123,6 +147,7 @@ func (h *FHO) Name() string {
 // CreateTemp creates a new temporary file under the system temp dir.
 // Optional args: [dir] or [dir, suffix]. The dir is relative to the system temp directory.
 func CreateTemp(args ...string) (*FHO, error) {
+    if err := guardFS(); err != nil { return nil, err }
     base := os.TempDir()
     var rel, suffix string
     switch len(args) {
@@ -149,6 +174,7 @@ func CreateTemp(args ...string) (*FHO, error) {
 
 // CreateTempDir creates a unique temporary directory under the system temp dir and returns its path.
 func CreateTempDir() (string, error) {
+    if err := guardFS(); err != nil { return "", err }
     base := os.TempDir()
     return os.MkdirTemp(base, "ami-*")
 }
@@ -164,6 +190,7 @@ type FileInfo struct {
 
 // Stat returns file information for fileName.
 func Stat(fileName string) (FileInfo, error) {
+    if err := guardFS(); err != nil { return FileInfo{}, err }
     st, err := os.Stat(fileName)
     if err != nil { return FileInfo{}, err }
     return FileInfo{
@@ -193,7 +220,7 @@ const (
 
 
 // Hostname returns the current system hostname.
-func Hostname() (string, error) { return os.Hostname() }
+func Hostname() (string, error) { if err := guardNet(); err != nil { return "", err }; return os.Hostname() }
 
 // NetInterface is a minimal description of a network interface.
 type NetInterface struct {
@@ -206,6 +233,7 @@ type NetInterface struct {
 
 // Interfaces lists available network interfaces.
 func Interfaces() ([]NetInterface, error) {
+    if err := guardNet(); err != nil { return nil, err }
     ifs, err := net.Interfaces()
     if err != nil { return nil, err }
     out := make([]NetInterface, 0, len(ifs))

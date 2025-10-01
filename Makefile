@@ -124,3 +124,10 @@ examples: ## Build example workspaces and stage outputs under build/examples/
 	    fi; \
 	  fi; \
 	done
+
+.PHONY: example-time-ticker
+example-time-ticker: build ## Build only the time-ticker example (emits IR/ASM under examples/time-ticker/build)
+	@echo "Building example: examples/time-ticker (with --verbose for IR/ASM)"
+	cd examples/time-ticker && ../../build/ami build --verbose || (echo "Falling back to go run" && cd examples/time-ticker && go run ../../src/cmd/ami build --verbose)
+	mkdir -p build/examples/time-ticker
+	if [ -d examples/time-ticker/build ]; then cp -R examples/time-ticker/build/. build/examples/time-ticker/; fi

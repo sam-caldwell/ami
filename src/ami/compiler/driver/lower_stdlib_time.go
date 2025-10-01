@@ -96,7 +96,8 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     // Normalize alias-qualified call by suffix when possible
     // Supported time intrinsics: time.Sleep(d)
     // Supported signal intrinsic: signal.Register(sig, fn)
-    if strings.HasSuffix(name, ".Register") || name == "signal.Register" {
+    // Match by known signature (first param is SignalType) to allow alias-qualified forms safely.
+    if (name == "signal.Register") || (st != nil && st.funcParams != nil && len(st.funcParams[name]) == 2 && st.funcParams[name][0] == "SignalType") {
         var args []ir.Value
         // arg0: signal enum → i64 immediate token. Prefer selector mapping for stability.
         if len(c.Args) >= 1 {
@@ -185,7 +186,7 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         return ir.Expr{Op: "call", Callee: "ami_rt_time_unix", Args: args, Result: res}, true
     }
     // Future signal handler primitives: Install, Token
-    if strings.HasSuffix(name, ".Install") || name == "signal.Install" {
+    if (name == "signal.Install") || (st != nil && st.funcParams != nil && len(st.funcParams[name]) == 1 && st.funcParams[name][0] == "any" && (st.funcResults == nil || len(st.funcResults[name]) == 0)) {
         // args: (fn any)
         if len(c.Args) >= 1 {
             // compute handler token (deterministic)
@@ -212,7 +213,7 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         }
         return ir.Expr{Op: "call", Callee: "ami_rt_install_handler_thunk", Args: []ir.Value{{ID: "#0", Type: "int64"}, {ID: "#null", Type: "ptr"}}}, true
     }
-    if strings.HasSuffix(name, ".Token") || name == "signal.Token" {
+    if (name == "signal.Token") || (st != nil && st.funcParams != nil && len(st.funcParams[name]) == 1 && st.funcParams[name][0] == "any" && st.funcResults != nil && len(st.funcResults[name]) >= 1 && st.funcResults[name][0] == "int64") {
         if len(c.Args) >= 1 {
             tok, ok := handlerTokenValue(c.Args[0])
             id := st.newTemp()

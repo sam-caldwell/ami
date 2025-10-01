@@ -1,0 +1,12 @@
+// file: main.ami
+package app
+
+// Import AMI stdlib time module
+import github.com/asymmetric-effort/ami/time >= v0.0.0
+
+// DemoTicker placeholder; actual calls to time.* are disabled here because
+// the current parser does not yet support duration literals in source.
+func DemoTicker(){}
+
+// Minimal pipeline to ensure IR/ASM emission on build.
+pipeline T(){ ingress; egress }

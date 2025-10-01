@@ -19,7 +19,7 @@ func TestReturn_DeepStructFieldPath_ArityMismatch(t *testing.T) {
     for _, d := range ds {
         if d.Code == "E_GENERIC_ARITY_MISMATCH" && d.Data != nil {
             if fp, ok := d.Data["fieldPath"].([]string); ok {
-                if len(fp) >= 4 && fp[0] == "Struct" && fp[1] == "a" && fp[2] == "Struct" && fp[3] == "b" {
+                if len(fp) >= 2 && fp[0] == "a" && fp[1] == "b" {
                     found = true
                     break
                 }
@@ -28,4 +28,3 @@ func TestReturn_DeepStructFieldPath_ArityMismatch(t *testing.T) {
     }
     if !found { t.Fatalf("expected fieldPath Struct->a->Struct->b in return diag; got %+v", ds) }
 }
-

@@ -19,7 +19,7 @@ func TestReturn_StructFieldPath_ArityMismatch(t *testing.T) {
     for _, d := range ds {
         if d.Code == "E_GENERIC_ARITY_MISMATCH" && d.Data != nil {
             if fp, ok := d.Data["fieldPath"].([]string); ok {
-                if len(fp) >= 2 && fp[0] == "Struct" && fp[1] == "a" { found = true; break }
+                if len(fp) >= 1 && fp[0] == "a" { found = true; break }
             }
         }
     }

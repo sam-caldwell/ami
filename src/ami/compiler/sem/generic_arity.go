@@ -125,8 +125,8 @@ func arityMismatchInTypesWithFields(et, at types.Type) (bool, []string, []int, [
         sort.Strings(keys)
         for _, k := range keys {
             if m, p, idx, fp, b, w, g := arityMismatchInTypesWithFields(ev.Fields[k], av.Fields[k]); m {
-                // prepend struct marker and field name
-                return true, p, idx, append([]string{"Struct", k}, fp...), b, w, g
+                // prepend field name only (normalized format)
+                return true, p, idx, append([]string{k}, fp...), b, w, g
             }
         }
         return false, nil, nil, nil, "", 0, 0
@@ -205,11 +205,11 @@ func findGenericArityMismatchDeepPathTextFields(expected, actual string) (bool, 
                 einner := ef[k]
                 ainner := af[k]
                 if m, p, idx, fp, b, w, g := findGenericArityMismatchDeepPathTextFields(einner, ainner); m {
-                    // prepend Struct → field
-                    return true, p, idx, append([]string{"Struct", k}, fp...), b, w, g
+                    // prepend field name only (normalized)
+                    return true, p, idx, append([]string{k}, fp...), b, w, g
                 }
                 if m2, p2, idx2, b2, w2, g2 := findGenericArityMismatchDeepPath(einner, ainner); m2 {
-                    return true, p2, idx2, []string{"Struct", k}, b2, w2, g2
+                    return true, p2, idx2, []string{k}, b2, w2, g2
                 }
             }
         }

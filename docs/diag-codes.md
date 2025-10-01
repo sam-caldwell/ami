@@ -177,5 +177,5 @@ Notes:
 - message sample: example literal or fmt.Sprintf format; dynamic parts omitted.
 - data keys: union of keys seen across code occurrences.
 - path/pathIdx: generic base nesting and argument indices, outer→inner.
-- fieldPath: struct field traversal (e.g., Struct→a→Struct→b).
+- fieldPath: struct field traversal (e.g., a→b).
 - argIndex/tupleIndex: top-level call argument/return position. Summary 'paths' include these redundantly per entry.

@@ -37,3 +37,7 @@ Notes
 - The gate only evaluates packages that changed in the diff range, minimizing CI noise.
 - Use repository/organization environment overrides to adjust thresholds for specific packages if needed.
 
+Defaults in CI
+- Global threshold: `THRESHOLD=0.80`
+- Skipped packages: `SKIP_PKGS='^github.com/sam-caldwell/ami/src/ami/visualize/ascii$|.*/experimental/.*'`
+- Package thresholds: `PKG_THRESHOLDS='^github.com/sam-caldwell/ami/src/ami/compiler/parser=0.90,^github.com/sam-caldwell/ami/src/ami/compiler/codegen/llvm=0.75'`

@@ -16,18 +16,20 @@ API (AMI module `time`)
   - `method Ticker.stop()` — stop ticker and exit loop.
 
 Notes
-- `Ticker` spawns a goroutine in `Start()`; call `Stop()` to release resources.
-- `Now().Unix()` and `Now().UnixNano()` remain available on the alias type.
+- `Ticker` runs callbacks periodically once `start()` is called; call `stop()` to release resources.
+- On `Time`, `unix()` and `unixNano()` are provided for timestamp extraction.
 
 Examples (AMI)
 ```
-t1 := time.now()
-time.sleep(10ms)
-t2 := time.now()
-dt := time.delta(t1, t2)
+import time
 
-count := 0
-tk := time.ticker(5ms)
+let t1 = time.now()
+time.sleep(10ms)
+let t2 = time.now()
+let dt = time.delta(t1, t2)
+
+var count = 0
+let tk = time.ticker(5ms)
 tk.onTick(func(){ count = count + 1 })
 tk.start()
 time.sleep(20ms)

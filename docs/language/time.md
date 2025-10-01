@@ -1,6 +1,6 @@
 # Language: time (planned AMI example)
 
-This document sketches how AMI source could use the stdlib `time` package once language hooks are enabled. The Go implementation (`src/ami/stdlib/time`) is available today; this is forward‑looking AMI code.
+This document shows how AMI source uses the stdlib `time` package. The runtime implementation is opaque to AMI users; the API here is the stable AMI surface.
 
 AMI sample (illustrative only):
 
@@ -10,11 +10,11 @@ import time
 
 func Work(){
   // Sleep for 100 milliseconds
-  time.Sleep(100ms)
+  time.sleep(100ms)
   // Get current time and compute delta
-  var t1 = time.Now()
-  var t2 = time.Add(t1, 1s)
-  var d = time.Delta(t1, t2) // 1s
+  let t1 = time.now()
+  let t2 = time.add(t1, 1s)
+  let d = time.delta(t1, t2) // 1s
   _ = d
 }
 

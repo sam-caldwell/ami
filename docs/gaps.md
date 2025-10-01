@@ -7,8 +7,9 @@ Scope: As of this update, the repository’s tracker (work_tracker/specification
 Known items
 
 - Cross‑cutting (status):
-  - CC‑1 Coverage Gate: ≥0.80 coverage on changed packages. Action: maintain in CI and keep tests for new work.
-  - CC‑2 No raw pointers in public ABI — READY: enforced via backend safety checks (LLVM emitter + tests). Backends reject pointer params/results at function boundaries and map handle‑like types to i64 in public signatures. Driver surfaces violations as E_LLVM_EMIT. New backends must gate by the same rule.
+  - CC‑1 Coverage Gate — COMPLETE: ≥0.80 coverage on changed packages enforced via CI (`.github/workflows/ci.yml`) using `scripts/coverage_gate.sh`.
+  - CC‑2 No raw pointers in public ABI — COMPLETE: enforced via backend safety checks (LLVM emitter + tests). Backends reject pointer params/results at function boundaries and map handle‑like types to i64 in public signatures. Driver surfaces violations as E_LLVM_EMIT. New backends must gate by the same rule.
+  - CC‑3 RAII Compliance — COMPLETE: SEM analyzer detects leaks, double‑release, release/assign/use after transfer; driver lowers Owned with zeroize on release. Tests cover leak/transfer/double‑release and runtime zeroization.
 
 - Generics diagnostics (candidate enhancements):
   - Add E_GENERIC_ARITY_MISMATCH for wrong number of generic type arguments (e.g., Owned<>) to improve feedback beyond generic type mismatch.

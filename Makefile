@@ -1,6 +1,6 @@
 .PHONY: help all clean lint test build bench examples e2e-build e2e-test \
         e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update \
-        test-hotspots coverage-short
+        test-hotspots coverage-short zip
 
 # Print Makefile target help by scanning for lines with '##' descriptions.
 help: ## Show this help with targets and descriptions
@@ -35,6 +35,10 @@ coverage-short: ## Fast coverage on CLI (filters heavy tests) + sanity on schema
 
 build: clean ## Build the ami CLI binary to build/ami
 	go build -o build/ami ./src/cmd/ami
+
+zip: ## Create a repository snapshot zip at build/repo.zip (tracked files only)
+	mkdir -p build
+	git archive -o build/repo.zip HEAD
 
 # Run CLI microbenchmarks for ami subcommands in isolated sandboxes.
 bench: ## Run CLI microbenchmarks (vars: BENCH, BENCHTIME)

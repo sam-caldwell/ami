@@ -3,6 +3,7 @@ package llvm
 import (
     "os"
     "path/filepath"
+    "strings"
 )
 
 // RuntimeLL returns a minimal LLVM IR module string providing runtime symbols
@@ -52,21 +53,50 @@ func RuntimeLL(triple string, withMain bool) string {
         "gcont:\n  %ginext = add i64 %gi, 1\n  br label %gloop\n" +
         "gexit:\n  ; perform zeroize + free, then record handle\n  %p = call ptr @ami_rt_owned_ptr(ptr %h)\n  %n = call i64 @ami_rt_owned_len(ptr %h)\n  call void @ami_rt_zeroize(ptr %p, i64 %n)\n  call void @free(ptr %p)\n  call void @free(ptr %h)\n  %idx1 = load i64, ptr @ami_released_idx, align 8\n  %slot = urem i64 %idx1, %cap\n  %rt = getelementptr [256 x ptr], ptr @ami_released_tab, i64 0, i64 %slot\n  store ptr %h, ptr %rt, align 8\n  %idx2 = add i64 %idx1, 1\n  store i64 %idx2, ptr @ami_released_idx, align 8\n  ret void\n}\n\n"
     s += "declare i64 @llvm.umin.i64(i64, i64)\n\n"
-    // GPU blocking submit wrapper (returns null Error<any> handle as stub)
+    // Error ABI: heap-allocated handle with code, message pointer and length.
+    // Layout: { i32 code; i8* msg; i64 len }
+    s += "%Error = type { i32, i8*, i64 }\n\n"
+    s += "define ptr @ami_rt_error_new(i32 %code, i8* %msg, i64 %len) {\n" +
+        "entry:\n  %mem = call ptr @malloc(i64 24)\n  ; store code\n  %cf = bitcast ptr %mem to ptr\n  store i32 %code, ptr %cf, align 4\n  ; allocate and copy message\n  %buf = call ptr @malloc(i64 %len)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %msg, i64 %len, i1 false)\n  ; store msg ptr\n  %msgptr.i8 = getelementptr i8, ptr %mem, i64 8\n  %mp = bitcast ptr %msgptr.i8 to ptr\n  store ptr %buf, ptr %mp, align 8\n  ; store len\n  %lenptr.i8 = getelementptr i8, ptr %mem, i64 16\n  %lp = bitcast ptr %lenptr.i8 to ptr\n  store i64 %len, ptr %lp, align 8\n  ret ptr %mem\n}\n\n"
+    s += "define i32 @ami_rt_error_code(ptr %e) {\n" +
+        "entry:\n  %cf = bitcast ptr %e to ptr\n  %c = load i32, ptr %cf, align 4\n  ret i32 %c\n}\n\n"
+    s += "define ptr @ami_rt_error_msg(ptr %e) {\n" +
+        "entry:\n  %msgptr.i8 = getelementptr i8, ptr %e, i64 8\n  %mp = bitcast ptr %msgptr.i8 to ptr\n  %p = load ptr, ptr %mp, align 8\n  ret ptr %p\n}\n\n"
+    s += "define i64 @ami_rt_error_len(ptr %e) {\n" +
+        "entry:\n  %lenptr.i8 = getelementptr i8, ptr %e, i64 16\n  %lp = bitcast ptr %lenptr.i8 to ptr\n  %l = load i64, ptr %lp, align 8\n  ret i64 %l\n}\n\n"
+    s += "define void @ami_rt_error_free(ptr %e) {\n" +
+        "entry:\n  %msgptr.i8 = getelementptr i8, ptr %e, i64 8\n  %mp = bitcast ptr %msgptr.i8 to ptr\n  %p = load ptr, ptr %mp, align 8\n  call void @free(ptr %p)\n  call void @free(ptr %e)\n  ret void\n}\n\n"
+    // GPU blocking submit: until an explicit runtime queue is added, accept an opaque
+    // arg and return success (null Error). Callers should prefer direct dispatch lowerings.
     s += "define ptr @ami_rt_gpu_blocking_submit(ptr %arg) {\nentry:\n  ret ptr null\n}\n\n"
 
-    // Metal runtime stubs for AMI-level lowering. Replace with real implementations later.
-    s += "define i1 @ami_rt_metal_available() {\nentry:\n  ret i1 0\n}\n\n"
-    s += "define ptr @ami_rt_metal_devices() {\nentry:\n  ret ptr null\n}\n\n"
-    s += "define ptr @ami_rt_metal_ctx_create(ptr %dev) {\nentry:\n  ret ptr null\n}\n\n"
-    s += "define void @ami_rt_metal_ctx_destroy(ptr %ctx) {\nentry:\n  ret void\n}\n\n"
-    s += "define ptr @ami_rt_metal_lib_compile(ptr %src) {\nentry:\n  ret ptr null\n}\n\n"
-    s += "define ptr @ami_rt_metal_pipe_create(ptr %lib, ptr %name) {\nentry:\n  ret ptr null\n}\n\n"
-    s += "define ptr @ami_rt_metal_alloc(i64 %n) {\nentry:\n  ret ptr null\n}\n\n"
-    s += "define void @ami_rt_metal_free(ptr %buf) {\nentry:\n  ret void\n}\n\n"
-    s += "define void @ami_rt_metal_copy_to_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
-    s += "define void @ami_rt_metal_copy_from_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
-    s += "define ptr @ami_rt_metal_dispatch_blocking(ptr %ctx, ptr %pipe, i64 %gx, i64 %gy, i64 %gz, i64 %tx, i64 %ty, i64 %tz) {\nentry:\n  ret ptr null\n}\n\n"
+    // Metal runtime symbols: on Darwin targets, declare and let the Objective-C shim
+    // provide real implementations at link time. On non-Darwin targets, emit stub defs.
+    if strings.Contains(triple, "darwin") {
+        s += "declare i1 @ami_rt_metal_available()\n"
+        s += "declare ptr @ami_rt_metal_devices()\n"
+        s += "declare ptr @ami_rt_metal_ctx_create(ptr)\n"
+        s += "declare void @ami_rt_metal_ctx_destroy(ptr)\n"
+        s += "declare ptr @ami_rt_metal_lib_compile(ptr)\n"
+        s += "declare ptr @ami_rt_metal_pipe_create(ptr, ptr)\n"
+        s += "declare ptr @ami_rt_metal_alloc(i64)\n"
+        s += "declare void @ami_rt_metal_free(ptr)\n"
+        s += "declare void @ami_rt_metal_copy_to_device(ptr, ptr, i64)\n"
+        s += "declare void @ami_rt_metal_copy_from_device(ptr, ptr, i64)\n"
+        s += "declare ptr @ami_rt_metal_dispatch_blocking(ptr, ptr, i64, i64, i64, i64, i64, i64)\n\n"
+    } else {
+        s += "define i1 @ami_rt_metal_available() {\nentry:\n  ret i1 0\n}\n\n"
+        s += "define ptr @ami_rt_metal_devices() {\nentry:\n  ret ptr null\n}\n\n"
+        s += "define ptr @ami_rt_metal_ctx_create(ptr %dev) {\nentry:\n  ret ptr null\n}\n\n"
+        s += "define void @ami_rt_metal_ctx_destroy(ptr %ctx) {\nentry:\n  ret void\n}\n\n"
+        s += "define ptr @ami_rt_metal_lib_compile(ptr %src) {\nentry:\n  ret ptr null\n}\n\n"
+        s += "define ptr @ami_rt_metal_pipe_create(ptr %lib, ptr %name) {\nentry:\n  ret ptr null\n}\n\n"
+        s += "define ptr @ami_rt_metal_alloc(i64 %n) {\nentry:\n  ret ptr null\n}\n\n"
+        s += "define void @ami_rt_metal_free(ptr %buf) {\nentry:\n  ret void\n}\n\n"
+        s += "define void @ami_rt_metal_copy_to_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
+        s += "define void @ami_rt_metal_copy_from_device(ptr %dst, ptr %src, i64 %n) {\nentry:\n  ret void\n}\n\n"
+        s += "define ptr @ami_rt_metal_dispatch_blocking(ptr %ctx, ptr %pipe, i64 %gx, i64 %gy, i64 %gz, i64 %tx, i64 %ty, i64 %tz) {\nentry:\n  ret ptr null\n}\n\n"
+    }
 
     // String/Slice length helpers (scaffold): return 0 until full ABI is wired.
     s += "define i64 @ami_rt_string_len(ptr %s) {\nentry:\n  ret i64 0\n}\n\n"
@@ -101,6 +131,19 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "define i1 @ami_rt_math_isnan(double %x) {\nentry:\n  %r = fcmp uno double %x, %x\n  ret i1 %r\n}\n\n"
     s += "define i1 @ami_rt_math_isinf(double %x, i64 %sign) {\nentry:\n  %pinf = fcmp oeq double %x, 0x7FF0000000000000\n  %ninf = fcmp oeq double %x, 0xFFF0000000000000\n  %isneg = icmp slt i64 %sign, 0\n  %sel = select i1 %isneg, i1 %ninf, i1 %pinf\n  ret i1 %sel\n}\n\n"
     s += "define i1 @ami_rt_math_signbit(double %x) {\nentry:\n  %neg = fcmp olt double %x, 0.0\n  ret i1 %neg\n}\n\n"
+
+    // NaN constant helper
+    s += "define double @ami_rt_math_nan() {\nentry:\n  ret double 0x7FF8000000000000\n}\n\n"
+
+    // Remainder helper (IEEE style approximated via frem for bring-up)
+    s += "define double @ami_rt_math_remainder(double %x, double %y) {\nentry:\n  %r = frem double %x, %y\n  ret double %r\n}\n\n"
+
+    // Pow10 helper: compute 10^n for integer n
+    s += "define double @ami_rt_math_pow10(i64 %n) {\n" +
+        "entry:\n  %isneg = icmp slt i64 %n, 0\n  %absn = select i1 %isneg, i64 sub (i64 0, %n), i64 %n\n  br label %loop\n" +
+        "loop:\n  %i = phi i64 [ 0, %entry ], [ %next, %body ]\n  %acc = phi double [ 1.0, %entry ], [ %acc2, %body ]\n  %done = icmp uge i64 %i, %absn\n  br i1 %done, label %exit, label %body\n" +
+        "body:\n  %acc2 = fmul double %acc, 10.0\n  %next = add i64 %i, 1\n  br label %loop\n" +
+        "exit:\n  %res = select i1 %isneg, double fdiv (double 1.0, %acc), double %acc\n  ret double %res\n}\n\n"
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }

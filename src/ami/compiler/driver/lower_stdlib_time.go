@@ -88,6 +88,26 @@ func exprOffset(e ast.Expr) int {
     }
 }
 
+// synthesizeMethodRecvArg extracts the receiver identifier from a dotted call name
+// like "t.Unix" and lowers it to an ir.Value suitable for runtime calls.
+// Currently supports only simple identifier receivers (no selector chains).
+func synthesizeMethodRecvArg(st *lowerState, fullName string) (ir.Value, bool) {
+    if st == nil || fullName == "" { return ir.Value{}, false }
+    i := strings.LastIndex(fullName, ".")
+    if i <= 0 { return ir.Value{}, false }
+    recv := fullName[:i]
+    // Build an AST for the receiver. Support selector chains like a.b.c
+    parts := strings.Split(recv, ".")
+    if len(parts) == 0 { return ir.Value{}, false }
+    var x ast.Expr = &ast.IdentExpr{Name: parts[0]}
+    for j := 1; j < len(parts); j++ {
+        x = &ast.SelectorExpr{X: x, Sel: parts[j]}
+    }
+    ex, ok := lowerExpr(st, x)
+    if !ok || ex.Result == nil { return ir.Value{}, false }
+    return ir.Value{ID: ex.Result.ID, Type: "int64"}, true
+}
+
 // lowerStdlibCall recognizes AMI stdlib calls and lowers them to runtime intrinsics
 // or optimized IR forms. It returns (expr, true) when handled.
 func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
@@ -250,6 +270,9 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         var args []ir.Value
         if len(c.Args) >= 1 {
             if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
+        } else {
+            // Method form: t.UnixNano() — synthesize receiver as first arg
+            if recv, ok := synthesizeMethodRecvArg(st, c.Name); ok { args = append(args, recv) }
         }
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
         return ir.Expr{Op: "call", Callee: "ami_rt_time_unix_nano", Args: args, Result: res}, true
@@ -258,6 +281,9 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         var args []ir.Value
         if len(c.Args) >= 1 {
             if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
+        } else {
+            // Method form: t.Unix() — synthesize receiver as first arg
+            if recv, ok := synthesizeMethodRecvArg(st, c.Name); ok { args = append(args, recv) }
         }
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
         return ir.Expr{Op: "call", Callee: "ami_rt_time_unix", Args: args, Result: res}, true
@@ -343,46 +369,6 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         }
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
         return ir.Expr{Op: "lit:0", Result: res}, true
-    }
-    // math package: map to LLVM intrinsics for float64
-    if strings.HasPrefix(name, "math.") {
-        callee := ""
-        switch name {
-        case "math.Sqrt": callee = "llvm.sqrt.f64"
-        case "math.Abs":  callee = "llvm.fabs.f64"
-        case "math.Exp":  callee = "llvm.exp.f64"
-        case "math.Exp2": callee = "llvm.exp2.f64"
-        case "math.Log":  callee = "llvm.log.f64"
-        case "math.Log10": callee = "llvm.log10.f64"
-        case "math.Log2":  callee = "llvm.log2.f64"
-        case "math.Floor": callee = "llvm.floor.f64"
-        case "math.Ceil":  callee = "llvm.ceil.f64"
-        case "math.Trunc": callee = "llvm.trunc.f64"
-        case "math.Round": callee = "llvm.round.f64"
-        case "math.RoundToEven": callee = "llvm.roundeven.f64"
-        case "math.Pow":  callee = "llvm.pow.f64"
-        }
-        if callee != "" {
-            var args []ir.Value
-            for _, a := range c.Args {
-                if ex, ok := lowerExpr(st, a); ok && ex.Result != nil {
-                    args = append(args, ir.Value{ID: ex.Result.ID, Type: "float64"})
-                }
-            }
-            id := st.newTemp(); res := &ir.Value{ID: id, Type: "float64"}
-            return ir.Expr{Op: "call", Callee: callee, Args: args, Result: res}, true
-        }
-        if name == "math.Max" || name == "math.Min" {
-            var args []ir.Value
-            for _, a := range c.Args {
-                if ex, ok := lowerExpr(st, a); ok && ex.Result != nil {
-                    args = append(args, ir.Value{ID: ex.Result.ID, Type: "float64"})
-                }
-            }
-            id := st.newTemp(); res := &ir.Value{ID: id, Type: "float64"}
-            cal := "llvm.maxnum.f64"; if name == "math.Min" { cal = "llvm.minnum.f64" }
-            return ir.Expr{Op: "call", Callee: cal, Args: args, Result: res}, true
-        }
     }
     return ir.Expr{}, false
 }

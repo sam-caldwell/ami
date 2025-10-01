@@ -58,10 +58,10 @@ func TestEmitLLVM_MultiResultFunctionAndReturn(t *testing.T) {
     }}}}
     out, err := lowerFunction(f)
     if err != nil { t.Fatalf("lower: %v", err) }
-    if !strings.Contains(out, "define { i64, i64 } @Pair(") {
+    if !strings.Contains(out, "define {i64, i64} @Pair(") {
         t.Fatalf("multi-result signature missing: %s", out)
     }
-    if !strings.Contains(out, "insertvalue { i64, i64 } undef, i64 %a, 0") {
+    if !strings.Contains(out, "insertvalue {i64, i64} undef, i64 %a, 0") {
         t.Fatalf("insertvalue chain missing: %s", out)
     }
 }

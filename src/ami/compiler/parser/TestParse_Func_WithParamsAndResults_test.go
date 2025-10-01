@@ -6,9 +6,9 @@ import (
 	"github.com/sam-caldwell/ami/src/ami/compiler/source"
 )
 
-func TestParser_Decorators(t *testing.T) {
-	src := "package app\n@dec(1, \"s\")\nfunc F(){}\n"
-	f := (&source.FileSet{}).AddFile("deco.ami", src)
+func TestParse_Func_WithParamsAndResults(t *testing.T) {
+	src := "package app\nfunc G(x int, y stringTy) (bool, rune) { return }\n"
+	f := (&source.FileSet{}).AddFile("sig.ami", src)
 	p := New(f)
 	if _, err := p.ParseFile(); err != nil {
 		t.Fatalf("ParseFile: %v", err)

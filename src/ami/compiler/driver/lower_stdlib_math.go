@@ -21,6 +21,9 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         return ir.Expr{Op: "call", Callee: intr, Args: args, Result: res, ResultTypes: []string{"float64"}}, true
     }
     switch name {
+    case "math.FMA": return one("llvm.fma.f64")
+    case "math.Erf": return one("llvm.erf.f64")
+    case "math.Erfc": return one("llvm.erfc.f64")
     case "math.Abs": return one("llvm.fabs.f64")
     case "math.Max": return one("llvm.maxnum.f64")
     case "math.Min": return one("llvm.minnum.f64")
@@ -32,6 +35,7 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     case "math.Exp": return one("llvm.exp.f64")
     case "math.Expm1": return one("llvm.expm1.f64")
     case "math.Exp2": return one("llvm.exp2.f64")
+    case "math.Log1p": return one("llvm.log1p.f64")
     case "math.Log": return one("llvm.log.f64")
     case "math.Log2": return one("llvm.log2.f64")
     case "math.Log10": return one("llvm.log10.f64")
@@ -40,11 +44,22 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     case "math.Sin": return one("llvm.sin.f64")
     case "math.Cos": return one("llvm.cos.f64")
     case "math.Tan": return one("llvm.tan.f64")
+    case "math.Asin": return one("llvm.asin.f64")
+    case "math.Acos": return one("llvm.acos.f64")
+    case "math.Atan": return one("llvm.atan.f64")
+    case "math.Atan2": return one("llvm.atan2.f64")
     case "math.Sinh": return one("llvm.sinh.f64")
     case "math.Cosh": return one("llvm.cosh.f64")
     case "math.Tanh": return one("llvm.tanh.f64")
     case "math.Copysign": return one("llvm.copysign.f64")
     case "math.Nextafter": return one("llvm.nextafter.f64")
+    case "math.Ldexp": return one("llvm.ldexp.f64")
+    case "math.Mod":
+        if len(args) >= 2 {
+            id := st.newTemp(); res := &ir.Value{ID: id, Type: "float64"}
+            return ir.Expr{Op: "mod", Args: []ir.Value{args[0], args[1]}, Result: res, ResultTypes: []string{"float64"}}, true
+        }
+        return ir.Expr{}, false
     }
     // Multi-result helpers
     switch name {
@@ -63,7 +78,7 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     switch name {
     case "math.NaN":
         id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
-        return ir.Expr{Op: "call", Callee: "llvm.nan.f64", Args: nil, Result: r, ResultTypes: []string{"float64"}}, true
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_nan", Args: nil, Result: r, ResultTypes: []string{"float64"}}, true
     case "math.Inf":
         id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
         return ir.Expr{Op: "call", Callee: "ami_rt_math_inf", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
@@ -76,6 +91,39 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     case "math.Signbit":
         id := st.newTemp(); r := &ir.Value{ID: id, Type: "bool"}
         return ir.Expr{Op: "call", Callee: "ami_rt_math_signbit", Args: args, Result: r, ResultTypes: []string{"bool"}}, true
+    case "math.Remainder":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_remainder", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    case "math.Pow10":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_pow10", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    }
+    // Remaining functions via runtime helpers
+    switch name {
+    case "math.Asinh":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_asinh", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    case "math.Acosh":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_acosh", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    case "math.Atanh":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_atanh", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    case "math.Cbrt":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_cbrt", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    case "math.Hypot":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_hypot", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    case "math.Dim":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_dim", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    case "math.Logb":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_logb", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
+    case "math.Ilogb":
+        id := st.newTemp(); r := &ir.Value{ID: id, Type: "int64"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_math_ilogb", Args: args, Result: r, ResultTypes: []string{"int64"}}, true
     }
     return ir.Expr{}, false
 }

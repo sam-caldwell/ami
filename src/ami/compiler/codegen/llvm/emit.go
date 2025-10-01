@@ -90,6 +90,9 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                 if ex.Callee == "ami_rt_math_modf" {
                     e.RequireExtern("declare { double, double } @ami_rt_math_modf(double)")
                 }
+                if ex.Callee == "ami_rt_math_pow10" {
+                    e.RequireExtern("declare double @ami_rt_math_pow10(i64)")
+                }
                 if ex.Callee == "ami_rt_math_inf" {
                     e.RequireExtern("declare double @ami_rt_math_inf(i64)")
                 }
@@ -101,6 +104,12 @@ func EmitModuleLLVM(m ir.Module) (string, error) {
                 }
                 if ex.Callee == "ami_rt_math_signbit" {
                     e.RequireExtern("declare i1 @ami_rt_math_signbit(double)")
+                }
+                if ex.Callee == "ami_rt_math_nan" {
+                    e.RequireExtern("declare double @ami_rt_math_nan()")
+                }
+                if ex.Callee == "ami_rt_math_remainder" {
+                    e.RequireExtern("declare double @ami_rt_math_remainder(double, double)")
                 }
                 if ex.Callee == "ami_rt_gpu_blocking_submit" {
                     e.RequireExtern("declare ptr @ami_rt_gpu_blocking_submit(ptr)")

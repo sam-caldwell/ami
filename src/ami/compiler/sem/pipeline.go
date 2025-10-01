@@ -61,21 +61,32 @@ func AnalyzePipelineSemantics(f *ast.File) []diag.Record {
         // position/uniqueness checks, io permissions, and unknown nodes
         ingressCount := 0
         egressCount := 0
-        for _, st := range steps {
-            if strings.ToLower(st.Name) == "ingress" { ingressCount++; continue }
-            if st.Name == "egress" {
+        lastIdx := len(steps) - 1
+        for i, st := range steps {
+            nameLower := strings.ToLower(st.Name)
+            if nameLower == "ingress" { ingressCount++; continue }
+            if nameLower == "egress" {
                 if egressCount > 0 { // duplicate beyond the first seen
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DUP_EGRESS", Message: "duplicate egress", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
                 }
                 egressCount++
                 continue
             }
-            // IO capability detection: any non-ingress/egress node using io.*
-            if strings.HasPrefix(st.Name, "io.") {
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
+            // IO capability detection: io.* must appear only in first (ingress position) or last (egress position)
+            if strings.HasPrefix(nameLower, "io.") {
+                if i != 0 && i != lastIdx {
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
+                } else {
+                    // Enforce operation families per position
+                    if i == 0 && !ioAllowedIngress(nameLower) {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io operation not allowed in ingress node", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"op": nameLower}})
+                    }
+                    if i == lastIdx && !ioAllowedEgress(nameLower) {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io operation not allowed in egress node", File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"op": nameLower}})
+                    }
+                }
             }
             // unknown nodes: treat core nodes as known (ingress/egress/transform/fanout/collect/mutable)
-            nameLower := strings.ToLower(st.Name)
             if nameLower != "ingress" && nameLower != "egress" && nameLower != "transform" && nameLower != "fanout" && nameLower != "collect" && nameLower != "mutable" {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_UNKNOWN_NODE", Message: "unknown node: " + st.Name, File: "", Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
             }

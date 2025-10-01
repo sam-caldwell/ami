@@ -9,6 +9,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     "github.com/sam-caldwell/ami/src/ami/compiler/token"
+    "github.com/sam-caldwell/ami/src/ami/compiler/types"
 )
 
 // lowerExpr lowers an AST expression into an ir.Expr instruction that may yield a result.
@@ -48,7 +49,8 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
         res := &ir.Value{ID: v.Name, Type: typ}
         return ir.Expr{Op: "ident", Args: nil, Result: res}, true
     case *ast.SelectorExpr:
-        // Recognize enum-like signal selectors; otherwise resolve to receiver's base value.
+        // Recognize enum-like signal selectors; otherwise resolve to a field projection
+        // using the receiver's declared type when possible.
         sel := v.Sel
         switch sel {
         case "SIGINT":
@@ -64,16 +66,15 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
             id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
             return ir.Expr{Op: "lit:3", Result: res}, true
         default:
-            // Lower the left side and project to a defined SSA value so selector receivers
-            // like a.b.c can reference an existing value (the base of the chain).
+            if ex, ok := lowerSelectorField(st, v); ok {
+                return ex, true
+            }
+            // Fallback: alias left side
             if lx, ok := lowerExpr(st, v.X); ok && lx.Result != nil {
-                // Preserve the base value id and type; treat selection as an alias.
                 res := &ir.Value{ID: lx.Result.ID, Type: lx.Result.Type}
                 return ir.Expr{Op: "ident", Result: res}, true
             }
-            // Fallback: unknown selector chain → opaque ident
-            id := st.newTemp()
-            res := &ir.Value{ID: id, Type: "any"}
+            id := st.newTemp(); res := &ir.Value{ID: id, Type: "any"}
             return ir.Expr{Op: "ident", Result: res}, true
         }
     case *ast.StringLit:
@@ -241,6 +242,55 @@ func parseInt(text string) (int, error) {
     if err != nil { return 0, err }
     if neg { n = -n }
     return int(n), nil
+}
+
+// lowerSelectorField attempts to resolve a selector expression as a field projection
+// using the receiver's declared type from the local environment. If it can
+// determine the resulting field type, it emits a synthetic "field.<name>" expr
+// that defines a new SSA value of the appropriate type.
+func lowerSelectorField(st *lowerState, s *ast.SelectorExpr) (ir.Expr, bool) {
+    if st == nil || s == nil { return ir.Expr{}, false }
+    // Flatten selector chain to base ident and path: base.a.b.c
+    baseIdent, path := flattenSelector(s)
+    if baseIdent == "" || path == "" { return ir.Expr{}, false }
+    // Resolve base type from local var types
+    btype := st.varTypes[baseIdent]
+    if btype == "" { return ir.Expr{}, false }
+    // Parse and resolve field path via types package
+    root, err := types.Parse(btype)
+    if err != nil { return ir.Expr{}, false }
+    ft, ok := types.ResolveField(root, path)
+    if !ok || ft == nil { return ir.Expr{}, false }
+    fts := ft.String()
+    // Determine result IR type
+    rtype := fts
+    // Normalize Time to int64 handle for runtime ABI friendliness
+    if fts == "Time" { rtype = "int64" }
+    id := st.newTemp()
+    res := &ir.Value{ID: id, Type: rtype}
+    // Provide the base as an argument for potential future codegen; mark as int64
+    // when projecting Time handles for better downstream compatibility.
+    bargType := st.varTypes[baseIdent]
+    if fts == "Time" { bargType = "int64" }
+    arg := ir.Value{ID: baseIdent, Type: bargType}
+    // Encode field name into the op for debug purposes: field.<path>
+    return ir.Expr{Op: "field." + path, Args: []ir.Value{arg}, Result: res}, true
+}
+
+func flattenSelector(s *ast.SelectorExpr) (base string, path string) {
+    parts := []string{}
+    var cur ast.Expr = s
+    for {
+        es, ok := cur.(*ast.SelectorExpr)
+        if !ok { break }
+        parts = append([]string{es.Sel}, parts...)
+        cur = es.X
+    }
+    if id, ok := cur.(*ast.IdentExpr); ok {
+        base = id.Name
+    }
+    if len(parts) > 0 { path = strings.Join(parts, ".") }
+    return base, path
 }
 
 func lowerCallExpr(st *lowerState, c *ast.CallExpr) ir.Expr {

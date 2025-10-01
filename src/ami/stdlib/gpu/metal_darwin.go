@@ -7,6 +7,7 @@ package gpu
 #cgo darwin LDFLAGS: -framework Metal -framework Foundation
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Forward decls implemented in metal_darwin.m
 bool AmiMetalAvailable(void);
@@ -177,6 +178,50 @@ func MetalDispatch(ctx Context, p Pipeline, grid, threadsPerGroup [3]uint32, arg
     var cAllocs []unsafe.Pointer
     toBytes := func(v any) (unsafe.Pointer, C.ulong, bool) {
         switch x := v.(type) {
+        case []byte:
+            if len(x) == 0 { return nil, 0, false }
+            p := C.CBytes(x)
+            return p, C.ulong(len(x)), true
+        case []float32:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x) * 4)
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
+        case []float64:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x) * 8)
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
+        case []uint32:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x) * 4)
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
+        case []int32:
+            if len(x) == 0 { return nil, 0, false }
+            nbytes := C.ulong(len(x) * 4)
+            p := C.malloc(nbytes)
+            if p == nil { return nil, 0, false }
+            C.memcpy(p, unsafe.Pointer(&x[0]), nbytes)
+            return p, nbytes, true
+        case int8:
+            p := C.CBytes((*[1]byte)(unsafe.Pointer(&x))[:])
+            return p, 1, true
+        case uint8:
+            p := C.CBytes((*[1]byte)(unsafe.Pointer(&x))[:])
+            return p, 1, true
+        case int16:
+            p := C.CBytes((*[2]byte)(unsafe.Pointer(&x))[:])
+            return p, 2, true
+        case uint16:
+            p := C.CBytes((*[2]byte)(unsafe.Pointer(&x))[:])
+            return p, 2, true
         case int32:
             p := C.CBytes((*[4]byte)(unsafe.Pointer(&x))[:])
             return p, 4, true

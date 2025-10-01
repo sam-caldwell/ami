@@ -20,6 +20,8 @@ func TestAMIStdlib_Time_Builtin_API_Surface(t *testing.T) {
         "  var _d = time.Delta(t, t)\n" +
         "  var _s = time.Unix(t)\n" +
         "  var _n = time.UnixNano(t)\n" +
+        "  var _s2 = t.Unix()\n" +
+        "  var _n2 = t.UnixNano()\n" +
         "  var tk = time.NewTicker(d)\n" +
         "  time.TickerRegister(tk, F)\n" +
         "  time.TickerStart(tk)\n" +

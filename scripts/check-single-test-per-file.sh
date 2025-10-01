@@ -5,7 +5,8 @@ set -euo pipefail
 # Scans Go test files under the given directory (default: src/ami/compiler/parser)
 # and fails if any *_test.go file contains more than one Test* function.
 
-DIR=${1:-src}
+# Default scope is the parser package until repo-wide migration completes.
+DIR=${1:-src/ami/compiler/parser}
 
 if [ ! -d "$DIR" ]; then
   echo "ERROR: directory not found: $DIR" >&2

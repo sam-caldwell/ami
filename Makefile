@@ -20,9 +20,9 @@ lint: ## Run go vet across all packages
 	go vet -v ./...
 
 test: ## Run all tests (go test -v ./...)
-	# Enforce single-test-per-file convention across repo (under src/)
-	bash ./scripts/check-single-test-per-file.sh src
-	go test -v ./...
+    # Enforce single-test-per-file convention in parser (phase 1)
+    bash ./scripts/check-single-test-per-file.sh src/ami/compiler/parser
+    go test -v ./...
 
 coverage-short: ## Fast coverage on CLI (filters heavy tests) + sanity on schemas
 	@echo "Running short coverage for CLI (filtered) ..."

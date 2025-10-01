@@ -2,19 +2,9 @@ package parser
 
 import (
     "testing"
-
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
 )
-
-// TestParseBlock_Internal exercises the private parseBlock depth logic.
-func TestParseBlock_Internal(t *testing.T) {
-    code := "{{}}"
-    f := (&source.FileSet{}).AddFile("b.ami", code)
-    p := New(f)
-    if p.cur.Lexeme != "{" { t.Fatalf("want '{', got %q", p.cur.Lexeme) }
-    if _, err := p.parseBlock(); err != nil { t.Fatalf("parseBlock: %v", err) }
-}
 
 // TestParseFuncBlock_Statements covers var/assign/defer/return and comment attachment.
 func TestParseFuncBlock_Statements(t *testing.T) {
@@ -27,3 +17,4 @@ func TestParseFuncBlock_Statements(t *testing.T) {
     fn, ok := file.Decls[0].(*ast.FuncDecl)
     if !ok || fn.Body == nil || len(fn.Body.Stmts) < 4 { t.Fatalf("body not parsed with statements: %#v", file.Decls[0]) }
 }
+

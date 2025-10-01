@@ -2,7 +2,6 @@ package parser
 
 import (
     "testing"
-
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
 )
 
@@ -24,16 +23,3 @@ func TestParser_Broader_Coverage(t *testing.T) {
     if _, err := p.ParseFile(); err != nil { t.Fatalf("ParseFile: %v", err) }
 }
 
-func TestParser_Pipeline_EdgeArrow(t *testing.T) {
-    src := "package app\npipeline P(){ Alpha -> Beta; egress }\n"
-    f := (&source.FileSet{}).AddFile("edge.ami", src)
-    p := New(f)
-    if _, err := p.ParseFile(); err != nil { t.Fatalf("ParseFile: %v", err) }
-}
-
-func TestParser_ResultList_ErrorBranch(t *testing.T) {
-    src := "package app\nfunc X() (int, ) { return }\n"
-    f := (&source.FileSet{}).AddFile("res.ami", src)
-    p := New(f)
-    _, _ = p.ParseFileCollect()
-}

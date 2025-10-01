@@ -6,6 +6,7 @@ notes:
   - Expectations are describe the AMI stdlib, grouped by package and features.
   - Where present, `docx` lists relevant sections from the authoritative document.
   - The AMI stdlib is a built-in and the compiler should generate the object code underneath each feature.
+  - Changes should be committed in logical groupings.
   - Status mapping:
     - done→complete
     - todo→ready
@@ -29,9 +30,6 @@ notes:
     - documentation: `docs/`
     - AMI examples: `examples/`
     - End-to-End tests: `tests/`
-
-
-
 
 stdlib:
   - id: S-1
@@ -100,6 +98,14 @@ stdlib:
             tests: []
 
           - id: E-1-1-8
+            statement: |
+              As a user, I expect that AMI `io` package will have a CreateTemp() function to create a temporary file
+              and return the `io.FHO` object used to manage the file content.
+            dependencies: []
+            status: ready
+            tests: []
+
+          - id: E-1-1-9
             statement: |
               As a user, I expect that AMI
             dependencies: []
@@ -274,3 +280,13 @@ stdlib:
             dependencies: [ ]
             status: ready
             tests: [ ]
+
+      - id: F-3-1
+        name:
+        expectations:
+          - id: E-3-1-1
+            statement: |
+
+            dependencies: []
+            status: ready
+            tests: []

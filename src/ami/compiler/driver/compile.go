@@ -34,6 +34,36 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     }
     // process packages in a stable order by name
     sort.SliceStable(pkgs, func(i, j int) bool { return pkgs[i].Name < pkgs[j].Name })
+    // Pre-collect global function signatures and param positions across all packages (for qualified calls)
+    type gsig struct{ params, results []string; ppos []diag.Position }
+    global := map[string]map[string]gsig{} // pkg -> func -> sig
+    for _, pkg := range pkgs {
+        if pkg.Files == nil { continue }
+        files := append([]*source.File(nil), pkg.Files.Files...)
+        sort.SliceStable(files, func(i, j int) bool { return files[i].Name < files[j].Name })
+        for _, f := range files {
+            if f == nil { continue }
+            pr := parser.New(f)
+            af, _ := pr.ParseFileCollect()
+            if af == nil { continue }
+            for _, d := range af.Decls {
+                if fn, ok := d.(*ast.FuncDecl); ok && fn.Name != "" {
+                    var ps []string
+                    var rs []string
+                    var ppos []diag.Position
+                    for _, p := range fn.Params {
+                        ps = append(ps, p.Type)
+                        tp := diag.Position{Line: p.TypePos.Line, Column: p.TypePos.Column, Offset: p.TypePos.Offset}
+                        if p.TypePos.Line == 0 { tp = diag.Position{Line: p.Pos.Line, Column: p.Pos.Column, Offset: p.Pos.Offset} }
+                        ppos = append(ppos, tp)
+                    }
+                    for _, r := range fn.Results { rs = append(rs, r.Type) }
+                    if _, ok := global[af.PackageName]; !ok { global[af.PackageName] = map[string]gsig{} }
+                    global[af.PackageName][fn.Name] = gsig{params: ps, results: rs, ppos: ppos}
+                }
+            }
+        }
+    }
     // collect resolved sources for debug summary
     var resolved []resolvedUnit
     // Apply workspace-driven decorator disables (scaffold wiring for analyzers)
@@ -98,6 +128,38 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                     paramNames[fn.Name] = pnames
                     resultSigs[fn.Name] = rs
                     paramPos[fn.Name] = ppos
+                }
+            }
+        }
+        // Augment signature maps with qualified names from imported packages using alias→pkg mapping
+        aliasToPkg := map[string]string{}
+        for _, u := range units {
+            for _, d := range u.ast.Decls {
+                if im, ok := d.(*ast.ImportDecl); ok {
+                    alias := im.Alias
+                    pkg := im.Path
+                    if alias == "" {
+                        if i := lastSlash(pkg); i >= 0 && i+1 < len(pkg) { alias = pkg[i+1:] } else { alias = pkg }
+                    }
+                    // normalize package name from path as last segment
+                    pkgName := pkg
+                    if i := lastSlash(pkg); i >= 0 && i+1 < len(pkg) { pkgName = pkg[i+1:] }
+                    aliasToPkg[alias] = pkgName
+                }
+            }
+        }
+        for alias, pkgName := range aliasToPkg {
+            if g, ok := global[pkgName]; ok {
+                for fn, sig := range g {
+                    q := alias + "." + fn
+                    paramSigs[q] = sig.params
+                    resultSigs[q] = sig.results
+                    paramPos[q] = sig.ppos
+                    // Also expose canonical pkg-qualified form
+                    q2 := pkgName + "." + fn
+                    paramSigs[q2] = sig.params
+                    resultSigs[q2] = sig.results
+                    paramPos[q2] = sig.ppos
                 }
             }
         }
@@ -452,3 +514,10 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
 }
 
 // unitName is defined in unitname.go
+// lastSlash returns the last index of '/' or -1
+func lastSlash(s string) int {
+    for i := len(s) - 1; i >= 0; i-- {
+        if s[i] == '/' { return i }
+    }
+    return -1
+}

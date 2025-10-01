@@ -10,7 +10,6 @@ import (
 // Cross-package variant: import + qualified call. Pending until package-qualified
 // call resolution is implemented and SEM can look up signatures across packages.
 func TestCompile_CrossPackage_CallExpectedPos_FromCallee(t *testing.T) {
-    t.Skip("pending: package-qualified call resolution")
     ws := workspace.Workspace{}
 
     // Library package with Callee defined on line 3
@@ -37,4 +36,3 @@ func TestCompile_CrossPackage_CallExpectedPos_FromCallee(t *testing.T) {
     }
     if !found { t.Fatalf("missing cross-package expectedPos diag: %+v", diags) }
 }
-

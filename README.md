@@ -43,6 +43,7 @@ Documentation Index (docs/*)
   - `docs/workspace-audit.md` — workspace structure, dependency audit
   - `docs/make.md` — Makefile targets (build, test, bench, e2e)
   - `docs/examples.md` — building and exploring the examples
+  - `docs/stdlib/os.md` — stdlib os package (process runner)
 
 Authoritative Specification
 - The authoritative specification is maintained as a `.docx` and mirrored by the YAML tracker:

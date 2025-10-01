@@ -8,7 +8,7 @@ Known items
 
 - Cross‑cutting (status):
   - CC‑1 Coverage Gate: ≥0.80 coverage on changed packages. Action: maintain in CI and keep tests for new work.
-  - CC‑2 No raw pointers in public ABI: enforced via backend safety checks (LLVM emitter + tests). Backends reject pointer params/results at function boundaries and map handle‑like types to i64 in public signatures. New backends must gate by the same rule.
+  - CC‑2 No raw pointers in public ABI — READY: enforced via backend safety checks (LLVM emitter + tests). Backends reject pointer params/results at function boundaries and map handle‑like types to i64 in public signatures. Driver surfaces violations as E_LLVM_EMIT. New backends must gate by the same rule.
 
 - Generics diagnostics (candidate enhancements):
   - Add E_GENERIC_ARITY_MISMATCH for wrong number of generic type arguments (e.g., Owned<>) to improve feedback beyond generic type mismatch.

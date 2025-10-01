@@ -913,24 +913,27 @@ stdlib:
             statement: |
               As a user, I expect the stdlib to have a built-in `io` package for file input and output.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-2
             statement: |
               As a user, I expect that AMI `io` package will have a file handle object (FHO) representing a file and 
               its underlying file handle.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-3
             statement: |
               As a user, I expect the AMI `io` package to have an `io.OpenFile(...)` function comparable to Go's
               `os.Open(...)`, except that it returns an `io.FHO` and error object rather than a file handle pointer.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-4
             statement: |
@@ -939,8 +942,9 @@ stdlib:
               unusable; the io.FHO object should have .Read(), .ReadBytes(), .Write(), .WriteBytes(), .Seek() and 
               other such functions as needed to perform file I/O.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-5
             statement: |
@@ -949,8 +953,9 @@ stdlib:
               error indicating the handle is closed; .Read()/.Write() return the number of bytes processed and a 
               non-nil error on partial operations; and .Seek(offset, whence) follows standard POSIX whence semantics.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-6
             statement: |
@@ -958,15 +963,17 @@ stdlib:
               a .Pos() method which returns the current file position for read/write operations, a .Truncate() method
               used to truncate the file.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-7
             statement: |
               As a user, I expect the AMI `io.FHO` type will have a .Flush() method to flush file buffers to disk.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-8
             statement: |
@@ -974,8 +981,9 @@ stdlib:
               to create a temporary file and return the `io.FHO` object used to manage the file content; and the `dir`
               directory string will be relative to the system temporary directory.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-9
             statement: |
@@ -983,16 +991,18 @@ stdlib:
               directory and return the directory path (string); and the temporary directory will be created relative to
               the system temporary directory.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-1-10
             statement: |
               As a user, I expect the AMI `io` package will have a Stat(fileName string) function which will return
               a struct containing the file information about the given fileName.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
       - id: F-1-2
         name: Stdlib Console Input / Output
@@ -1002,24 +1012,27 @@ stdlib:
               As a user, I expect the AMI `io` package will have a special FHO called io.Stdin for reading from stdin;
               and this FHO will behave like any other FHO with all the same methods and properties.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-2-2
             statement: |
               As a user, I expect the AMI `io` package will have a special FHO called io.Stdout for writing to
               stdout; and this FHO will behave like any other FHO with all the same methods and properties.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
           - id: E-1-2-3
             statement: |
               As a user, I expect the AMI `io` package will have a special FHO called io.Stderr for writing to
               stderr; and this FHO will behave like any other FHO with all the same methods and properties.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_test.go
 
       - id: F-1-3
         name: Stdlib Network Input / Output
@@ -1030,8 +1043,12 @@ stdlib:
               equivalent to an `io.FHO`, representing a socket opened for input/output with the same methods and
               properties as a file `io.FHO` where applicable.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/socket_udp_test.go
+              - src/ami/stdlib/io/socket_tcp_test.go
+              - src/ami/stdlib/io/socket_read_test.go
+              - src/ami/stdlib/io/socket_tcp_listen_test.go
 
           - id: E-1-3-2
             statement: |
@@ -1040,8 +1057,11 @@ stdlib:
               UDP, TCP), host IP,
               and port.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/socket_udp_test.go
+              - src/ami/stdlib/io/socket_tcp_test.go
+              - src/ami/stdlib/io/socket_tcp_listen_test.go
 
           - id: E-1-3-3
             statement: |
@@ -1049,24 +1069,29 @@ stdlib:
               write messages to the socket buffer; .Send() to send buffered contents; and .Listen() to register a
               handler invoked for incoming network traffic, mirroring `io.FHO` semantics where applicable.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/socket_udp_test.go
+              - src/ami/stdlib/io/socket_tcp_test.go
+              - src/ami/stdlib/io/socket_helpers_test.go
 
           - id: E-1-3-4
             statement: |
               As a user, I expect the AMI `io` package will have an `io.Hostname()` method which will return the 
               current hostname of the underlying system.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_network_test.go
 
           - id: E-1-3-5
             statement: |
               As a user, I expect the AMI `io` package will have an `io.Interfaces()` method which will list all
               network interfaces.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/io/file_network_test.go
 
       - id: F-1-4
         name: I/O POP Capability Enforcement

@@ -883,13 +883,13 @@ cross_cutting:
       statement: |
         All features must maintain ≥0.80 coverage on changed packages with happy and sad path tests; `go vet`, 
         `go test`, and build must be green.
-      status: in progress
+      status: complete
   risks:
     - id: CC-2
       statement: |
         No public ABI may expose raw pointers; enforce via codegen safety assertions and tests.
-      status: in progress
+      status: complete
     - id: CC-3
       statement: |
         All memory must be allocated and managed in an RAII compliant manner.
-      status: ready
+      status: complete

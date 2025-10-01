@@ -220,6 +220,8 @@ func main() {
     fmt.Fprintln(of, "- path/pathIdx: generic base nesting and argument indices, outer→inner.")
     fmt.Fprintln(of, "- fieldPath: struct field traversal (e.g., a→b).")
     fmt.Fprintln(of, "- argIndex/tupleIndex: top-level call argument/return position. Summary 'paths' include these redundantly per entry.")
+    // Document support for Optional and Union traversal in arity mismatch path detection
+    fmt.Fprintln(of, "- optional/union: arity path/fieldPath traversal supports Optional and Union nesting.")
     fmt.Fprintln(of)
     fmt.Fprintln(of, "Examples:")
     fmt.Fprintln(of, "")

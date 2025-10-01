@@ -179,6 +179,7 @@ Notes:
 - path/pathIdx: generic base nesting and argument indices, outer→inner.
 - fieldPath: struct field traversal (e.g., a→b).
 - argIndex/tupleIndex: top-level call argument/return position. Summary 'paths' include these redundantly per entry.
+- optional/union: arity path/fieldPath traversal supports Optional and Union nesting.
 
 Examples:
 

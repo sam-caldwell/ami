@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.25'
+          check-latest: true
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go tests (all)
+        run: go test -v ./...
+
+      - name: Coverage gate (changed packages)
+        env:
+          THRESHOLD: '0.80'
+          # Skip packages regex: default empty (matches nothing). Override in repo settings if needed.
+          SKIP_PKGS: '^$'
+          # Package-specific threshold overrides (comma-separated regex=threshold)
+          # Example: "^github.com/.*/parser=0.90,.*codegen/llvm.*=0.75"
+          PKG_THRESHOLDS: ''
+          # Extra path excludes for changed-files detection (space/comma-separated)
+          EXTRA_EXCLUDES: 'src/**/autogen/** src/**/third_party/**'
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          bash scripts/coverage_gate.sh

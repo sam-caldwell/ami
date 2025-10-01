@@ -65,4 +65,3 @@ pipeline P(){
 ```
 pipeline P(){ ingress; ...; egress; ...edges... }
 ```
-

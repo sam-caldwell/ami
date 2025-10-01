@@ -94,3 +94,4 @@ A type("Event<slice<string>>"); B type("Event<slice<Optional<Union<int,string>>>
 // Error: mismatched element type
 A type("Event<slice<string>>"); B type("Event<slice<int>>"); A -> B;  // E_EVENT_TYPE_FLOW
 ```
+

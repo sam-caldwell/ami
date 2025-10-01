@@ -1,8 +1,6 @@
 # AMI Language: Enum Semantics
 
-This document defines enums in AMI consistent with the authoritative reference (docs/Asynchronous Machine
-Interface.docx). It describes naming, determinism, methods, JSON/text behavior, and unknown handling. Compiler/runtime
-behavior must remain deterministic and case‑sensitive.
+This document defines enums in AMI consistent with the authoritative reference (docs/Asynchronous Machine Interface.docx). It describes naming, determinism, methods, JSON/text behavior, and unknown handling. Compiler/runtime behavior must remain deterministic and case‑sensitive.
 
 Overview
 

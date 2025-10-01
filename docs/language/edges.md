@@ -69,8 +69,8 @@ Example:
 ```
 
 ## See Also
-- `docs/backend/build_plan.md` — build plan may summarize debug artifact paths, including edges and IR indices.
-- `docs/ir-indices.md` — IR indices emitted under `build/debug/ir/<pkg>/...` during verbose builds.
+- `docs/toolchain/backend/build_plan.md` — build plan may summarize debug artifact paths, including edges and IR indices.
+- `docs/toolchain/ir-indices.md` — IR indices emitted under `build/debug/ir/<pkg>/...` during verbose builds.
 
 Example (Collect with multiple upstreams)
 
@@ -194,3 +194,4 @@ These small snippets illustrate common validation outcomes with their diagnostic
 - Backpressure and capacity validation:
   - Source: `pipeline P(){ Collect edge.FIFO(min=10, max=5, backpressure=unknown); egress }`
   - Diags: `E_EDGE_CAPACITY_ORDER` (max < min), `E_EDGE_BACKPRESSURE`.
+

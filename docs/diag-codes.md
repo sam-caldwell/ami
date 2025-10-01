@@ -179,3 +179,43 @@ Notes:
 - path/pathIdx: generic base nesting and argument indices, outer→inner.
 - fieldPath: struct field traversal (e.g., a→b).
 - argIndex/tupleIndex: top-level call argument/return position. Summary 'paths' include these redundantly per entry.
+
+Examples:
+
+- E_GENERIC_ARITY_MISMATCH (return):
+  Code: E_GENERIC_ARITY_MISMATCH
+  Message: generic type argument count mismatch
+  Data:
+    function: "F"
+    index: 0
+    base: "Owned"
+    path: ["slice", "Owned"]
+    pathIdx: [0]
+    fieldPath: ["a", "b"]
+    expected: "Struct{a:Struct{b:slice<Owned<T>>}}"
+    actual: "Struct{a:Struct{b:slice<Owned<int,string>>}}"
+    expectedArity: 1
+    actualArity: 2
+    expectedPos: { line: 3, column: 16, offset: 42 }
+
+- E_RETURN_TUPLE_MISMATCH_SUMMARY:
+  Code: E_RETURN_TUPLE_MISMATCH_SUMMARY
+  Message: multiple return elements mismatch
+  Data:
+    function: "F"
+    count: 2
+    indices: [0, 1]
+    paths:
+      - index: 0, tupleIndex: 0, base: "Owned", path: ["slice", "Owned"], pathIdx: [0], fieldPath: ["a", "b"], expectedPos: { line: 3, column: 16, offset: 42 }
+      - index: 1, tupleIndex: 1, base: "Error", path: ["Error"], pathIdx: [], expectedPos: { line: 3, column: 27, offset: 64 }
+
+- E_CALL_ARGS_MISMATCH_SUMMARY:
+  Code: E_CALL_ARGS_MISMATCH_SUMMARY
+  Message: multiple call arguments mismatch
+  Data:
+    callee: "Callee"
+    count: 2
+    indices: [0, 1]
+    paths:
+      - argIndex: 0, paramName: "a", base: "Owned", path: ["slice", "Owned"], pathIdx: [0], fieldPath: ["a"], expectedPos: { line: 2, column: 16, offset: 26 }
+      - argIndex: 1, paramName: "b", base: "Error", path: ["Error"], pathIdx: [], expectedPos: { line: 2, column: 23, offset: 33 }

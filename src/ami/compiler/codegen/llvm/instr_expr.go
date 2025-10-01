@@ -44,6 +44,10 @@ func lowerExpr(e ir.Expr) string {
                 ret = "i64"
             case "ami_rt_time_unix_nano":
                 ret = "i64"
+            case "ami_rt_install_handler_thunk":
+                ret = "void"
+            case "ami_rt_get_handler_thunk":
+                ret = "ptr"
             default:
                 // fall back to result type when provided
                 if e.Result != nil { ret = mapType(e.Result.Type) } else { ret = "void" }

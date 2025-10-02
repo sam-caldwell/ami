@@ -1,4 +1,4 @@
-package signal
+package amsignal
 
 import "testing"
 

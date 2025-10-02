@@ -65,7 +65,13 @@ func New(cfg Config) (*Pool, error) {
     p := &Pool{cfg: cfg, ctx: ctx, cancel: cancel}
     switch cfg.Policy {
     case FIFO:
-        n := cfg.QueueCapacity; if n <= 0 { n = 0 }
+        // Default to a small buffered channel so Submit does not spuriously fail
+        // when no explicit QueueCapacity is provided. An unbuffered channel with
+        // non-blocking Submit would frequently return "queue full" under test.
+        n := cfg.QueueCapacity
+        if n <= 0 {
+            n = 64
+        }
         p.fifoCh = make(chan Task, n)
     case LIFO:
         p.lifo = make([]Task, 0)

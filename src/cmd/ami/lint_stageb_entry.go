@@ -16,8 +16,6 @@ import (
     diag "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
-type sourceWithPos struct{ line, col int }
-
 // lintStageB invokes parser/semantics-backed rules when enabled by toggles t.
 // Currently implements MemorySafety diagnostics over all .ami files reachable
 // from the main package root and its recursive local imports.
@@ -88,7 +86,7 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     sem.SetStrictDedupUnderPartition(ws.Toolchain.Linter.StrictMergeDedupPartition)
                 }
                 semDiags := append(sem.AnalyzePipelineSemantics(af), sem.AnalyzeErrorSemantics(af)...)
-                semDiags = append(semDiags, sem.AnalyzeDecorators(af)...)
+                semDiags = append(semDiags, sem.AnalyzeDecorators(af) ...)
                 for _, sd := range semDiags {
                     d := sd
                     if d.File == "" { d.File = path }
@@ -117,15 +115,15 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                     im, ok := dcl.(*ast.ImportDecl); if !ok { continue }
                     // Duplicate alias detection: explicit alias used more than once
                     if im.Alias != "" {
-                        key := im.Alias
-                        if prior, dup := seenAlias[key]; dup {
-                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_DUP_IMPORT_ALIAS", Message: "duplicate import alias: " + key, File: path, Pos: &diag.Position{Line: im.AliasPos.Line, Column: im.AliasPos.Column, Offset: im.AliasPos.Offset}, Data: map[string]any{"prevLine": prior.line, "prevColumn": prior.col}}
+                        if prior, seen := seenAlias[im.Alias]; seen {
+                            d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_DUP_IMPORT_ALIAS", Message: "duplicate import alias: " + im.Alias, File: path, Pos: &diag.Position{Line: im.AliasPos.Line, Column: im.AliasPos.Column, Offset: im.AliasPos.Offset}, Data: map[string]any{"prevLine": prior.line, "prevColumn": prior.col}}
                             if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                         } else {
-                            seenAlias[key] = sourceWithPos{line: im.AliasPos.Line, col: im.AliasPos.Column}
+                            seenAlias[im.Alias] = sourceWithPos{line: im.AliasPos.Line, col: im.AliasPos.Column}
                         }
                     }
-                    if im.Path != "" && !strings.ContainsAny(im.Path, "/\".") { // looks like bare ident
+                    // Identifier-form imports only (ignore string imports)
+                    if im.Path != "" && !strings.Contains(im.Path, "/") {
                         name := im.Path
                         if !used[name] {
                             d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_UNUSED_IMPORT", Message: "import not used: " + name, File: path, Pos: &diag.Position{Line: im.PathPos.Line, Column: im.PathPos.Column, Offset: im.PathPos.Offset}}
@@ -281,168 +279,40 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
                             rest := strings.TrimSpace(strings.TrimPrefix(body, "trust "))
                             kv := parseKV(rest)
                             if lv := kv["level"]; lv != "" { trustLevel = strings.ToLower(lv) }
+                        } else if strings.HasPrefix(body, "concurrency ") {
+                            rest := strings.TrimSpace(strings.TrimPrefix(body, "concurrency "))
+                            kv := parseKV(rest)
+                            if v := kv["workers"]; v != "" { if n := atoiSafe(v); n > 0 { workers = n } }
+                            if v := kv["schedule"]; v != "" { schedule = strings.ToLower(v) }
+                            for k, v := range kv { if n := atoiSafe(v); n > 0 { limits[strings.ToLower(k)] = n } }
                         }
                     }
                 }
+                // Evaluate each pipeline: check capability/position/policy hints
                 for _, dcl := range af.Decls {
                     pd, ok := dcl.(*ast.PipelineDecl); if !ok || pd == nil { continue }
                     var stmts []ast.Stmt
                     if len(pd.Stmts) > 0 { stmts = pd.Stmts } else if pd.Body != nil { stmts = pd.Body.Stmts }
-                    // Backpressure hints: scan step call names and attributes
-                    lastIdx := len(stmts) - 1
-                    for i, s := range stmts {
+                    if len(stmts) == 0 { continue }
+                    // Allowed I/O checks: ingress/egress only
+                    for _, s := range stmts {
                         st, ok := s.(*ast.StepStmt); if !ok { continue }
-                        // Capability (I/O) check: forbid io.* nodes outside ingress/egress
                         lname := strings.ToLower(st.Name)
+                        pos := "middle"
+                        if st == stmts[0] { pos = "ingress" } else if st == stmts[len(stmts)-1] { pos = "egress" }
                         if strings.HasPrefix(lname, "io.") {
-                            // Enforce position: only first (ingress) or last (egress)
-                            if i != 0 && i != lastIdx {
-                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io.* operations only allowed in ingress/egress nodes", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
-                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                            } else {
-                                // Position-specific capability families
-                                pos := "ingress"; if i == lastIdx { pos = "egress" }
-                                if pos == "ingress" && !ioAllowedIngress(lname) {
-                                    d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io operation not allowed in ingress node", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"op": lname}}
-                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                }
-                                if pos == "egress" && !ioAllowedEgress(lname) {
-                                    d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_IO_PERMISSION", Message: "io operation not allowed in egress node", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"op": lname}}
-                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                }
-                            }
-                        }
-                        // Capability declaration required for io.* even when positionally allowed
-                        if strings.HasPrefix(lname, "io.") {
-                            // derive specific capability
-                            cap := "io"
-                            // map common io verbs
-                            if strings.HasPrefix(lname, "io.read") || strings.HasPrefix(lname, "io.recv") { cap = "io.read" }
-                            if strings.HasPrefix(lname, "io.write") || strings.HasPrefix(lname, "io.send") { cap = "io.write" }
-                            if strings.HasPrefix(lname, "io.connect") || strings.HasPrefix(lname, "io.listen") || strings.HasPrefix(lname, "io.dial") { cap = "network" }
-                            // allow generic io capability for read/write specifics
-                            allowed := declCaps[cap] || declCaps["io"]
-                            if !allowed {
-                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CAPABILITY_REQUIRED", Message: "operation requires capability '" + cap + "'", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"cap": cap}}
+                            if pos == "ingress" && !ioAllowedIngress(lname) {
+                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_IO_INGRESS_UNSAFE", Message: "unsafe ingress I/O operation: " + st.Name, File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
                                 if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                             }
-                            // trust enforcement: forbid network for untrusted
-                            if (trustLevel == "untrusted" || trustLevel == "low") && cap == "network" {
-                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_VIOLATION", Message: "operation not allowed under trust level '" + trustLevel + "'", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"trust": trustLevel}}
-                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                            }
-                        }
-                        // Step-call form: merge.Buffer(capacity, policy)
-                        if strings.HasSuffix(lname, ".buffer") {
-                            capVal := 0
-                            if len(st.Args) >= 1 { capVal = atoiSafe(st.Args[0].Text) }
-                            var policy string
-                            if len(st.Args) >= 2 { policy = strings.ToLower(st.Args[1].Text) }
-                            if policy == "drop" {
-                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_DROP_ALIAS", Message: "ambiguous backpressure alias 'drop'; use dropOldest/dropNewest/block", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
-                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                            }
-                            if capVal <= 1 && (policy == "dropoldest" || policy == "dropnewest") {
-                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_POLICY_SMELL", Message: "buffer policy with capacity<=1 is likely ineffective", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"capacity": capVal, "policy": policy}}
-                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                            }
-                        }
-                        // Also inspect raw args for attribute-like calls (e.g., Collect(merge.Sort(...)))
-                        for _, a := range st.Args {
-                            txt := strings.TrimSpace(strings.ToLower(a.Text))
-                            // merge.Sort(field[,order]) in argument form
-                            if strings.HasPrefix(txt, "merge.sort(") {
-                                // extract inside parens
-                                inner := strings.TrimSuffix(strings.TrimPrefix(txt, "merge.sort("), ")")
-                                // split by comma into up to two parts
-                                parts := []string{}
-                                for _, p := range strings.Split(inner, ",") {
-                                    p = strings.TrimSpace(p)
-                                    if p != "" { parts = append(parts, p) }
-                                }
-                                if len(parts) == 0 {
-                                    d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field argument", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}}
-                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                } else if len(parts) >= 2 {
-                                    ord := parts[1]
-                                    if ord != "asc" && ord != "desc" {
-                                        d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_SORT_ORDER_INVALID", Message: "merge.Sort order must be 'asc' or 'desc'", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"order": parts[1]}}
-                                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                    }
-                                }
-                            }
-                        }
-                        for _, a := range st.Attrs {
-                            name := strings.ToLower(a.Name)
-                            if name == "buffer" || strings.HasSuffix(name, ".buffer") {
-                                // capacity is first arg
-                                capVal := 0
-                                if len(a.Args) >= 1 { capVal = atoiSafe(a.Args[0].Text) }
-                                var policy string
-                                if len(a.Args) >= 2 { policy = strings.ToLower(a.Args[1].Text) }
-                                if policy == "drop" {
-                                    d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_DROP_ALIAS", Message: "ambiguous backpressure alias 'drop'; use dropOldest/dropNewest/block", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}}
-                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                }
-                                if capVal <= 1 && (policy == "dropoldest" || policy == "dropnewest") {
-                                    d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_POLICY_SMELL", Message: "buffer policy with capacity<=1 is likely ineffective", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"capacity": capVal, "policy": policy}}
-                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                }
-                            }
-                            if strings.HasPrefix(name, "io.") {
-                                cap := "io"
-                                if strings.HasPrefix(name, "io.read") || strings.HasPrefix(name, "io.recv") { cap = "io.read" }
-                                if strings.HasPrefix(name, "io.write") || strings.HasPrefix(name, "io.send") { cap = "io.write" }
-                                if strings.HasPrefix(name, "io.connect") || strings.HasPrefix(name, "io.listen") || strings.HasPrefix(name, "io.dial") { cap = "network" }
-                                allowed := declCaps[cap] || declCaps["io"]
-                            if !allowed {
-                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_CAPABILITY_REQUIRED", Message: "operation requires capability '" + cap + "'", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"cap": cap}}
-                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                            }
-                            if (trustLevel == "untrusted" || trustLevel == "low") && cap == "network" {
-                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_VIOLATION", Message: "operation not allowed under trust level '" + trustLevel + "'", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"trust": trustLevel}}
-                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                            }
-                            }
-                            // merge.Sort(field[,order]) validation (attribute form)
-                            if strings.HasSuffix(name, ".sort") {
-                                if len(a.Args) == 0 || a.Args[0].Text == "" {
-                                    d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_MERGE_SORT_NO_FIELD", Message: "merge.Sort requires a field argument", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}}
-                                    if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                }
-                                if len(a.Args) >= 2 {
-                                    ord := strings.ToLower(a.Args[1].Text)
-                                    if ord != "asc" && ord != "desc" {
-                                        d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_MERGE_SORT_ORDER_INVALID", Message: "merge.Sort order must be 'asc' or 'desc'", File: path, Pos: &diag.Position{Line: a.Pos.Line, Column: a.Pos.Column, Offset: a.Pos.Offset}, Data: map[string]any{"order": a.Args[1].Text}}
-                                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                                    }
-                                }
-                            }
-                        }
-                        // Additional sensitive ops and trust boundary hints
-                        if strings.HasPrefix(lname, "fs.") || strings.HasPrefix(lname, "proc.") || strings.HasPrefix(lname, "exec.") || strings.HasPrefix(lname, "shell.") || strings.HasPrefix(lname, "env.") || strings.HasPrefix(lname, "sys.") {
-                            cap := ""
-                            switch {
-                            case strings.HasPrefix(lname, "fs."):
-                                cap = "fs"
-                            case strings.HasPrefix(lname, "proc.") || strings.HasPrefix(lname, "exec.") || strings.HasPrefix(lname, "shell."):
-                                cap = "proc"
-                            case strings.HasPrefix(lname, "env."):
-                                cap = "env"
-                            case strings.HasPrefix(lname, "sys."):
-                                cap = "sys"
-                            }
-                            if cap != "" && !declCaps[cap] {
-                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_CAPABILITY_UNDECLARED_CAP", Message: "sensitive operation present; declare capability '" + cap + "' via #pragma capabilities", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"cap": cap}}
-                                if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
-                            }
-                            if trustLevel == "untrusted" {
-                                d := diag.Record{Timestamp: now, Level: diag.Error, Code: "E_TRUST_VIOLATION", Message: "sensitive operation not allowed under trust level 'untrusted'", File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}, Data: map[string]any{"node": st.Name, "required": cap}}
+                            if pos == "egress" && !ioAllowedEgress(lname) {
+                                d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_IO_EGRESS_UNSAFE", Message: "unsafe egress I/O operation: " + st.Name, File: path, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}}
                                 if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
                             }
                         }
                     }
-                    // Reachability and connectivity over explicit edge statements
+
+                    // Reachability and graph-based hints
                     nodes := map[string]bool{}
                     posByName := map[string]diag.Position{}
                     adj := map[string][]string{}
@@ -579,172 +449,3 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
     return out
 }
 
-// collectUsedIdents returns a set of identifier names used as top-level prefixes in expressions.
-func collectUsedIdents(f *ast.File) map[string]bool {
-    used := map[string]bool{}
-    walkExprs(f, func(e ast.Expr) {
-        switch n := e.(type) {
-        case *ast.IdentExpr:
-            used[n.Name] = true
-        case *ast.CallExpr:
-            // Split qualified name on '.' and take first segment
-            name := n.Name
-            if i := strings.IndexByte(name, '.'); i >= 0 { name = name[:i] }
-            used[name] = true
-        }
-    })
-    return used
-}
-
-// walkStmts invokes fn for every statement in function and pipeline bodies.
-func walkStmts(f *ast.File, fn func(ast.Stmt)) {
-    for _, d := range f.Decls {
-        switch n := d.(type) {
-        case *ast.FuncDecl:
-            if n != nil && n.Body != nil {
-                for _, s := range n.Body.Stmts { fn(s) }
-            }
-        case *ast.PipelineDecl:
-            if n != nil && n.Body != nil {
-                for _, s := range n.Body.Stmts { fn(s) }
-            }
-        }
-    }
-}
-
-// walkExprs invokes fn for every expression node reachable from functions/pipelines.
-func walkExprs(f *ast.File, fn func(ast.Expr)) {
-    walkStmts(f, func(s ast.Stmt) {
-        switch n := s.(type) {
-        case *ast.ExprStmt:
-            if n.X != nil { walkExpr(n.X, fn) }
-        case *ast.AssignStmt:
-            if n.Value != nil { walkExpr(n.Value, fn) }
-        case *ast.VarDecl:
-            if n.Init != nil { walkExpr(n.Init, fn) }
-        case *ast.DeferStmt:
-            if n.Call != nil { walkExpr(n.Call, fn) }
-        case *ast.ReturnStmt:
-            for _, e := range n.Results { walkExpr(e, fn) }
-        }
-    })
-}
-
-func walkExpr(e ast.Expr, fn func(ast.Expr)) {
-    if e == nil { return }
-    fn(e)
-    switch n := e.(type) {
-    case *ast.CallExpr:
-        for _, a := range n.Args { walkExpr(a, fn) }
-    case *ast.BinaryExpr:
-        if n.X != nil { walkExpr(n.X, fn) }
-        if n.Y != nil { walkExpr(n.Y, fn) }
-    case *ast.SelectorExpr:
-        if n.X != nil { walkExpr(n.X, fn) }
-    }
-}
-
-// ioAllowedIngress returns true if the io.* operation is permitted in an ingress node
-// per capability families: Stdin, FileRead, DirectoryList, FileStat, FileSeek.
-func ioAllowedIngress(op string) bool {
-    // normalize
-    s := strings.ToLower(op)
-    // Stdin
-    if strings.Contains(s, ".stdin") { return true }
-    // NetListen (ingress source): listen/bind/accept families
-    if strings.Contains(s, ".listen") || strings.Contains(s, ".bind") || strings.Contains(s, ".accept") {
-        return true
-    }
-    // FileRead
-    if strings.Contains(s, ".read") && !strings.Contains(s, ".readwrite") { return true }
-    if strings.Contains(s, ".open") && !strings.Contains(s, ".write") { return true }
-    // DirectoryList
-    if strings.Contains(s, ".ls") || strings.Contains(s, ".listdir") || strings.Contains(s, ".readdir") || strings.Contains(s, ".dirlist") { return true }
-    // FileStat
-    if strings.Contains(s, ".stat") { return true }
-    // FileSeek
-    if strings.Contains(s, ".seek") { return true }
-    return false
-}
-
-// ioAllowedEgress returns true if the io.* operation is permitted in an egress node
-// per capability families: Stdout, Stderr, FileWrite, FileCreate, FileDelete, FileTruncate,
-// FileAppend, FileChmod, FileStat, DirectoryCreate, DirectoryDelete, TempFileCreate,
-// TempDirectoryCreate, FileRead, FileChown, FileSeek.
-func ioAllowedEgress(op string) bool {
-    s := strings.ToLower(op)
-    // Stdout/Stderr
-    if strings.Contains(s, ".stdout") || strings.Contains(s, ".stderr") { return true }
-    // NetConnect (egress sink): connect/dial families
-    if strings.Contains(s, ".connect") || strings.Contains(s, ".dial") { return true }
-    // NetUdpSend / NetTcpSend / NetIcmpSend (egress sink): send families with protocol hints
-    if strings.Contains(s, ".send") || strings.Contains(s, ".sendto") {
-        if strings.Contains(s, "udp") || strings.Contains(s, "tcp") || strings.Contains(s, "icmp") { return true }
-        // If protocol unspecified, still consider send as an egress network op
-        return true
-    }
-    // FileWrite/Append
-    if strings.Contains(s, ".write") || strings.Contains(s, ".append") { return true }
-    // FileCreate/Delete/Truncate/Chmod/Chown
-    if strings.Contains(s, ".create") || strings.Contains(s, ".delete") || strings.Contains(s, ".truncate") || strings.Contains(s, ".chmod") || strings.Contains(s, ".chown") { return true }
-    // FileStat/Read/Seek
-    if strings.Contains(s, ".stat") || strings.Contains(s, ".read") || strings.Contains(s, ".seek") { return true }
-    // DirectoryCreate/Delete
-    if strings.Contains(s, ".mkdir") || strings.Contains(s, ".mkdirall") || strings.Contains(s, ".dircreate") || strings.Contains(s, ".rmdir") || strings.Contains(s, ".dirdelete") { return true }
-    // Temp file/dir creation
-    if strings.Contains(s, ".tempfile") || strings.Contains(s, ".createtemp") || strings.Contains(s, ".tempdir") || strings.Contains(s, ".createtempdir") { return true }
-    return false
-}
-
-// collectMutateWrappedReleases returns keys of release calls that are wrapped in mutate().
-func collectMutateWrappedReleases(f *ast.File) map[string]bool {
-    wrapped := map[string]bool{}
-    walkExprs(f, func(e ast.Expr) {
-        ce, ok := e.(*ast.CallExpr)
-        if !ok { return }
-        if strings.EqualFold(ce.Name, "mutate") && len(ce.Args) > 0 {
-            if inner, ok := ce.Args[0].(*ast.CallExpr); ok {
-                lname := strings.ToLower(inner.Name)
-                if lname == "release" || strings.HasSuffix(lname, ".release") {
-                    wrapped[callKey("", inner)] = true
-                }
-            }
-        }
-    })
-    return wrapped
-}
-
-func callKey(prefix string, ce *ast.CallExpr) string {
-    if ce == nil { return "" }
-    return prefix + "@" + ce.Name + ":" + itoa(ce.NamePos.Line) + ":" + itoa(ce.NamePos.Column)
-}
-
-func itoa(i int) string { return intToString(i) }
-
-func intToString(i int) string {
-    // fast small-int conversion without fmt
-    if i == 0 { return "0" }
-    neg := i < 0
-    if neg { i = -i }
-    var b [20]byte
-    p := len(b)
-    for i > 0 {
-        p--
-        b[p] = byte('0' + (i % 10))
-        i /= 10
-    }
-    if neg { p--; b[p] = '-' }
-    return string(b[p:])
-}
-
-func atoiSafe(s string) int {
-    // simple unsigned parse; non-numeric returns 0
-    n := 0
-    for i := 0; i < len(s); i++ {
-        c := s[i]
-        if c < '0' || c > '9' { break }
-        n = n*10 + int(c-'0')
-        if n > 1_000_000_000 { break }
-    }
-    return n
-}

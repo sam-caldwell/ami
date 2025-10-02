@@ -99,7 +99,7 @@ e2e-mod-update: e2e-build ## Run only E2E tests for 'ami mod update'
 # - Reports packages with zero *_test.go files.
 # - Reports .go files without a matching *_test.go sibling (same basename).
 test-hotspots: ## Report packages/files missing test coverage pairs (enforced: packages only)
-	@bash ./scripts/test-hotspots.sh
+	@go run ./scripts/test-hotspots.go
 
 examples: ## Build example workspaces and stage outputs under build/examples/
 	# Build all example workspaces and stage their outputs under build/examples/

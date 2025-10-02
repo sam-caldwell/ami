@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 import (
@@ -297,4 +300,3 @@ func readInputFiles() []string {
     for s.Scan() { if v := strings.TrimSpace(s.Text()); v != "" { out = append(out, v) } }
     return out
 }
-

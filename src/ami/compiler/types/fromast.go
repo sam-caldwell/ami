@@ -1,11 +1,6 @@
 package types
 
-import (
-    "strings"
-    "unicode"
-
-    "github.com/sam-caldwell/ami/src/ami/compiler/ast"
-)
+import "strings"
 
 // FromAST maps an AST type reference (currently represented as a string in the AST)
 // into a concrete types.Type. Supports primitives, generics, pointer/slice forms,

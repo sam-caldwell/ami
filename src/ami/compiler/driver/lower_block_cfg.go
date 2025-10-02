@@ -2,7 +2,6 @@ package driver
 
 import (
     "fmt"
-    "strings"
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
@@ -241,4 +240,3 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
     }
     return out, extras
 }
-

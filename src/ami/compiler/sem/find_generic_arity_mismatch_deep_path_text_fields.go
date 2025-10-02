@@ -2,7 +2,6 @@ package sem
 
 import (
     "sort"
-    "strings"
 )
 
 // findGenericArityMismatchDeepPathTextFields attempts to discover a generic arity
@@ -43,4 +42,3 @@ func findGenericArityMismatchDeepPathTextFields(expected, actual string) (bool, 
     if m, p, idx, b, w, g := findGenericArityMismatchDeepPath(expected, actual); m { return true, p, idx, nil, b, w, g }
     return false, nil, nil, nil, "", 0, 0
 }
-

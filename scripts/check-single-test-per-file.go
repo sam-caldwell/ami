@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 import (
@@ -81,4 +84,3 @@ func main() {
 
     os.Exit(failures)
 }
-

@@ -192,8 +192,3 @@ func (op *Operator) FlushWindowExcess() []ev.Event {
 func (op *Operator) Stats() (enq, emit, drop, exp int64) {
     return op.enqueued, op.emitted, op.dropped, op.expired
 }
-
-// Stats returns current counters. Intended for single-threaded reads in tests.
-func (op *Operator) Stats() (enq, emit, drop, exp int64) {
-    return op.enqueued, op.emitted, op.dropped, op.expired
-}

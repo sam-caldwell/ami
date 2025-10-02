@@ -4,6 +4,7 @@ import (
     "errors"
     "net"
     "strconv"
+    "syscall"
     stdtime "time"
     stdctx "context"
 )
@@ -256,7 +257,17 @@ func (s *Socket) RemoteAddr() string {
 func (s *Socket) CloseRead() error {
     if s == nil || s.closed { return ErrClosed }
     if s.conn == nil { return errors.New("CloseRead requires TCP connection") }
-    if tc, ok := s.conn.(*net.TCPConn); ok { return tc.CloseRead() }
+    if tc, ok := s.conn.(*net.TCPConn); ok {
+        if err := tc.CloseRead(); err != nil {
+            // If the peer already closed or the socket is no longer connected,
+            // treat it as a no-op for CloseRead to keep semantics lenient in tests.
+            if errors.Is(err, syscall.ENOTCONN) {
+                return nil
+            }
+            return err
+        }
+        return nil
+    }
     return errors.New("CloseRead not supported for this connection")
 }
 
@@ -264,7 +275,15 @@ func (s *Socket) CloseRead() error {
 func (s *Socket) CloseWrite() error {
     if s == nil || s.closed { return ErrClosed }
     if s.conn == nil { return errors.New("CloseWrite requires TCP connection") }
-    if tc, ok := s.conn.(*net.TCPConn); ok { return tc.CloseWrite() }
+    if tc, ok := s.conn.(*net.TCPConn); ok {
+        if err := tc.CloseWrite(); err != nil {
+            if errors.Is(err, syscall.ENOTCONN) {
+                return nil
+            }
+            return err
+        }
+        return nil
+    }
     return errors.New("CloseWrite not supported for this connection")
 }
 

@@ -16,17 +16,6 @@ type Engine struct {
     pool *scheduler.Pool
 }
 
-// NewEngineFromModule constructs a scheduler pool from an IR module's schedule and concurrency.
-func NewEngineFromModule(m ir.Module) (*Engine, error) {
-    pol, ok := scheduler.ParsePolicy(m.Schedule)
-    if !ok || pol == "" { pol = scheduler.FIFO }
-    workers := m.Concurrency
-    if workers <= 0 { workers = 1 }
-    p, err := scheduler.New(scheduler.Config{Workers: workers, Policy: pol})
-    if err != nil { return nil, err }
-    return &Engine{pool: p}, nil
-}
-
 // Close stops the scheduler pool, waiting for workers to exit.
 func (e *Engine) Close() { if e.pool != nil { e.pool.Stop() } }
 
@@ -57,21 +46,4 @@ func (e *Engine) RunMergeWithStats(ctx context.Context, plan ir.MergePlan, in <-
     if err := e.pool.Submit(task); err != nil { return nil, nil, err }
     go func(){ <-ctx.Done(); time.Sleep(5 * time.Millisecond); close(out) }()
     return out, &st, nil
-}
-
-// Helper: convert IR MergePlan to runtime merge Plan.
-func toRuntimePlan(p ir.MergePlan) rmerge.Plan {
-    var rp rmerge.Plan
-    rp.Stable = p.Stable
-    for _, s := range p.Sort { rp.Sort = append(rp.Sort, rmerge.SortKey{Field: s.Field, Order: s.Order}) }
-    rp.Key = p.Key
-    rp.PartitionBy = p.PartitionBy
-    rp.Buffer.Capacity = p.Buffer.Capacity
-    rp.Buffer.Policy = p.Buffer.Policy
-    rp.Window = p.Window
-    rp.TimeoutMs = p.TimeoutMs
-    rp.LatePolicy = p.LatePolicy
-    if p.DedupField != "" { rp.Dedup.Field = p.DedupField }
-    if p.Watermark != nil { rp.Watermark = &rmerge.Watermark{Field: p.Watermark.Field, LatenessMs: p.Watermark.LatenessMs} }
-    return rp
 }

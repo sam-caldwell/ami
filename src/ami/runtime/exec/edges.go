@@ -6,19 +6,6 @@ import (
     "path/filepath"
 )
 
-type edgeEntry struct {
-    Unit     string `json:"unit"`
-    Pipeline string `json:"pipeline"`
-    From     string `json:"from"`
-    To       string `json:"to"`
-}
-
-type edgesIndex struct {
-    Schema  string      `json:"schema"`
-    Package string      `json:"package"`
-    Edges   []edgeEntry `json:"edges"`
-}
-
 // BuildLinearPathFromEdges loads build/debug/asm/<pkg>/edges.json and
 // constructs a simple ingress→…→egress linear path for the given pipeline.
 // If multiple out-edges exist, it picks the first found deterministically.
@@ -52,4 +39,3 @@ func BuildLinearPathFromEdges(rootDir, pkg, pipeline string) ([]string, error) {
     }
     return pathNodes, nil
 }
-

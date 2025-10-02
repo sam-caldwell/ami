@@ -1,19 +1,15 @@
 package main
 
 import (
-    "crypto/sha256"
-    "encoding/hex"
     "encoding/json"
     "fmt"
     "io"
-    "io/fs"
     "os"
     "path/filepath"
     "sort"
 
     "github.com/sam-caldwell/ami/src/ami/exit"
     "github.com/sam-caldwell/ami/src/ami/workspace"
-    "os/exec"
 )
 
 func runModSum(out io.Writer, dir string, jsonOut bool) error {
@@ -168,14 +164,3 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
     return exit.New(exit.Integrity, "integrity failure")
 }
 
- 
-
- 
-
- 
-
- 
-
- 
-
- 

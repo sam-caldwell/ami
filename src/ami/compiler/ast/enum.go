@@ -12,11 +12,4 @@ type EnumDecl struct {
     RBrace  source.Position
 }
 
-// EnumMember is a single enum member name and its position.
-type EnumMember struct {
-    Pos  source.Position
-    Name string
-}
-
 func (*EnumDecl) isNode() {}
-

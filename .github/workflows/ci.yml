@@ -25,7 +25,7 @@ jobs:
         run: go vet ./...
 
       - name: Go tests (all)
-        run: go test -v ./...
+        run: make test
 
       - name: Coverage gate (changed packages)
         env:

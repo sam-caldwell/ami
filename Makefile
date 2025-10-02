@@ -16,12 +16,19 @@ clean: ## Remove and recreate the build/ directory
 	rm -rf ./build
 	mkdir -p ./build
 
-lint: ## Run go vet across all packages
+lint: ## Run static checks: go vet + single-test-per-file + single-declaration-per-file
 	go vet -v ./...
+	# Enforce one Test* per *_test.go (repo-wide)
+	bash ./scripts/check-single-test-per-file.sh src/
+	# Enforce single cohesive declaration per .go file and matching tests
+	bash ./scripts/check-single-declaration-per-file.sh
 
-test: ## Run all tests (go test -v ./...)
-	# Enforce single-test-per-file convention in parser (phase 1)
+check-single-test: ## Enforce one Test* per *_test.go for selected packages
+	# Gradual rollout: enforce in parser and stdlib/gpu
 	bash ./scripts/check-single-test-per-file.sh src/ami/compiler/parser
+	bash ./scripts/check-single-test-per-file.sh src/ami/stdlib/gpu
+
+test: check-single-test ## Run all tests (go test -v ./...)
 	go test -v ./...
 
 coverage-short: ## Fast coverage on CLI (filters heavy tests) + sanity on schemas

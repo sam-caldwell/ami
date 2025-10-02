@@ -6,7 +6,7 @@ set -euo pipefail
 # and fails if any *_test.go file contains more than one Test* function.
 
 # Default scope is the parser package until repo-wide migration completes.
-DIR=${1:-src/ami/compiler/parser}
+DIR=${1:-src/}
 
 if [ ! -d "$DIR" ]; then
   echo "ERROR: directory not found: $DIR" >&2
@@ -16,7 +16,13 @@ fi
 errors=0
 while IFS= read -r -d '' f; do
   # Count public test functions in the file (functions starting with Test), excluding TestMain
-  count=$(grep -E '^[[:space:]]*func[[:space:]]+Test[[:alnum:]_]*[[:space:]]*\(' "$f" | grep -v -E '^[[:space:]]*func[[:space:]]+TestMain[[:space:]]*\(' | wc -l | tr -d ' ')
+  # shellcheck disable=SC2126
+  count=$( \
+    grep -E '^[[:space:]]*func[[:space:]]+Test[[:alnum:]_]*[[:space:]]*\(' "$f" | \
+    grep -v -E '^[[:space:]]*func[[:space:]]+TestMain[[:space:]]*\(' | \
+     wc -l | \
+    tr -d ' ' \
+  )
   if [ "$count" -gt 1 ]; then
     echo "ERROR: $f contains $count Test functions (expected at most 1)" >&2
     errors=1

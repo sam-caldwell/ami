@@ -11,14 +11,6 @@ type MergePlan struct {
     TimeoutMs   int         `json:"timeoutMs,omitempty"`
     DedupField  string      `json:"dedupField,omitempty"`
     Watermark   *Watermark  `json:"watermark,omitempty"`
-    LatePolicy  string      `json:"latePolicy,omitempty"` // drop|accept (docx governs)
+    LatePolicy  string      `json:"latePolicy,omitempty"`
 }
 
-type BufferPlan struct {
-    Capacity int    `json:"capacity,omitempty"`
-    Policy   string `json:"policy,omitempty"` // block|dropOldest|dropNewest
-}
-
-type SortKey struct { Field string `json:"field"`; Order string `json:"order,omitempty"` }
-
-type Watermark struct { Field string `json:"field"`; LatenessMs int `json:"latenessMs,omitempty"` }

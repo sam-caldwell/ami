@@ -25,6 +25,7 @@
 - E2E tests reside in `tests/e2e`; unit tests live beside sources.
 
 ## Commit & Pull Request Guidelines
+- Branching: DO NOT CHANGE BRANCH.  Use 'main' branch only.
 - Message style: `area: imperative summary` (e.g., `driver: improve if/else lowering`).
 - PRs should describe motivation, link spec/work items, include tests/docs updates, and pass CI.
 - Regenerate docs when relevant (e.g., `make gen-diag-codes`).

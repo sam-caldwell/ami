@@ -22,7 +22,7 @@ lint: check-single-test check-single-declaration test-hotspots
 	go vet -v ./...
 
 check-single-test: ## Enforce one Test* per *_test.go across src/
-	bash ./scripts/check-single-test-per-file.sh src/
+	go run ./scripts/check-single-test-per-file.go src/
 
 .PHONY: check-single-declaration
 check-single-declaration: ## Enforce single cohesive declaration per .go file across src/

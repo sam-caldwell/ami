@@ -13,6 +13,8 @@ func (k Kind) String() string {
         return "Number"
     case String:
         return "String"
+    case DurationLit:
+        return "Duration"
     case Symbol:
         return "Symbol"
     case Assign:

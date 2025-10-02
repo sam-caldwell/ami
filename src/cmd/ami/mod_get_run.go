@@ -15,14 +15,6 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
 )
 
-type modGetResult struct {
-    Source  string `json:"source"`
-    Name    string `json:"name"`
-    Version string `json:"version"`
-    Path    string `json:"path"`
-    Message string `json:"message,omitempty"`
-}
-
 // runModGet fetches a module from a local path into the package cache
 // and updates ami.sum in the workspace. git+ssh is planned for later milestones.
 func runModGet(out io.Writer, dir string, src string, jsonOut bool) error {

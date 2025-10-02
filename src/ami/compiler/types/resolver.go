@@ -55,18 +55,3 @@ func ResolveField(root Type, path string) (Type, bool) {
 // Current rule: primitives are orderable; Optional<T> is orderable if T is orderable;
 // Union is orderable only if all alternatives are orderable. Containers and Struct
 // are not orderable.
-func IsOrderable(t Type) bool {
-    switch v := t.(type) {
-    case Primitive:
-        return true
-    case Optional:
-        return IsOrderable(v.Inner)
-    case Union:
-        if len(v.Alts) == 0 { return false }
-        for _, a := range v.Alts { if !IsOrderable(a) { return false } }
-        return true
-    default:
-        return false
-    }
-}
-

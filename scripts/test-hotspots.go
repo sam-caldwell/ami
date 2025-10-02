@@ -63,9 +63,10 @@ func main() {
         })
     }
 
-    // Report packages with no *_test.go files
+    // Report packages with no *_test.go files and accumulate all failures
     var noTests int
     var missingPairs int
+    var lines []string
     dirs := make([]string, 0, len(byDir))
     for d := range byDir { dirs = append(dirs, d) }
     sort.Strings(dirs)
@@ -73,7 +74,9 @@ func main() {
         c := byDir[d]
         if c.goFiles > 0 && c.testFiles == 0 {
             // Enforced failure
-            fmt.Printf("NO_TESTS  %s\n", d)
+            line := fmt.Sprintf("NO_TESTS  %s", d)
+            fmt.Println(line)
+            lines = append(lines, line)
             noTests++
         }
     }
@@ -85,15 +88,27 @@ func main() {
         base := strings.TrimSuffix(filepath.Base(f), ".go")
         expect := dir + "/" + base + "_test.go"
         if _, err := os.Stat(expect); err != nil {
+            var line string
             if os.IsNotExist(err) {
-                fmt.Printf("MISSING_PAIR  %s  (expect: %s)\n", f, expect)
-                missingPairs++
+                line = fmt.Sprintf("MISSING_PAIR  %s  (expect: %s)", f, expect)
             } else {
                 // If stat error other than not-exist, still surface advisory
-                fmt.Printf("MISSING_PAIR  %s  (expect: %s; stat error: %v)\n", f, expect, err)
-                missingPairs++
+                line = fmt.Sprintf("MISSING_PAIR  %s  (expect: %s; stat error: %v)", f, expect, err)
             }
+            fmt.Println(line)
+            lines = append(lines, line)
+            missingPairs++
         }
+    }
+
+    // Persist failures for remediation workflows
+    _ = os.MkdirAll("build", 0o755)
+    out := filepath.Join("build", "hotspot-failures.txt")
+    if len(lines) == 0 {
+        // Write/overwrite empty file to clear old content
+        _ = os.WriteFile(out, []byte(""), 0o644)
+    } else {
+        _ = os.WriteFile(out, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
     }
 
     if noTests > 0 || missingPairs > 0 {

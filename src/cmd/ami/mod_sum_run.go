@@ -174,11 +174,7 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
 
  
 
-func isGitSource(s string) bool {
-    return len(s) > 0 && (hasPrefix(s, "git+ssh://") || hasPrefix(s, "file+git://"))
-}
-
-func hasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
+ 
 
 // fetchGitToCache clones repo at tag into dest directory.
 func fetchGitToCache(source, tag, dest string) error {

@@ -1,7 +1,6 @@
 package logging
 
 import (
-    "io"
     "os"
     "path/filepath"
     "strconv"
@@ -125,4 +124,3 @@ func New(opts Options) (*Logger, error) {
     l.denyKeys = opts.FilterDenyKeys
     return l, nil
 }
-

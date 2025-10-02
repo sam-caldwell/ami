@@ -18,8 +18,7 @@ import (
     "encoding/json"
 )
 
-// small helper for human one-liners without extra deps
-func joinCSV(ss []string) string { if len(ss)==0 { return "" }; out := ss[0]; for i:=1; i<len(ss); i++ { out += "," + ss[i] }; return out }
+// joinCSV moved to compile_joincsv.go to satisfy single-declaration rule
 
 // Compile compiles the provided packages using the given workspace configuration.
 // It performs basic memory-safety checks and lowers a minimal imperative subset
@@ -522,11 +521,4 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     return arts, outDiags
 }
 
-// unitName is defined in unitname.go
-// lastSlash returns the last index of '/' or -1
-func lastSlash(s string) int {
-    for i := len(s) - 1; i >= 0; i-- {
-        if s[i] == '/' { return i }
-    }
-    return -1
-}
+// lastSlash moved to compile_lastslash.go to satisfy single-declaration rule

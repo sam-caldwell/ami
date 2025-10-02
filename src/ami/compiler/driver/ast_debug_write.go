@@ -1,0 +1,79 @@
+package driver
+
+import (
+    "encoding/json"
+    "os"
+    "path/filepath"
+    "sort"
+
+    "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+)
+
+// writeASTDebug writes a per-unit AST summary as ast.v1 JSON.
+func writeASTDebug(pkg, unit string, f *ast.File) (string, error) {
+    var u astUnit
+    u.Schema = "ast.v1"
+    u.Package = pkg
+    u.Unit = unit
+    for _, d := range f.Decls {
+        switch n := d.(type) {
+        case *ast.ImportDecl:
+            u.Imports = append(u.Imports, astImport{Path: n.Path, Constraint: n.Constraint, Pos: posPtr(n.Pos), Kind: "ImportDecl"})
+        case *ast.FuncDecl:
+            var tf []astTypeParam
+            for _, tp := range n.TypeParams { tf = append(tf, astTypeParam{Name: tp.Name, Constraint: tp.Constraint}) }
+            var ps []string
+            for _, p := range n.Params { ps = append(ps, p.Name) }
+            var rs []string
+            for _, r := range n.Results { rs = append(rs, r.Type) }
+            var decos []astDecorator
+            for _, d := range n.Decorators {
+                var a []string
+                for _, e := range d.Args { a = append(a, decoExprText(e)) }
+                decos = append(decos, astDecorator{Name: d.Name, Args: a})
+            }
+            u.Funcs = append(u.Funcs, astFunc{Name: n.Name, TypeParams: tf, Params: ps, Results: rs, Decorators: decos, Pos: posPtr(n.Pos), NamePos: posPtr(n.NamePos), Kind: "FuncDecl"})
+        case *ast.PipelineDecl:
+            var steps []astPipeStep
+            for _, s := range n.Stmts {
+                if st, ok := s.(*ast.StepStmt); ok {
+                    var args []string
+                    for _, a := range st.Args { args = append(args, a.Text) }
+                    // attributes
+                    var attrs []astAttr
+                    for _, at := range st.Attrs {
+                        var aargs []string
+                        for _, aa := range at.Args { aargs = append(aargs, aa.Text) }
+                        attrs = append(attrs, astAttr{Name: at.Name, Args: aargs})
+                    }
+                    steps = append(steps, astPipeStep{Name: st.Name, Args: args, Attrs: attrs, Pos: posPtr(st.Pos), Kind: "StepStmt"})
+                }
+            }
+            u.Pipelines = append(u.Pipelines, astPipe{Name: n.Name, Steps: steps, Pos: posPtr(n.Pos), Kind: "PipelineDecl"})
+        }
+    }
+    // pragmas
+    for _, pr := range f.Pragmas {
+        ap := astPragma{Domain: pr.Domain, Key: pr.Key, Value: pr.Value, Pos: posPtr(pr.Pos), Kind: "Pragma"}
+        if len(pr.Args) > 0 { ap.Args = append(ap.Args, pr.Args...) }
+        if len(pr.Params) > 0 { ap.Params = pr.Params }
+        u.Pragmas = append(u.Pragmas, ap)
+    }
+    // Deterministic ordering
+    sort.SliceStable(u.Imports, func(i, j int) bool { return u.Imports[i].Path < u.Imports[j].Path })
+    sort.SliceStable(u.Pragmas, func(i, j int) bool {
+        if u.Pragmas[i].Pos == nil || u.Pragmas[j].Pos == nil { return i < j }
+        if u.Pragmas[i].Pos.Line == u.Pragmas[j].Pos.Line { return u.Pragmas[i].Pos.Column < u.Pragmas[j].Pos.Column }
+        return u.Pragmas[i].Pos.Line < u.Pragmas[j].Pos.Line
+    })
+    sort.SliceStable(u.Funcs, func(i, j int) bool { return u.Funcs[i].Name < u.Funcs[j].Name })
+    sort.SliceStable(u.Pipelines, func(i, j int) bool { return u.Pipelines[i].Name < u.Pipelines[j].Name })
+    dir := filepath.Join("build", "debug", "ast", pkg)
+    if err := os.MkdirAll(dir, 0o755); err != nil { return "", err }
+    b, err := json.MarshalIndent(u, "", "  ")
+    if err != nil { return "", err }
+    out := filepath.Join(dir, unit+".ast.json")
+    if err := os.WriteFile(out, b, 0o644); err != nil { return "", err }
+    return out, nil
+}
+

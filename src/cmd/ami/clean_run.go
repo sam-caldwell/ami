@@ -12,12 +12,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
 )
 
-type cleanResult struct {
-    Path    string   `json:"path"`
-    Removed bool     `json:"removed"`
-    Created bool     `json:"created"`
-    Messages []string `json:"messages"`
-}
+// cleanResult moved to clean_result.go
 
 // runClean removes and recreates the build target directory.
 func runClean(out io.Writer, dir string, jsonOut bool) error {

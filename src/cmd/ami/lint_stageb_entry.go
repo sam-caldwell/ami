@@ -213,6 +213,27 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
 
             // Pipeline buffer/backpressure smells, capability (I/O) checks, and reachability
             if t.StageB {
+                // Detect Buffer(...) policy smell and alias usage via raw source scan (best-effort)
+                lowsrc := strings.ToLower(string(b))
+                if idx := strings.Index(lowsrc, "buffer("); idx >= 0 {
+                    // dropNewest spelled-out policy
+                    if j := strings.Index(lowsrc[idx:], "dropnewest"); j >= 0 {
+                        pos := idx + j
+                        // compute approximate line/column
+                        line, col := 1, 1
+                        for k := 0; k < pos && k < len(b); k++ { if b[k] == '\n' { line++; col = 1 } else { col++ } }
+                        d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_POLICY_SMELL", Message: "Buffer policy may drop newest items; verify appropriateness", File: path, Pos: &diag.Position{Line: line, Column: col, Offset: pos}}
+                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                    }
+                    // alias 'drop' policy
+                    if j := strings.Index(lowsrc[idx:], "drop)"); j >= 0 {
+                        pos := idx + j
+                        line, col := 1, 1
+                        for k := 0; k < pos && k < len(b); k++ { if b[k] == '\n' { line++; col = 1 } else { col++ } }
+                        d := diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_PIPELINE_BUFFER_DROP_ALIAS", Message: "Buffer policy alias 'drop' used; prefer explicit policy", File: path, Pos: &diag.Position{Line: line, Column: col, Offset: pos}}
+                        if m := disables[path]; m == nil || !m[d.Code] { out = append(out, d) }
+                    }
+                }
                 // Gather declared capabilities, trust level, and concurrency hints from pragmas
                 declCaps := map[string]bool{}
                 trustLevel := ""
@@ -448,4 +469,3 @@ func lintStageB(dir string, ws *workspace.Workspace, t RuleToggles) []diag.Recor
     }
     return out
 }
-

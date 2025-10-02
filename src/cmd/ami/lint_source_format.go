@@ -42,11 +42,4 @@ func scanSourceFormatting(dir, pkgRoot string) []diag.Record {
     return diags
 }
 
-func hasTrailingWhitespace(s string) bool {
-    if s == "" { return false }
-    // spaces or tabs at end
-    i := len(s) - 1
-    if s[i] == ' ' || s[i] == '\t' { return true }
-    return false
-}
-
+// hasTrailingWhitespace moved to lint_source_has_trailing_ws.go

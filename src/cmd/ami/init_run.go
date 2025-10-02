@@ -12,15 +12,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
 )
 
-type initResult struct {
-    Created            bool     `json:"created"`
-    Updated            bool     `json:"updated"`
-    WorkspacePath      string   `json:"workspacePath"`
-    TargetDirCreated   bool     `json:"targetDirCreated"`
-    PackageDirCreated  bool     `json:"packageDirCreated"`
-    GitStatus          string   `json:"gitStatus"` // present|initialized|required
-    Messages           []string `json:"messages"`
-}
+// initResult moved to init_result.go
 
 // runInit performs the initialization in the given directory.
 func runInit(out io.Writer, dir string, force bool, jsonOut bool) error {

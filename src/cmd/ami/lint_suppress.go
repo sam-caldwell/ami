@@ -38,9 +38,4 @@ func applyConfigSuppress(dir string, ws *workspace.Workspace, in []diag.Record) 
 }
 
 // hasPathPrefix reports whether path starts with prefix path segment-wise.
-func hasPathPrefix(path, prefix string) bool {
-    rel, err := filepath.Rel(prefix, path)
-    if err != nil { return false }
-    return rel == "." || (len(rel) > 0 && rel[0] != '.')
-}
-
+// hasPathPrefix moved to lint_suppress_prefix.go

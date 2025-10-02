@@ -126,7 +126,7 @@ func newPipelineVisualizeCmd() *cobra.Command {
                 }
                 enc := json.NewEncoder(cmd.OutOrStdout())
                 for _, g := range graphs { _ = enc.Encode(g) }
-                if !noSummary { _ = enc.Encode(map[string]any{"schema": "graph.batch.v1", "count": len(graphs)}) }
+                if !noSummary { _ = enc.Encode(map[string]any{"schema": "graph.batch.v1", "type": "summary", "count": len(graphs)}) }
                 return nil
             }
             // ASCII output
@@ -151,4 +151,3 @@ func newPipelineVisualizeCmd() *cobra.Command {
     cmd.Flags().BoolVar(&edgeIDs, "edge-ids", false, "label edges by fromId->toId in ASCII output")
     return cmd
 }
-

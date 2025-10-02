@@ -114,10 +114,4 @@ func lintCrossPackageConstraints(ws *workspace.Workspace) []diag.Record {
 }
 
 // constraintsConflict implements a conservative overlap check for two constraints.
-func constraintsConflict(a, b semver.Constraint) bool {
-    ba, oka := semver.Bounds(a)
-    bb, okb := semver.Bounds(b)
-    if !oka || !okb { return false }
-    _, ok := semver.Intersect(ba, bb)
-    return !ok
-}
+// constraintsConflict moved to lint_crosspkg_constraints_conflict.go

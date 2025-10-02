@@ -13,15 +13,12 @@ import (
     "strings"
     "time"
 
-    "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/codegen"
     "github.com/sam-caldwell/ami/src/ami/compiler/driver"
-    "github.com/sam-caldwell/ami/src/ami/compiler/parser"
     "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/exit"
-    "github.com/sam-caldwell/ami/src/ami/runtime/errorpipe"
-    "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
     "github.com/sam-caldwell/ami/src/ami/workspace"
+    "github.com/sam-caldwell/ami/src/ami/runtime/kvstore"
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
@@ -132,6 +129,18 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         }
     }
 
+    // Verify package root paths exist; emit diag when missing
+    for _, e := range ws.Packages {
+        if e.Package.Root == "" || e.Package.Root == "./src" { continue }
+        root := filepath.Clean(filepath.Join(dir, e.Package.Root))
+        if st, err := os.Stat(root); errors.Is(err, os.ErrNotExist) || (err == nil && !st.IsDir()) {
+            if jsonOut {
+                _ = json.NewEncoder(out).Encode(diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_FS_MISSING", Message: "package root missing: " + e.Package.Root, File: "ami.workspace"})
+            }
+            return exit.New(exit.IO, "package root missing: %s", e.Package.Root)
+        }
+    }
+
     // Configuration from workspace
     // - target directory (workspace-relative; validated by ws.Validate)
     target := ws.Toolchain.Compiler.Target
@@ -159,6 +168,7 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     if backendName == "" { backendName = "llvm" }
     // Apply backend selection globally
     _ = codegen.SelectDefaultBackend(backendName)
+
 
     // For this phase, stop after validation.
     // Enforce dependency availability per workspace requirements (scaffold via audit).
@@ -235,16 +245,10 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     // Build phase per package (codegen/driver) and write artifacts in build/
     objRoot := filepath.Join(dir, "build", "obj")
     _ = os.MkdirAll(objRoot, 0o755)
-    // Build debug log hook for KV store when verbose
-    var kvlog *os.File
+    // Build debug: ensure debug dir exists when verbose (placeholder for future debug streams)
     if verbose {
         _ = os.MkdirAll(filepath.Join(dir, "build", "debug"), 0o755)
-        kvlog, _ = os.OpenFile(filepath.Join(dir, "build", "debug", "ami.runtime.kvstore.log"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-        kvstore.SetDebugOut(kvlog)
-    } else {
-        kvstore.SetDebugOut(nil)
     }
-    defer func() { if kvlog != nil { _ = kvlog.Close() } }()
 
     // Per-package compile loop
     var pkgs []driver.Package
@@ -275,38 +279,8 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             }
             return nil
         }()
-        // Error pipe reset per-package
-        errorpipe.Reset()
-        for _, f := range files {
-            _ = func() error {
-                // Parse, compile, and write object file .o
-                b, err := os.ReadFile(f)
-                if err != nil { return nil }
-                sf := &source.File{Name: f, Content: string(b)}
-                pf := parser.New(sf)
-                af, err := pf.ParseFile()
-                if err != nil {
-                    return nil // record parse errors in errorpipe
-                }
-                // Apply driver compile; writes build/obj/<pkg>/<file>.o
-                _ = os.MkdirAll(filepath.Join(pkgObj), 0o755)
-                _ = driver.GenerateObject(ws, af, driver.Options{Debug: verbose, EmitLLVMOnly: buildEmitLLVMOnly})
-                return nil
-            }()
-        }
-        // Propagate collected errors (if any) to build/debug/<pkg>.errors.json
-        _ = func() error {
-            errs := errorpipe.Drain()
-            if len(errs) > 0 {
-                f, e := os.OpenFile(filepath.Join(dir, "build", "debug", p.Name+".errors.json"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-                if e == nil { _ = json.NewEncoder(f).Encode(errs); _ = f.Close() }
-                // For this build phase, rewrite last error to printable and continue to next package.
-                // (Hard errors will be surfaced at link stage if present.)
-                last := errs[len(errs)-1]
-                fmt.Fprintf(out, "build warning: %s at %s:%d:%d\n", last.Message, last.File, last.Pos.Line, last.Pos.Column)
-            }
-            return nil
-        }()
+        // Per-file object emission via driver is no longer used here; driver.Compile aggregates per-package below.
+        // Note: legacy error pipeline collection disabled; compiler errors are surfaced by later stages.
         // Aggregate package into driver compile phase
         _ = func() error {
             var files []string
@@ -325,8 +299,30 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
     if len(pkgs) > 0 {
         oldwd, _ := os.Getwd()
         _ = os.Chdir(dir)
-        _, _ = driver.Compile(ws, pkgs, driver.Options{Debug: false, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink})
+        var logFn func(string, map[string]any)
+        if verbose {
+            logFn = func(event string, fields map[string]any) {
+                if lg := getRootLogger(); lg != nil { lg.Info("compiler."+event, fields) }
+            }
+        }
+        _, diags := driver.Compile(ws, pkgs, driver.Options{Debug: verbose, EmitLLVMOnly: buildEmitLLVMOnly, NoLink: buildNoLink, Log: logFn})
         _ = os.Chdir(oldwd)
+        if jsonOut && len(diags) > 0 {
+            enc := json.NewEncoder(out)
+            for _, d := range diags { _ = enc.Encode(d) }
+            return exit.New(exit.User, "%s", "compile diagnostics")
+        }
+    }
+
+    // Verbose: emit kvstore metrics and dump under build/debug/kv/
+    if verbose {
+        kvDir := filepath.Join(dir, "build", "debug", "kv")
+        _ = os.MkdirAll(kvDir, 0o755)
+        st := kvstore.Default()
+        mts := st.Metrics()
+        _ = writeJSONFile(filepath.Join(kvDir, "metrics.json"), map[string]any{"schema": "kv.metrics.v1", "hits": mts.Hits, "misses": mts.Misses, "expirations": mts.Expirations, "evictions": mts.Evictions, "currentSize": mts.CurrentSize})
+        keys := st.Keys()
+        _ = writeJSONFile(filepath.Join(kvDir, "dump.json"), map[string]any{"schema": "kv.dump.v1", "keys": keys, "size": len(keys)})
     }
 
     if !buildNoLink { buildLink(out, dir, ws, envs, jsonOut) }
@@ -347,6 +343,22 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         if st, err := os.Stat(sumPath); err == nil && !st.IsDir() { if err := sum.Load(sumPath); err == nil { pkgsMap = sum.Packages } }
         sort.Strings(objIdx)
         outObj := map[string]any{"schema": "ami.manifest/v1", "packages": pkgsMap, "toolchain": map[string]any{"targetDir": absTarget, "targets": envs}, "objIndex": objIdx}
+        // Embed simple integrity evidence: versions present in sum that are neither missing nor mismatched in cache
+        if pkgsMap != nil {
+            bad := map[string]bool{}
+            for _, k := range rep.MissingInCache { bad[k] = true }
+            for _, k := range rep.Mismatched { bad[k] = true }
+            var verified []string
+            for name, vers := range pkgsMap {
+                for ver := range vers {
+                    key := name + "@" + ver
+                    if !bad[key] { verified = append(verified, key) }
+                }
+            }
+            if len(verified) > 0 {
+                outObj["integrity"] = map[string]any{"verified": verified}
+            }
+        }
         var objects []string
         var artifacts []map[string]any
         for _, e := range ws.Packages {
@@ -429,14 +441,52 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             TargetDir string     `json:"targetDir"`
             Targets   []string   `json:"targets"`
             Packages  []planPkg  `json:"packages"`
-        }{ Schema: "ami.build.plan/v1", TargetDir: absTarget, Targets: envs }
+            ObjIndex  []string   `json:"objIndex,omitempty"`
+            ObjectsByEnv map[string][]string `json:"objectsByEnv,omitempty"`
+            ObjIndexByEnv map[string][]string `json:"objIndexByEnv,omitempty"`
+            Objects []string `json:"objects,omitempty"`
+        }{ Schema: "build.plan/v1", TargetDir: absTarget, Targets: envs }
         for _, e := range ws.Packages {
             root := filepath.Clean(filepath.Join(dir, e.Package.Root))
-            key := workspace.PackageKey(e)
+            key := e.Package.Name
+            if e.Package.Version != "" { key = key + "@" + e.Package.Version }
             hasObj := false
             if matches, _ := filepath.Glob(filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")); len(matches) > 0 { hasObj = true }
             plan.Packages = append(plan.Packages, planPkg{Key: key, Name: e.Package.Name, Version: e.Package.Version, Root: root, HasObjects: hasObj})
         }
+        sort.Slice(plan.Packages, func(i, j int) bool { return plan.Packages[i].Name < plan.Packages[j].Name })
+        // Populate objIndex and objectsByEnv
+        var idx []string
+        objsByEnv := map[string][]string{}
+        for _, e := range ws.Packages {
+            p := filepath.Join(dir, "build", "obj", e.Package.Name, "index.json")
+            if st, err := os.Stat(p); err == nil && !st.IsDir() { if rel, rerr := filepath.Rel(dir, p); rerr == nil { idx = append(idx, rel) } }
+        }
+        for _, env := range envs {
+            glob := filepath.Join(dir, "build", env, "obj", "*", "*.o")
+            if matches, _ := filepath.Glob(glob); len(matches) > 0 { for _, m := range matches { if rel, err := filepath.Rel(dir, m); err == nil { objsByEnv[env] = append(objsByEnv[env], rel) } } }
+            // per-env objIndex
+            for _, e := range ws.Packages {
+                ip := filepath.Join(dir, "build", env, "obj", e.Package.Name, "index.json")
+                if st, err := os.Stat(ip); err == nil && !st.IsDir() {
+                    if rel, rerr := filepath.Rel(dir, ip); rerr == nil {
+                        if plan.ObjIndexByEnv == nil { plan.ObjIndexByEnv = map[string][]string{} }
+                        plan.ObjIndexByEnv[env] = append(plan.ObjIndexByEnv[env], rel)
+                    }
+                }
+            }
+        }
+        if len(idx) > 0 { sort.Strings(idx); plan.ObjIndex = append(plan.ObjIndex, idx...) }
+        if len(objsByEnv) > 0 { plan.ObjectsByEnv = objsByEnv }
+        // top-level objects (non-env)
+        var objs []string
+        for _, e := range ws.Packages {
+            glob := filepath.Join(dir, "build", "obj", e.Package.Name, "*.o")
+            if matches, _ := filepath.Glob(glob); len(matches) > 0 {
+                for _, m := range matches { if rel, rerr := filepath.Rel(dir, m); rerr == nil { objs = append(objs, rel) } }
+            }
+        }
+        if len(objs) > 0 { sort.Strings(objs); plan.Objects = objs }
         if f, err := os.OpenFile(planPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644); err == nil { _ = json.NewEncoder(f).Encode(plan); _ = f.Close() }
     }
 
@@ -480,8 +530,25 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
             ObjectsByEnv  map[string][]string `json:"objectsByEnv"`
             ObjIndexByEnv map[string][]string `json:"objIndexByEnv"`
             BinariesByEnv map[string][]string `json:"binariesByEnv"`
+            Timestamp     string              `json:"timestamp"`
+            Data          map[string]any      `json:"data,omitempty"`
+            Code          string              `json:"code,omitempty"`
         }
-        rec := summary{Objects: objects, ObjectIndex: objIndex, Binaries: binaries, ObjectsByEnv: objectsByEnv, ObjIndexByEnv: objIndexByEnv, BinariesByEnv: binariesByEnv}
+        rec := summary{
+            Objects:       objects,
+            ObjectIndex:   objIndex,
+            Binaries:      binaries,
+            ObjectsByEnv:  objectsByEnv,
+            ObjIndexByEnv: objIndexByEnv,
+            BinariesByEnv: binariesByEnv,
+            Timestamp:     time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+            Data:          map[string]any{"targetDir": absTarget, "targets": envs},
+            Code:          "BUILD_OK",
+        }
+        // include objIndex inside data for verbose summary expectations
+        if len(objIndex) > 0 {
+            rec.Data["objIndex"] = objIndex
+        }
         return json.NewEncoder(out).Encode(rec)
     } else {
         objCount := 0
@@ -499,4 +566,3 @@ func runBuildImpl(out io.Writer, dir string, jsonOut bool, verbose bool) error {
         return nil
     }
 }
-

@@ -20,12 +20,20 @@ import (
 func buildLink(out io.Writer, dir string, ws workspace.Workspace, envs []string, jsonOut bool) {
 	be := codegen.DefaultBackend()
 	clang, ferr := be.FindToolchain()
-	if ferr != nil {
-		if lg := getRootLogger(); lg != nil {
-			lg.Info("build.toolchain.missing", map[string]any{"tool": "clang"})
-		}
-		return
-	}
+    if ferr != nil {
+        if lg := getRootLogger(); lg != nil {
+            lg.Info("build.toolchain.missing", map[string]any{"tool": "clang"})
+            lg.Info("toolchain.missing", map[string]any{"tool": "clang"})
+        }
+        return
+    }
+    if lg := getRootLogger(); lg != nil {
+        if ver, verr := be.ToolVersion(clang); verr == nil {
+            lg.Info("toolchain.clang", map[string]any{"path": clang, "version": ver})
+        } else {
+            lg.Info("toolchain.clang", map[string]any{"path": clang})
+        }
+    }
 	// Resolve binary name
 	binName := "app"
 	if mp := ws.FindPackage("main"); mp != nil && mp.Name != "" {

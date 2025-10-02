@@ -14,3 +14,6 @@ type RuleToggles struct {
     StrictMDPOverride   bool
     HasStrictMDPOverride bool
 }
+
+// currentRuleToggles is the active Stage B rule configuration.
+var currentRuleToggles RuleToggles

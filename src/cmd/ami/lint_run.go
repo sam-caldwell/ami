@@ -7,9 +7,6 @@ import (
     "os"
     "path/filepath"
     "time"
-    "path"
-    "regexp"
-    "strings"
 
     "github.com/sam-caldwell/ami/src/ami/exit"
     "github.com/sam-caldwell/ami/src/ami/workspace"
@@ -214,25 +211,4 @@ func runLint(out io.Writer, dir string, jsonOut bool, verbose bool, strict bool)
 // - substring (default)
 // - glob: pattern contains any of *?[ ]
 // - regex: re:<expr> or /expr/
-func matchAnyRule(code string, patterns []string) bool {
-    for _, p := range patterns {
-        if p == "" { continue }
-        // regex forms
-        if len(p) >= 3 && p[0] == '/' && p[len(p)-1] == '/' {
-            re, err := regexp.Compile(p[1:len(p)-1]); if err == nil && re.MatchString(code) { return true }
-            continue
-        }
-        if strings.HasPrefix(p, "re:") {
-            re, err := regexp.Compile(p[3:]); if err == nil && re.MatchString(code) { return true }
-            continue
-        }
-        // glob
-        if strings.ContainsAny(p, "*?[") {
-            if ok, _ := path.Match(p, code); ok { return true }
-            continue
-        }
-        // substring
-        if strings.Contains(code, p) { return true }
-    }
-    return false
-}
+// matchAnyRule moved to lint_run_match.go

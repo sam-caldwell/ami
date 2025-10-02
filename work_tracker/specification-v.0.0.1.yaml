@@ -1808,16 +1808,27 @@ stdlib:
               As a user, I expect Metal discovery helpers: `gpu.MetalAvailable() bool` and 
               `gpu.MetalDevices() []gpu.Device`.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/gpu/metal_darwin_test.go
+              - src/ami/stdlib/gpu/metal_scalar_test.go
+              - src/ami/stdlib/gpu/metal_slice_i8_test.go
+              - src/ami/stdlib/gpu/metal_slice_i32_test.go
+              - src/ami/stdlib/gpu/metal_slice_u16_test.go
+              - src/ami/stdlib/gpu/metal_slice_u32_test.go
+              - src/ami/stdlib/gpu/metal_slice_u8_test.go
+              - src/ami/stdlib/gpu/metal_slice_f32_test.go
+              - src/ami/stdlib/gpu/metal_release_test.go
 
           - id: E-8-3-2
             statement: |
               As a user, I expect context management: `gpu.MetalCreateContext(dev gpu.Device) (gpu.Context, error)` and
               `gpu.MetalDestroyContext(ctx gpu.Context) error` with Owned<T> semantics.
             dependencies: [F-11-21]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/gpu/metal_darwin_test.go
+              - src/ami/stdlib/gpu/metal_release_test.go
 
           - id: E-8-3-3
             statement: |
@@ -1825,8 +1836,17 @@ stdlib:
               `gpu.MetalCreatePipeline(lib gpu.Library, name string) (gpu.Pipeline, error)`, and
               `gpu.MetalDispatch(ctx gpu.Context, p gpu.Pipeline, grid, threadsPerGroup [3]uint32, args ...any) error`.
             dependencies: [F-11-21]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/gpu/metal_compute_test.go
+              - src/ami/stdlib/gpu/metal_scalar_test.go
+              - src/ami/stdlib/gpu/metal_slice_i8_test.go
+              - src/ami/stdlib/gpu/metal_slice_i32_test.go
+              - src/ami/stdlib/gpu/metal_slice_u16_test.go
+              - src/ami/stdlib/gpu/metal_slice_u32_test.go
+              - src/ami/stdlib/gpu/metal_slice_u8_test.go
+              - src/ami/stdlib/gpu/metal_slice_f32_test.go
+              - src/ami/stdlib/gpu/blocking_test.go
 
           - id: E-8-3-4
             statement: |
@@ -1834,8 +1854,11 @@ stdlib:
               `gpu.MetalFree(buf gpu.Buffer) error`, `gpu.MetalCopyToDevice(dst gpu.Buffer, src []byte) error`, and
               `gpu.MetalCopyFromDevice(dst []byte, src gpu.Buffer) error`.
             dependencies: [F-11-21]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/gpu/metal_release_test.go
+              - src/ami/stdlib/gpu/metal_scalar_u8_test.go
+              - src/ami/stdlib/gpu/metal_slice_f32_test.go
 
       - id: F-8-4
         name: OpenCL Backend (OpenCL*)

@@ -147,10 +147,10 @@ func RuntimeLL(triple string, withMain bool) string {
 
     // Pow10 helper: compute 10^n for integer n
     s += "define double @ami_rt_math_pow10(i64 %n) {\n" +
-        "entry:\n  %isneg = icmp slt i64 %n, 0\n  %absn = select i1 %isneg, i64 sub (i64 0, %n), i64 %n\n  br label %loop\n" +
+        "entry:\n  %isneg = icmp slt i64 %n, 0\n  %neg = sub i64 0, %n\n  %absn = select i1 %isneg, i64 %neg, i64 %n\n  br label %loop\n" +
         "loop:\n  %i = phi i64 [ 0, %entry ], [ %next, %body ]\n  %acc = phi double [ 1.0, %entry ], [ %acc2, %body ]\n  %done = icmp uge i64 %i, %absn\n  br i1 %done, label %exit, label %body\n" +
         "body:\n  %acc2 = fmul double %acc, 10.0\n  %next = add i64 %i, 1\n  br label %loop\n" +
-        "exit:\n  %res = select i1 %isneg, double fdiv (double 1.0, %acc), double %acc\n  ret double %res\n}\n\n"
+        "exit:\n  %inv = fdiv double 1.0, %acc\n  %res = select i1 %isneg, double %inv, double %acc\n  ret double %res\n}\n\n"
     // Additional math runtime helpers
     s += "define double @ami_rt_math_hypot(double %x, double %y) {\n" +
         "entry:\n  %x2 = fmul double %x, %x\n  %y2 = fmul double %y, %y\n  %sum = fadd double %x2, %y2\n  %r = call double @llvm.sqrt.f64(double %sum)\n  ret double %r\n}\n\n"
@@ -165,7 +165,7 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "define double @ami_rt_math_dim(double %x, double %y) {\n" +
         "entry:\n  %sub = fsub double %x, %y\n  %lt0 = fcmp olt double %sub, 0.0\n  %res = select i1 %lt0, double 0.0, double %sub\n  ret double %res\n}\n\n"
     s += "define double @ami_rt_math_logb(double %x) {\n" +
-        "entry:\n  %bits = bitcast double %x to i64\n  %abits = and i64 %bits, 0x7FFFFFFFFFFFFFFF\n  %iszero = icmp eq i64 %abits, 0\n  br i1 %iszero, label %ret_zero, label %checkinf\n" +
+        "entry:\n  %bits = bitcast double %x to i64\n  %abits = and i64 %bits, 9223372036854775807\n  %iszero = icmp eq i64 %abits, 0\n  br i1 %iszero, label %ret_zero, label %checkinf\n" +
         "ret_zero:\n  ret double 0xFFF0000000000000\n" +
         "checkinf:\n  %expfield = lshr i64 %bits, 52\n  %exp = and i64 %expfield, 2047\n  %mant = and i64 %bits, 4503599627370495\n  %isexpmax = icmp eq i64 %exp, 2047\n  br i1 %isexpmax, label %inf_or_nan, label %normal_or_sub\n" +
         "inf_or_nan:\n  %ismantzero = icmp eq i64 %mant, 0\n  br i1 %ismantzero, label %ret_pos_inf, label %ret_nan\n" +
@@ -175,7 +175,7 @@ func RuntimeLL(triple string, withMain bool) string {
         "ret_norm:\n  %unbiased = sub i64 %exp, 1023\n  %d = sitofp i64 %unbiased to double\n  ret double %d\n" +
         "subnorm:\n  %frac = and i64 %bits, 4503599627370495\n  %sh = shl i64 %frac, 12\n  %lz = call i64 @llvm.ctlz.i64(i64 %sh, i1 false)\n  %tmp = add i64 %lz, 1022\n  %unbiased2 = sub i64 0, %tmp\n  %d2 = sitofp i64 %unbiased2 to double\n  ret double %d2\n}\n\n"
     s += "define i64 @ami_rt_math_ilogb(double %x) {\n" +
-        "entry:\n  %bits = bitcast double %x to i64\n  %abits = and i64 %bits, 0x7FFFFFFFFFFFFFFF\n  %iszero = icmp eq i64 %abits, 0\n  br i1 %iszero, label %ret_min, label %checkinf2\n" +
+        "entry:\n  %bits = bitcast double %x to i64\n  %abits = and i64 %bits, 9223372036854775807\n  %iszero = icmp eq i64 %abits, 0\n  br i1 %iszero, label %ret_min, label %checkinf2\n" +
         "ret_min:\n  ret i64 -9223372036854775808\n" +
         "checkinf2:\n  %expfield = lshr i64 %bits, 52\n  %exp = and i64 %expfield, 2047\n  %mant = and i64 %bits, 4503599627370495\n  %isexpmax = icmp eq i64 %exp, 2047\n  br i1 %isexpmax, label %ret_max, label %normal_or_sub2\n" +
         "ret_max:\n  ret i64 9223372036854775807\n" +

@@ -1,6 +1,6 @@
 .PHONY: help all clean lint test build bench examples e2e-build e2e-test \
         e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update \
-        test-hotspots coverage-short zip
+        test-hotspots gen-missing-tests coverage-short zip
 
 # Print Makefile target help by scanning for lines with '##' descriptions.
 help: ## Show this help with targets and descriptions
@@ -100,6 +100,10 @@ e2e-mod-update: e2e-build ## Run only E2E tests for 'ami mod update'
 # - Reports .go files without a matching *_test.go sibling (same basename).
 test-hotspots: ## Report packages/files missing test coverage pairs (enforced: packages and file pairs)
 	@go run ./scripts/test-hotspots.go
+
+gen-missing-tests: ## Generate stub *_test.go files from build/hotspot-failures.txt
+	@echo "Generating missing test stubs from build/hotspot-failures.txt ..."
+	@go run ./tools/gen-missing-tests-from-failures -in build/hotspot-failures.txt
 
 examples: ## Build example workspaces and stage outputs under build/examples/
 	# Build all example workspaces and stage their outputs under build/examples/

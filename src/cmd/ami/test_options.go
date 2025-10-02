@@ -15,4 +15,4 @@ type TestOptions struct {
 
 var currentTestOptions TestOptions
 
-func setTestOptions(o TestOptions) { currentTestOptions = o }
+// setTestOptions moved to test_options_set.go

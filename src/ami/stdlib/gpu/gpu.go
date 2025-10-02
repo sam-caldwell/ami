@@ -144,7 +144,12 @@ func (p *Program) Release() error {
 func CudaAvailable() bool { return envBoolTrue("AMI_GPU_FORCE_CUDA") }
 
 // CudaDevices lists CUDA devices. Always empty in stub.
-func CudaDevices() []Device { return nil }
+func CudaDevices() []Device {
+    if CudaAvailable() {
+        return []Device{{Backend: "cuda", ID: 0, Name: "cuda-ci-0"}}
+    }
+    return nil
+}
 
 // CudaCreateContext creates a CUDA context (stub: unavailable).
 func CudaCreateContext(dev Device) (Context, error) {
@@ -226,7 +231,19 @@ func MetalDispatchBlocking(ctx Context, p Pipeline, grid, threadsPerGroup [3]uin
 func OpenCLAvailable() bool { return envBoolTrue("AMI_GPU_FORCE_OPENCL") }
 
 // OpenCLPlatforms lists OpenCL platforms. Always empty in stub.
-func OpenCLPlatforms() []Platform { return nil }
+func OpenCLPlatforms() []Platform {
+    if OpenCLAvailable() {
+        return []Platform{{Vendor: "CI", Name: "OpenCL-Dummy", Version: "1.2"}}
+    }
+    return nil
+}
+
+// OpenCLDevices enumerates devices for a given platform (env-forced dummy).
+func OpenCLDevices(p Platform) []Device {
+    if !OpenCLAvailable() { return nil }
+    if p.Name == "" && p.Vendor == "" && p.Version == "" { return nil }
+    return []Device{{Backend: "opencl", ID: 0, Name: "opencl-ci-0"}}
+}
 
 // OpenCLCreateContext creates an OpenCL context (stub: unavailable).
 func OpenCLCreateContext(p Platform) (Context, error) {
@@ -282,3 +299,25 @@ func envBoolTrue(name string) bool {
     v := strings.TrimSpace(strings.ToLower(os.Getenv(name)))
     return v == "1" || v == "true" || v == "yes" || v == "on"
 }
+
+// Explain formats a deterministic message for GPU stub errors.
+func Explain(backend, op string, err error) string {
+    msg := "ok"
+    switch err {
+    case nil:
+        msg = "ok"
+    case ErrInvalidHandle:
+        msg = "invalid handle"
+    case ErrUnavailable:
+        msg = "backend unavailable"
+    case ErrUnimplemented:
+        msg = "unimplemented"
+    default:
+        msg = err.Error()
+    }
+    return "gpu/" + backend + " " + op + ": " + msg
+}
+
+func CudaExplain(op string, err error) string   { return Explain("cuda", op, err) }
+func OpenCLExplain(op string, err error) string { return Explain("opencl", op, err) }
+func MetalExplain(op string, err error) string  { return Explain("metal", op, err) }

@@ -19,6 +19,8 @@ func addExternsForExpr(e *ModuleEmitter, ex ir.Expr) {
         e.RequireExtern("declare ptr @ami_rt_owned_ptr(ptr)")
     case "ami_rt_owned_new":
         e.RequireExtern("declare ptr @ami_rt_owned_new(i8*, i64)")
+    case "ami_rt_string_len":
+        e.RequireExtern("declare i64 @ami_rt_string_len(ptr)")
     case "ami_rt_zeroize_owned":
         e.RequireExtern("declare void @ami_rt_zeroize_owned(ptr)")
     case "ami_rt_sleep_ms":
@@ -93,4 +95,3 @@ func addExternsForExpr(e *ModuleEmitter, ex ir.Expr) {
         e.RequireExtern("declare ptr @ami_rt_metal_dispatch_blocking(ptr, ptr, i64, i64, i64, i64, i64, i64)")
     }
 }
-

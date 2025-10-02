@@ -79,8 +79,11 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                             out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_len", Args: []ir.Value{val}, Result: lres})
                             lenVal = *lres
                         } else if val.Type == "string" {
-                            // len is literal-length when known; else fallback path
-                            // actual details omitted for brevity; copy from original
+                            // For string initializer, compute length and use string value as data ptr
+                            data = val
+                            ltmp := st.newTemp(); lres := &ir.Value{ID: ltmp, Type: "int64"}
+                            out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_string_len", Args: []ir.Value{val}, Result: lres})
+                            lenVal = *lres
                         }
                         hid := st.newTemp(); hres := &ir.Value{ID: hid, Type: "Owned"}
                         out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_owned_new", Args: []ir.Value{data, lenVal}, Result: hres})
@@ -103,6 +106,13 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
             // General variable declaration and optional init (non-Owned or no init)
             if v.Init != nil {
                 out = append(out, lowerStmtVar(st, v))
+                // If initializer needs short-circuit semantics, lower via CFG and assign
+                if needsShortCircuit(v.Init) {
+                    if val, ok := lowerValueSC(st, v.Init, &out, &extras, &nextID); ok {
+                        out = append(out, ir.Assign{DestID: v.Name, Src: val})
+                        break
+                    }
+                }
                 emitNestedCallArgs(st, v.Init, &out)
                 if ex, ok := lowerExpr(st, v.Init); ok {
                     if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 || len(ex.Results) > 0 { out = append(out, ex) }

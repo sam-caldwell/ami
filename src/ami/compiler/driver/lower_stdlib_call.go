@@ -15,9 +15,19 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     if (name == "signal.Register") || (st != nil && st.funcParams != nil && len(st.funcParams[name]) == 2 && st.funcParams[name][0] == "SignalType") {
         if len(c.Args) >= 2 {
             var args []ir.Value
-            // arg0: signal type (enum)
-            if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
-            // arg1: handler token (deterministic)
+            // arg0: signal type (enum) → prefer immediate OS mapping when selector provided
+            switch s := c.Args[0].(type) {
+            case *ast.SelectorExpr:
+                var v int64
+                switch s.Sel { case "SIGINT": v = 2; case "SIGTERM": v = 15; case "SIGHUP": v = 1; case "SIGQUIT": v = 3 }
+                if v != 0 {
+                    args = append(args, ir.Value{ID: "#"+strconv.FormatInt(v, 10), Type: "int64"})
+                }
+            }
+            if len(args) == 0 {
+                if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
+            }
+            // arg1: handler token (deterministic immediate)
             tok, ok := handlerTokenValue(c.Args[1])
             if !ok { tok = 0 }
             args = append(args, ir.Value{ID: "#"+strconv.FormatInt(tok, 10), Type: "int64"})
@@ -189,4 +199,3 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     }
     return ir.Expr{}, false
 }
-

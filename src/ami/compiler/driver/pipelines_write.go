@@ -62,6 +62,7 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                 op.Edge = &edgeAttrs{Bounded: false, Delivery: defaultDelivery}
                 var rawAttrs []pipeAttr
                 var norm pipeMergeNorm
+                hadMerge := false
                 for _, at := range st.Attrs {
                     var aargs []string
                     for _, aa := range at.Args { aargs = append(aargs, aa.Text) }
@@ -71,6 +72,7 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                         var margs []string
                         for _, aa := range at.Args { margs = append(margs, aa.Text) }
                         op.Merge = append(op.Merge, pipeMergeAttr{Name: at.Name, Args: margs})
+                        hadMerge = true
                         if at.Name == "merge.Buffer" {
                             kv := map[string]string{}
                             for _, a := range margs { if eq := strings.IndexByte(a, '='); eq > 0 { kv[strings.ToLower(strings.TrimSpace(a[:eq]))] = strings.TrimSpace(a[eq+1:]) } }
@@ -130,6 +132,11 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                         sort.Strings(inputs)
                         op.MultiPath = &pipeMultiPath{Args: margs, Inputs: inputs}
                     }
+                }
+                if hadMerge {
+                    // Attach normalized merge view when any merge.* attribute present
+                    // Tests assert presence and content under mergeNorm
+                    op.MergeNorm = &norm
                 }
                 // Always snapshot multipath inputs for Collect, even without explicit attribute
                 if op.MultiPath == nil && st.Name == "Collect" {

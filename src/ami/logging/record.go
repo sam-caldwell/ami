@@ -4,7 +4,6 @@ import (
     "bytes"
     "encoding/json"
     "sort"
-    "strings"
     "time"
 )
 
@@ -15,11 +14,6 @@ type Record struct {
     Message   string
     Package   string
     Fields    map[string]any
-}
-
-// normalizeMsg converts CRLF to LF to keep outputs deterministic.
-func normalizeMsg(s string) string {
-    return strings.ReplaceAll(s, "\r\n", "\n")
 }
 
 // MarshalJSON ensures deterministic key ordering and stable output.
@@ -73,4 +67,3 @@ func (r Record) MarshalJSON() ([]byte, error) {
     buf.WriteByte('}')
     return buf.Bytes(), nil
 }
-

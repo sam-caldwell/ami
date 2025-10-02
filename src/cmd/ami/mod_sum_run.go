@@ -172,12 +172,7 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
 
  
 
-func equalSHA(a, b string) bool {
-    if len(a) != len(b) { return false }
-    var diff byte
-    for i := 0; i < len(a); i++ { diff |= a[i] ^ b[i] }
-    return diff == 0
-}
+ 
 
 func isGitSource(s string) bool {
     return len(s) > 0 && (hasPrefix(s, "git+ssh://") || hasPrefix(s, "file+git://"))

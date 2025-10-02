@@ -21,22 +21,12 @@ lint: check-single-test check-single-declaration test-hotspots
 	# Enforce one Test* per *_test.go (repo-wide)
 	go vet -v ./...
 
-check-single-test: ## Enforce one Test* per *_test.go across src/ (advisory)
-	# Expanded scope: scan all of src/. Advisory for now (does not fail CI).
-	bash ./scripts/check-single-test-per-file.sh src/ || { \
-	  echo "[advisory] single-test-per-file violations detected (repo-wide)." >&2; \
-	  echo "[advisory] Keeping lint green while expanding scope." >&2; \
-	  true; \
-	}
+check-single-test: ## Enforce one Test* per *_test.go across src/
+	bash ./scripts/check-single-test-per-file.sh src/
 
 .PHONY: check-single-declaration
-check-single-declaration: ## Enforce single cohesive declaration per .go file across src/ (advisory)
-	# Expanded scope: scan all of src/ (package test mode). Advisory for now.
-	CHECK_TEST_MODE=package bash ./scripts/check-single-declaration-per-file.sh src/ || { \
-	  echo "[advisory] single-declaration-per-file violations detected (repo-wide)." >&2; \
-	  echo "[advisory] Keeping lint green while expanding scope." >&2; \
-	  true; \
-	}
+check-single-declaration: ## Enforce single cohesive declaration per .go file across src/
+	CHECK_TEST_MODE=package bash ./scripts/check-single-declaration-per-file.sh src/
 
 test: lint  ## Run all tests (go test -v ./...)
 	go test -v ./...
@@ -108,24 +98,8 @@ e2e-mod-update: e2e-build ## Run only E2E tests for 'ami mod update'
 # List packages and files under src/ missing test coverage patterns.
 # - Reports packages with zero *_test.go files.
 # - Reports .go files without a matching *_test.go sibling (same basename).
-test-hotspots: ## Report packages/files missing test coverage pairs
-	@echo "Scanning src/ for test coverage hotspots..." >&2
-	@# Packages with no tests
-	@find src -type d | while read d; do \
-	  c_go=$$(ls "$$d"/*.go 2>/dev/null | wc -l | tr -d ' '); \
-	  c_test=$$(ls "$$d"/*_test.go 2>/dev/null | wc -l | tr -d ' '); \
-	  if [ "$$c_go" != "0" ] && [ "$$c_test" = "0" ]; then \
-	    echo "NO_TESTS  $$d"; \
-	  fi; \
-	 done
-	@# Files with no paired *_test.go
-	@find src -type f -name "*.go" ! -name "*_test.go" | while read f; do \
-	  base=$$(basename "$$f" .go); \
-	  dir=$$(dirname "$$f"); \
-	  if [ ! -f "$$dir/$${base}_test.go" ]; then \
-	    echo "MISSING_PAIR  $$f  (expect: $${dir}/$${base}_test.go)"; \
-	  fi; \
-	 done | sed 's#//.*$$##'
+test-hotspots: ## Report packages/files missing test coverage pairs (enforced: packages only)
+	@bash ./scripts/test-hotspots.sh
 
 examples: ## Build example workspaces and stage outputs under build/examples/
 	# Build all example workspaces and stage their outputs under build/examples/

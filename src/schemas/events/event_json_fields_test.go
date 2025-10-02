@@ -23,10 +23,3 @@ func TestEvent_MarshalJSON_IncludesSchemaAndFields(t *testing.T) {
     if !strings.Contains(s, "\"timestamp\":\"2025-09-24T17:05:06.000Z\"") { t.Fatalf("bad ts: %s", s) }
 }
 
-func TestValidate_HappyAndSadPaths(t *testing.T) {
-    good := Event{ID: "x"}
-    if err := Validate(good); err != nil { t.Fatalf("good event invalid: %v", err) }
-    bad := Event{}
-    if err := Validate(bad); err == nil { t.Fatalf("expected error for missing id") }
-}
-

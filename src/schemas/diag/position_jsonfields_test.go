@@ -2,15 +2,9 @@ package diag
 
 import (
     "encoding/json"
-    "testing"
     "strings"
+    "testing"
 )
-
-func TestLevel_Constants(t *testing.T) {
-    if Info != Level("info") || Warn != Level("warn") || Error != Level("error") {
-        t.Fatalf("level constants mismatch: %q %q %q", Info, Warn, Error)
-    }
-}
 
 func TestPosition_JSONFields(t *testing.T) {
     p := Position{Line: 10, Column: 20, Offset: 30}

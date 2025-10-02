@@ -2,14 +2,12 @@ package driver
 
 import (
     "fmt"
-    "strconv"
     stdtime "time"
     "strings"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     "github.com/sam-caldwell/ami/src/ami/compiler/token"
-    "github.com/sam-caldwell/ami/src/ami/compiler/types"
 )
 
 // lowerExpr lowers an AST expression into an ir.Expr instruction that may yield a result.
@@ -182,175 +180,6 @@ func lowerExpr(st *lowerState, e ast.Expr) (ir.Expr, bool) {
     }
 }
 
-// foldConst attempts to fold constant subexpressions into literals.
-func foldConst(e ast.Expr) ast.Expr {
-    switch v := e.(type) {
-    case *ast.BinaryExpr:
-        x := foldConst(v.X)
-        y := foldConst(v.Y)
-        // both number literals
-        if nx, ok := x.(*ast.NumberLit); ok {
-            if ny, ok2 := y.(*ast.NumberLit); ok2 {
-                // parse integers with bases: 0x*, 0b*, 0o*, or decimal
-                ax, err1 := parseInt(nx.Text)
-                ay, err2 := parseInt(ny.Text)
-                if err1 == nil && err2 == nil {
-                    var r int
-                    switch v.Op {
-                    case token.Plus: r = ax + ay
-                    case token.Minus: r = ax - ay
-                    case token.Star: r = ax * ay
-                    case token.Slash: if ay != 0 { r = ax / ay } else { return v }
-                    default: return v
-                    }
-                    return &ast.NumberLit{Pos: nx.Pos, Text: fmt.Sprintf("%d", r)}
-                }
-            }
-        }
-        // string concatenation
-        if sx, ok := x.(*ast.StringLit); ok {
-            if sy, ok2 := y.(*ast.StringLit); ok2 && v.Op == token.Plus {
-                return &ast.StringLit{Pos: sx.Pos, Value: sx.Value + sy.Value}
-            }
-        }
-        // no fold; but return possibly simplified children
-        v.X = x
-        v.Y = y
-        return v
-    default:
-        return e
-    }
-}
-
-func parseInt(text string) (int, error) {
-    // strip optional sign
-    if len(text) == 0 { return 0, fmt.Errorf("empty") }
-    neg := false
-    if text[0] == '-' { neg = true; text = text[1:] }
-    base := 10
-    if len(text) > 2 && text[0] == '0' {
-        switch text[1] {
-        case 'x', 'X': base = 16; text = text[2:]
-        case 'b', 'B': base = 2;  text = text[2:]
-        case 'o', 'O': base = 8;  text = text[2:]
-        }
-    }
-    // remove underscores if any (future-proof)
-    clean := make([]rune, 0, len(text))
-    for _, r := range text { if r != '_' { clean = append(clean, r) } }
-    n, err := strconv.ParseInt(string(clean), base, 64)
-    if err != nil { return 0, err }
-    if neg { n = -n }
-    return int(n), nil
-}
-
-// lowerSelectorField attempts to resolve a selector expression as a field projection
-// using the receiver's declared type from the local environment. If it can
-// determine the resulting field type, it emits a synthetic "field.<name>" expr
-// that defines a new SSA value of the appropriate type.
-func lowerSelectorField(st *lowerState, s *ast.SelectorExpr) (ir.Expr, bool) {
-    if st == nil || s == nil { return ir.Expr{}, false }
-    // Flatten selector chain to base ident and path: base.a.b.c
-    baseIdent, path := flattenSelector(s)
-    if baseIdent == "" || path == "" { return ir.Expr{}, false }
-    // Resolve base type from local var types
-    btype := st.varTypes[baseIdent]
-    if btype == "" { return ir.Expr{}, false }
-    // Parse and resolve field path via types package
-    root, err := types.Parse(btype)
-    if err != nil { return ir.Expr{}, false }
-    ft, ok := types.ResolveField(root, path)
-    if !ok || ft == nil { return ir.Expr{}, false }
-    fts := ft.String()
-    // Determine result IR type
-    rtype := fts
-    // Normalize Time to int64 handle for runtime ABI friendliness
-    if fts == "Time" { rtype = "int64" }
-    id := st.newTemp()
-    res := &ir.Value{ID: id, Type: rtype}
-    // Provide the base as an argument for potential future codegen; keep original
-    // base type text so codegen can compute field offsets/layout.
-    bargType := st.varTypes[baseIdent]
-    arg := ir.Value{ID: baseIdent, Type: bargType}
-    // Encode field name into the op for debug purposes: field.<path>
-    return ir.Expr{Op: "field." + path, Args: []ir.Value{arg}, Result: res}, true
-}
-
-func flattenSelector(s *ast.SelectorExpr) (base string, path string) {
-    parts := []string{}
-    var cur ast.Expr = s
-    for {
-        es, ok := cur.(*ast.SelectorExpr)
-        if !ok { break }
-        parts = append([]string{es.Sel}, parts...)
-        cur = es.X
-    }
-    if id, ok := cur.(*ast.IdentExpr); ok {
-        base = id.Name
-    }
-    if len(parts) > 0 { path = strings.Join(parts, ".") }
-    return base, path
-}
-
-func lowerCallExpr(st *lowerState, c *ast.CallExpr) ir.Expr {
-    var args []ir.Value
-    for _, a := range c.Args {
-        if ex, ok := lowerExpr(st, a); ok && ex.Result != nil {
-            args = append(args, *ex.Result)
-        }
-    }
-    id := st.newTemp()
-    rtype := "any"
-    var pSig, rSig []string
-    var pNames []string
-    if st != nil {
-        if st.funcResults != nil {
-            if rs, ok := st.funcResults[c.Name]; ok && len(rs) > 0 && rs[0] != "" { rtype = rs[0]; rSig = rs }
-        }
-        if st.funcParams != nil {
-            if ps, ok := st.funcParams[c.Name]; ok { pSig = ps }
-        }
-        if st.funcParamNames != nil {
-            if pn, ok := st.funcParamNames[c.Name]; ok { pNames = pn }
-        }
-    }
-    // Multi-result adaptation: when function signature declares multiple results,
-    // synthesize distinct temps and populate Expr.Results instead of single Result.
-    if len(rSig) > 1 {
-        var results []ir.Value
-        for i := range rSig { results = append(results, ir.Value{ID: st.newTemp(), Type: rSig[i]}) }
-        return ir.Expr{Op: "call", Callee: c.Name, Args: args, Results: results, ParamTypes: pSig, ParamNames: pNames, ResultTypes: rSig}
-    }
-    res := &ir.Value{ID: id, Type: rtype}
-    return ir.Expr{Op: "call", Callee: c.Name, Args: args, Result: res, ParamTypes: pSig, ParamNames: pNames, ResultTypes: rSig}
-}
-
-func (s *lowerState) newTemp() string {
-    s.temp++
-    return fmt.Sprintf("t%d", s.temp)
-}
-
-func opName(k token.Kind) string {
-    switch k {
-    case token.Plus: return "add"
-    case token.Minus: return "sub"
-    case token.Star: return "mul"
-    case token.Slash: return "div"
-    case token.Percent: return "mod"
-    case token.And: return "and"
-    case token.Or:  return "or"
-    case token.BitXor: return "xor"
-    case token.BitOr: return "bor"
-    case token.Shl: return "shl"
-    case token.Shr: return "shr"
-    case token.BitAnd: return "band"
-    case token.Eq: return "eq"
-    case token.Ne: return "ne"
-    case token.Lt: return "lt"
-    case token.Le: return "le"
-    case token.Gt: return "gt"
-    case token.Ge: return "ge"
-    default:
-        return k.String()
-    }
-}
+// Note: helper functions for lowering (foldConst, parseInt, lowerSelectorField,
+// flattenSelector, lowerCallExpr, and opName) as well as lowerState.newTemp()
+// are defined in separate files to comply with single-declaration-per-file.

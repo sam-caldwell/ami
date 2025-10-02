@@ -6,7 +6,6 @@ import (
     ir "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
     amitrigger "github.com/sam-caldwell/ami/src/ami/stdlib/trigger"
-    amitime "github.com/sam-caldwell/ami/src/ami/stdlib/time"
     amiio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
 )
@@ -197,42 +196,4 @@ func (e *Engine) runMergeStageWithStats(ctx context.Context, plan ir.MergePlan, 
     if err != nil { return nil, nil, err }
     _ = time.Now() // placeholder to avoid unused imports if needed
     return oc, st, nil
-}
-
-// toStdTime converts amitime.Time to stdlib time.Time for payload compatibility.
-func toStdTime(t amitime.Time) time.Time {
-    sec := t.Unix()
-    nsec := t.UnixNano() - sec*1_000_000_000
-    return time.Unix(sec, nsec).UTC()
-}
-
-// DSL stubs
-func applyFilter(expr string, e ev.Event) bool {
-    switch expr {
-    case "", "none":
-        return true
-    case "drop_even":
-        // drops events where payload["i"] is even
-        if m, ok := e.Payload.(map[string]any); ok {
-            if v, ok := m["i"].(int); ok { return v%2 != 0 }
-            if f, ok := m["i"].(float64); ok { return int(f)%2 != 0 }
-        }
-        return true
-    default:
-        return true
-    }
-}
-
-func applyTransform(expr string, e ev.Event) ev.Event {
-    switch expr {
-    case "", "none":
-        return e
-    default:
-        // add_field:name sets payload[name]=true
-        if len(expr) > 10 && expr[:10] == "add_field:" {
-            key := expr[10:]
-            if m, ok := e.Payload.(map[string]any); ok && key != "" { m[key] = true; e.Payload = m }
-        }
-        return e
-    }
 }

@@ -107,12 +107,12 @@ func (v *Value) GoString() string {
 	return fmt.Sprintf("%s(%s)", v.D.Name, name)
 }
 
-func (v *Value) MarshalJSON() ([]byte, error) {
-	name := String(v.D, v.V)
-	if name == "" {
-		return nil, fmt.Errorf("E_ENUM_ORDINAL: invalid ordinal %d for %s", v.V, v.D.Name)
-	}
-	return json.Marshal(name)
+func (v Value) MarshalJSON() ([]byte, error) {
+    name := String(v.D, v.V)
+    if name == "" {
+        return nil, fmt.Errorf("E_ENUM_ORDINAL: invalid ordinal %d for %s", v.V, v.D.Name)
+    }
+    return json.Marshal(name)
 }
 
 func (v *Value) UnmarshalJSON(b []byte) error {

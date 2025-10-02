@@ -38,8 +38,4 @@ func TripleFor(osName, arch string) string {
 }
 
 // TripleForEnv accepts an env string like "os/arch" and returns a triple.
-func TripleForEnv(env string) string {
-    parts := strings.SplitN(env, "/", 2)
-    if len(parts) != 2 { return DefaultTriple }
-    return TripleFor(parts[0], parts[1])
-}
+// TripleForEnv moved to target_env.go to satisfy single-declaration rule

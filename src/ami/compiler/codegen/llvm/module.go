@@ -20,10 +20,7 @@ type ModuleEmitter struct {
 // DefaultTriple is the baseline target triple for darwin/arm64.
 const DefaultTriple = "arm64-apple-macosx"
 
-// NewModuleEmitter constructs a new emitter for the given package/unit.
-func NewModuleEmitter(pkg, unit string) *ModuleEmitter {
-    return &ModuleEmitter{pkg: pkg, unit: unit, triple: DefaultTriple, types: map[string]struct{}{}}
-}
+// constructor moved to module_new.go to satisfy single-declaration rule
 
 // SetTargetTriple sets the LLVM target triple.
 func (e *ModuleEmitter) SetTargetTriple(triple string) { if triple != "" { e.triple = triple } }

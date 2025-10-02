@@ -168,7 +168,7 @@ func runModSum(out io.Writer, dir string, jsonOut bool) error {
     return exit.New(exit.Integrity, "integrity failure")
 }
 
-func key(name, ver string) string { if ver == "" { return name }; return name + "@" + ver }
+ 
 
 func hashDir(root string) (string, error) {
     h := sha256.New()

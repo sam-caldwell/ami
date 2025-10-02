@@ -38,8 +38,13 @@ func main() {
         }
         filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
             if err != nil { return err }
-            if d.IsDir() { return nil }
-            if strings.HasSuffix(path, "_test.go") {
+            // Exclude test fixture subtree used by CLI E2E tests
+            sp := filepath.ToSlash(path)
+            if d.IsDir() {
+                if strings.HasPrefix(sp+"/", "src/cmd/ami/build/test/") { return filepath.SkipDir }
+                return nil
+            }
+            if strings.HasSuffix(sp, "_test.go") {
                 files = append(files, path)
             }
             return nil

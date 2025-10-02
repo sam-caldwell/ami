@@ -10,7 +10,10 @@ import (
 // It returns an IR expression and true when a call was recognized.
 func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     name := c.Name
-    if !strings.HasPrefix(name, "math.") { return ir.Expr{}, false }
+    short := name
+    if strings.HasPrefix(name, "math.") {
+        short = name[len("math."):]
+    }
     // Convert args first
     var args []ir.Value
     for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }
@@ -20,7 +23,7 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         res := &ir.Value{ID: id, Type: "float64"}
         return ir.Expr{Op: "call", Callee: intr, Args: args, Result: res, ResultTypes: []string{"float64"}}, true
     }
-    switch name {
+    switch short {
     case "math.FMA": return one("llvm.fma.f64")
     case "math.Erf": return one("llvm.erf.f64")
     case "math.Erfc": return one("llvm.erfc.f64")
@@ -62,7 +65,7 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         return ir.Expr{}, false
     }
     // Multi-result helpers
-    switch name {
+    switch short {
     case "math.Sincos":
         // Prefer an aggregate-return runtime helper for portability
         res := []ir.Value{{ID: st.newTemp(), Type: "float64"}, {ID: st.newTemp(), Type: "float64"}}
@@ -75,7 +78,7 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         return ir.Expr{Op: "call", Callee: "ami_rt_math_modf", Args: args, Results: res, ResultTypes: []string{"float64", "float64"}}, true
     }
     // NaN/Inf/IsNaN/IsInf/Signbit can be implemented via constants/intrinsics/runtime helpers
-    switch name {
+    switch short {
     case "math.NaN":
         id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
         return ir.Expr{Op: "call", Callee: "ami_rt_math_nan", Args: nil, Result: r, ResultTypes: []string{"float64"}}, true
@@ -99,7 +102,7 @@ func lowerStdlibMath(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         return ir.Expr{Op: "call", Callee: "ami_rt_math_pow10", Args: args, Result: r, ResultTypes: []string{"float64"}}, true
     }
     // Remaining functions via runtime helpers
-    switch name {
+    switch short {
     case "math.Asinh":
         id := st.newTemp(); r := &ir.Value{ID: id, Type: "float64"}
         return ir.Expr{Op: "call", Callee: "ami_rt_math_asinh", Args: args, Result: r, ResultTypes: []string{"float64"}}, true

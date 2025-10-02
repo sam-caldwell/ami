@@ -22,6 +22,10 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
     for i := 0; i < len(b.Stmts); i++ {
         s := b.Stmts[i]
         switch v := s.(type) {
+        case *ast.DeferStmt:
+            // Lower defer statements into IR.Defer carrying the inner Expr
+            d := lowerStmtDefer(st, v)
+            out = append(out, d)
         case *ast.IfStmt:
             emitNestedCallArgs(st, v.Cond, &out)
             if ex, ok := lowerExpr(st, v.Cond); ok {
@@ -60,6 +64,7 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                 return out, extras
             }
         case *ast.VarDecl:
+            // Specialized handling for Owned types with initializer
             if v.Type != "" && (v.Type == "Owned" || (len(v.Type) >= 6 && v.Type[:6] == "Owned<")) && v.Init != nil {
                 if needsShortCircuit(v.Init) {
                     val, ok := lowerValueSC(st, v.Init, &out, &extras, &nextID)
@@ -92,6 +97,18 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                     }
                     break
                 }
+                out = append(out, lowerStmtVar(st, v))
+                break
+            }
+            // General variable declaration and optional init (non-Owned or no init)
+            if v.Init != nil {
+                out = append(out, lowerStmtVar(st, v))
+                emitNestedCallArgs(st, v.Init, &out)
+                if ex, ok := lowerExpr(st, v.Init); ok {
+                    if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 || len(ex.Results) > 0 { out = append(out, ex) }
+                    if ex.Result != nil { out = append(out, ir.Assign{DestID: v.Name, Src: *ex.Result}) }
+                }
+            } else {
                 out = append(out, lowerStmtVar(st, v))
             }
         case *ast.AssignStmt:
@@ -216,6 +233,7 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
             out = append(out, ir.Return{Values: vals})
         case *ast.ExprStmt:
             if ce, ok := v.X.(*ast.CallExpr); ok {
+                // Special-case defer release()
                 if ce.Name == "release" && len(ce.Args) == 1 {
                     exArg, ok := lowerExpr(st, ce.Args[0])
                     if ok {
@@ -224,15 +242,21 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                         if exArg.Result != nil { argv = *exArg.Result } else { argv = ir.Value{ID: "", Type: "ptr"} }
                         out = append(out, ir.Expr{Op: "call", Callee: "ami_rt_zeroize_owned", Args: []ir.Value{argv}})
                     }
+                } else {
+                    if needsShortCircuit(v.X) {
+                        // Lower with short-circuit semantics for arguments
+                        if _, ok := lowerValueSC(st, v.X, &out, &extras, &nextID); ok { /* emitted via out/extras */ }
+                    } else {
+                        // General call expression: emit nested args/receiver and the lowered call
+                        emitNestedCallArgs(st, v.X, &out)
+                        maybeEmitMethodRecv(st, ce, &out)
+                        if e, ok := lowerExpr(st, v.X); ok { out = append(out, e) }
+                    }
                 }
             } else {
                 if needsShortCircuit(v.X) {
                     if _, ok := lowerValueSC(st, v.X, &out, &extras, &nextID); ok { /* side effects captured */ }
                 } else {
-                    if ce, isCall := v.X.(*ast.CallExpr); isCall {
-                        emitNestedCallArgs(st, v.X, &out)
-                        maybeEmitMethodRecv(st, ce, &out)
-                    }
                     if e, ok := lowerExpr(st, v.X); ok { out = append(out, e) }
                 }
             }

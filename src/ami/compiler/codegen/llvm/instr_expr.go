@@ -73,6 +73,48 @@ func lowerExpr(e ir.Expr) string {
         // - Runtime helpers: use their true ABI regardless of whether result captured
         // - User functions: map via ABI, avoid raw ptr exposure when captured
         ret := "void"
+        callee := e.Callee
+        intrinsicMapped := false
+        // Map standard math calls to LLVM intrinsics when present
+        if strings.HasPrefix(callee, "math.") {
+            switch callee {
+            case "math.FMA": callee = "llvm.fma.f64"; ret = "double"
+            case "math.Erf": callee = "llvm.erf.f64"; ret = "double"
+            case "math.Erfc": callee = "llvm.erfc.f64"; ret = "double"
+            case "math.Abs": callee = "llvm.fabs.f64"; ret = "double"
+            case "math.Max": callee = "llvm.maxnum.f64"; ret = "double"
+            case "math.Min": callee = "llvm.minnum.f64"; ret = "double"
+            case "math.Ceil": callee = "llvm.ceil.f64"; ret = "double"
+            case "math.Floor": callee = "llvm.floor.f64"; ret = "double"
+            case "math.Trunc": callee = "llvm.trunc.f64"; ret = "double"
+            case "math.Round": callee = "llvm.round.f64"; ret = "double"
+            case "math.RoundToEven": callee = "llvm.roundeven.f64"; ret = "double"
+            case "math.Exp": callee = "llvm.exp.f64"; ret = "double"
+            case "math.Expm1": callee = "llvm.expm1.f64"; ret = "double"
+            case "math.Exp2": callee = "llvm.exp2.f64"; ret = "double"
+            case "math.Log1p": callee = "llvm.log1p.f64"; ret = "double"
+            case "math.Log": callee = "llvm.log.f64"; ret = "double"
+            case "math.Log2": callee = "llvm.log2.f64"; ret = "double"
+            case "math.Log10": callee = "llvm.log10.f64"; ret = "double"
+            case "math.Sqrt": callee = "llvm.sqrt.f64"; ret = "double"
+            case "math.Pow": callee = "llvm.pow.f64"; ret = "double"
+            case "math.Sin": callee = "llvm.sin.f64"; ret = "double"
+            case "math.Cos": callee = "llvm.cos.f64"; ret = "double"
+            case "math.Tan": callee = "llvm.tan.f64"; ret = "double"
+            case "math.Asin": callee = "llvm.asin.f64"; ret = "double"
+            case "math.Acos": callee = "llvm.acos.f64"; ret = "double"
+            case "math.Atan": callee = "llvm.atan.f64"; ret = "double"
+            case "math.Atan2": callee = "llvm.atan2.f64"; ret = "double"
+            case "math.Sinh": callee = "llvm.sinh.f64"; ret = "double"
+            case "math.Cosh": callee = "llvm.cosh.f64"; ret = "double"
+            case "math.Tanh": callee = "llvm.tanh.f64"; ret = "double"
+            case "math.Copysign": callee = "llvm.copysign.f64"; ret = "double"
+            case "math.Nextafter": callee = "llvm.nextafter.f64"; ret = "double"
+            case "math.Ldexp": callee = "llvm.ldexp.f64"; ret = "double"; intrinsicMapped = true
+            case "math.Logb": callee = "ami_rt_math_logb"
+            case "math.Ilogb": callee = "ami_rt_math_ilogb"
+            }
+        }
         // Precompute multi-result aggregate type when provided
         aggRet := ""
         if len(e.Results) > 1 {
@@ -80,13 +122,17 @@ func lowerExpr(e ir.Expr) string {
             for _, r := range e.Results { parts = append(parts, abiType(r.Type)) }
             aggRet = "{ " + strings.Join(parts, ", ") + " }"
         }
-        if strings.HasPrefix(e.Callee, "ami_rt_") {
-            switch e.Callee {
+        if strings.HasPrefix(callee, "ami_rt_") {
+            switch callee {
             case "ami_rt_panic", "ami_rt_zeroize", "ami_rt_zeroize_owned":
                 ret = "void"
             case "ami_rt_signal_register":
                 ret = "void"
             case "ami_rt_owned_len":
+                ret = "i64"
+            case "ami_rt_math_logb":
+                ret = "double"
+            case "ami_rt_math_ilogb":
                 ret = "i64"
             case "ami_rt_string_len", "ami_rt_slice_len":
                 ret = "i64"
@@ -123,7 +169,7 @@ func lowerExpr(e ir.Expr) string {
             }
         } else if len(e.Results) > 1 {
             ret = aggRet
-        } else if e.Result != nil {
+        } else if e.Result != nil && !intrinsicMapped {
             // Avoid exposing raw pointers at the language ABI boundary for user functions
             rt := mapType(e.Result.Type)
             if rt == "ptr" { rt = "i64" }
@@ -155,16 +201,19 @@ func lowerExpr(e ir.Expr) string {
             // Aggregate call then extract results
             aggID := "call_tup_" + e.Results[0].ID
             var sb strings.Builder
-            fmt.Fprintf(&sb, "  %%%s = call %s @%s(%s)\n", aggID, ret, e.Callee, strings.Join(args, ", "))
+            fmt.Fprintf(&sb, "  %%%s = call %s @%s(%s)\n", aggID, ret, callee, strings.Join(args, ", "))
             for i, r := range e.Results {
                 fmt.Fprintf(&sb, "  %%%s = extractvalue %s %%%s, %d\n", r.ID, ret, aggID, i)
             }
             return sb.String()
         }
         if e.Result != nil && e.Result.ID != "" {
-            return fmt.Sprintf("  %%%s = call %s @%s(%s)\n", e.Result.ID, ret, e.Callee, strings.Join(args, ", "))
+            // Force intrinsic return types to double for known math intrinsics
+            if strings.HasPrefix(callee, "llvm.") { ret = "double" }
+            return fmt.Sprintf("  %%%s = call %s @%s(%s)\n", e.Result.ID, ret, callee, strings.Join(args, ", "))
         }
-        return fmt.Sprintf("  call %s @%s(%s)\n", ret, e.Callee, strings.Join(args, ", "))
+        if strings.HasPrefix(callee, "llvm.") { ret = "double" }
+        return fmt.Sprintf("  call %s @%s(%s)\n", ret, callee, strings.Join(args, ", "))
     }
     // Basic arithmetic scaffold
     op := strings.ToLower(e.Op)

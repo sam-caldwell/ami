@@ -131,6 +131,20 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
                         op.MultiPath = &pipeMultiPath{Args: margs, Inputs: inputs}
                     }
                 }
+                // Always snapshot multipath inputs for Collect, even without explicit attribute
+                if op.MultiPath == nil && st.Name == "Collect" {
+                    var inputs []string
+                    for _, s2 := range pd.Stmts {
+                        if e2, ok2 := s2.(*ast.EdgeStmt); ok2 && e2.To == st.Name {
+                            // attribute this edge to the nearest following Collect occurrence
+                            toID := 0
+                            if arr := occs[e2.To]; len(arr) > 0 { toID = nearestOccAfterOcc(arr, indexOfStmt(pd.Stmts, s2)) }
+                            if toID == id { inputs = append(inputs, e2.From) }
+                        }
+                    }
+                    sort.Strings(inputs)
+                    op.MultiPath = &pipeMultiPath{Inputs: inputs}
+                }
                 op.Attrs = rawAttrs
                 steps = append(steps, op)
             } else if e, ok := s.(*ast.EdgeStmt); ok {
@@ -225,4 +239,3 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
     if err := os.WriteFile(out, b, 0o644); err != nil { return "", err }
     return out, nil
 }
-

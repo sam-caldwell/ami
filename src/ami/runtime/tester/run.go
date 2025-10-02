@@ -6,14 +6,6 @@ import (
     "time"
 )
 
-// Result captures execution outcome for a single case.
-type Result struct {
-    Output   map[string]any
-    ErrCode  string
-    ErrMsg   string
-    Duration time.Duration
-}
-
 // Run executes a deterministic, side-effect-free simulation:
 // - Copies input to output (identity) by default.
 // - Recognizes reserved input keys:
@@ -48,17 +40,5 @@ func Run(ctx context.Context, opts Options, input map[string]any) (Result, error
         }
     }
     return Result{Output: out, Duration: time.Since(start)}, nil
-}
-
-func asInt(v any) (int, bool) {
-    switch n := v.(type) {
-    case int: return n, true
-    case int32: return int(n), true
-    case int64: return int(n), true
-    case float64: return int(n), true
-    case float32: return int(n), true
-    default:
-        return 0, false
-    }
 }
 

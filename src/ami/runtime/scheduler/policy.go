@@ -1,16 +1,27 @@
 package scheduler
 
-import "strings"
+// Policy enumerates worker scheduling strategies.
+type Policy string
 
-// ParsePolicy converts a string to a Policy, case-insensitive.
+const (
+    FIFO      Policy = "fifo"
+    LIFO      Policy = "lifo"
+    FAIR      Policy = "fair"
+    WORKSTEAL Policy = "worksteal"
+)
+
+// ParsePolicy normalizes a string to a Policy value.
 func ParsePolicy(s string) (Policy, bool) {
-    switch strings.ToLower(strings.TrimSpace(s)) {
-    case "fifo": return FIFO, true
-    case "lifo": return LIFO, true
-    case "fair": return FAIR, true
-    case "worksteal", "work_steal", "work-steal": return WORKSTEAL, true
+    switch s {
+    case "fifo", "FIFO":
+        return FIFO, true
+    case "lifo", "LIFO":
+        return LIFO, true
+    case "fair", "FAIR":
+        return FAIR, true
+    case "worksteal", "work-steal", "WORKSTEAL", "WORK-STEAL":
+        return WORKSTEAL, true
     default:
         return "", false
     }
 }
-

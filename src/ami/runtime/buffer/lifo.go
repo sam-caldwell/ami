@@ -16,7 +16,7 @@ type LIFOStack struct {
     fullN int
 }
 
-func NewLIFO(min, max int, bp string) *LIFOStack { if min < 0 { min=0 }; if max < 0 { max=0 }; return &LIFOStack{MinCapacity:min, MaxCapacity:max, Backpressure:bp, s: make([]any,0)} }
+// Constructor moved to lifo_new.go to satisfy single-declaration rule
 
 func (l *LIFOStack) Push(v any) error {
     l.mu.Lock(); defer l.mu.Unlock()
@@ -57,4 +57,3 @@ func (l *LIFOStack) Pop() (any, bool) {
 
 func (l *LIFOStack) Len() int { l.mu.Lock(); defer l.mu.Unlock(); return len(l.s) }
 func (l *LIFOStack) Counters() (push, pop, drop, full int) { l.mu.Lock(); defer l.mu.Unlock(); return l.pushN, l.popN, l.dropN, l.fullN }
-

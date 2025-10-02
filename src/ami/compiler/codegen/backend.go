@@ -32,6 +32,3 @@ type Backend interface {
 
 // defaultBackend is the process-wide default backend. Initialized to LLVM.
 var defaultBackend Backend = &llvmBackend{}
-
-// DefaultBackend returns the configured default backend.
-func DefaultBackend() Backend { return defaultBackend }

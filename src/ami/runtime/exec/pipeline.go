@@ -7,6 +7,7 @@ import (
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
     amitrigger "github.com/sam-caldwell/ami/src/ami/stdlib/trigger"
     amiio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
+    amitime "github.com/sam-caldwell/ami/src/ami/stdlib/time"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
 )
 

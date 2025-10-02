@@ -14,8 +14,7 @@ type Ticker struct {
     handlers []func()
 }
 
-// NewTicker constructs a Ticker with period d.
-func NewTicker(d Duration) *Ticker { return &Ticker{d: d} }
+// Constructor moved to ticker_new.go to satisfy single-declaration rule
 
 // Register adds a handler to be called on each tick.
 func (t *Ticker) Register(fn func()) {
@@ -59,5 +58,4 @@ func (t *Ticker) Stop() {
     t.started = false
     t.mu.Unlock()
 }
-
-func safe(f func()) { defer func(){ _ = recover() }(); if f != nil { f() } }
+// helper moved to ticker_safe.go to satisfy single-declaration rule

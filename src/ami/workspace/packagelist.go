@@ -10,12 +10,6 @@ import "gopkg.in/yaml.v3"
 // This type marshals/unmarshals between that form and a simple slice.
 type PackageList []PackageEntry
 
-// PackageEntry binds a logical key (e.g., "main") to a Package.
-type PackageEntry struct {
-    Key     string
-    Package Package
-}
-
 // MarshalYAML implements YAML marshalling to a sequence of single-entry maps.
 func (l PackageList) MarshalYAML() (interface{}, error) {
     arr := make([]map[string]Package, 0, len(l))

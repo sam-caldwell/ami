@@ -1,6 +1,12 @@
 package buffer
 
-import "sync"
+import (
+    "errors"
+    "sync"
+)
+
+// ErrFull indicates the buffer is at capacity for block backpressure.
+var ErrFull = errors.New("buffer full")
 
 // FIFOQueue implements a bounded FIFO queue with backpressure policies.
 type FIFOQueue struct {
@@ -16,11 +22,7 @@ type FIFOQueue struct {
     fullN int
 }
 
-func NewFIFO(min, max int, bp string) *FIFOQueue {
-    if min < 0 { min = 0 }
-    if max < 0 { max = 0 }
-    return &FIFOQueue{MinCapacity: min, MaxCapacity: max, Backpressure: bp, q: make([]any, 0)}
-}
+// Constructor moved to fifo_new.go to satisfy single-declaration rule
 
 func (f *FIFOQueue) Push(v any) error {
     f.mu.Lock(); defer f.mu.Unlock()
@@ -59,4 +61,3 @@ func (f *FIFOQueue) Pop() (any, bool) {
 
 func (f *FIFOQueue) Len() int { f.mu.Lock(); defer f.mu.Unlock(); return len(f.q) }
 func (f *FIFOQueue) Counters() (push, pop, drop, full int) { f.mu.Lock(); defer f.mu.Unlock(); return f.pushN, f.popN, f.dropN, f.fullN }
-

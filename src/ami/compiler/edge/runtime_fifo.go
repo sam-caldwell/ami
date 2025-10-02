@@ -1,6 +1,12 @@
 package edge
 
-import "sync"
+import (
+    "errors"
+    "sync"
+)
+
+// ErrFull is returned by Push() when backpressure=block and the buffer is full.
+var ErrFull = errors.New("edge full")
 
 // FIFOQueue is a runtime buffer implementing FIFO semantics with optional bounds and backpressure.
 type FIFOQueue struct {
@@ -14,10 +20,7 @@ type FIFOQueue struct {
     fullN int
 }
 
-func NewFIFO(spec FIFO) (*FIFOQueue, error) {
-    if err := spec.Validate(); err != nil { return nil, err }
-    return &FIFOQueue{spec: spec, buf: make([]any, 0)}, nil
-}
+// Constructor moved to runtime_fifo_new.go to satisfy single-declaration rule
 
 // Push enqueues v honoring backpressure policy when bounded and full.
 func (q *FIFOQueue) Push(v any) error {

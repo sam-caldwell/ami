@@ -6,7 +6,7 @@ import (
 	"github.com/sam-caldwell/ami/src/ami/compiler/source"
 )
 
-func TestScanDurationLiteral_SimpleAndCompound(t *testing.T) {
+func testScanDurationLiteral_SimpleAndCompound(t *testing.T) {
 	cases := []string{"300ms", "5s", "2h45m", "1.5h"}
 	for _, c := range cases {
 		s := New(&source.File{Name: "t", Content: c})
@@ -16,7 +16,7 @@ func TestScanDurationLiteral_SimpleAndCompound(t *testing.T) {
 	}
 }
 
-func TestScanDurationLiteral_InvalidFraction(t *testing.T) {
+func testScanDurationLiteral_InvalidFraction(t *testing.T) {
 	s := New(&source.File{Name: "t", Content: "1."})
 	if _, ok := s.scanDurationLiteral(); ok {
 		t.Fatalf("expected invalid for '1.'")

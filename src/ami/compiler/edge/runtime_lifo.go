@@ -13,10 +13,7 @@ type LIFOStack struct {
     fullN int
 }
 
-func NewLIFO(spec LIFO) (*LIFOStack, error) {
-    if err := spec.Validate(); err != nil { return nil, err }
-    return &LIFOStack{spec: spec, buf: make([]any, 0)}, nil
-}
+// Constructor moved to runtime_lifo_new.go to satisfy single-declaration rule
 
 // Push pushes v honoring backpressure when bounded and full.
 func (s *LIFOStack) Push(v any) error {

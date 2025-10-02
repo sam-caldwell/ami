@@ -19,13 +19,6 @@ type Error struct {
     Data      map[string]any
 }
 
-// Position mirrors diag.Position for schema alignment and stability.
-type Position struct {
-    Line   int `json:"line"`
-    Column int `json:"column"`
-    Offset int `json:"offset"`
-}
-
 // MarshalJSON renders keys in a stable order and includes a schema discriminator.
 func (e Error) MarshalJSON() ([]byte, error) {
     var buf bytes.Buffer

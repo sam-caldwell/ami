@@ -3,10 +3,6 @@ package sem
 import (
     "time"
     "strings"
-    "unicode"
-    "strconv"
-    "regexp"
-    "os"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
     "github.com/sam-caldwell/ami/src/schemas/diag"
@@ -295,108 +291,4 @@ func AnalyzeMultiPath(f *ast.File) []diag.Record {
         }
     }
     return out
-}
-
-func canonicalAttrValue(name string, args []ast.Arg) string {
-    // normalize value strings per attribute for conflict checks
-    if name == "merge.Sort" {
-        // field[/order]
-        f := ""
-        ord := "asc" // default asc when unspecified
-        if len(args) > 0 { f = args[0].Text }
-        if len(args) > 1 { ord = args[1].Text }
-        return f + "/" + ord
-    }
-    if name == "merge.Buffer" {
-        cap := ""
-        pol := ""
-        if len(args) > 0 { cap = args[0].Text }
-        if len(args) > 1 { pol = args[1].Text }
-        return cap + "/" + pol
-    }
-    if len(args) > 0 { return args[0].Text }
-    return ""
-}
-
-func stepPos(st *ast.StepStmt) diag.Position {
-    return diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}
-}
-
-func validFieldName(s string) bool {
-    if s == "" { return false }
-    // allow dot-separated identifiers
-    part := 0
-    start := 0
-    for i, r := range s {
-        if r == '.' {
-            if i == start { return false }
-            start = i+1
-            part++
-            continue
-        }
-        if i == start { // start of a part
-            if !(r == '_' || unicode.IsLetter(r)) { return false }
-        } else {
-            if !(r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)) { return false }
-        }
-    }
-    return start < len(s)
-}
-
-func validNonNegativeInt(s string) bool {
-    s = strings.TrimSpace(s)
-    if s == "" { return false }
-    n, err := strconv.Atoi(s)
-    if err != nil { return false }
-    return n >= 0
-}
-
-func validPositiveInt(s string) bool {
-    s = strings.TrimSpace(s)
-    if s == "" { return false }
-    n, err := strconv.Atoi(s)
-    if err != nil { return false }
-    return n > 0
-}
-
-var durRe = regexp.MustCompile(`^\d+(ms|s|m|h)$`)
-
-func validPositiveDuration(s string) bool { s = strings.TrimSpace(s); if s == "" { return false }; return durRe.MatchString(s) }
-
-// isInteger reports whether s parses as a base‑10 integer (allows optional sign).
-func isInteger(s string) bool {
-    s = strings.TrimSpace(s)
-    if s == "" { return false }
-    // allow optional sign
-    if s[0] == '+' || s[0] == '-' { s = s[1:] }
-    if s == "" { return false }
-    for i := 0; i < len(s); i++ { if s[i] < '0' || s[i] > '9' { return false } }
-    return true
-}
-
-// isDurationLike reports whether s looks like a simple duration (e.g., 100ms, 2s, 3m, 1h).
-func isDurationLike(s string) bool {
-    s = strings.TrimSpace(s)
-    if s == "" { return false }
-    return durRe.MatchString(s)
-}
-
-// numericPrefix returns the leading decimal digits of s (trimmed); empty if none.
-func numericPrefix(s string) string {
-    s = strings.TrimSpace(s)
-    i := 0
-    for i < len(s) && s[i] >= '0' && s[i] <= '9' { i++ }
-    if i == 0 { return "" }
-    return s[:i]
-}
-
-// StrictDedupUnderPartition controls whether certain Dedup vs PartitionBy misconfigurations
-// are treated as errors rather than warnings. It can be toggled via the environment variable
-// AMI_STRICT_DEDUP_PARTITION (values: "1", "true"). Tests in package sem may also set the
-// variable directly.
-var StrictDedupUnderPartition bool
-
-func init() {
-    v := strings.ToLower(strings.TrimSpace(os.Getenv("AMI_STRICT_DEDUP_PARTITION")))
-    if v == "1" || v == "true" { StrictDedupUnderPartition = true }
 }

@@ -1771,7 +1771,9 @@ stdlib:
               []gpu.Device`.
             dependencies: []
             status: ready
-            tests: []
+            tests:
+              - src/ami/stdlib/gpu/cuda_discovery_test.go
+              - src/ami/stdlib/gpu/cuda_env_test.go
 
           - id: E-8-2-2
             statement: |
@@ -1779,7 +1781,30 @@ stdlib:
               `gpu.CudaDestroyContext(ctx gpu.Context) error` with Owned<T> semantics.
             dependencies: [F-11-21]
             status: ready
-            tests: []
+            tests:
+              - src/ami/stdlib/gpu/cuda_owned_handles_test.go
+              - src/ami/stdlib/gpu/stub_paths_test.go
+              - src/ami/stdlib/gpu/cuda_error_paths_test.go
+          - id: E-8-2-3
+            statement: |
+              As a user, I expect buffer and transfer APIs: `gpu.CudaAlloc(n int) (gpu.Buffer, error)`,
+              `gpu.CudaFree(buf gpu.Buffer) error`, `gpu.CudaMemcpyHtoD(dst gpu.Buffer, src []byte) error`, and
+              `gpu.CudaMemcpyDtoH(dst []byte, src gpu.Buffer) error` to perform argument validation and deterministic
+              erroring on invalid inputs under stubbed backends.
+            dependencies: [F-11-21]
+            status: in_progress
+            tests:
+              - src/ami/stdlib/gpu/cuda_args_test.go
+              - src/ami/stdlib/gpu/stub_paths_test.go
+          - id: E-8-2-4
+            statement: |
+              As a user, I expect kernel APIs with deterministic validation: `gpu.CudaLoadModule`, `gpu.CudaGetKernel`,
+              and `gpu.CudaLaunchKernel` validate inputs and signal `ErrInvalidHandle` for invalid args under stubs.
+            dependencies: [F-11-21]
+            status: in_progress
+            tests:
+              - src/ami/stdlib/gpu/cuda_args_test.go
+              - src/ami/stdlib/gpu/launch_blocking_test.go
 
           - id: E-8-2-3
             statement: |
@@ -1869,7 +1894,9 @@ stdlib:
               `gpu.OpenCLPlatforms() []gpu.Platform` with device enumeration.
             dependencies: []
             status: ready
-            tests: []
+            tests:
+              - src/ami/stdlib/gpu/opencl_discovery_test.go
+              - src/ami/stdlib/gpu/opencl_env_test.go
 
           - id: E-8-4-2
             statement: |
@@ -1880,7 +1907,10 @@ stdlib:
               local [3]size_t, args ...any) error`.
             dependencies: [F-11-21]
             status: ready
-            tests: []
+            tests:
+              - src/ami/stdlib/gpu/opencl_args_test.go
+              - src/ami/stdlib/gpu/opencl_owned_handles_test.go
+              - src/ami/stdlib/gpu/opencl_error_paths_test.go
 
       - id: F-8-5
         name: Common Opaque Handles and Ownership
@@ -1892,7 +1922,10 @@ stdlib:
               zeroization on release and deterministic erroring on double-free.
             dependencies: [F-11-21]
             status: ready
-            tests: []
+            tests:
+              - src/ami/stdlib/gpu/gpu_stub_test.go
+              - src/ami/stdlib/gpu/cuda_owned_handles_test.go
+              - src/ami/stdlib/gpu/opencl_owned_handles_test.go
 
       - id: F-8-6
         name: Determinism, Scheduling, and Diagnostics

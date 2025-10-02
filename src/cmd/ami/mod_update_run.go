@@ -13,18 +13,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
 )
 
-type modUpdateItem struct {
-    Name    string `json:"name"`
-    Version string `json:"version"`
-    Path    string `json:"path"`
-}
-
-type modUpdateResult struct {
-    Updated []modUpdateItem `json:"updated"`
-    Message string          `json:"message,omitempty"`
-    Audit   *modAuditEmbed  `json:"audit,omitempty"`
-    Selected []modUpdateItem `json:"selected,omitempty"`
-}
+// types moved to mod_update_types.go
 
 // runModUpdate copies local workspace packages to the cache and refreshes ami.sum.
 // Remote resolution (git+ssh) and constraint solving are deferred to later phases.
@@ -135,30 +124,7 @@ func runModUpdate(out io.Writer, dir string, jsonOut bool) error {
 }
 
 // joinCSV joins a string slice with commas (no spaces) for compact summaries.
-func joinCSV(xs []string) string {
-    if len(xs) == 0 { return "" }
-    s := xs[0]
-    for i := 1; i < len(xs); i++ { s += "," + xs[i] }
-    return s
-}
+// joinCSV moved to mod_update_join.go
 
 // modAuditEmbed mirrors key fields from AuditReport for JSON embedding in update result.
-type modAuditEmbed struct {
-    MissingInSum   []string `json:"missingInSum,omitempty"`
-    Unsatisfied    []string `json:"unsatisfied,omitempty"`
-    MissingInCache []string `json:"missingInCache,omitempty"`
-    Mismatched     []string `json:"mismatched,omitempty"`
-    ParseErrors    []string `json:"parseErrors,omitempty"`
-    SumFound       bool     `json:"sumFound"`
-}
-
-func embedAudit(r workspace.AuditReport) *modAuditEmbed {
-    return &modAuditEmbed{
-        MissingInSum:   r.MissingInSum,
-        Unsatisfied:    r.Unsatisfied,
-        MissingInCache: r.MissingInCache,
-        Mismatched:     r.Mismatched,
-        ParseErrors:    r.ParseErrors,
-        SumFound:       r.SumFound,
-    }
-}
+// modAuditEmbed and embedAudit moved to mod_update_audit.go

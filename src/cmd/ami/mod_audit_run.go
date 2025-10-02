@@ -11,16 +11,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/workspace"
 )
 
-type modAuditResult struct {
-    Requirements    []workspace.Requirement `json:"requirements"`
-    MissingInSum    []string                `json:"missingInSum"`
-    Unsatisfied     []string                `json:"unsatisfied"`
-    MissingInCache  []string                `json:"missingInCache"`
-    Mismatched      []string                `json:"mismatched"`
-    ParseErrors     []string                `json:"parseErrors"`
-    SumFound        bool                    `json:"sumFound"`
-    Timestamp       string                  `json:"timestamp"`
-}
+// modAuditResult moved to mod_audit_result.go
 
 func runModAudit(out io.Writer, dir string, jsonOut bool) error {
     rep, err := workspace.AuditDependencies(dir)
@@ -68,4 +59,3 @@ func runModAudit(out io.Writer, dir string, jsonOut bool) error {
     }
     return nil
 }
-

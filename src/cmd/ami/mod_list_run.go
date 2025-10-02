@@ -11,18 +11,7 @@ import (
     "time"
 )
 
-type modListEntry struct {
-    Name     string `json:"name"`
-    Version  string `json:"version,omitempty"`
-    Type     string `json:"type"`   // file|dir
-    Size     int64  `json:"size"`
-    Modified string `json:"modified"` // ISO-8601 UTC
-}
-
-type modListResult struct {
-    Path    string         `json:"path"`
-    Entries []modListEntry `json:"entries"`
-}
+// types moved to mod_list_entry.go and mod_list_result.go
 
 func runModList(out io.Writer, jsonOut bool) error {
     cache := os.Getenv("AMI_PACKAGE_CACHE")

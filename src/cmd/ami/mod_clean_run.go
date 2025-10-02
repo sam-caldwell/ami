@@ -10,11 +10,7 @@ import (
     "github.com/sam-caldwell/ami/src/ami/exit"
 )
 
-type modCleanResult struct {
-    Path    string `json:"path"`
-    Removed bool   `json:"removed"`
-    Created bool   `json:"created"`
-}
+// modCleanResult moved to mod_clean_result.go
 
 func runModClean(out io.Writer, jsonOut bool) error {
     p := os.Getenv("AMI_PACKAGE_CACHE")

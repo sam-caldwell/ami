@@ -12,12 +12,14 @@ import (
 type Process struct {
     cmd       *exec.Cmd
     stdin     ioWriteCloser // lightweight alias to avoid importing io in public type
+    stdinBuf  bytes.Buffer   // buffers pre-start stdin writes
     stdoutBuf bytes.Buffer
     stderrBuf bytes.Buffer
 
     mu       sync.Mutex
     started  bool
     exitCode *int
+    preClosed bool // whether pre-start stdin writer was closed
 }
 
 // Exec initializes a command but does not start it. The returned Process
@@ -28,10 +30,9 @@ func Exec(program string, args ...string) (*Process, error) {
     // Wire stdout/stderr buffers for capture
     c.Stdout = &p.stdoutBuf
     c.Stderr = &p.stderrBuf
-    // Pre-wire stdin with a pipe so Stdin() can be used before or after Start()
-    pr, pw := io.Pipe()
-    c.Stdin = pr
-    p.stdin = pw
+    // Pre-wire stdin with a buffer-backed writer. On Start, we will feed
+    // the buffered bytes first, then a live pipe for post-start writes.
+    p.stdin = &prestartWriter{p: p}
     // Apply platform process attributes (e.g., setpgid on Unix)
     applySysProcAttr(c)
     return p, nil
@@ -45,10 +46,20 @@ func (p *Process) Start(block bool) error {
     p.mu.Lock()
     if p.started { p.mu.Unlock(); return errAlreadyStarted }
     p.started = true
+    // Build stdin reader: buffered pre-start data followed by live pipe for post-start writes
+    pr, pw := io.Pipe()
+    // expose writer for post-start writes
+    p.stdin = pw
+    // initialize Stdin as multi-reader
+    pre := bytes.NewReader(p.stdinBuf.Bytes())
+    p.cmd.Stdin = io.NopCloser(io.MultiReader(pre, pr))
+    // If blocking and pre-start writer was closed (no further input), close live pipe to signal EOF
+    _ = p.preClosed
     p.mu.Unlock()
     if block {
-        // Close stdin writer to avoid childStdin goroutine blocking during Run when no input is required.
-        if p.stdin != nil { _ = p.stdin.Close() }
+        // In blocking mode, close the live pipe immediately to signal EOF
+        // to the child's stdin copier, avoiding Run() blocking on stdin.
+        _ = pw.Close()
         if err := p.cmd.Run(); err != nil {
             if ee := exitCodeFromError(err); ee != nil { p.setExitCode(*ee) }
             return err
@@ -139,3 +150,26 @@ func exitCodeFromError(err error) *int {
 
 // Minimal interface to avoid pulling io in public signature; concrete value is io.WriteCloser.
 type ioWriteCloser interface{ Write([]byte) (int, error); Close() error }
+
+// prestartWriter buffers writes before Start(); Start will feed the buffer
+// to the child process and then switch stdin to a live pipe.
+type prestartWriter struct {
+    p *Process
+}
+
+func (w *prestartWriter) Write(b []byte) (int, error) {
+    if w == nil || w.p == nil { return 0, errInvalidProcess }
+    w.p.mu.Lock(); defer w.p.mu.Unlock()
+    if w.p.started {
+        // If Start already happened, forward to live pipe writer if available
+        if w.p.stdin != nil { return w.p.stdin.Write(b) }
+        return 0, errInvalidProcess
+    }
+    return w.p.stdinBuf.Write(b)
+}
+
+func (w *prestartWriter) Close() error {
+    if w == nil || w.p == nil { return errInvalidProcess }
+    w.p.mu.Lock(); w.p.preClosed = true; w.p.mu.Unlock()
+    return nil
+}

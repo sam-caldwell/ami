@@ -17,9 +17,6 @@ type Store struct {
     order   map[string]*list.Element
 }
 
-// New creates a new empty Store.
-func New() *Store { return &Store{items: make(map[string]*entry), lru: list.New(), order: map[string]*list.Element{}} }
-
 // SetCapacity sets a maximum number of entries; 0 disables eviction.
 func (s *Store) SetCapacity(n int) {
     s.mu.Lock()

@@ -4,9 +4,7 @@ import (
     "errors"
     "time"
     "sort"
-    "strings"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
-    "strconv"
 )
 
 // Operator merges events according to Plan. It is synchronous and thread-safe
@@ -24,25 +22,7 @@ type Operator struct{
     expired  int64
 }
 
-type item struct{
-    ev ev.Event
-    keys []any // extracted sort key values
-    seq int64
-    key any
-}
-
-type partition struct{
-    buf []item
-    seen map[string]struct{}
-    last time.Time
-    // For watermark flush: track per-item event times separately where available
-}
-
 var ErrBackpressure = errors.New("merge buffer full")
-
-func NewOperator(p Plan) *Operator {
-    return &Operator{plan:p, parts: map[string]*partition{}, rr: make([]string, 0)}
-}
 
 func (op *Operator) partitionKey(e ev.Event) string {
     if op.plan.PartitionBy == "" { return "__default__" }
@@ -207,100 +187,11 @@ func (op *Operator) FlushWindowExcess() []ev.Event {
     return out
 }
 
-func less(a, b item, p Plan) bool {
-    for i, k := range p.Sort {
-        av := a.keys[i]
-        bv := b.keys[i]
-        c := cmp(av, bv)
-        if c == 0 { continue }
-        if k.Order == "desc" { return c > 0 }
-        return c < 0
-    }
-    // Secondary tiebreak: explicit Key when provided
-    if p.Key != "" {
-        if c := cmp(a.key, b.key); c != 0 { return c < 0 }
-    }
-    if p.Stable { return a.seq < b.seq }
-    return false
-}
 
-func cmp(a, b any) int {
-    switch av := a.(type) {
-    case bool:
-        // false < true
-        bv, ok := b.(bool); if !ok { return 0 }
-        if !av && bv { return -1 }
-        if av && !bv { return 1 }
-        return 0
-    case int:
-        bv, ok := b.(int); if !ok { return 0 }
-        switch { case av < bv: return -1; case av > bv: return 1; default: return 0 }
-    case int64:
-        switch bv := b.(type) {
-        case int64:
-            if av < bv {return -1} else if av > bv {return 1}; return 0
-        case int:
-            ai := av; bi := int64(bv)
-            if ai < bi {return -1} else if ai > bi {return 1}; return 0
-        default:
-            return 0
-        }
-    case float64:
-        bv, ok := b.(float64); if !ok { return 0 }
-        switch { case av < bv: return -1; case av > bv: return 1; default: return 0 }
-    case string:
-        bv, ok := b.(string); if !ok { return 0 }
-        switch { case av < bv: return -1; case av > bv: return 1; default: return 0 }
-    case time.Time:
-        bv, ok := b.(time.Time); if !ok { return 0 }
-        switch { case av.Before(bv): return -1; case av.After(bv): return 1; default: return 0 }
-    default:
-        return 0
-    }
+// Stats returns current counters. Intended for single-threaded reads in tests.
+func (op *Operator) Stats() (enq, emit, drop, exp int64) {
+    return op.enqueued, op.emitted, op.dropped, op.expired
 }
-
-// extractPath reads dotted path from JSON-like payloads represented as map[string]any.
-func extractPath(root any, path string) (any, bool) {
-    if path == "" { return root, true }
-    m, ok := root.(map[string]any)
-    if !ok { return nil, false }
-    cur := any(m)
-    for _, seg := range strings.Split(path, ".") {
-        mm, ok := cur.(map[string]any)
-        if !ok { return nil, false }
-        v, ok := mm[seg]
-        if !ok { return nil, false }
-        cur = v
-    }
-    return cur, true
-}
-
-func toKey(v any) string {
-    switch x := v.(type) {
-    case string: return x
-    case int: return itoa(int64(x))
-    case int64: return itoa(x)
-    case float64: return ftoa(x)
-    case bool: if x { return "true" } else { return "false" }
-    default: return "" // non-deterministic; avoid map/array stringification here
-    }
-}
-
-func toTime(v any) (time.Time, bool) {
-    switch x := v.(type) {
-    case time.Time: return x, true
-    case string:
-        // try RFC3339 subset
-        if t, err := time.Parse(time.RFC3339, x); err == nil { return t, true }
-        // try unix seconds
-        return time.Unix(0,0), false
-    default:
-        return time.Unix(0,0), false
-    }
-}
-
-func itoa(n int64) string { return strconv.FormatInt(n, 10) }
-func ftoa(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
 
 // Stats returns current counters. Intended for single-threaded reads in tests.
 func (op *Operator) Stats() (enq, emit, drop, exp int64) {

@@ -21,12 +21,3 @@ func (p SandboxPolicy) allow(cap string) bool {
     }
 }
 
-// ErrSandboxDenied is returned when a capability is denied by the sandbox policy.
-type ErrSandboxDenied struct{ Cap string }
-
-func (e ErrSandboxDenied) Error() string { return "sandbox denied capability: " + e.Cap }
-
-func sandboxCheck(p SandboxPolicy, cap string) error {
-    if !p.allow(cap) { return ErrSandboxDenied{Cap: cap} }
-    return nil
-}

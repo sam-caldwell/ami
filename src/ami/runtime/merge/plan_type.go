@@ -17,6 +17,3 @@ type Plan struct {
     LatePolicy string // drop|accept
 }
 
-type SortKey struct{ Field string; Order string /*asc|desc*/ }
-
-type Watermark struct{ Field string; LatenessMs int }

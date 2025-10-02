@@ -916,6 +916,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/io/file_test.go
+              - src/ami/stdlib/io/more_coverage_test.go
 
           - id: E-1-1-2
             statement: |
@@ -956,6 +957,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/io/file_test.go
+              - src/ami/stdlib/io/more_coverage_test.go
 
           - id: E-1-1-6
             statement: |
@@ -966,6 +968,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/io/file_test.go
+              - src/ami/stdlib/io/more_coverage_test.go
 
           - id: E-1-1-7
             statement: |
@@ -1015,6 +1018,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/io/file_test.go
+              - src/ami/stdlib/io/more_coverage_test.go
 
           - id: E-1-2-2
             statement: |
@@ -1049,6 +1053,7 @@ stdlib:
               - src/ami/stdlib/io/socket_tcp_test.go
               - src/ami/stdlib/io/socket_read_test.go
               - src/ami/stdlib/io/socket_tcp_listen_test.go
+              - src/ami/stdlib/io/more_coverage_test.go
 
           - id: E-1-3-2
             statement: |
@@ -1103,8 +1108,13 @@ stdlib:
               and only ingress and egress nodes can use the I/O features specifically allowed in their capabilities
               attributes.
             dependencies: [F-11-23]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              # Driver/IR-level capability + position enforcement
+              - src/ami/compiler/driver/capabilities_test.go
+              - src/ami/compiler/driver/capabilities_driver_test.go
+              # CLI JSON diagnostic streaming parity (build path)
+              - src/cmd/ami/build_capability_trust_diag_test.go
 
   - id: S-2
     name: os package exec()
@@ -1128,6 +1138,8 @@ stdlib:
             tests:
               - src/ami/stdlib/os/process_test.go
               - src/ami/stdlib/os/process_io_kill_test.go
+              - src/ami/stdlib/os/process_helpers_test.go
+              - src/ami/stdlib/os/process_kill_unix_test.go
 
           - id: E-2-1-3
             statement: |
@@ -1138,6 +1150,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/os/process_test.go
+              - src/ami/stdlib/os/process_helpers_test.go
 
           - id: E-2-1-4
             statement: |
@@ -1150,6 +1163,7 @@ stdlib:
             tests:
               - src/ami/stdlib/os/process_test.go
               - src/ami/stdlib/os/process_io_kill_test.go
+              - src/ami/stdlib/os/process_helpers_test.go
 
           - id: E-2-1-5
             statement: |
@@ -1159,6 +1173,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/os/process_test.go
+              - src/ami/stdlib/os/process_helpers_test.go
 
           - id: E-2-1-6
             statement: |
@@ -1168,6 +1183,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/os/system_test.go
+              - src/ami/stdlib/os/watch_test.go
 
   - id: S-3
     name: os package (general)
@@ -1183,6 +1199,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/os/env_test.go
+              - src/ami/stdlib/os/process_helpers_test.go
 
           - id: E-3-1-2
             statement: |
@@ -1192,6 +1209,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/os/env_test.go
+              - src/ami/stdlib/os/process_helpers_test.go
 
           - id: E-3-1-3
             statement: |
@@ -1201,6 +1219,7 @@ stdlib:
             status: complete
             tests:
               - src/ami/stdlib/os/env_test.go
+              - src/ami/stdlib/os/process_helpers_test.go
 
   - id: S-4
     name: signal package (AMI stdlib)
@@ -1212,24 +1231,36 @@ stdlib:
             statement: |
               As a user, I expect there to be an AMI 'signal' package which will provide signal handling facilities.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/signal/signal_test.go
+              - src/ami/stdlib/signal/more_signal_test.go
+              - src/ami/compiler/driver/signal_enable_llvm_test.go
 
           - id: E-4-1-2
             statement: |
               As a user, I expect there to be a built-in `SignalType` enum data type representing each operating 
               system signal (e.g., SIGINT, SIGTERM, etc.).
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/signal/signal_test.go
+              - src/ami/stdlib/signal/more_signal_test.go
+              - src/ami/compiler/driver/signal_mapping_more_llvm_test.go
 
           - id: E-4-1-3
             statement: |
               As a user, I expect there to be a `signal.Register(sig SignalType, fn func())` function which will 
               register a signal handler function for a given os signal.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/signal/signal_test.go
+              - src/ami/stdlib/signal/more_signal_test.go
+              - src/ami/compiler/driver/signal_register_llvm_test.go
+              - src/ami/compiler/driver/signal_register_immediate_llvm_test.go
+              - src/ami/compiler/driver/signal_register_selector_llvm_test.go
+              - src/ami/compiler/driver/signal_register_fallback_llvm_test.go
 
   - id: S-5
     name: time package (AMI stdlib)
@@ -1361,8 +1392,13 @@ stdlib:
               As a user, I expect AMI to have a built-in `trigger` package which will provide trigger event facilities
               for Ingress node `in` attribute.
             dependencies: [F-11-11, F-11-23]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/timer_schedule_test.go
+              - src/ami/stdlib/trigger/fsnotify_test.go
+              - src/ami/stdlib/trigger/fsnotify_interval_env_test.go
+              - src/ami/stdlib/trigger/netlisten_tcp_test.go
+              - src/ami/stdlib/trigger/netlisten_udp_test.go
 
       - id: F-6-2
         name: trigger facility for Time-based events
@@ -1372,16 +1408,18 @@ stdlib:
               As a user, I expect AMI to have a `trigger.Timer(d time.Duration)` method which will emit an
               Event<time.Time> object every d units of time; `time.Duration` follows Go's pattern and units.
             dependencies: [F-11-23]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/timer_schedule_test.go
 
           - id: E-6-2-2
             statement: |
               As a user, I expect AMI to have a `trigger.Schedule(t time.Time)` method which will emit an 
               Event<time.Time> object at t time.
             dependencies: [F-11-23]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/timer_schedule_test.go
 
       - id: F-6-3
         name: trigger facility for Filesystem Events
@@ -1391,16 +1429,20 @@ stdlib:
               As a user, I expect AMI to have a `trigger.FsEvent` enum representing a generic set of inotify events
               common to linux, windows and MacOS platforms.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/fs.go
+              - src/ami/stdlib/trigger/fsnotify_test.go
 
           - id: E-6-3-2
             statement: |
               As a user, I expect AMI to have a `trigger.FileEvent` object containing a file handle object (FHO),
               the `trigger.FsEvent` and event timestamp.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/fs.go
+              - src/ami/stdlib/trigger/fsnotify_test.go
 
           - id: E-6-3-4
             statement: |
@@ -1408,8 +1450,10 @@ stdlib:
               emit an `Event<trigger.FileEvent>` object when a file system operation of type `trigger.FsEvent` occurs 
               on the given `path`,
             dependencies: [F-11-23]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/fsnotify_test.go
+              - src/ami/stdlib/trigger/fsnotify_interval_env_test.go
 
       - id: F-6-4
         name: trigger facility for Network Events
@@ -1420,24 +1464,29 @@ stdlib:
               method which will emit an `Event<trigger.NetMsg>` object when a network message is received; where
               `trigger.NetMsg` will contain the contents of a network message and timestamp.
             dependencies: [F-11-23]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/netlisten_tcp_test.go
+              - src/ami/stdlib/trigger/netlisten_udp_test.go
 
           - id: E-6-4-2
             statement: |
               As a user, I expect AMI to define a `trigger.NetMsg` object containing the message payload, protocol,
               remote and local addresses/ports, and an event timestamp.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/net.go
 
           - id: E-6-4-3
             statement: |
               As a user, I expect `trigger.NetListen(...)` emissions to include enough metadata for handlers to route
               by protocol or address and to be compatible with backpressure policies in the runtime event pipeline.
             dependencies: [F-11-23, F-11-24]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/trigger/netlisten_tcp_test.go
+              - src/ami/stdlib/trigger/netlisten_udp_test.go
 
   - id: S-7
     name: math package
@@ -1450,32 +1499,42 @@ stdlib:
               As a user, I expect a stdlib `math` package modeled on Go's math as a baseline, operating on `float64`
               with deterministic behavior across platforms and consistent with the AMI authoritative semantics.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-1-2
             statement: |
               As a user, I expect `math.Abs(x float64) float64`, `math.Max(x, y float64) float64`, and
               `math.Min(x, y float64) float64` to behave like Go, including NaN propagation rules.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-1-3
             statement: |
               As a user, I expect rounding helpers `math.Ceil(x)`, `math.Floor(x)`, `math.Trunc(x)`, and
               `math.Round(x)`, `math.RoundToEven(x)` to be available with Go-aligned semantics.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-1-4
             statement: |
               As a user, I expect `math.Mod(x, y float64) float64` to match Go semantics (sign of result follows x),
               and `math.Remainder(x, y float64) float64` to implement IEEE 754 remainder.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_more_ami_test.go
 
       - id: F-7-2
         name: Exp, Log, Pow, Sqrt
@@ -1485,24 +1544,30 @@ stdlib:
               As a user, I expect exponentials `math.Exp(x)`, `math.Expm1(x)`, and `math.Exp2(x)` to be provided with
               Go-compatible edge-case handling (Inf, NaN).
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-2-2
             statement: |
               As a user, I expect logarithms `math.Log(x)`, `math.Log10(x)`, `math.Log1p(x)`, and `math.Log2(x)` with
               Go-compatible domains and NaN/Inf behavior.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-2-3
             statement: |
               As a user, I expect `math.Pow(x, y) float64`, `math.Pow10(n int) float64`, and `math.Sqrt(x) float64`
               with the same corner-case handling as Go (including negative, zero, Inf, and NaN inputs).
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
       - id: F-7-3
         name: Trigonometric and Hyperbolic
@@ -1512,24 +1577,31 @@ stdlib:
               As a user, I expect trigonometric functions `math.Sin`, `math.Cos`, `math.Tan`, and combined 
               `math.Sincos` with Go-compatible precision and special case behavior.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-3-2
             statement: |
               As a user, I expect inverse trig functions `math.Asin`, `math.Acos`, `math.Atan`, and `math.Atan2` with
               Go-aligned range and domain semantics.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-3-3
             statement: |
               As a user, I expect hyperbolic functions `math.Sinh`, `math.Cosh`, and `math.Tanh` with Go-compatible
               edge-case handling.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_even_more_ami_test.go
 
       - id: F-7-4
         name: Special Values and Classification
@@ -1539,24 +1611,32 @@ stdlib:
               As a user, I expect `math.NaN() float64` and `math.Inf(sign int) float64` to construct special values,
               and that operations propagate NaN/Inf consistent with IEEE‑754 and Go's behavior.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-4-2
             statement: |
               As a user, I expect classification and manipulation helpers: `math.IsNaN(x)`, `math.IsInf(x, sign)`,
               `math.Signbit(x)`, `math.Copysign(x, y)`, and `math.Nextafter(x, y)`.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/compiler/driver/stdlib_math_even_more_ami_test.go
 
           - id: E-7-4-3
             statement: |
               As a user, I expect decomposition helpers `math.Frexp(x) (frac float64, exp int)`,
               `math.Ldexp(frac float64, exp int) float64`, and `math.Modf(x) (intPart, fracPart float64)`.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/compiler/driver/stdlib_math_more_ami_test.go
 
       - id: F-7-5
         name: Mathematical Constants
@@ -1566,8 +1646,10 @@ stdlib:
               As a user, I expect common constants aligned with Go: `math.Pi`, `math.E`, `math.Phi`, `math.Sqrt2`,
               `math.Ln2`, `math.Ln10`, `math.Log2E`, and `math.Log10E`.
             dependencies: []
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/stdlib/math/math_test.go
+              - src/ami/compiler/driver/stdlib_math_ami_test.go
 
       - id: F-8
         name: Multi-Result IR/LLVM and Full math Lowering

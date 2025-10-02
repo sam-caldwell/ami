@@ -26,7 +26,7 @@ check-single-test: ## Enforce one Test* per *_test.go across src/
 
 .PHONY: check-single-declaration
 check-single-declaration: ## Enforce single cohesive declaration per .go file across src/
-	CHECK_TEST_MODE=package bash ./scripts/check-single-declaration-per-file.sh src/
+	CHECK_TEST_MODE=package go run ./scripts/check-single-declaration-per-file.go src/
 
 test: lint  ## Run all tests (go test -v ./...)
 	go test -v ./...

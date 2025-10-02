@@ -17,6 +17,10 @@ func TestBlocking_ConvertsPanic(t *testing.T) {
     if err == nil || err.Error() == "" { t.Fatalf("expected panic converted to error; got %v", err) }
 }
 
+func TestBlocking_NilFunc_Error(t *testing.T) {
+    if err := Blocking(nil); err == nil { t.Fatalf("expected error for nil function") }
+}
+
 func TestBlocking_Blocks(t *testing.T) {
     start := time.Now()
     err := Blocking(func() error { time.Sleep(30 * time.Millisecond); return nil })
@@ -38,3 +42,6 @@ func TestBlockingSubmit_ConvertsPanic(t *testing.T) {
     if err == nil { t.Fatalf("expected error from panic; got nil") }
 }
 
+func TestBlockingSubmit_NilFunc_Error(t *testing.T) {
+    if err := BlockingSubmit(nil); err == nil { t.Fatalf("expected error for nil submit") }
+}

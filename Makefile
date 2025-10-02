@@ -28,7 +28,11 @@ check-single-test: ## Enforce one Test* per *_test.go for selected packages
 	bash ./scripts/check-single-test-per-file.sh src/ami/compiler/parser
 	bash ./scripts/check-single-test-per-file.sh src/ami/stdlib/gpu
 
-test: check-single-test ## Run all tests (go test -v ./...)
+check-single-declaration: ## Enforce single cohesive declaration per .go file for selected packages
+    # Gradual rollout: enforce in parser (package test mode to avoid per-file test churn)
+    CHECK_TEST_MODE=package bash ./scripts/check-single-declaration-per-file.sh src/ami/compiler/parser
+
+test: check-single-test check-single-declaration ## Run all tests (go test -v ./...)
 	go test -v ./...
 
 coverage-short: ## Fast coverage on CLI (filters heavy tests) + sanity on schemas

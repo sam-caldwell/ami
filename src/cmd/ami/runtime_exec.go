@@ -19,9 +19,7 @@ import (
     diag "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
-type runtimeCounts struct{
-    total, ok, fail, skip int
-}
+// runtimeCounts moved to runtime_counts.go
 
 // runRuntime executes runtime cases with concurrency and optional filters.
 func runRuntime(dir string, jsonOut bool, verbose bool, out ioWriter, cases []runtimeCase) runtimeCounts {
@@ -183,9 +181,5 @@ type result struct{ c runtimeCase; ok bool; skipped bool; err error; errCode str
     return counts
 }
 
-type ioWriter interface{ Write([]byte) (int, error) }
-
-func anyKvEmit(cases []runtimeCase) bool {
-    for _, c := range cases { if c.Spec.KvEmit { return true } }
-    return false
-}
+// ioWriter moved to runtime_iowriter.go
+// anyKvEmit moved to runtime_any_kv_emit.go

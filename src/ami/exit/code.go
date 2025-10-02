@@ -21,7 +21,7 @@ const (
 	Integrity Code = 4
 
 	// Network indicates network/registry failures when interacting with remote sources.
-	// Per SPEC, this maps to the same numeric value as integrity in current phase.
+	// Per SPEC, this maps to the same numeric value as integrity in the current phase.
 	// Use this alias to signal network-originated failures.
 	Network Code = Integrity
 )

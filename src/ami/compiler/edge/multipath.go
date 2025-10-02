@@ -2,12 +2,6 @@ package edge
 
 import "fmt"
 
-// MergeAttr represents a merge.* attribute call with positional arguments.
-type MergeAttr struct {
-    Name string
-    Args []any
-}
-
 // MultiPath configures Collect-node merge behavior via merge.* attributes and/or
 // simple k=v pairs represented through Attrs. Validation is minimal; deeper
 // semantic checks occur in the sem package.
@@ -44,4 +38,3 @@ func (m MultiPath) Validate() error {
     }
     return nil
 }
-

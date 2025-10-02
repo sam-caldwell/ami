@@ -2,6 +2,8 @@ package gpu
 
 import (
     "errors"
+    "os"
+    "strings"
 )
 
 // Sentinel errors used by the stubbed GPU stdlib.
@@ -139,43 +141,72 @@ func (p *Program) Release() error {
 // --- CUDA backend (stubs) ---
 
 // CudaAvailable reports whether the CUDA backend is available.
-func CudaAvailable() bool { return false }
+func CudaAvailable() bool { return envBoolTrue("AMI_GPU_FORCE_CUDA") }
 
 // CudaDevices lists CUDA devices. Always empty in stub.
 func CudaDevices() []Device { return nil }
 
 // CudaCreateContext creates a CUDA context (stub: unavailable).
-func CudaCreateContext(dev Device) (Context, error) { return Context{}, ErrUnavailable }
+func CudaCreateContext(dev Device) (Context, error) {
+    if dev.Backend != "cuda" || dev.ID < 0 {
+        return Context{}, ErrInvalidHandle
+    }
+    return Context{}, ErrUnavailable
+}
 
 // CudaDestroyContext destroys a CUDA context (stub validation).
 func CudaDestroyContext(ctx Context) error {
     if !ctx.valid { return ErrInvalidHandle }
+    if ctx.backend != "cuda" { return ErrInvalidHandle }
     return ErrUnavailable
 }
 
 // CudaAlloc allocates device memory (stub: unavailable).
-func CudaAlloc(n int) (Buffer, error) { return Buffer{}, ErrUnavailable }
+func CudaAlloc(n int) (Buffer, error) {
+    if n <= 0 { return Buffer{}, ErrInvalidHandle }
+    return Buffer{}, ErrUnavailable
+}
 
 // CudaFree frees device memory (stub validation/unavailable).
 func CudaFree(buf Buffer) error {
     if !buf.valid { return ErrInvalidHandle }
+    if buf.backend != "cuda" { return ErrInvalidHandle }
     return ErrUnavailable
 }
 
 // CudaMemcpyHtoD copies host->device (stub: unavailable).
-func CudaMemcpyHtoD(dst Buffer, src []byte) error { return ErrUnavailable }
+func CudaMemcpyHtoD(dst Buffer, src []byte) error {
+    if !dst.valid || dst.backend != "cuda" { return ErrInvalidHandle }
+    if len(src) == 0 { return ErrInvalidHandle }
+    return ErrUnavailable
+}
 
 // CudaMemcpyDtoH copies device->host (stub: unavailable).
-func CudaMemcpyDtoH(dst []byte, src Buffer) error { return ErrUnavailable }
+func CudaMemcpyDtoH(dst []byte, src Buffer) error {
+    if !src.valid || src.backend != "cuda" { return ErrInvalidHandle }
+    if len(dst) == 0 { return ErrInvalidHandle }
+    return ErrUnavailable
+}
 
 // CudaLoadModule loads a PTX module (stub: unavailable).
-func CudaLoadModule(ptx string) (Module, error) { return Module{}, ErrUnavailable }
+func CudaLoadModule(ptx string) (Module, error) {
+    if strings.TrimSpace(ptx) == "" { return Module{}, ErrInvalidHandle }
+    return Module{}, ErrUnavailable
+}
 
 // CudaGetKernel retrieves a kernel handle (stub: unavailable).
-func CudaGetKernel(mod Module, name string) (Kernel, error) { return Kernel{}, ErrUnavailable }
+func CudaGetKernel(mod Module, name string) (Kernel, error) {
+    if !mod.valid { return Kernel{}, ErrInvalidHandle }
+    if strings.TrimSpace(name) == "" { return Kernel{}, ErrInvalidHandle }
+    return Kernel{}, ErrUnavailable
+}
 
 // CudaLaunchKernel launches a CUDA kernel (stub: unavailable).
 func CudaLaunchKernel(ctx Context, k Kernel, grid, block [3]uint32, sharedMem uint32, args ...any) error {
+    if !ctx.valid || ctx.backend != "cuda" { return ErrInvalidHandle }
+    if !k.valid { return ErrInvalidHandle }
+    if grid[0] == 0 || grid[1] == 0 || grid[2] == 0 { return ErrInvalidHandle }
+    if block[0] == 0 || block[1] == 0 || block[2] == 0 { return ErrInvalidHandle }
     return ErrUnavailable
 }
 
@@ -192,35 +223,62 @@ func MetalDispatchBlocking(ctx Context, p Pipeline, grid, threadsPerGroup [3]uin
 // --- OpenCL backend (stubs) ---
 
 // OpenCLAvailable reports whether the OpenCL backend is available.
-func OpenCLAvailable() bool { return false }
+func OpenCLAvailable() bool { return envBoolTrue("AMI_GPU_FORCE_OPENCL") }
 
 // OpenCLPlatforms lists OpenCL platforms. Always empty in stub.
 func OpenCLPlatforms() []Platform { return nil }
 
 // OpenCLCreateContext creates an OpenCL context (stub: unavailable).
-func OpenCLCreateContext(p Platform) (Context, error) { return Context{}, ErrUnavailable }
+func OpenCLCreateContext(p Platform) (Context, error) {
+    if p.Vendor == "" && p.Name == "" && p.Version == "" {
+        return Context{}, ErrInvalidHandle
+    }
+    return Context{}, ErrUnavailable
+}
 
 // OpenCLAlloc allocates device memory (stub: unavailable).
-func OpenCLAlloc(n int) (Buffer, error) { return Buffer{}, ErrUnavailable }
+func OpenCLAlloc(n int) (Buffer, error) {
+    if n <= 0 { return Buffer{}, ErrInvalidHandle }
+    return Buffer{}, ErrUnavailable
+}
 
 // OpenCLFree frees device memory (stub validation/unavailable).
 func OpenCLFree(buf Buffer) error {
     if !buf.valid { return ErrInvalidHandle }
+    if buf.backend != "opencl" { return ErrInvalidHandle }
     return ErrUnavailable
 }
 
 // OpenCLBuildProgram builds an OpenCL program (stub: unavailable).
-func OpenCLBuildProgram(src string) (Program, error) { return Program{}, ErrUnavailable }
+func OpenCLBuildProgram(src string) (Program, error) {
+    if strings.TrimSpace(src) == "" { return Program{}, ErrInvalidHandle }
+    return Program{}, ErrUnavailable
+}
 
 // OpenCLGetKernel retrieves a kernel handle (stub: unavailable).
-func OpenCLGetKernel(prog Program, name string) (Kernel, error) { return Kernel{}, ErrUnavailable }
+func OpenCLGetKernel(prog Program, name string) (Kernel, error) {
+    if !prog.valid { return Kernel{}, ErrInvalidHandle }
+    if strings.TrimSpace(name) == "" { return Kernel{}, ErrInvalidHandle }
+    return Kernel{}, ErrUnavailable
+}
 
 // OpenCLLaunchKernel launches an OpenCL kernel (stub: unavailable).
 func OpenCLLaunchKernel(ctx Context, k Kernel, global, local [3]uint64, args ...any) error {
+    if !ctx.valid || ctx.backend != "opencl" { return ErrInvalidHandle }
+    if !k.valid { return ErrInvalidHandle }
+    if global[0] == 0 || global[1] == 0 || global[2] == 0 { return ErrInvalidHandle }
+    if local[0] == 0 || local[1] == 0 || local[2] == 0 { return ErrInvalidHandle }
     return ErrUnavailable
 }
 
 // OpenCLLaunchBlocking wraps OpenCLLaunchKernel with panic-safe blocking semantics.
 func OpenCLLaunchBlocking(ctx Context, k Kernel, global, local [3]uint64, args ...any) error {
     return Blocking(func() error { return OpenCLLaunchKernel(ctx, k, global, local, args...) })
+}
+
+// --- helpers ---
+
+func envBoolTrue(name string) bool {
+    v := strings.TrimSpace(strings.ToLower(os.Getenv(name)))
+    return v == "1" || v == "true" || v == "yes" || v == "on"
 }

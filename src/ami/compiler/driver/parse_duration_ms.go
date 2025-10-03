@@ -6,7 +6,8 @@ import (
 )
 
 func parseDurationMs(s string) (int, bool) {
-    s = strings.TrimSpace(trimQuotes(s))
+    // normalize spacing before trimming optional quotes
+    s = trimQuotes(strings.TrimSpace(s))
     if n, err := strconv.Atoi(s); err == nil { return n, true }
     mul := 1
     if strings.HasSuffix(s, "ms") { mul = 1; s = strings.TrimSuffix(s, "ms") } else
@@ -17,4 +18,3 @@ func parseDurationMs(s string) (int, bool) {
     if err != nil { return 0, false }
     return n * mul, true
 }
-

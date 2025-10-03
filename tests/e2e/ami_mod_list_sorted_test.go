@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "io"
@@ -8,6 +9,8 @@ import (
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiModList_JSON_SortedByNameThenVersion(t *testing.T) {
@@ -21,7 +24,9 @@ func TestE2E_AmiModList_JSON_SortedByNameThenVersion(t *testing.T) {
     mustMkdir(t, filepath.Join(cache, "pkgA", "1.0.0"))
     mustWrite(t, filepath.Join(cache, "zzfile"), []byte("x"))
 
-    cmd := exec.Command(bin, "mod", "list", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "mod", "list", "--json")
     cmd.Dir = ws
     absCache, _ := filepath.Abs(cache)
     cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)
@@ -45,4 +50,3 @@ func TestE2E_AmiModList_JSON_SortedByNameThenVersion(t *testing.T) {
 
 func mustMkdir(t *testing.T, p string) { if err := os.MkdirAll(p, 0o755); err != nil { t.Fatalf("mkdir: %v", err) } }
 func mustWrite(t *testing.T, p string, b []byte) { mustMkdir(t, filepath.Dir(p)); if err := os.WriteFile(p, b, 0o644); err != nil { t.Fatalf("write: %v", err) } }
-

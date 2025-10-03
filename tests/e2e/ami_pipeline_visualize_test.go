@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "io"
     "os"
@@ -8,6 +9,8 @@ import (
     "path/filepath"
     "strings"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestAmiPipelineVisualize_JSON_SchemaPresent(t *testing.T) {
@@ -19,7 +22,9 @@ func TestAmiPipelineVisualize_JSON_SchemaPresent(t *testing.T) {
     if err := os.WriteFile(filepath.Join(ws, "ami.workspace"), wsy, 0o644); err != nil { t.Fatalf("write ws: %v", err) }
     src := []byte("package app\n\npipeline P() { ingress; transform; egress }\n")
     if err := os.WriteFile(filepath.Join(ws, "src", "main.ami"), src, 0o644); err != nil { t.Fatalf("write src: %v", err) }
-    cmd := exec.Command(bin, "pipeline", "visualize", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "pipeline", "visualize", "--json")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
@@ -41,7 +46,9 @@ func TestAmiPipelineVisualize_ASCII_Line(t *testing.T) {
     if err := os.WriteFile(filepath.Join(ws, "ami.workspace"), wsy, 0o644); err != nil { t.Fatalf("write ws: %v", err) }
     src := []byte("package app\n\npipeline P() { ingress; transform; egress }\n")
     if err := os.WriteFile(filepath.Join(ws, "src", "main.ami"), src, 0o644); err != nil { t.Fatalf("write src: %v", err) }
-    cmd := exec.Command(bin, "pipeline", "visualize")
+    ctx2, cancel2 := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+    defer cancel2()
+    cmd := exec.CommandContext(ctx2, bin, "pipeline", "visualize")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer

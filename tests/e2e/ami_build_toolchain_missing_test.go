@@ -1,12 +1,15 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "os"
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiBuild_JSON_Reports_ToolchainMissing_WhenNoClang(t *testing.T) {
@@ -21,7 +24,9 @@ func TestE2E_AmiBuild_JSON_Reports_ToolchainMissing_WhenNoClang(t *testing.T) {
     if err := os.WriteFile(filepath.Join(ws, "ami.workspace"), []byte("version: 1.0.0\npackages:\n  - main:\n      name: app\n      version: 0.0.1\n      root: ./src\n      import: []\n"), 0o644); err != nil { t.Fatalf("write ws: %v", err) }
     if err := os.WriteFile(filepath.Join(ws, "src", "u.ami"), []byte("package app\nfunc F(){}\n"), 0o644); err != nil { t.Fatalf("write src: %v", err) }
     // Run `ami build --json` to surface diagnostics
-    cmd := exec.Command(bin, "build", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "build", "--json")
     cmd.Dir = ws
     var stdout, stderr bytes.Buffer
     cmd.Stdout = &stdout

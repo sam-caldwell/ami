@@ -1,12 +1,15 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "io"
     "os"
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 // Ensure key subcommands do not prompt for input and succeed/fail deterministically.
@@ -18,7 +21,9 @@ func TestE2E_Ami_NonInteractive_Subcommands(t *testing.T) {
 
     // ami init --json --force
     {
-        cmd := exec.Command(bin, "init", "--json", "--force")
+        ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+        defer cancel()
+        cmd := exec.CommandContext(ctx, bin, "init", "--json", "--force")
         cmd.Dir = ws
         cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
         var stdout, stderr bytes.Buffer
@@ -27,7 +32,9 @@ func TestE2E_Ami_NonInteractive_Subcommands(t *testing.T) {
     }
     // ami build --json (should emit E_WS_SCHEMA until src exists)
     {
-        cmd := exec.Command(bin, "build", "--json")
+        ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+        defer cancel()
+        cmd := exec.CommandContext(ctx, bin, "build", "--json")
         cmd.Dir = ws
         cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
         var stdout, stderr bytes.Buffer
@@ -38,7 +45,9 @@ func TestE2E_Ami_NonInteractive_Subcommands(t *testing.T) {
     {
         if err := os.MkdirAll(filepath.Join(ws, "src"), 0o755); err != nil { t.Fatalf("mkdir src: %v", err) }
         if err := os.WriteFile(filepath.Join(ws, "src", "u.ami"), []byte("package newProject\nfunc F(){}\n"), 0o644); err != nil { t.Fatalf("write: %v", err) }
-        cmd := exec.Command(bin, "build", "--json")
+        ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+        defer cancel()
+        cmd := exec.CommandContext(ctx, bin, "build", "--json")
         cmd.Dir = ws
         cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
         var stdout, stderr bytes.Buffer
@@ -47,7 +56,9 @@ func TestE2E_Ami_NonInteractive_Subcommands(t *testing.T) {
     }
     // ami lint --json (should run without input)
     {
-        cmd := exec.Command(bin, "lint", "--json")
+        ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+        defer cancel()
+        cmd := exec.CommandContext(ctx, bin, "lint", "--json")
         cmd.Dir = ws
         cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
         var stdout, stderr bytes.Buffer
@@ -55,4 +66,3 @@ func TestE2E_Ami_NonInteractive_Subcommands(t *testing.T) {
         _ = cmd.Run()
     }
 }
-

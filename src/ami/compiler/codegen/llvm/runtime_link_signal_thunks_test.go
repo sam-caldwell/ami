@@ -1,12 +1,15 @@
 package llvm
 
 import (
+    "context"
     "os"
     "os/exec"
     "path/filepath"
     "runtime"
     "strings"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
@@ -74,8 +77,10 @@ func TestRuntime_Link_WithSignalThunks_EmitsCalls_And_Links(t *testing.T) {
     st, err := os.Stat(bin)
     if err != nil || st.IsDir() || st.Size() == 0 { t.Fatalf("binary not written: %v, st=%v", err, st) }
     // Run binary (no OS signal calls are made; should exit 0)
-    cmd := exec.Command(bin)
-    if err := cmd.Run(); err != nil { t.Fatalf("run bin: %v", err) }
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(10*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin)
+    if err := cmd.Run(); err != nil || ctx.Err() != nil { t.Fatalf("run bin: %v ctx:%v", err, ctx.Err()) }
 }
 
 // parseClangMajor extracts the leading major version from a clang version string.

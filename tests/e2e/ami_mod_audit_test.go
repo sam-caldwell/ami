@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "crypto/sha256"
@@ -11,6 +12,8 @@ import (
     "path/filepath"
     "sort"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 type auditJSON struct {
@@ -27,7 +30,9 @@ func buildAmi(t *testing.T) string {
     wd, _ := os.Getwd()
     repo := filepath.Dir(filepath.Dir(wd)) // tests/e2e -> tests -> repo root
     bin := filepath.Join(repo, "build", "ami")
-    cmd := exec.Command("go", "build", "-o", bin, "./src/cmd/ami")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(60*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, "go", "build", "-o", bin, "./src/cmd/ami")
     cmd.Dir = repo
     cmd.Env = os.Environ()
     out, err := cmd.CombinedOutput()
@@ -44,7 +49,9 @@ func TestAmiModAudit_JSON_NoSum(t *testing.T) {
     if err := os.WriteFile(filepath.Join(ws, "ami.workspace"), yaml, 0o644); err != nil { t.Fatalf("write ws: %v", err) }
 
     // Launch `ami mod audit --json`
-    cmd := exec.Command(bin, "mod", "audit", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "mod", "audit", "--json")
     cmd.Dir = ws
     var stdin bytes.Buffer
     stdin.WriteString("")
@@ -82,7 +89,9 @@ func TestAmiModAudit_Human_OK(t *testing.T) {
     sum := []byte("{\n  \"schema\": \"ami.sum/v1\",\n  \"packages\": {\n    \"modA\": {\n      \"1.2.3\": \"" + sha + "\"\n    }\n  }\n}\n")
     if err := os.WriteFile(filepath.Join(ws, "ami.sum"), sum, 0o644); err != nil { t.Fatalf("write sum: %v", err) }
 
-    cmd := exec.Command(bin, "mod", "audit")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "mod", "audit")
     cmd.Dir = ws
     absCache, _ := filepath.Abs(cache)
     cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)

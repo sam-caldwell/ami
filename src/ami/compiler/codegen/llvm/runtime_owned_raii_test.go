@@ -1,12 +1,15 @@
 package llvm
 
 import (
+    "context"
     "os"
     "os/exec"
     "path/filepath"
     "runtime"
     "strings"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 // This test validates:
@@ -104,5 +107,7 @@ fail:
     bin := filepath.Join(dir, "app")
     if runtime.GOOS == "windows" { bin += ".exe" }
     if err := LinkObjects(clang, []string{obj}, bin, triple); err != nil { t.Skipf("link failed: %v", err) }
-    if err := exec.Command(bin).Run(); err != nil { t.Fatalf("run: %v", err) }
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(10*stdtime.Second))
+    defer cancel()
+    if err := exec.CommandContext(ctx, bin).Run(); err != nil || ctx.Err() != nil { t.Fatalf("run: %v ctx:%v", err, ctx.Err()) }
 }

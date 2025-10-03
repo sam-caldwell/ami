@@ -1,13 +1,15 @@
 package os
 
 import (
-	goos "os"
-	goexec "os/exec"
-	"path/filepath"
-	"runtime"
-	"strings"
-	"testing"
-	"time"
+    "context"
+    goos "os"
+    goexec "os/exec"
+    "path/filepath"
+    "runtime"
+    "strings"
+    "testing"
+    "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func testStart_Twice_ReturnsError(t *testing.T) {
@@ -74,9 +76,11 @@ func main(){ os.Exit(3) }`
 	}
 	// Build a binary to ensure exit code propagation is direct
 	bin := filepath.Join(dir, "exit3bin")
-	if out, err2 := goexec.Command("go", "build", "-o", bin, file).CombinedOutput(); err2 != nil {
-		t.Fatalf("go build failed: %v (out=%s)", err2, string(out))
-	}
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*time.Second))
+    defer cancel()
+    if out, err2 := goexec.CommandContext(ctx, "go", "build", "-o", bin, file).CombinedOutput(); err2 != nil {
+        t.Fatalf("go build failed: %v (out=%s)", err2, string(out))
+    }
 	p, err := Exec(bin)
 	if err != nil {
 		t.Fatalf("exec: %v", err)
@@ -157,9 +161,11 @@ func main(){ os.Stderr.WriteString("oops\n") }`
 		t.Fatalf("write: %v", err)
 	}
 	bin := filepath.Join(dir, "stderrbin")
-	if out, err2 := goexec.Command("go", "build", "-o", bin, file).CombinedOutput(); err2 != nil {
-		t.Fatalf("go build failed: %v (out=%s)", err2, string(out))
-	}
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*time.Second))
+    defer cancel()
+    if out, err2 := goexec.CommandContext(ctx, "go", "build", "-o", bin, file).CombinedOutput(); err2 != nil {
+        t.Fatalf("go build failed: %v (out=%s)", err2, string(out))
+    }
 	p, err := Exec(bin)
 	if err != nil {
 		t.Fatalf("exec: %v", err)

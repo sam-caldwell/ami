@@ -3,11 +3,13 @@
 package os
 
 import (
+    "context"
     goos "os"
     "path/filepath"
     "os/exec"
     "testing"
     "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 // This test exercises Kill and killProcessGroup on Unix-like systems without
@@ -21,7 +23,9 @@ func main(){ time.Sleep(5 * time.Second) }`
     file := filepath.Join(dir, "main.go")
     if err := goos.WriteFile(file, []byte(src), 0o644); err != nil { t.Fatalf("write: %v", err) }
     bin := filepath.Join(dir, "sleepbin")
-    if out, err := exec.Command("go", "build", "-o", bin, file).CombinedOutput(); err != nil {
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*time.Second))
+    defer cancel()
+    if out, err := exec.CommandContext(ctx, "go", "build", "-o", bin, file).CombinedOutput(); err != nil {
         t.Fatalf("go build: %v (out=%s)", err, string(out))
     }
     p, err := Exec(bin)

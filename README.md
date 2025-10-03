@@ -49,6 +49,13 @@ Documentation Index (docs/*)
   - `docs/language/stdlib/time.md` — stdlib time package (sleep, now, arithmetic, ticker)
   - `docs/language/time.md` — planned AMI example for stdlib time
 
+Test Timeouts and Slower Builders
+- Many end-to-end and LLVM integration tests run external tools (e.g., `go`, `git`, `clang`) and are wrapped with context timeouts to avoid hangs.
+- You can scale these timeouts via the environment variable `AMI_TEST_TIMEOUT_SCALE`.
+  - Example: `AMI_TEST_TIMEOUT_SCALE=2 go test ./...` doubles timeouts.
+  - Example: `AMI_TEST_TIMEOUT_SCALE=0.5 go test ./...` halves timeouts.
+- This scaling is applied through `src/testutil/timeout.go` and used across e2e and integration tests.
+
 Authoritative Specification
 - The authoritative specification is maintained as a `.docx` and mirrored by the YAML tracker:
   - `docs/Asynchronous Machine Interface.docx`

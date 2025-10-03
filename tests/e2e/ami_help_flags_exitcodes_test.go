@@ -1,16 +1,21 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "io"
     "os/exec"
     "strings"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiRoot_Help_ShowsFlagsExamplesExitCodes(t *testing.T) {
     bin := buildAmi(t)
-    cmd := exec.Command(bin, "--help")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(10*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "--help")
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
     cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -30,4 +35,3 @@ func TestE2E_AmiRoot_Help_ShowsFlagsExamplesExitCodes(t *testing.T) {
         t.Fatalf("expected Exit Codes section; out=%s", s)
     }
 }
-

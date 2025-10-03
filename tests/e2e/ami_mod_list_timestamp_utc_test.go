@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "io"
@@ -9,6 +10,8 @@ import (
     "path/filepath"
     "regexp"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiModList_JSON_TimestampsUTC(t *testing.T) {
@@ -21,7 +24,9 @@ func TestE2E_AmiModList_JSON_TimestampsUTC(t *testing.T) {
     mustWrite(t, filepath.Join(cache, "pkgA", "1.2.3", "f.txt"), []byte("x"))
     mustWrite(t, filepath.Join(cache, "fileB"), []byte("y"))
 
-    cmd := exec.Command(bin, "mod", "list", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "mod", "list", "--json")
     cmd.Dir = ws
     absCache, _ := filepath.Abs(cache)
     cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)
@@ -38,4 +43,3 @@ func TestE2E_AmiModList_JSON_TimestampsUTC(t *testing.T) {
         }
     }
 }
-

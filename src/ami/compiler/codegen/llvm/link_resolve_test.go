@@ -1,11 +1,14 @@
 package llvm
 
 import (
+    "context"
     "os"
     "os/exec"
     "path/filepath"
     "runtime"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 // Verify that linking multiple objects resolves cross-object symbols.
@@ -40,6 +43,7 @@ func TestLinkObjects_ResolvesSymbolsAcrossObjects(t *testing.T) {
     if runtime.GOOS == "windows" { bin += ".exe" }
     if err := LinkObjects(clang, []string{aObj, bObj}, bin, triple); err != nil { t.Fatalf("link: %v", err) }
     // Execute
-    if err := exec.Command(bin).Run(); err != nil { t.Fatalf("run: %v", err) }
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(10*stdtime.Second))
+    defer cancel()
+    if err := exec.CommandContext(ctx, bin).Run(); err != nil || ctx.Err() != nil { t.Fatalf("run: %v ctx:%v", err, ctx.Err()) }
 }
-

@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "io"
@@ -8,6 +9,8 @@ import (
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiModList_JSON_ListsEntries(t *testing.T) {
@@ -19,7 +22,9 @@ func TestE2E_AmiModList_JSON_ListsEntries(t *testing.T) {
     if err := os.WriteFile(filepath.Join(cache, "pkgA", "1.2.3", "f.txt"), []byte("x"), 0o644); err != nil { t.Fatalf("write: %v", err) }
     if err := os.WriteFile(filepath.Join(cache, "fileB"), []byte("y"), 0o644); err != nil { t.Fatalf("write: %v", err) }
 
-    cmd := exec.Command(bin, "mod", "list", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "mod", "list", "--json")
     cmd.Dir = ws
     absCache, _ := filepath.Abs(cache)
     cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)
@@ -39,7 +44,9 @@ func TestE2E_AmiModList_Human_EmptyOK(t *testing.T) {
     _ = os.RemoveAll(ws)
     if err := os.MkdirAll(cache, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
 
-    cmd := exec.Command(bin, "mod", "list")
+    ctx2, cancel2 := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+    defer cancel2()
+    cmd := exec.CommandContext(ctx2, bin, "mod", "list")
     cmd.Dir = ws
     absCache, _ := filepath.Abs(cache)
     cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)
@@ -48,4 +55,3 @@ func TestE2E_AmiModList_Human_EmptyOK(t *testing.T) {
     cmd.Stdout, cmd.Stderr = &stdout, &stderr
     if err := cmd.Run(); err != nil { t.Fatalf("run: %v\n%s", err, stderr.String()) }
 }
-

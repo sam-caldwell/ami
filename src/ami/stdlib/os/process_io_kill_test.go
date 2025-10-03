@@ -1,13 +1,15 @@
 package os
 
 import (
-	goos "os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strings"
-	"testing"
-	"time"
+    "context"
+    goos "os"
+    "os/exec"
+    "path/filepath"
+    "runtime"
+    "strings"
+    "testing"
+    "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func testProcess_StdinStdout_Roundtrip(t *testing.T) {
@@ -74,9 +76,11 @@ func main(){
 	}
 	bin := filepath.Join(dir, "sleepbin")
 	// Build the binary to avoid killing only the go tool process
-	if out, err := exec.Command("go", "build", "-o", bin, file).CombinedOutput(); err != nil {
-		t.Fatalf("go build failed: %v (out=%s)", err, string(out))
-	}
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*time.Second))
+    defer cancel()
+    if out, err := exec.CommandContext(ctx, "go", "build", "-o", bin, file).CombinedOutput(); err != nil {
+        t.Fatalf("go build failed: %v (out=%s)", err, string(out))
+    }
 	p, err := Exec(bin)
 	if err != nil {
 		t.Fatalf("exec: %v", err)

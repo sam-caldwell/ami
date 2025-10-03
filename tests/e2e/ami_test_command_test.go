@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "io"
@@ -9,6 +10,8 @@ import (
     "path/filepath"
     "strings"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func stageGoModule(t *testing.T, root string, tests string) {
@@ -24,7 +27,9 @@ func TestAmiTest_Human_OK(t *testing.T) {
     _ = os.RemoveAll(ws)
     stageGoModule(t, ws, "package tmp\nimport \"testing\"\nfunc TestA(t *testing.T){}\n")
 
-    cmd := exec.Command(bin, "test")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "test")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
@@ -44,7 +49,9 @@ func TestAmiTest_JSON_StreamsAndSummary(t *testing.T) {
     _ = os.RemoveAll(ws)
     stageGoModule(t, ws, "package tmp\nimport \"testing\"\nfunc TestA(t *testing.T){}\n")
 
-    cmd := exec.Command(bin, "test", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "test", "--json")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
@@ -73,7 +80,9 @@ func TestAmiTest_Verbose_Artifacts(t *testing.T) {
     _ = os.RemoveAll(ws)
     stageGoModule(t, ws, "package tmp\nimport \"testing\"\nfunc TestA(t *testing.T){}\nfunc TestB(t *testing.T){}\n")
 
-    cmd := exec.Command(bin, "test", "--verbose")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(45*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "test", "--verbose")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
@@ -96,7 +105,9 @@ func TestAmiTest_Failing_EmitsError(t *testing.T) {
     _ = os.RemoveAll(ws)
     stageGoModule(t, ws, "package tmp\nimport \"testing\"\nfunc TestFail(t *testing.T){ t.Fatal(\"boom\") }\n")
 
-    cmd := exec.Command(bin, "test")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "test")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
@@ -112,7 +123,9 @@ func TestAmiTest_JSON_Failing_SummaryEmitted(t *testing.T) {
     _ = os.RemoveAll(ws)
     stageGoModule(t, ws, "package tmp\nimport \"testing\"\nfunc TestFail(t *testing.T){ t.Fatal(\"boom\") }\n")
 
-    cmd := exec.Command(bin, "test", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "test", "--json")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer

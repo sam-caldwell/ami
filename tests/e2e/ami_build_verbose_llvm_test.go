@@ -1,12 +1,15 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "os"
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiBuild_Verbose_EmitsLLVM(t *testing.T) {
@@ -20,7 +23,9 @@ func TestE2E_AmiBuild_Verbose_EmitsLLVM(t *testing.T) {
     // Minimal source unit
     if err := os.WriteFile(filepath.Join(ws, "src", "u.ami"), []byte("package app\nfunc F(){}\n"), 0o644); err != nil { t.Fatalf("write src: %v", err) }
     // Run `ami build --verbose`
-    cmd := exec.Command(bin, "build", "--verbose")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "build", "--verbose")
     cmd.Dir = ws
     cmd.Stdin = bytes.NewReader(nil)
     var stdout, stderr bytes.Buffer

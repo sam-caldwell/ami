@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "io"
@@ -8,6 +9,8 @@ import (
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiModClean_JSON_Happy(t *testing.T) {
@@ -18,7 +21,9 @@ func TestE2E_AmiModClean_JSON_Happy(t *testing.T) {
     if err := os.MkdirAll(filepath.Join(cache, "junk"), 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
     if err := os.WriteFile(filepath.Join(cache, "junk", "x.txt"), []byte("x"), 0o644); err != nil { t.Fatalf("write: %v", err) }
 
-    cmd := exec.Command(bin, "mod", "clean", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "mod", "clean", "--json")
     cmd.Dir = ws
     absCache, _ := filepath.Abs(cache)
     cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)
@@ -44,7 +49,9 @@ func TestE2E_AmiModClean_JSON_Sad_MkdirParentIsFile(t *testing.T) {
     if err := os.WriteFile(parent, []byte("x"), 0o644); err != nil { t.Fatalf("write: %v", err) }
     cache := filepath.Join(parent, "child")
 
-    cmd := exec.Command(bin, "mod", "clean", "--json")
+    ctx2, cancel2 := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+    defer cancel2()
+    cmd := exec.CommandContext(ctx2, bin, "mod", "clean", "--json")
     cmd.Dir = ws
     absCache, _ := filepath.Abs(cache)
     cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)
@@ -55,4 +62,3 @@ func TestE2E_AmiModClean_JSON_Sad_MkdirParentIsFile(t *testing.T) {
     // stdout should contain JSON with at least a path; stderr non-empty
     if stdout.Len() == 0 { t.Fatalf("expected JSON on stdout; got empty") }
 }
-

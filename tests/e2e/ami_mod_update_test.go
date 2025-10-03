@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "encoding/json"
     "io"
@@ -8,6 +9,8 @@ import (
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiModUpdate_JSON_Happy_LocalPackages(t *testing.T) {
@@ -21,7 +24,9 @@ func TestE2E_AmiModUpdate_JSON_Happy_LocalPackages(t *testing.T) {
     if err := os.MkdirAll(filepath.Join(ws, "src"), 0o755); err != nil { t.Fatalf("mkdir src: %v", err) }
     if err := os.WriteFile(filepath.Join(ws, "src", "a.txt"), []byte("x"), 0o644); err != nil { t.Fatalf("write: %v", err) }
 
-    cmd := exec.Command(bin, "mod", "update", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "mod", "update", "--json")
     cmd.Dir = ws
     absCache, _ := filepath.Abs(cache)
     cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)
@@ -41,7 +46,9 @@ func TestE2E_AmiModUpdate_JSON_Sad_NoWorkspace(t *testing.T) {
     ws := filepath.Join("build", "test", "e2e", "mod_update", "json_noworkspace")
     _ = os.RemoveAll(ws)
     if err := os.MkdirAll(ws, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
-    cmd := exec.Command(bin, "mod", "update", "--json")
+    ctx2, cancel2 := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+    defer cancel2()
+    cmd := exec.CommandContext(ctx2, bin, "mod", "update", "--json")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
@@ -49,4 +56,3 @@ func TestE2E_AmiModUpdate_JSON_Sad_NoWorkspace(t *testing.T) {
     if err := cmd.Run(); err == nil { t.Fatalf("expected error without workspace") }
     if stdout.Len() == 0 { t.Fatalf("expected JSON on stdout") }
 }
-

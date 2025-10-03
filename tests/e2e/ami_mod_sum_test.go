@@ -1,13 +1,16 @@
 package e2e
 
 import (
-	"bytes"
-	"encoding/json"
-	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"testing"
+    "bytes"
+    "encoding/json"
+    "io"
+    "os"
+    "os/exec"
+    "path/filepath"
+    "testing"
+    "context"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiModSum_JSON_Happy_FileGitFetch(t *testing.T) {
@@ -21,13 +24,15 @@ func TestE2E_AmiModSum_JSON_Happy_FileGitFetch(t *testing.T) {
 		t.Fatalf("mkdir repo: %v", err)
 	}
 	// init local git repo with tag
-	run := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = repo
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+    run := func(args ...string) {
+        ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(5*stdtime.Second))
+        defer cancel()
+        cmd := exec.CommandContext(ctx, "git", args...)
+        cmd.Dir = repo
+        if out, err := cmd.CombinedOutput(); err != nil {
+            t.Fatalf("git %v: %v\n%s", args, err, out)
+        }
+    }
 	run("init")
 	if err := os.WriteFile(filepath.Join(repo, "x.txt"), []byte("hello"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
@@ -49,7 +54,9 @@ func TestE2E_AmiModSum_JSON_Happy_FileGitFetch(t *testing.T) {
 		t.Fatalf("write sum: %v", err)
 	}
 
-	cmd := exec.Command(bin, "mod", "sum", "--json")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(20*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "mod", "sum", "--json")
 	cmd.Dir = ws
 	absCache, _ := filepath.Abs(cache)
 	cmd.Env = append(os.Environ(), "AMI_PACKAGE_CACHE="+absCache)
@@ -81,7 +88,9 @@ func TestE2E_AmiModSum_JSON_Sad_NoSum(t *testing.T) {
 	if err := os.MkdirAll(ws, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	cmd := exec.Command(bin, "mod", "sum", "--json")
+    ctx2, cancel2 := context.WithTimeout(context.Background(), testutil.Timeout(15*stdtime.Second))
+    defer cancel2()
+    cmd := exec.CommandContext(ctx2, bin, "mod", "sum", "--json")
 	cmd.Dir = ws
 	cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
 	var stdout, stderr bytes.Buffer

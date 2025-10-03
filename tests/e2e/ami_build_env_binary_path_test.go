@@ -1,6 +1,7 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "io"
     "os"
@@ -8,6 +9,8 @@ import (
     "path/filepath"
     "runtime"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 // When clang is present, ami build should place the binary under build/<env>/.
@@ -19,7 +22,9 @@ func TestE2E_AmiBuild_EnvBinaryPath(t *testing.T) {
     if err := os.MkdirAll(filepath.Join(ws, "src"), 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
     if err := os.WriteFile(filepath.Join(ws, "ami.workspace"), []byte("version: 1.0.0\npackages:\n  - main:\n      name: app\n      version: 0.0.1\n      root: ./src\n      import: []\n"), 0o644); err != nil { t.Fatalf("write ws: %v", err) }
     if err := os.WriteFile(filepath.Join(ws, "src", "u.ami"), []byte("package app\nfunc F(){}\n"), 0o644); err != nil { t.Fatalf("write src: %v", err) }
-    cmd := exec.Command(bin, "build")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "build")
     cmd.Dir = ws
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
@@ -30,4 +35,3 @@ func TestE2E_AmiBuild_EnvBinaryPath(t *testing.T) {
     target := filepath.Join(ws, "build", env, "app")
     if st, err := os.Stat(target); err != nil || st.IsDir() { t.Fatalf("expected binary at %s; err=%v st=%v", target, err, st) }
 }
-

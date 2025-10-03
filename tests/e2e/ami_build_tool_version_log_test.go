@@ -1,12 +1,15 @@
 package e2e
 
 import (
+    "context"
     "bytes"
     "io"
     "os"
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestE2E_AmiBuild_Verbose_LogsToolchainVersionOrMissing(t *testing.T) {
@@ -17,7 +20,9 @@ func TestE2E_AmiBuild_Verbose_LogsToolchainVersionOrMissing(t *testing.T) {
     if err := os.WriteFile(filepath.Join(dir, "ami.workspace"), []byte("version: 1.0.0\npackages:\n  - main:\n      name: app\n      version: 0.0.1\n      root: ./src\n      import: []\n"), 0o644); err != nil { t.Fatalf("write ws: %v", err) }
     if err := os.WriteFile(filepath.Join(dir, "src", "main.ami"), []byte("package app\n"), 0o644); err != nil { t.Fatalf("write src: %v", err) }
 
-    cmd := exec.Command(bin, "build", "--verbose")
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(30*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin, "build", "--verbose")
     cmd.Dir = dir
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer

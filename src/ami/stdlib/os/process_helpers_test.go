@@ -1,9 +1,12 @@
 package os
 
 import (
-	"errors"
-	"os/exec"
-	"testing"
+    "context"
+    "errors"
+    "os/exec"
+    "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func testProcError_ErrorString(t *testing.T) {
@@ -18,8 +21,10 @@ func testExitCodeFromError(t *testing.T) {
 		t.Fatalf("nil error -> nil exit code")
 	}
 	// Synthesize an exec.ExitError via a trivial failing command
-	cmd := exec.Command("go", "tool", "unknown-subcommand-that-does-not-exist")
-	err := cmd.Run()
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(5*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, "go", "tool", "unknown-subcommand-that-does-not-exist")
+    err := cmd.Run()
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
 		if c := exitCodeFromError(ee); c == nil {

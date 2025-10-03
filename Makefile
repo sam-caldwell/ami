@@ -1,6 +1,6 @@
 .PHONY: help all clean lint test build bench examples e2e-build e2e-test \
         e2e-one e2e-mod-audit e2e-mod-clean e2e-mod-list e2e-mod-get e2e-mod-sum e2e-mod-update \
-        test-hotspots gen-missing-tests coverage-short zip
+        test-hotspots gen-missing-tests coverage coverage-short zip
 
 # Print Makefile target help by scanning for lines with '##' descriptions.
 help: ## Show this help with targets and descriptions
@@ -30,6 +30,14 @@ check-single-declaration: ## Enforce single cohesive declaration per .go file ac
 
 test: lint  ## Run all tests (go test -v ./...)
 	go test -v ./...
+
+coverage: ## Run full coverage across ./src/... and summarize to build/coverage.out
+	@echo "Running full coverage across ./src/..."
+	mkdir -p build
+	GOFLAGS= go test -count=1 -covermode=atomic -coverprofile=build/coverage.out ./src/...
+	@echo "Coverage summary (total):"
+	@go tool cover -func=build/coverage.out | tail -n 1
+	@echo "Detailed function coverage written to build/coverage.out (use: go tool cover -func build/coverage.out)"
 
 coverage-short: ## Fast coverage on CLI (filters heavy tests) + sanity on schemas
 	@echo "Running short coverage for CLI (filtered) ..."

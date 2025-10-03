@@ -117,7 +117,9 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
     }
     // standard event lifecycle metadata descriptor for observability
     em := &ir.EventMeta{Schema: "eventmeta.v1", Fields: []string{"id", "ts", "attempt", "trace"}}
-    return ir.Module{Package: pkg, Functions: fns, Directives: dirs, ErrorPipes: errpipes, Concurrency: concurrency, Backpressure: backpressure, Schedule: schedule, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel, EventMeta: em}
+    // extract pipeline merge/collect specs into IR for downstream runtimes
+    pipes := lowerPipelines(f)
+    return ir.Module{Package: pkg, Functions: fns, Directives: dirs, Pipelines: pipes, ErrorPipes: errpipes, Concurrency: concurrency, Backpressure: backpressure, Schedule: schedule, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel, EventMeta: em}
 }
 
 // mapIOCapability converts an io.* step name into a coarse-grained capability string.

@@ -42,6 +42,16 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
         def := name + " = private constant [" + itoa(n) + " x i8] c\"" + esc + "\\00\""
         e.AddGlobal(def)
     }
+    // Emit module metadata as a single JSON string constant for runtime discovery
+    if meta := buildModuleMetaJSON(m); meta != "" {
+        n := len(meta) + 1
+        name := "@ami_meta_json"
+        // escape quotes and backslashes for c"..."
+        esc := strings.ReplaceAll(meta, "\\", "\\5C")
+        esc = strings.ReplaceAll(esc, "\"", "\\22")
+        def := name + " = private constant [" + itoa(n) + " x i8] c\"" + esc + "\\00\""
+        e.AddGlobal(def)
+    }
     for _, f := range m.Functions {
         if err := e.AddFunction(f); err != nil { return "", err }
     }

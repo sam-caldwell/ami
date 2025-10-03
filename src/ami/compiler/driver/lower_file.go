@@ -98,9 +98,26 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
     for _, c := range capabilities { if c == "io" { hasIO = true } }
     for _, c := range capabilities { if len(c) > 3 && c[:3] == "io." { hasIOSpecific = true; break } }
     if hasIOSpecific && !hasIO { capabilities = append(capabilities, "io") }
+    // capture error pipelines (for backend metadata embedding)
+    var errpipes []ir.ErrorPipeline
+    if f != nil {
+        for _, d := range f.Decls {
+            pd, ok := d.(*ast.PipelineDecl)
+            if !ok || pd.Error == nil || pd.Error.Body == nil { continue }
+            var names []string
+            for _, s := range pd.Error.Body.Stmts {
+                if st, ok := s.(*ast.StepStmt); ok {
+                    names = append(names, st.Name)
+                }
+            }
+            if len(names) > 0 {
+                errpipes = append(errpipes, ir.ErrorPipeline{Pipeline: pd.Name, Steps: names})
+            }
+        }
+    }
     // standard event lifecycle metadata descriptor for observability
     em := &ir.EventMeta{Schema: "eventmeta.v1", Fields: []string{"id", "ts", "attempt", "trace"}}
-    return ir.Module{Package: pkg, Functions: fns, Directives: dirs, Concurrency: concurrency, Backpressure: backpressure, Schedule: schedule, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel, EventMeta: em}
+    return ir.Module{Package: pkg, Functions: fns, Directives: dirs, ErrorPipes: errpipes, Concurrency: concurrency, Backpressure: backpressure, Schedule: schedule, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel, EventMeta: em}
 }
 
 // mapIOCapability converts an io.* step name into a coarse-grained capability string.

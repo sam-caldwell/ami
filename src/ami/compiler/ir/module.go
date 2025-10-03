@@ -6,6 +6,9 @@ type Module struct {
     Functions []Function
     Directives []Directive
     Pipelines []Pipeline `json:"pipelines,omitempty"`
+    // ErrorPipes lists per-pipeline error routes captured from the frontend.
+    // This enables backends to embed metadata for error handling paths.
+    ErrorPipes []ErrorPipeline `json:"errorPipelines,omitempty"`
     Concurrency int    `json:"concurrency,omitempty"`
     Backpressure string `json:"backpressurePolicy,omitempty"`
     Schedule    string `json:"schedule,omitempty"`

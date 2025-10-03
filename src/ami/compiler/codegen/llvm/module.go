@@ -15,6 +15,7 @@ type ModuleEmitter struct {
     funcs  []string
     types  map[string]struct{}
     externs []string
+    globals []string
 }
 
 // DefaultTriple is the baseline target triple for darwin/arm64.
@@ -30,6 +31,9 @@ func (e *ModuleEmitter) RequireExtern(decl string) {
     for _, d := range e.externs { if d == decl { return } }
     e.externs = append(e.externs, decl)
 }
+
+// AddGlobal adds a top-level global declaration/definition to the module.
+func (e *ModuleEmitter) AddGlobal(def string) { if def != "" { e.globals = append(e.globals, def) } }
 
 // AddFunction lowers a single IR function and appends it to the module.
 func (e *ModuleEmitter) AddFunction(fn ir.Function) error {
@@ -68,6 +72,12 @@ func (e *ModuleEmitter) Build() string {
             b.WriteString(k)
             b.WriteString(" is opaque (runtime handle)\n")
         }
+        b.WriteString("\n")
+    }
+    // Globals (deterministic order)
+    if len(e.globals) > 0 {
+        sort.Strings(e.globals)
+        for _, g := range e.globals { b.WriteString(g); b.WriteString("\n") }
         b.WriteString("\n")
     }
     // Functions

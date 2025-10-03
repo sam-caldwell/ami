@@ -21,18 +21,20 @@ func testTicker_Start_Idempotent(t *testing.T) {
 
 // Ensure Stop is idempotent and safe to call multiple times.
 func testTicker_Stop_Idempotent(t *testing.T) {
-	tk := NewTicker(5 * stdtime.Millisecond)
-	var count int
-	tk.Register(func() { count++ })
-	tk.Start()
-	stdtime.Sleep(15 * stdtime.Millisecond)
-	tk.Stop()
-	tk.Stop() // second stop should not panic
-	c1 := count
-	stdtime.Sleep(20 * stdtime.Millisecond)
-	if count != c1 {
-		t.Fatalf("ticks after Stop: before=%d after=%d", c1, count)
-	}
+    tk := NewTicker(5 * stdtime.Millisecond)
+    var count int
+    tk.Register(func() { count++ })
+    tk.Start()
+    stdtime.Sleep(15 * stdtime.Millisecond)
+    tk.Stop()
+    tk.Stop() // second stop should not panic
+    // allow any in-flight tick to complete before snapshot
+    stdtime.Sleep(5 * stdtime.Millisecond)
+    c1 := count
+    stdtime.Sleep(20 * stdtime.Millisecond)
+    if count != c1 {
+        t.Fatalf("ticks after Stop: before=%d after=%d", c1, count)
+    }
 }
 
 // Zero or negative durations should not start ticking.

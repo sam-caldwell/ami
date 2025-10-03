@@ -1,9 +1,11 @@
 package main
 
 import (
+    "context"
     "os/exec"
     "path/filepath"
     "testing"
+    stdtime "time"
 )
 
 func Test_listGitTags_localRepo(t *testing.T) {
@@ -14,15 +16,17 @@ func Test_listGitTags_localRepo(t *testing.T) {
     abs := filepath.Clean(dir)
     // Initialize a minimal git repo and create two tags
     cmds := [][]string{
-        {"git", "init"},
+        {"git", "init", "-q"},
         {"git", "config", "user.email", "test@example.com"},
         {"git", "config", "user.name", "Test"},
-        {"git", "commit", "--allow-empty", "-m", "init"},
-        {"git", "tag", "v1.2.3"},
-        {"git", "tag", "v2.0.0"},
+        {"git", "-c", "commit.gpgSign=false", "commit", "--allow-empty", "-m", "init"},
+        {"git", "-c", "tag.gpgSign=false", "tag", "v1.2.3"},
+        {"git", "-c", "tag.gpgSign=false", "tag", "v2.0.0"},
     }
     for _, c := range cmds {
-        cmd := exec.Command(c[0], c[1:]...)
+        ctx, cancel := context.WithTimeout(context.Background(), 5*stdtime.Second)
+        defer cancel()
+        cmd := exec.CommandContext(ctx, c[0], c[1:]...)
         cmd.Dir = abs
         if out, err := cmd.CombinedOutput(); err != nil {
             t.Fatalf("%v: %v\n%s", c, err, string(out))
@@ -36,4 +40,3 @@ func Test_listGitTags_localRepo(t *testing.T) {
         t.Fatalf("expected v1.2.3 and v2.0.0 in %v", tags)
     }
 }
-

@@ -1,11 +1,14 @@
 package main
 
 import (
+    "context"
     "os"
     "os/exec"
     "path/filepath"
     "runtime"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 
     llvme "github.com/sam-caldwell/ami/src/ami/compiler/codegen/llvm"
     "github.com/sam-caldwell/ami/src/ami/workspace"
@@ -27,6 +30,8 @@ func TestRunBuild_LinksExecutable_WhenToolchainPresent(t *testing.T) {
     if runtime.GOOS == "windows" { bin += ".exe" }
     if st, err := os.Stat(bin); err != nil || st.IsDir() { t.Fatalf("binary missing: %v st=%v", err, st) }
     // execute binary; should exit 0
-    cmd := exec.Command(bin)
-    if err := cmd.Run(); err != nil { t.Fatalf("run bin: %v", err) }
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(5*stdtime.Second))
+    defer cancel()
+    cmd := exec.CommandContext(ctx, bin)
+    if err := cmd.Run(); err != nil || ctx.Err() != nil { t.Fatalf("run bin: %v ctx:%v", err, ctx.Err()) }
 }

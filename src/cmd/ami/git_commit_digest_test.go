@@ -1,11 +1,14 @@
 package main
 
 import (
+    "context"
     "os"
     "os/exec"
     "path/filepath"
     "regexp"
     "testing"
+    stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func TestComputeCommitDigest_SimpleRepo(t *testing.T) {
@@ -22,7 +25,9 @@ func TestComputeCommitDigest_SimpleRepo(t *testing.T) {
         {"git", "-C", dir, "commit", "-m", "init"},
     }
     for _, c := range cmds {
-        cmd := exec.Command(c[0], c[1:]...)
+        ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(5*stdtime.Second))
+        defer cancel()
+        cmd := exec.CommandContext(ctx, c[0], c[1:]...)
         out, err := cmd.CombinedOutput()
         if err != nil { t.Fatalf("%v: %s", err, string(out)) }
     }
@@ -33,3 +38,17 @@ func TestComputeCommitDigest_SimpleRepo(t *testing.T) {
     }
 }
 
+func TestComputeCommitDigest_InvalidRef(t *testing.T) {
+    dir := filepath.Join("build", "test", "git_digest_badref")
+    _ = os.RemoveAll(dir)
+    if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatalf("mkdir: %v", err) }
+    // Initialize empty repo
+    ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(5*stdtime.Second))
+    defer cancel()
+    if out, err := exec.CommandContext(ctx, "git", "-C", dir, "init", "-q").CombinedOutput(); err != nil {
+        t.Fatalf("git init: %v: %s", err, string(out))
+    }
+    if _, err := computeCommitDigest(dir, "does-not-exist"); err == nil {
+        t.Fatal("expected error for invalid ref")
+    }
+}

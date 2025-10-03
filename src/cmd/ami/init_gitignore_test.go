@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func testAppendLineIfMissing_AddsAndDedupe(t *testing.T) {
+func TestAppendLineIfMissing_AddsAndDedupe(t *testing.T) {
 	dir := filepath.Join("build", "test", "ami_init", "gitignore_unit")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -28,7 +28,7 @@ func testAppendLineIfMissing_AddsAndDedupe(t *testing.T) {
 	}
 }
 
-func testAppendLineIfMissing_ParentMissing_NoCreate(t *testing.T) {
+func TestAppendLineIfMissing_ParentMissing_NoCreate(t *testing.T) {
 	dir := filepath.Join("build", "test", "ami_init", "gitignore_parent_missing")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)

@@ -6,6 +6,7 @@ import (
     "path/filepath"
     "testing"
     stdtime "time"
+    "github.com/sam-caldwell/ami/src/testutil"
 )
 
 func Test_listGitTags_localRepo(t *testing.T) {
@@ -24,7 +25,7 @@ func Test_listGitTags_localRepo(t *testing.T) {
         {"git", "-c", "tag.gpgSign=false", "tag", "v2.0.0"},
     }
     for _, c := range cmds {
-        ctx, cancel := context.WithTimeout(context.Background(), 5*stdtime.Second)
+        ctx, cancel := context.WithTimeout(context.Background(), testutil.Timeout(5*stdtime.Second))
         defer cancel()
         cmd := exec.CommandContext(ctx, c[0], c[1:]...)
         cmd.Dir = abs

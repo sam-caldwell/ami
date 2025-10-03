@@ -49,7 +49,7 @@ func testLint_StrictFlag_PromotesWarnings(t *testing.T) {
 	}
 }
 
-func testLint_Help_ShowsStageBFlags(t *testing.T) {
+func TestLint_Help_ShowsStageBFlags(t *testing.T) {
 	cmd := newLintCmd()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)

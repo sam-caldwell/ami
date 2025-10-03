@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func testBuild_Help_IncludesExamples(t *testing.T) {
+func TestBuild_Help_IncludesExamples(t *testing.T) {
 	cmd := newBuildCmd()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -17,7 +17,7 @@ func testBuild_Help_IncludesExamples(t *testing.T) {
 	}
 }
 
-func testTest_Help_IncludesExamples(t *testing.T) {
+func TestTest_Help_IncludesExamples(t *testing.T) {
 	cmd := newTestCmd()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -29,7 +29,7 @@ func testTest_Help_IncludesExamples(t *testing.T) {
 	}
 }
 
-func testLint_Help_IncludesExamples(t *testing.T) {
+func TestLint_Help_IncludesExamples(t *testing.T) {
 	cmd := newLintCmd()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -41,7 +41,7 @@ func testLint_Help_IncludesExamples(t *testing.T) {
 	}
 }
 
-func testModGet_Help_IncludesExamples(t *testing.T) {
+func TestModGet_Help_IncludesExamples(t *testing.T) {
 	cmd := newModGetCmd()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -53,7 +53,7 @@ func testModGet_Help_IncludesExamples(t *testing.T) {
 	}
 }
 
-func testModList_Help_IncludesExamples(t *testing.T) {
+func TestModList_Help_IncludesExamples(t *testing.T) {
 	cmd := newModListCmd()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -65,7 +65,7 @@ func testModList_Help_IncludesExamples(t *testing.T) {
 	}
 }
 
-func testPipelineVisualize_Help_IncludesExamples(t *testing.T) {
+func TestPipelineVisualize_Help_IncludesExamples(t *testing.T) {
 	cmd := newPipelineVisualizeCmd()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)

@@ -17,7 +17,7 @@ func (e *Engine) RunPipeline(ctx context.Context, m ir.Module, pipeline string, 
     var out <-chan ev.Event = in
     // Attempt edges-based order for higher fidelity; fallback to IR collect order.
     if m.Package != "" {
-        if nodes, err := BuildLinearPathFromEdges(".", m.Package, pipeline); err == nil && len(nodes) > 0 {
+        if nodes, err := BuildLinearPathFromEdges(".", m.Package, pipeline); err == nil && len(nodes) > 1 {
             // Walk nodes; treat Collect specially; other unknowns: Transform pass-through
             cur := out
             for _, name := range nodes {
@@ -104,7 +104,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
     }
     // Edges-based attempt
     if m.Package != "" {
-        if nodes, err := BuildLinearPathFromEdges(".", m.Package, pipeline); err == nil && len(nodes) > 0 {
+        if nodes, err := BuildLinearPathFromEdges(".", m.Package, pipeline); err == nil && len(nodes) > 1 {
             cur := out
             // Optional Timer source when specified by opts or edges contain a Timer node
             hasTimer := false

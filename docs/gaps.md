@@ -25,12 +25,7 @@ Known items
   - `docs/diag-codes.md` can be regenerated with `make gen-diag-codes`. Keep in sync after introducing new diagnostic codes.
 
 AMI stdlib status and plan
-- signal/time: Host-backed Go prototypes have been relocated under `src/ami/runtime/host/{signal,time}` and are not AMI stdlib implementations. The AMI stdlib is provided as language-level packages available to `.ami` code under `std/ami/stdlib` (signatures today; semantics+IR to follow).
-  - Action: Revert S-4 (signal) and S-5 (time) to `ready` in the tracker.
-  - Plan:
-    - Define AMI package surfaces (signatures) for `signal` and `time` in `.ami` terms.
-    - Add compiler hooks or intrinsic lowering so that `signal.Register`, `time.Sleep`, `time.Now`, etc. are callable from `.ami` and lower to runtime/platform primitives.
-    - Provide `.ami` stubs and tests that import and use these packages, validating parser/semantics → IR lowering paths. Initial stubs now live under `std/ami/stdlib/{time,signal,gpu}`.
+- Resolved: AMI sources under `std/ami/stdlib/{time,signal,gpu}` with lowering to runtime externs; host-backed helpers under `src/ami/runtime/host/*`. Tracker statuses have been updated to complete for delivered items.
 
 Status
 

@@ -2104,6 +2104,43 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-missing-for-loop
+    title: Missing parser/lowering for `for` loops; break/continue unsupported
+    summary: |
+      Although the tokenizer defines `KwFor`, the AMI compiler does not implement `for` loop parsing or lowering. There
+      is no `ForStmt` in the AST, no parser handling in `parseFuncBlock`, and no lowering path in `lowerBlockCFG` for
+      loop constructs. IR contains `OpLoop` and `Goto`, but these are only used for tail‑call/mutual recursion
+      elimination (SCC) in `lowerFuncDeclWithSCC`, not user‑written loops. As a result, AMI sources cannot express
+      iterative loops or use `break`/`continue`.
+    status: ready
+    repro:
+      - code: |
+          package app
+          func F(){
+            for i = 0; i < 3; i = i + 1 {
+              // work
+            }
+          }
+      - step: ami build
+      - observe: parse error in function block (no `for` handling) or generic "unexpected token in block" diagnostics.
+    config:
+      references:
+        - parser: src/ami/compiler/parser/Parser.parseFuncBlock.go (no case for KwFor)
+        - ast: src/ami/compiler/ast (no ForStmt/Break/Continue nodes)
+        - lowering: src/ami/compiler/driver/lower_block_cfg.go (no loop lowering); src/ami/compiler/driver/lower_func.go (OpLoop used only for TCO)
+        - token: src/ami/compiler/token/kind.go (KwFor, KwBreak, KwContinue present but unused in parser)
+    expected_behavior: |
+      - Parse classic `for init; cond; post {}` and simplified forms `for cond {}`, `for {}`; optionally plan `for range`.
+      - Implement `break`/`continue` lowering via labeled CFG blocks; ensure deterministic semantics and positions
+        for diagnostics; emit LLVM using existing CondBr/Goto/Phi patterns.
+      - Add unit tests for parser, lowering (CFG shape), and LLVM emission (branches/phis), including nested loops and
+        break/continue paths.
+    actual_behavior: |
+      - `for` loops are not recognized; no AST or lowering support; IR contains no loop blocks for user code.
+    workaround: |
+      - None in AMI source; users cannot express loops and must rely on recursion (which is not ergonomic and may be
+        optimized differently).
+    tests: []
   - id: B-2025-10-04-errorpipeline-undeclared-onerror
     title: onError references undefined error pipeline; error pipelines must be declared and end in egress
     summary: |

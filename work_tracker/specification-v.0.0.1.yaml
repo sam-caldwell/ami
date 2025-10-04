@@ -1794,7 +1794,8 @@ stdlib:
             dependencies: [F-11-21]
             status: complete
             tests:
-              - src/ami/runtime/host/gpu/cuda_args_test.go
+              - src/ami/runtime/host/gpu/cuda_memcpy_arg_validation_test.go
+              - src/ami/runtime/host/gpu/cuda_alloc_arg_validation_test.go
               - src/ami/runtime/host/gpu/stub_paths_test.go
           - id: E-8-2-4
             statement: |
@@ -1803,7 +1804,8 @@ stdlib:
             dependencies: [F-11-21]
             status: complete
             tests:
-              - src/ami/runtime/host/gpu/cuda_args_test.go
+              - src/ami/runtime/host/gpu/cuda_memcpy_arg_validation_test.go
+              - src/ami/runtime/host/gpu/cuda_alloc_arg_validation_test.go
               - src/ami/runtime/host/gpu/launch_blocking_test.go
 
           - id: E-8-2-3
@@ -1909,7 +1911,8 @@ stdlib:
             dependencies: [F-11-21]
             status: ready
             tests:
-              - src/ami/runtime/host/gpu/opencl_args_test.go
+              - src/ami/runtime/host/gpu/opencl_alloc_arg_validation_test.go
+              - src/ami/runtime/host/gpu/opencl_launch_arg_validation_test.go
               - src/ami/runtime/host/gpu/opencl_owned_handles_test.go
               - src/ami/runtime/host/gpu/opencl_error_paths_test.go
 

@@ -1,6 +1,6 @@
 package gpu
 
 // AMI stdlib stubs (signatures only)
-func CudaAvailable() (bool) { return false }
-func MetalAvailable() (bool) { return ami_rt_metal_available() }
-func OpenCLAvailable() (bool) { return false }
+func CudaAvailable() (bool) { return ami_rt_gpu_has(1) }
+func MetalAvailable() (bool) { return ami_rt_gpu_has(0) }
+func OpenCLAvailable() (bool) { return ami_rt_gpu_has(2) }

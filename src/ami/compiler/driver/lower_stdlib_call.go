@@ -48,7 +48,18 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     }
     if strings.HasSuffix(name, ".MetalAvailable") || name == "gpu.MetalAvailable" {
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "bool"}
-        return ir.Expr{Op: "call", Callee: "ami_rt_metal_available", Result: res}, true
+        // use mask accessor bit 0
+        return ir.Expr{Op: "call", Callee: "ami_rt_gpu_has", Args: []ir.Value{{ID: "#0", Type: "int64"}}, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".CudaAvailable") || name == "gpu.CudaAvailable" {
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "bool"}
+        // use mask accessor bit 1
+        return ir.Expr{Op: "call", Callee: "ami_rt_gpu_has", Args: []ir.Value{{ID: "#1", Type: "int64"}}, Result: res}, true
+    }
+    if strings.HasSuffix(name, ".OpenCLAvailable") || name == "gpu.OpenCLAvailable" {
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "bool"}
+        // use mask accessor bit 2
+        return ir.Expr{Op: "call", Callee: "ami_rt_gpu_has", Args: []ir.Value{{ID: "#2", Type: "int64"}}, Result: res}, true
     }
     if strings.HasSuffix(name, ".MetalDevices") || name == "gpu.MetalDevices" {
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "slice<any>"}

@@ -71,6 +71,8 @@ func addExternsForExpr(e *ModuleEmitter, ex ir.Expr) {
     // GPU/Metal externs
     case "ami_rt_gpu_blocking_submit":
         e.RequireExtern("declare ptr @ami_rt_gpu_blocking_submit(ptr)")
+    case "ami_rt_gpu_has":
+        e.RequireExtern("declare i1 @ami_rt_gpu_has(i64)")
     case "ami_rt_metal_available":
         e.RequireExtern("declare i1 @ami_rt_metal_available()")
     case "ami_rt_metal_devices":

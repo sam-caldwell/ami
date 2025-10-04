@@ -166,8 +166,8 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "  store i64 %final, ptr @ami_rt_gpu_mask, align 8\n"
     s += "  ret void\n}\n\n"
 
-    // Accessor: check if a backend bit is set
-    s += "define i1 @ami_rt_gpu_has(i64 %which) {\nentry:\n  %mask = load i64, ptr @ami_rt_gpu_mask, align 8\n  %one = shl i64 1, %which\n  %and = and i64 %mask, %one\n  %zero = icmp eq i64 %and, 0\n  %res = xor i1 %zero, true\n  ret i1 %res\n}\n\n"
+    // Accessor: check if a backend bit is set; lazily probes if mask is zero
+    s += "define i1 @ami_rt_gpu_has(i64 %which) {\nentry:\n  %m0 = load i64, ptr @ami_rt_gpu_mask, align 8\n  %m0_is_zero = icmp eq i64 %m0, 0\n  br i1 %m0_is_zero, label %probe, label %cont\nprobe:\n  call void @ami_rt_gpu_probe_init()\n  br label %cont\ncont:\n  %mask = load i64, ptr @ami_rt_gpu_mask, align 8\n  %one = shl i64 1, %which\n  %and = and i64 %mask, %one\n  %zero = icmp eq i64 %and, 0\n  %res = xor i1 %zero, true\n  ret i1 %res\n}\n\n"
     // Signal registration: opaque handler tokens by signal (mod 64)
     s += "@ami_signal_handlers = private global [64 x i64] zeroinitializer\n\n"
     s += "define void @ami_rt_signal_register(i64 %sig, i64 %handler) {\n" +

@@ -1,6 +1,7 @@
 package llvm
 
 import (
+    "os"
     "strings"
 )
 
@@ -71,7 +72,7 @@ func RuntimeLL(triple string, withMain bool) string {
 
     // Metal runtime symbols: on Darwin targets, declare and let the Objective-C shim
     // provide real implementations at link time. On non-Darwin targets, emit stub defs.
-    if strings.Contains(triple, "darwin") {
+    if strings.Contains(triple, "apple-") || strings.Contains(triple, "apple-macosx") {
         s += "declare i1 @ami_rt_metal_available()\n"
         s += "declare ptr @ami_rt_metal_devices()\n"
         s += "declare ptr @ami_rt_metal_ctx_create(ptr)\n"
@@ -106,6 +107,67 @@ func RuntimeLL(triple string, withMain bool) string {
 
     // No-op ingress spawner stub; real implementation will create threads/processes per ingress trigger.
     s += "define void @ami_rt_spawn_ingress(ptr %name) {\nentry:\n  ret void\n}\n\n"
+
+    // GPU probe: record availability of backends in a bitmask global.
+    // Bit layout: 0=metal, 1=cuda, 2=opencl
+    s += "@ami_rt_gpu_mask = private global i64 0\n\n"
+    // getenv only needed when probing env-gated backends
+    allowMetal, allowCuda, allowOpenCL := gpuAllowedBackends()
+    // Emit string constants and getenv declaration for env-gated probes as needed
+    if allowCuda || allowOpenCL {
+        s += "declare ptr @getenv(ptr)\n\n"
+    }
+    if allowCuda {
+        key := "AMI_GPU_FORCE_CUDA"
+        esc := encodeCString(key)
+        n := len(key) + 1
+        s += "@.gpu.env.cuda = private constant [" + itoa(n) + " x i8] c\"" + esc + "\"\n"
+    }
+    if allowOpenCL {
+        key := "AMI_GPU_FORCE_OPENCL"
+        esc := encodeCString(key)
+        n := len(key) + 1
+        s += "@.gpu.env.opencl = private constant [" + itoa(n) + " x i8] c\"" + esc + "\"\n"
+    }
+    // Probe function definition
+    s += "define void @ami_rt_gpu_probe_init() {\nentry:\n  %mask = alloca i64, align 8\n  store i64 0, ptr %mask, align 8\n"
+    // Darwin: query metal via extern if allowed
+    if (strings.Contains(triple, "apple-") || strings.Contains(triple, "apple-macosx")) && allowMetal {
+        s += "  %m = call i1 @ami_rt_metal_available()\n"
+        s += "  %mext = zext i1 %m to i64\n"
+        s += "  %mshift = shl i64 %mext, 0\n"
+        s += "  %mcur = load i64, ptr %mask, align 8\n"
+        s += "  %mnew = or i64 %mcur, %mshift\n"
+        s += "  store i64 %mnew, ptr %mask, align 8\n"
+    }
+    // CUDA: env-gated availability
+    if allowCuda {
+        s += "  %cstr = getelementptr inbounds [" + itoa(len("AMI_GPU_FORCE_CUDA")+1) + " x i8], ptr @.gpu.env.cuda, i64 0, i64 0\n"
+        s += "  %cenv = call ptr @getenv(ptr %cstr)\n"
+        s += "  %cnz = icmp ne ptr %cenv, null\n"
+        s += "  %cz = zext i1 %cnz to i64\n"
+        s += "  %cshift = shl i64 %cz, 1\n"
+        s += "  %ccur = load i64, ptr %mask, align 8\n"
+        s += "  %cnew = or i64 %ccur, %cshift\n"
+        s += "  store i64 %cnew, ptr %mask, align 8\n"
+    }
+    // OpenCL: env-gated availability
+    if allowOpenCL {
+        s += "  %ostr = getelementptr inbounds [" + itoa(len("AMI_GPU_FORCE_OPENCL")+1) + " x i8], ptr @.gpu.env.opencl, i64 0, i64 0\n"
+        s += "  %oenv = call ptr @getenv(ptr %ostr)\n"
+        s += "  %onz = icmp ne ptr %oenv, null\n"
+        s += "  %oz = zext i1 %onz to i64\n"
+        s += "  %oshift = shl i64 %oz, 2\n"
+        s += "  %ocur = load i64, ptr %mask, align 8\n"
+        s += "  %onew = or i64 %ocur, %oshift\n"
+        s += "  store i64 %onew, ptr %mask, align 8\n"
+    }
+    s += "  %final = load i64, ptr %mask, align 8\n"
+    s += "  store i64 %final, ptr @ami_rt_gpu_mask, align 8\n"
+    s += "  ret void\n}\n\n"
+
+    // Accessor: check if a backend bit is set
+    s += "define i1 @ami_rt_gpu_has(i64 %which) {\nentry:\n  %mask = load i64, ptr @ami_rt_gpu_mask, align 8\n  %one = shl i64 1, %which\n  %and = and i64 %mask, %one\n  %zero = icmp eq i64 %and, 0\n  %res = xor i1 %zero, true\n  ret i1 %res\n}\n\n"
     // Signal registration: opaque handler tokens by signal (mod 64)
     s += "@ami_signal_handlers = private global [64 x i64] zeroinitializer\n\n"
     s += "define void @ami_rt_signal_register(i64 %sig, i64 %handler) {\n" +
@@ -188,3 +250,29 @@ func RuntimeLL(triple string, withMain bool) string {
 
 // WriteRuntimeLL writes the runtime LLVM IR text to the given directory and returns the file path.
 // file writing moved to runtime_write.go to satisfy single-declaration rule
+
+// gpuAllowedBackends inspects the AMI_GPU_BACKENDS env var and returns booleans for
+// allowing metal, cuda, opencl in the generated runtime IR. Empty or missing means all allowed.
+func gpuAllowedBackends() (metal, cuda, opencl bool) {
+    v := os.Getenv("AMI_GPU_BACKENDS")
+    if v == "" {
+        return true, true, true
+    }
+    var m, c, o bool
+    parts := strings.Split(v, ",")
+    for _, p := range parts {
+        p = strings.TrimSpace(strings.ToLower(p))
+        switch p {
+        case "metal":
+            m = true
+        case "cuda":
+            c = true
+        case "opencl", "ocl":
+            o = true
+        }
+    }
+    return m, c, o
+}
+
+// itoa is a tiny integer to string formatter for small positive values used in IR lengths.
+// itoa helper provided in emit_util.go

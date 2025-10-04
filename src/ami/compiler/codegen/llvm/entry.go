@@ -17,6 +17,8 @@ func WriteIngressEntrypointLL(dir, triple string, ingress []string) (string, err
     s += "target triple = \"" + triple + "\"\n\n"
     // extern spawn symbol (implemented by runtime or linked later)
     s += "declare void @ami_rt_spawn_ingress(ptr)\n\n"
+    // ensure GPU backends are probed before any ingress work
+    s += "declare void @ami_rt_gpu_probe_init()\n\n"
     // Emit string constants for each ingress
     for i, name := range ingress {
         // encode as C string with \00 terminator; escape quotes minimally
@@ -27,7 +29,7 @@ func WriteIngressEntrypointLL(dir, triple string, ingress []string) (string, err
     }
     s += "\n"
     // main body
-    s += "define i32 @main() {\nentry:\n"
+    s += "define i32 @main() {\nentry:\n  call void @ami_rt_gpu_probe_init()\n"
     for i, name := range ingress {
         // match the constant array length
         n := len(name) + 1

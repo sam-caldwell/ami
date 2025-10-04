@@ -1990,6 +1990,51 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-collect-merge-api-mismatch
+    title: Collect merge config must use merge.* API; example uses merge=Sort(...)
+    summary: |
+      The authoritative docx and language docs specify Collect merge configuration via the stdlib `merge.*` API,
+      e.g., `merge.Sort(field[, order])`, `merge.Window(n)`, `merge.Key(field)`, `merge.Stable()`, etc. The
+      examples/correct source instead uses a named argument `merge=Sort(algorithm=..., window=..., key=event.Created)`,
+      which is not the documented API and will not normalize to the expected `mergeNorm` scaffold (Buffer/Stable/Sort).
+      This mismatch prevents downstream semantics/lint from recognizing the intended merge configuration and may be
+      rejected as unknown/invalid attributes.
+    status: ready
+    repro:
+      - step: Open examples/correct/src/main.ami
+      - step: Locate PeriodicCounter Collect multipath configuration
+      - code: |
+          in=edge.MultiPath(
+            inputs=[ ... ],
+            merge=Sort(
+              algorithm=ascendingTimeStamp,
+              window=120,
+              key=event.Created,
+            ),
+          )
+      - step: Compare with docx/docs which show `merge.Sort(ts, asc)`, `merge.Window(n)`, `merge.Key(field)` forms
+      - step: ami build (note: parsing bugs may block; see pipeline parens bugs)
+    config:
+      workspace: examples/correct/ami.workspace
+      toolchain:
+        command: ami build
+        mode: default
+      references:
+        - doc: docs/toolchain/merge.md (Merge Attributes and MultiPath)
+        - doc: docs/language/edges.md (Collect example with merge.Buffer/Stable/Sort)
+        - file: examples/correct/src/main.ami
+    expected_behavior: |
+      - Collect multipath accepts and normalizes stdlib `merge.*` calls (e.g., `merge.Sort(ts, asc)`,
+        `merge.Window(120)`, `merge.Key(id)`) and surfaces them in debug artifacts (edges/pipelines `mergeNorm`).
+      - If non-stdlib forms are provided (e.g., `merge=Sort(...)`), the compiler emits clear `E_MERGE_ATTR_*` diagnostics.
+    actual_behavior: |
+      - The example uses `merge=Sort(...)`, which does not match the `merge.*` API described in the docx and
+        docs, leading to either parse acceptance with wrong shape or rejection; semantics cannot normalize as intended.
+    workaround: |
+      - Replace the named argument with explicit stdlib calls within the Collect context, e.g.,
+        `merge.Sort(event.Created, asc), merge.Window(120), merge.Key(event.Created)`. If a Buffer policy is intended,
+        add `merge.Buffer(capacity, policy)` as documented.
+    tests: []
   - id: B-2025-10-04-examples-correct-periodiccounter-worker-sig
     title: examples/correct PeriodicCounter ingress worker returns count but signature declares (Event<uint64>, error)
     summary: |

@@ -2104,6 +2104,38 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-missing-continue
+    title: Missing parser/AST/lowering for `continue` statements
+    summary: |
+      The tokenizer defines `KwContinue`, but the AMI compiler does not implement `continue` parsing or lowering. There
+      is no `ContinueStmt` in the AST, no handling in `parseFuncBlock`, and no lowering in `lowerBlockCFG` to jump to
+      the loop’s next-iteration target. As a result, AMI sources cannot use `continue` to advance to the next loop
+      iteration. (Note: general `for` loop support is also missing; see B-2025-10-04-missing-for-loop.)
+    status: ready
+    repro:
+      - code: |
+          package app
+          func F(){
+            for {
+              continue
+            }
+          }
+      - step: ami build
+      - observe: parse error due to missing `for`/`continue` handling; once `for` exists, `continue` remains unparsed.
+    config:
+      references:
+        - parser: src/ami/compiler/parser/Parser.parseFuncBlock.go (no case for KwContinue)
+        - ast: src/ami/compiler/ast (no ContinueStmt node)
+        - lowering: src/ami/compiler/driver/lower_block_cfg.go (no continue lowering)
+        - token: src/ami/compiler/token/kind.go (KwContinue present)
+    expected_behavior: |
+      - Parse `continue` and lower to a CFG jump targeting the loop’s update/head block (per loop form), with correct
+        nesting/labels when present. Emit diagnostics for invalid use outside loops.
+    actual_behavior: |
+      - `continue` is not recognized; there is no AST or lowering support.
+    workaround: |
+      - None directly; restructure conditions to skip work via `if` blocks or refactor with early `return` where valid.
+    tests: []
   - id: B-2025-10-04-missing-break
     title: Missing parser/AST/lowering for `break` statements
     summary: |

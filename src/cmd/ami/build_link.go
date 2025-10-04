@@ -249,6 +249,42 @@ void* ami_rt_metal_dispatch_blocking(void* ctxp, void* pipep,
 		if st, _ := os.Stat(rtObj); st != nil {
 			objs = append(objs, rtObj)
 		}
+		// Compile generic GPU C shims (CUDA/OpenCL availability + enumeration stubs)
+		{
+			shim := filepath.Join(rtDir, "gpu_shims.c")
+			_ = os.WriteFile(shim, []byte(`
+#include <stdlib.h>
+#include <stdint.h>
+
+// Strong definitions override weak runtime stubs
+unsigned char ami_rt_cuda_available(void) {
+    const char* v = getenv("AMI_GPU_FORCE_CUDA");
+    return v && v[0] ? 1 : 0;
+}
+
+unsigned char ami_rt_opencl_available(void) {
+    const char* v = getenv("AMI_GPU_FORCE_OPENCL");
+    return v && v[0] ? 1 : 0;
+}
+
+// Enumeration stubs (to be replaced with real implementations later)
+void* ami_rt_cuda_devices(void) { return (void*)0; }
+void* ami_rt_opencl_platforms(void) { return (void*)0; }
+void* ami_rt_opencl_devices(void) { return (void*)0; }
+
+`), 0o644)
+			shimObj := filepath.Join(rtDir, "gpu_shims.o")
+			args := []string{"-x", "c", "-c", shim, "-o", shimObj, "-target", triple}
+			cmd := exec.Command(clang, args...)
+			if outb, err := cmd.CombinedOutput(); err != nil {
+				if jsonOut {
+					d := diag.Record{Timestamp: time.Now().UTC(), Level: diag.Error, Code: "E_OBJ_COMPILE_FAIL", Message: "failed to compile gpu shims", File: shim, Data: map[string]any{"env": env, "stderr": string(outb)}}
+					_ = json.NewEncoder(out).Encode(d)
+				}
+			} else {
+				if st, _ := os.Stat(shimObj); st != nil { objs = append(objs, shimObj) }
+			}
+		}
 		if metalObj != "" {
 			if st, _ := os.Stat(metalObj); st != nil {
 				objs = append(objs, metalObj)

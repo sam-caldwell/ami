@@ -65,6 +65,18 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "slice<any>"}
         return ir.Expr{Op: "call", Callee: "ami_rt_metal_devices", Result: res}, true
     }
+    if strings.HasSuffix(name, ".CudaDevices") || name == "gpu.CudaDevices" {
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "slice<any>"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_cuda_devices", Result: res}, true
+    }
+    if strings.HasSuffix(name, ".OpenCLPlatforms") || name == "gpu.OpenCLPlatforms" {
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "slice<any>"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_opencl_platforms", Result: res}, true
+    }
+    if strings.HasSuffix(name, ".OpenCLDevices") || name == "gpu.OpenCLDevices" {
+        id := st.newTemp(); res := &ir.Value{ID: id, Type: "slice<any>"}
+        return ir.Expr{Op: "call", Callee: "ami_rt_opencl_devices", Result: res}, true
+    }
     if strings.HasSuffix(name, ".MetalCreateContext") || name == "gpu.MetalCreateContext" {
         var args []ir.Value
         for _, a := range c.Args { if ex, ok := lowerExpr(st, a); ok && ex.Result != nil { args = append(args, *ex.Result) } }

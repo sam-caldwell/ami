@@ -95,5 +95,12 @@ func addExternsForExpr(e *ModuleEmitter, ex ir.Expr) {
         e.RequireExtern("declare void @ami_rt_metal_copy_from_device(ptr, ptr, i64)")
     case "ami_rt_metal_dispatch_blocking":
         e.RequireExtern("declare ptr @ami_rt_metal_dispatch_blocking(ptr, ptr, i64, i64, i64, i64, i64, i64)")
+    // CUDA/OpenCL enumeration externs (stubs until real impl)
+    case "ami_rt_cuda_devices":
+        e.RequireExtern("declare ptr @ami_rt_cuda_devices()")
+    case "ami_rt_opencl_platforms":
+        e.RequireExtern("declare ptr @ami_rt_opencl_platforms()")
+    case "ami_rt_opencl_devices":
+        e.RequireExtern("declare ptr @ami_rt_opencl_devices()")
     }
 }

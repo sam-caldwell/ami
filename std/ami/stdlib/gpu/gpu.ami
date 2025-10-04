@@ -6,7 +6,7 @@ func MetalAvailable() (bool) { return ami_rt_gpu_has(0) }
 func OpenCLAvailable() (bool) { return ami_rt_gpu_has(2) }
 
 // Enumerations (temporary placeholder signatures until concrete types are finalized)
-func MetalDevices() (slice<any>) { return nil }
-func CudaDevices() (slice<any>) { return nil }
-func OpenCLPlatforms() (slice<any>) { return nil }
-func OpenCLDevices() (slice<any>) { return nil }
+func MetalDevices() (slice<any>) { return ami_rt_metal_devices() }
+func CudaDevices() (slice<any>) { return ami_rt_cuda_devices() }
+func OpenCLPlatforms() (slice<any>) { return ami_rt_opencl_platforms() }
+func OpenCLDevices() (slice<any>) { return ami_rt_opencl_devices() }

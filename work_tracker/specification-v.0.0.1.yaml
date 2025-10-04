@@ -2104,6 +2104,35 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-missing-break
+    title: Missing parser/AST/lowering for `break` statements
+    summary: |
+      The tokenizer defines `KwBreak`, but the AMI compiler does not implement `break` parsing or lowering. There is no
+      `BreakStmt` in the AST, no handling in `parseFuncBlock`, and no lowering in `lowerBlockCFG` to jump to loop/switch
+      exit blocks. As a result, AMI sources cannot use `break` to exit from loops or switch statements.
+    status: ready
+    repro:
+      - code: |
+          package app
+          func F(){
+            for { break }
+          }
+      - step: ami build
+      - observe: parse error (unexpected token 'break') due to missing parser support; or generic block error.
+    config:
+      references:
+        - parser: src/ami/compiler/parser/Parser.parseFuncBlock.go (no case for KwBreak)
+        - ast: src/ami/compiler/ast (no BreakStmt node)
+        - lowering: src/ami/compiler/driver/lower_block_cfg.go (no break lowering)
+        - token: src/ami/compiler/token/kind.go (KwBreak present)
+    expected_behavior: |
+      - Parse `break` and lower to CFG jumps that target the immediately enclosing loop/switch exit block, with correct
+        nesting and labels (when supported). Emit stable diagnostics for invalid use outside of loop/switch.
+    actual_behavior: |
+      - `break` is not recognized; there is no AST or lowering support.
+    workaround: |
+      - None directly; restructure with conditionals and returns, which changes semantics.
+    tests: []
   - id: B-2025-10-04-missing-switch-case
     title: Missing parser/lowering for switch/case/default (and fallthrough)
     summary: |

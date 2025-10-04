@@ -1990,6 +1990,41 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-edge-capacity-fieldnames
+    title: Edge capacity fields should be minCapacity/maxCapacity (not min/max)
+    summary: |
+      For FIFO/LIFO edge configurations, the correct attribute names are `minCapacity` and `maxCapacity`. The current
+      semantics layer recognizes only `min` and `max` (and flags others with `E_EDGE_PARAM_UNKNOWN`), and docs examples
+      use `min`/`max`. This diverges from the intended API and underlying edge specs which model `MinCapacity`/
+      `MaxCapacity`.
+    status: ready
+    repro:
+      - code: |
+          package app
+          pipeline P() {
+            Collect(
+              in=edge.FIFO(minCapacity=5, maxCapacity=10, backpressure=block),
+            )
+            egress
+          }
+      - step: ami build
+      - observe:
+          - code: E_EDGE_PARAM_UNKNOWN
+          - message: unknown edge parameter: minCapacity / maxCapacity
+    config:
+      references:
+        - sem: src/ami/compiler/sem/edges.go (accepts only min/max/backpressure)
+        - edge: src/ami/compiler/edge/fifo.go, src/ami/compiler/edge/lifo.go (MinCapacity/MaxCapacity fields)
+        - docs: docs/language/edges.md (examples show min/max; needs update)
+    expected_behavior: |
+      - Accept `minCapacity`/`maxCapacity` as canonical attribute names for FIFO/LIFO edges.
+      - Optionally support `min`/`max` as legacy aliases with a warning (deprecation path), or normalize both to the
+        same fields in debug artifacts.
+    actual_behavior: |
+      - Only `min`/`max` are recognized; `minCapacity`/`maxCapacity` produce unknown-parameter diagnostics.
+    workaround: |
+      - Use `min`/`max` until compiler and docs are updated to treat `minCapacity`/`maxCapacity` as canonical.
+    tests: []
   - id: B-2025-10-04-multipath-inputs-brackets-docx
     title: Docx mismatch — MultiPath inputs use bracketed lists `inputs=[ ... ]`
     summary: |

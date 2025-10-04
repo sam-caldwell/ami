@@ -1807,6 +1807,60 @@ stdlib:
             status: ready
             tests:
               - src/ami/runtime/host/yaml/yaml_strict_mode_test.go
+
+  - id: S-11
+    name: bufio package
+    features:
+      - id: F-11-1
+        name: Buffered Reader/Writer
+        expectations:
+          - id: E-11-1-1
+            statement: |
+              As a user, I expect an AMI stdlib `bufio` package, modeled after Go's `bufio`, to provide buffered
+              reading/writing with deterministic behavior and AMI semantics (no raw pointers, Owned<T> for buffers,
+              capability-aware I/O). Core APIs:
+              - type Reader; func bufio.NewReader(src any) (bufio.Reader, error)
+              - method Reader.Read(n int) (Owned<slice<uint8>>, error)
+              - method Reader.Peek(n int) (Owned<slice<uint8>>, error)
+              - method Reader.UnreadByte() error
+              - type Writer; func bufio.NewWriter(dst any) (bufio.Writer, error)
+              - method Writer.Write(p Owned<slice<uint8>>) (int, error)
+              - method Writer.Flush() error
+              Backing sources/sinks include AMI `io` handles and in‑memory buffers (Owned<slice<uint8>>). Behavior is
+              deterministic with explicit flushes and bounded internal buffers.
+            dependencies: [S-1, F-11-10, F-11-18]
+            status: ready
+            tests:
+              - src/ami/runtime/host/bufio/reader_writer_test.go
+              - src/ami/compiler/driver/stdlib_bufio_lowering_test.go
+              - src/ami/compiler/codegen/llvm/stdlib_bufio_emit_test.go
+          - id: E-11-1-2
+            statement: |
+              As a maintainer, I expect Owned<T>-aware zeroization and no leaks: reads allocate Owned<slice<uint8>>
+              and obey RAII; writers accept Owned buffers or strings converted to Owned internally, with documented
+              ownership transfer rules. All operations return deterministic errors.
+            dependencies: [F-11-10, F-11-18]
+            status: ready
+            tests:
+              - src/ami/compiler/driver/raii_bufio_owned_test.go
+      - id: F-11-2
+        name: Scanner (minimal)
+        expectations:
+          - id: E-11-2-1
+            statement: |
+              As a user, I expect a minimal `bufio.Scanner` to iterate buffered input with a default split on lines.
+              APIs:
+              - type Scanner; func bufio.NewScanner(r bufio.Reader) (bufio.Scanner, error)
+              - method Scanner.Scan() bool
+              - method Scanner.Text() string
+              - method Scanner.Bytes() Owned<slice<uint8>>
+              - method Scanner.Err() error
+              Deterministic limits for token size are documented and enforce errors rather than panics.
+            dependencies: [S-1, F-11-10, F-11-18]
+            status: ready
+            tests:
+              - src/ami/runtime/host/bufio/scanner_test.go
+              - src/ami/compiler/driver/stdlib_bufio_scanner_lowering_test.go
           - id: E-8-1-2
             statement: |
               As a user, I expect that if the compiler detects a program imports the `gpu` package and uses it in an AMI

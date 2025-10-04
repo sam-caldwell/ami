@@ -9,6 +9,7 @@ import (
     amiio "github.com/sam-caldwell/ami/src/ami/runtime/host/io"
     amitime "github.com/sam-caldwell/ami/src/ami/runtime/host/time"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
+    errs "github.com/sam-caldwell/ami/src/schemas/errors"
 )
 
 // RunPipeline chains Collect merge steps sequentially for the named pipeline.
@@ -102,8 +103,51 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
         go func(){ for e := range prev { st.Enqueued++; next <- e; st.Emitted++ }; close(next); forwardStats(StageInfo{Name:"egress", Kind:"egress", Index:0}, st); close(statsOut) }()
         return next
     }
+    // Worker-based transform stage. Looks up worker by name in opts.Workers.
+    runWorker := func(idx int, workerName string, prev <-chan ev.Event) <-chan ev.Event {
+        next := make(chan ev.Event, 1024)
+        var st rmerge.Stats
+        wf := func(e ev.Event) (any, error) { return e, nil }
+        if opts.Workers != nil {
+            if f, ok := opts.Workers[workerName]; ok && f != nil { wf = f }
+        }
+        go func(){
+            for e := range prev {
+                st.Enqueued++
+                out, err := wf(e)
+                if err != nil {
+                    ee := errs.Error{Level: "error", Code: "E_WORKER", Message: err.Error(), Data: map[string]any{"worker": workerName}}
+                    if opts.ErrorChan != nil {
+                        // Emit via error channel and do not inject into main event stream.
+                        select { case opts.ErrorChan <- ee: default: /* drop if not drained */ }
+                    } else {
+                        ne := e
+                        ne.Payload = ee
+                        next <- ne
+                        st.Emitted++
+                    }
+                    continue
+                }
+                switch v := out.(type) {
+                case ev.Event:
+                    next <- v
+                default:
+                    ne := e
+                    ne.Payload = v
+                    next <- ne
+                }
+                st.Emitted++
+            }
+            close(next)
+            forwardStats(StageInfo{Name: workerName, Kind: "transform", Index: idx}, st)
+        }()
+        return next
+    }
     // Edges-based attempt
     if m.Package != "" {
+        // Load transform worker names (if available) to bind them along the path deterministically.
+        tnames, _ := loadTransformWorkers(".", m.Package, pipeline)
+        tIdxForNames := 0
         if nodes, err := BuildLinearPathFromEdges(".", m.Package, pipeline); err == nil && len(nodes) > 1 {
             cur := out
             // Optional Timer source when specified by opts or edges contain a Timer node
@@ -157,7 +201,13 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                         cur = oc
                     }
                 default:
-                    cur = runTransform(tIdx, name, cur)
+                    // If a worker name is available for this transform, run the worker; otherwise, identity transform+DSL stubs.
+                    if name == "Transform" && tIdxForNames < len(tnames) && tnames[tIdxForNames] != "" {
+                        cur = runWorker(tIdx, tnames[tIdxForNames], cur)
+                        tIdxForNames++
+                    } else {
+                        cur = runTransform(tIdx, name, cur)
+                    }
                     tIdx++
                 }
             }

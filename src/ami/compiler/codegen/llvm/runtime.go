@@ -117,6 +117,13 @@ func RuntimeLL(triple string, withMain bool) string {
     if allowCuda || allowOpenCL {
         s += "declare ptr @getenv(ptr)\n\n"
     }
+    // Provide weak default stubs for CUDA/OpenCL availability so host shims can override.
+    if allowCuda {
+        s += "define weak i1 @ami_rt_cuda_available() {\nentry:\n  ret i1 0\n}\n\n"
+    }
+    if allowOpenCL {
+        s += "define weak i1 @ami_rt_opencl_available() {\nentry:\n  ret i1 0\n}\n\n"
+    }
     if allowCuda {
         key := "AMI_GPU_FORCE_CUDA"
         esc := encodeCString(key)
@@ -145,7 +152,9 @@ func RuntimeLL(triple string, withMain bool) string {
         s += "  %cstr = getelementptr inbounds [" + itoa(len("AMI_GPU_FORCE_CUDA")+1) + " x i8], ptr @.gpu.env.cuda, i64 0, i64 0\n"
         s += "  %cenv = call ptr @getenv(ptr %cstr)\n"
         s += "  %cnz = icmp ne ptr %cenv, null\n"
-        s += "  %cz = zext i1 %cnz to i64\n"
+        s += "  %cavail = call i1 @ami_rt_cuda_available()\n"
+        s += "  %cor = or i1 %cnz, %cavail\n"
+        s += "  %cz = zext i1 %cor to i64\n"
         s += "  %cshift = shl i64 %cz, 1\n"
         s += "  %ccur = load i64, ptr %mask, align 8\n"
         s += "  %cnew = or i64 %ccur, %cshift\n"
@@ -156,7 +165,9 @@ func RuntimeLL(triple string, withMain bool) string {
         s += "  %ostr = getelementptr inbounds [" + itoa(len("AMI_GPU_FORCE_OPENCL")+1) + " x i8], ptr @.gpu.env.opencl, i64 0, i64 0\n"
         s += "  %oenv = call ptr @getenv(ptr %ostr)\n"
         s += "  %onz = icmp ne ptr %oenv, null\n"
-        s += "  %oz = zext i1 %onz to i64\n"
+        s += "  %oavail = call i1 @ami_rt_opencl_available()\n"
+        s += "  %oor = or i1 %onz, %oavail\n"
+        s += "  %oz = zext i1 %oor to i64\n"
         s += "  %oshift = shl i64 %oz, 2\n"
         s += "  %ocur = load i64, ptr %mask, align 8\n"
         s += "  %onew = or i64 %ocur, %oshift\n"

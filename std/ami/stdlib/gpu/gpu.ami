@@ -1,12 +1,36 @@
 package gpu
 
-// AMI stdlib stubs (signatures only)
+// Availability
 func CudaAvailable() (bool) { return ami_rt_gpu_has(1) }
 func MetalAvailable() (bool) { return ami_rt_gpu_has(0) }
 func OpenCLAvailable() (bool) { return ami_rt_gpu_has(2) }
 
-// Enumerations (temporary placeholder signatures until concrete types are finalized)
-func MetalDevices() (slice<any>) { return ami_rt_metal_devices() }
-func CudaDevices() (slice<any>) { return ami_rt_cuda_devices() }
-func OpenCLPlatforms() (slice<any>) { return ami_rt_opencl_platforms() }
-func OpenCLDevices() (slice<any>) { return ami_rt_opencl_devices() }
+// AMI-visible info shapes (anonymous Struct types)
+// Device: {ID:int64, Name:string, Backend:string}
+// Platform: {Name:string, Vendor:string}
+
+// Enumeration (typed containers). For now, call externs to fetch data and return an empty typed slice
+// until the decoder is implemented (runtime string helpers pending).
+func MetalDevices() (slice<Struct{ID:int64, Name:string, Backend:string}>) {
+    var _ = ami_rt_metal_devices()
+    var out slice<Struct{ID:int64, Name:string, Backend:string}>
+    return out
+}
+
+func CudaDevices() (slice<Struct{ID:int64, Name:string, Backend:string}>) {
+    var _ = ami_rt_cuda_devices()
+    var out slice<Struct{ID:int64, Name:string, Backend:string}>
+    return out
+}
+
+func OpenCLPlatforms() (slice<Struct{Name:string, Vendor:string}>) {
+    var _ = ami_rt_opencl_platforms()
+    var out slice<Struct{Name:string, Vendor:string}>
+    return out
+}
+
+func OpenCLDevices() (slice<Struct{ID:int64, Name:string, Backend:string}>) {
+    var _ = ami_rt_opencl_devices()
+    var out slice<Struct{ID:int64, Name:string, Backend:string}>
+    return out
+}

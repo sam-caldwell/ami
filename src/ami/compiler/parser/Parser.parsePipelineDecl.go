@@ -17,17 +17,17 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
     name := p.cur.Lexeme
     namePos := p.cur.Pos
     p.next()
-    // consume empty param list for now
-    if p.cur.Kind != token.LParenSym {
-        return nil, fmt.Errorf("expected '(', got %q", p.cur.Lexeme)
+    // Optional empty parameter list: allow either `pipeline Name() {` or `pipeline Name {`
+    var lp, rp source.Position
+    if p.cur.Kind == token.LParenSym {
+        lp = p.cur.Pos
+        p.next()
+        if p.cur.Kind != token.RParenSym {
+            return nil, fmt.Errorf("expected ')', got %q", p.cur.Lexeme)
+        }
+        rp = p.cur.Pos
+        p.next()
     }
-    lp := p.cur.Pos
-    p.next()
-    if p.cur.Kind != token.RParenSym {
-        return nil, fmt.Errorf("expected ')', got %q", p.cur.Lexeme)
-    }
-    rp := p.cur.Pos
-    p.next()
     // parse body with optional leading error block and simple steps
     if p.cur.Kind != token.LBraceSym {
         return nil, fmt.Errorf("expected '{', got %q", p.cur.Lexeme)
@@ -94,6 +94,7 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
                 p.pending = nil
                 // optional args
                 if p.cur.Kind == token.LParenSym {
+                    st.LParen = p.cur.Pos
                     p.next()
                     var args []ast.Arg
                     for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
@@ -109,6 +110,7 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
                         }
                     }
                     if p.cur.Kind == token.RParenSym {
+                        st.RParen = p.cur.Pos
                         p.next()
                     } else {
                         p.errf("missing ')' in step args")
@@ -209,4 +211,3 @@ func (p *Parser) parsePipelineDecl() (*ast.PipelineDecl, error) {
     p.pending = nil
     return pd, nil
 }
-

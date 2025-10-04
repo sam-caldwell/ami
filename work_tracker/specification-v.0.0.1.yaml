@@ -1931,7 +1931,7 @@ stdlib:
               - src/ami/runtime/host/gpu/cuda_owned_handles_test.go
               - src/ami/runtime/host/gpu/opencl_owned_handles_test.go
 
-      - id: F-8-6
+  - id: F-8-6
         name: Determinism, Scheduling, and Diagnostics
         expectations:
           - id: E-8-6-1
@@ -1943,3 +1943,50 @@ stdlib:
             tests:
               - src/ami/runtime/host/gpu/explain_test.go
               - src/ami/runtime/host/gpu/gpu_diag_test.go
+
+bug_reports:
+  - id: B-2025-10-04-compiler-pipeline-parens
+    title: Parser requires empty parameter list in pipeline declaration; conflicts with configured node attributes
+    summary: |
+      When compiling examples/correct, the compiler emits E_PARSE_SYNTAX beginning with
+      "expected '(', got '{'" at the pipeline declaration line. The parser currently requires an
+      empty parameter list after the pipeline name (e.g., `pipeline PeriodicInterval()`), which
+      causes a cascade of follow-on parse errors when the source uses `pipeline PeriodicInterval {`.
+
+      In this specific case, the behavior also conflicts with the authoritative docx semantics that
+      require configured pipeline nodes. The program specifies attributes for nodes (e.g., `Ingress(name=..., in=..., worker=..., ...)`),
+      but the compiler expectation effectively aligns with an empty attribute list pattern like `Ingress()`.
+      The parser should accept configured nodes and not require an empty parameter list on the pipeline declaration.
+    status: ready
+    repro:
+      - step: Ensure repo is on main with current CLI
+      - step: cd examples/correct
+      - step: ami build
+      - observe:
+          - code: E_PARSE_SYNTAX
+          - message: "expected '(', got '{'"
+          - file: examples/correct/src/main.ami
+          - notes: Subsequent messages include "expected function name, got '('", "expected '{', got ')'", and "unexpected token in error block: 'return'" due to cascading.
+    config:
+      workspace: examples/correct/ami.workspace
+      toolchain:
+        command: ami build
+        mode: default (no special flags)
+      environment:
+        os: darwin (reproducible on others per toolchain targets)
+        docx: docs/Asynchronous Machine Interface.docx (authoritative semantics)
+    expected_behavior: |
+      - Parser accepts pipeline declarations without a required empty parameter list (either allow `pipeline Name {` or
+        update examples/docs to reflect a mandatory `pipeline Name() {` if that is the intended grammar).
+      - Parser accepts configured node invocations with attributes (e.g., `Ingress(name=..., in=..., worker=..., ...)`).
+    actual_behavior: |
+      - Parser requires `()` after the pipeline name; source using `pipeline <Name> {` fails with E_PARSE_SYNTAX.
+      - Reported diagnostics (first error): "expected '(', got '{'" at the pipeline header.
+    workaround: |
+      Add an empty parameter list to the pipeline declarations (e.g., `pipeline PeriodicInterval() { ... }`,
+      `pipeline PeriodicCounter() { ... }`) to unblock parsing while the grammar/doc alignment is addressed.
+    references:
+      - file: examples/correct/src/main.ami
+      - diag_codes: [E_PARSE_SYNTAX]
+      - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
+    tests: []

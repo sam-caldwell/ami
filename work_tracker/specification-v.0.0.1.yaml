@@ -1660,7 +1660,7 @@ stdlib:
               `ir.Expr` with `Results []ir.Value` (retaining `Result *ir.Value` for single returns) and updating
               IR JSON encoding to include multi-result signatures for calls.
             dependencies: []
-            status: ready
+            status: complete
             tests:
               - src/ami/compiler/ir/encode_expr_call_test.go
 
@@ -1670,7 +1670,7 @@ stdlib:
               known function signatures, and for `return` lowering to collect/expand multi-result expressions so that
               `ir.Return{Values: ...}` receives the correct arity and types.
             dependencies: [F-8-1]
-            status: ready
+            status: complete
             tests:
               - src/ami/compiler/driver/return_tuple_aggregate_summary_test.go
               - src/ami/compiler/driver/return_tuple_mixed_summary_paths_test.go
@@ -1683,7 +1683,7 @@ stdlib:
               User function ABIs must not expose raw pointers; pointer-like types map to safe integer or opaque
               handles as appropriate.
             dependencies: [F-8-1]
-            status: ready
+            status: complete
             tests:
               - src/ami/compiler/codegen/llvm/module_test.go
               - src/ami/compiler/codegen/llvm/cond_phi_test.go
@@ -1698,7 +1698,7 @@ stdlib:
               `llvm.nextafter.f64`), and multi-result functions `Sincos`, `Frexp`, and `Modf` lower to either
               intrinsics/IR sequences or runtime helpers returning aggregates.
             dependencies: [F-7-1, F-7-2, F-7-3, F-7-4, F-7-5, F-8-1, F-8-3]
-            status: ready
+            status: complete
             tests:
               - src/ami/compiler/driver/time_intrinsics_llvm_test.go
               - src/ami/runtime/host/math/math_test.go
@@ -1710,7 +1710,7 @@ stdlib:
               `ami_rt_math_frexp(double)->{double,i64}`, and `ami_rt_math_modf(double)->{double,double}` implemented
               in `runtime.ll` using portable IR and LLVM intrinsics where possible.
             dependencies: [F-8-3]
-            status: ready
+            status: complete
             tests:
               - src/ami/compiler/codegen/llvm/runtime_roundtrip_test.go
 
@@ -1719,7 +1719,7 @@ stdlib:
               As a maintainer, I expect removal of `math` builtin stubs and any codegen skips: the compiler should
               import and fully lower/emit `math` without relying on stub packages.
             dependencies: [F-8-1, F-8-3, F-8-4]
-            status: ready
+            status: complete
             tests: []
 
           - id: E-8-7
@@ -1729,7 +1729,7 @@ stdlib:
               tests covering `math.Sincos`, `math.Frexp`, and `math.Modf`. Update `docs/language/stdlib/math.md` to
               reflect deterministic behavior and implementation notes.
             dependencies: [F-8-1, F-8-3, F-8-4]
-            status: ready
+            status: complete
             tests:
               - src/ami/compiler/codegen/llvm/module_test.go
               - tests/e2e (new cases TBD)
@@ -1792,7 +1792,7 @@ stdlib:
               `gpu.CudaMemcpyDtoH(dst []byte, src gpu.Buffer) error` to perform argument validation and deterministic
               erroring on invalid inputs under stubbed backends.
             dependencies: [F-11-21]
-            status: in_progress
+            status: complete
             tests:
               - src/ami/runtime/host/gpu/cuda_args_test.go
               - src/ami/runtime/host/gpu/stub_paths_test.go
@@ -1801,7 +1801,7 @@ stdlib:
               As a user, I expect kernel APIs with deterministic validation: `gpu.CudaLoadModule`, `gpu.CudaGetKernel`,
               and `gpu.CudaLaunchKernel` validate inputs and signal `ErrInvalidHandle` for invalid args under stubs.
             dependencies: [F-11-21]
-            status: in_progress
+            status: complete
             tests:
               - src/ami/runtime/host/gpu/cuda_args_test.go
               - src/ami/runtime/host/gpu/launch_blocking_test.go
@@ -1812,7 +1812,7 @@ stdlib:
               `gpu.CudaFree(buf gpu.Buffer) error`, `gpu.CudaMemcpyHtoD(dst gpu.Buffer, src []byte) error`, and
               `gpu.CudaMemcpyDtoH(dst []byte, src gpu.Buffer) error`.
             dependencies: [F-11-21]
-            status: ready
+            status: complete
             tests: []
 
           - id: E-8-2-4
@@ -1822,7 +1822,7 @@ stdlib:
               `gpu.CudaLaunchKernel(ctx gpu.Context, k gpu.Kernel, grid, block [3]uint32, sharedMem uint32, 
               args ...any) error`.
             dependencies: [F-11-21]
-            status: ready
+            status: complete
             tests: []
 
       - id: F-8-3
@@ -1893,7 +1893,7 @@ stdlib:
               As a user, I expect OpenCL discovery helpers: `gpu.OpenCLAvailable() bool` and 
               `gpu.OpenCLPlatforms() []gpu.Platform` with device enumeration.
             dependencies: []
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/gpu/opencl_discovery_test.go
               - src/ami/runtime/host/gpu/opencl_env_test.go

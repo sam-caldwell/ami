@@ -1990,6 +1990,38 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-errorpipeline-undeclared-onerror
+    title: onError references undefined error pipeline; error pipelines must be declared and end in egress
+    summary: |
+      The examples reference an error pipeline via `onError=ErrorPipeline` without declaring a corresponding error
+      pipeline. Per the docx, error pipelines must be declared and must end with `egress`. The current compiler parses
+      `onError=...` as a generic attribute but does not validate that the named error pipeline exists or that its steps
+      satisfy the required structure. Semantics currently validate only inlined error blocks within a pipeline body
+      (see AnalyzeErrorSemantics), not references by name.
+    status: ready
+    repro:
+      - file: examples/correct/src/main.ami
+      - step: Observe multiple occurrences of `onError=ErrorPipeline` in PeriodicInterval/PeriodicCounter steps
+      - step: ami build (parsing issues may trigger earlier; once resolved, `onError` remains unvalidated)
+      - observe: no diagnostic specifically indicating an undefined error pipeline or missing `egress` on the target
+    config:
+      references:
+        - docs: docs/Asynchronous Machine Interface.docx (error pipelines must be declared and terminate with egress)
+        - sem: src/ami/compiler/sem/errpipeline.go (validates only inner error blocks)
+        - diags: docs/diag-codes.md (E_ERRPIPE_START_INVALID, E_ERRPIPE_END_EGRESS exist for structure)
+    expected_behavior: |
+      - When `onError=<Name>` is present, validate that `<Name>` resolves to a declared error pipeline (or an inlined
+        error block bound to the pipeline), and that the error pipeline ends with `egress`.
+      - Emit a clear diagnostic for undefined error pipeline references (e.g., E_ERRPIPE_UNDECLARED) and structural
+        issues (E_ERRPIPE_END_EGRESS / E_ERRPIPE_START_INVALID) as applicable.
+      - Embed error pipeline metadata in IR/LLVM as today for declared/valid error pipelines.
+    actual_behavior: |
+      - `onError=...` is parsed as an attribute without cross-reference validation to a declared error pipeline; no
+        targeted diagnostic is emitted for undefined references.
+    workaround: |
+      - Use an inlined error block inside the pipeline declaration that ends with `egress`, or omit `onError` and rely
+        on the runtime's default ErrorPipeline until named references are validated.
+    tests: []
   - id: B-2025-10-04-node-kvstore-state-identifier
     title: Node KV store access via `state.get/set` not implemented; provide node-scoped `state` identifier per docx
     summary: |

@@ -1747,6 +1747,66 @@ stdlib:
             dependencies: [F-11-23, F-11-22, F-11-11]
             status: ready
             tests: []
+
+  - id: S-9
+    name: json package
+    features:
+      - id: F-9-1
+        name: JSON Encode/Decode
+        expectations:
+          - id: E-9-1-1
+            statement: |
+              As a user, I expect an AMI stdlib `json` package modeled on Go's `encoding/json` basics, implemented with
+              AMI semantics and emitted as LLVM. Provide deterministic, pointer-free helpers for encoding and decoding
+              common AMI types and structs.
+              - json.Encode(v any) (string, error) — returns canonical JSON with stable key ordering.
+              - json.Decode[T](s string) (T, error) — decodes into AMI types/Struct; errors are deterministic.
+              - Optional bytes variants may use `Owned<slice<uint8>>` in place of string.
+            dependencies: [F-11-10, F-11-18]
+            status: ready
+            tests:
+              - src/ami/runtime/host/json/json_encode_decode_test.go
+              - src/ami/compiler/driver/stdlib_json_lowering_test.go
+              - src/ami/compiler/codegen/llvm/stdlib_json_emit_test.go
+          - id: E-9-1-2
+            statement: |
+              As a maintainer, I expect canonical, deterministic encoding: stable map key ordering, IEEE-754 float
+              handling consistent with AMI math semantics, and no raw pointers in exposed APIs. Decoding rejects
+              unknown fields in strict mode with clear diagnostics.
+            dependencies: [F-11-18]
+            status: ready
+            tests:
+              - src/ami/runtime/host/json/json_canonical_order_test.go
+              - src/ami/compiler/driver/stdlib_json_strict_mode_test.go
+
+  - id: S-10
+    name: yaml package
+    features:
+      - id: F-10-1
+        name: YAML Encode/Decode
+        expectations:
+          - id: E-10-1-1
+            statement: |
+              As a user, I expect an AMI stdlib `yaml` package with a minimal, deterministic surface aligned with AMI
+              semantics and emitted as LLVM. Provide helpers similar to Go's yaml libraries while preserving AMI rules.
+              - yaml.Encode(v any) (string, error)
+              - yaml.Decode[T](s string) (T, error)
+              - Optional bytes variants may use `Owned<slice<uint8>>`.
+            dependencies: [F-11-10, F-11-18]
+            status: ready
+            tests:
+              - src/ami/runtime/host/yaml/yaml_encode_decode_test.go
+              - src/ami/compiler/driver/stdlib_yaml_lowering_test.go
+              - src/ami/compiler/codegen/llvm/stdlib_yaml_emit_test.go
+          - id: E-10-1-2
+            statement: |
+              As a maintainer, I expect deterministic YAML emission with a documented subset (no anchors/aliases by
+              default), stable ordering where representable, and strict decoding mode that rejects unknown fields with
+              clear diagnostics.
+            dependencies: [F-11-18]
+            status: ready
+            tests:
+              - src/ami/runtime/host/yaml/yaml_strict_mode_test.go
           - id: E-8-1-2
             statement: |
               As a user, I expect that if the compiler detects a program imports the `gpu` package and uses it in an AMI

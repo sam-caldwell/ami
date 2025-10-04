@@ -28,4 +28,4 @@ pipeline P(){
 Notes
 - The `os` API in AMI provides `Exec`, `Process.Start/Kill/Status/Stdin/Stdout/Stderr/Pid`, and `GetSystemStats()`.
 - This example will compile and run once the language/runtime hooks for stdlib packages are enabled.
-- For today, see `docs/language/stdlib/os.md` and the Go tests under `src/ami/stdlib/os/*_test.go` for working behavior.
+- For today, see `docs/language/stdlib/os.md` and the Go tests under `src/ami/runtime/host/os/*_test.go` for working behavior.

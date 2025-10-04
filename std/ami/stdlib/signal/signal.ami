@@ -1,0 +1,17 @@
+package signal
+
+// Enumerated OS signal types exposed to AMI.
+enum SignalType { SIGINT, SIGTERM, SIGHUP, SIGQUIT }
+
+// Use 'any' for handler in parser scaffold.
+func Register(sig SignalType, fn any) {
+    // Token(fn) lowered by driver to a deterministic immediate token.
+    var tok int64 = Token(fn)
+    ami_rt_signal_register(sig, tok)
+}
+func Enable(sig SignalType) { ami_rt_os_signal_enable(sig) }
+func Disable(sig SignalType) { ami_rt_os_signal_disable(sig) }
+
+// Future handler primitives
+func Install(fn any) {}
+func Token(fn any) (int64) {}

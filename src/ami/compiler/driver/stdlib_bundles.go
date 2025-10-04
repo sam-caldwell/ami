@@ -1,10 +1,21 @@
 package driver
 
-import "github.com/sam-caldwell/ami/src/ami/compiler/source"
+import (
+    "os"
+    "path/filepath"
+    "sort"
+    "strings"
+    "github.com/sam-caldwell/ami/src/ami/compiler/source"
+)
 
-// builtinStdlibPackages returns a slice of builtin AMI stdlib packages provided as in-memory stubs.
-// These enable AMI users to import packages like `time` and `signal` without providing implementations.
+// builtinStdlibPackages returns AMI stdlib packages. It prefers loading from
+// filesystem path `std/ami/stdlib/<pkg>/*.ami`. If none are found, it falls
+// back to minimal in-memory stubs for critical packages.
 func builtinStdlibPackages() []Package {
+    if pkgs := fsStdlibPackages("std/ami/stdlib"); len(pkgs) > 0 {
+        return pkgs
+    }
+    // Fallback: in-memory stubs to keep tests working without FS stdlib.
     var out []Package
     // time package stubs (signatures only).
     timeSrc := "package time\n" +
@@ -16,7 +27,6 @@ func builtinStdlibPackages() []Package {
         "func Delta(a Time, b Time) (int64) {}\n" +
         "func Unix(t Time) (int64) {}\n" +
         "func UnixNano(t Time) (int64) {}\n" +
-        // Ticker API surface (package-level functions; parser lacks method decls).\n" +
         "func NewTicker(d Duration) (Ticker) {}\n" +
         "func TickerStart(t Ticker) {}\n" +
         "func TickerStop(t Ticker) {}\n" +
@@ -25,23 +35,20 @@ func builtinStdlibPackages() []Package {
     tfs.AddFile("time.ami", timeSrc)
     out = append(out, Package{Name: "time", Files: tfs})
 
-    // signal package minimal surface (SignalType and Register). Handlers are stubs; semantics handled by runtime.
+    // signal package minimal surface
     sigSrc := "package signal\n" +
         "enum SignalType { SIGINT, SIGTERM, SIGHUP, SIGQUIT }\n" +
-        "// Use 'any' for handler to avoid function-typed params in parser scaffold\n" +
         "func Register(sig SignalType, fn any) {}\n" +
         "func Enable(sig SignalType) {}\n" +
         "func Disable(sig SignalType) {}\n" +
-        "// Future handler primitives:\n" +
         "func Install(fn any) {}\n" +
         "func Token(fn any) (int64) {}\n"
     sfs := &source.FileSet{}
     sfs.AddFile("signal.ami", sigSrc)
     out = append(out, Package{Name: "signal", Files: sfs})
 
-    // gpu package: top-level availability probes (signatures only)
+    // gpu package
     gpuSrc := "package gpu\n" +
-        "// AMI stdlib stubs (signatures only)\n" +
         "func CudaAvailable() (bool) {}\n" +
         "func MetalAvailable() (bool) {}\n" +
         "func OpenCLAvailable() (bool) {}\n"
@@ -49,5 +56,32 @@ func builtinStdlibPackages() []Package {
     gfs.AddFile("gpu.ami", gpuSrc)
     out = append(out, Package{Name: "gpu", Files: gfs})
 
+    return out
+}
+
+// fsStdlibPackages loads stdlib packages from the given root directory.
+// It expects structure: <root>/<pkg>/*.ami. Returns packages sorted by name.
+func fsStdlibPackages(root string) []Package {
+    var out []Package
+    entries, err := os.ReadDir(root)
+    if err != nil { return nil }
+    for _, e := range entries {
+        if !e.IsDir() { continue }
+        pkgName := e.Name()
+        dir := filepath.Join(root, pkgName)
+        files, _ := os.ReadDir(dir)
+        fs := &source.FileSet{}
+        for _, f := range files {
+            if f.IsDir() { continue }
+            name := f.Name()
+            if !strings.HasSuffix(name, ".ami") { continue }
+            b, err := os.ReadFile(filepath.Join(dir, name))
+            if err != nil { continue }
+            fs.AddFile(name, string(b))
+        }
+        if len(fs.Files) == 0 { continue }
+        out = append(out, Package{Name: pkgName, Files: fs})
+    }
+    sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
     return out
 }

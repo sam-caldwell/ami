@@ -2,7 +2,7 @@ package exec
 
 import (
     "time"
-    amitime "github.com/sam-caldwell/ami/src/ami/stdlib/time"
+    amitime "github.com/sam-caldwell/ami/src/ami/runtime/host/time"
 )
 
 // toStdTime converts amitime.Time to stdlib time.Time for payload compatibility.

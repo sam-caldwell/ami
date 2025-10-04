@@ -915,8 +915,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
-              - src/ami/stdlib/io/more_coverage_test.go
+              - src/ami/runtime/host/io/file_test.go
+              - src/ami/runtime/host/io/more_coverage_test.go
 
           - id: E-1-1-2
             statement: |
@@ -925,7 +925,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
           - id: E-1-1-3
             statement: |
@@ -934,7 +934,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
           - id: E-1-1-4
             statement: |
@@ -945,7 +945,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
           - id: E-1-1-5
             statement: |
@@ -956,8 +956,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
-              - src/ami/stdlib/io/more_coverage_test.go
+              - src/ami/runtime/host/io/file_test.go
+              - src/ami/runtime/host/io/more_coverage_test.go
 
           - id: E-1-1-6
             statement: |
@@ -967,8 +967,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
-              - src/ami/stdlib/io/more_coverage_test.go
+              - src/ami/runtime/host/io/file_test.go
+              - src/ami/runtime/host/io/more_coverage_test.go
 
           - id: E-1-1-7
             statement: |
@@ -976,7 +976,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
           - id: E-1-1-8
             statement: |
@@ -986,7 +986,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
           - id: E-1-1-9
             statement: |
@@ -996,7 +996,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
           - id: E-1-1-10
             statement: |
@@ -1005,7 +1005,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
       - id: F-1-2
         name: Stdlib Console Input / Output
@@ -1017,8 +1017,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
-              - src/ami/stdlib/io/more_coverage_test.go
+              - src/ami/runtime/host/io/file_test.go
+              - src/ami/runtime/host/io/more_coverage_test.go
 
           - id: E-1-2-2
             statement: |
@@ -1027,7 +1027,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
           - id: E-1-2-3
             statement: |
@@ -1036,7 +1036,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_test.go
+              - src/ami/runtime/host/io/file_test.go
 
       - id: F-1-3
         name: Stdlib Network Input / Output
@@ -1049,11 +1049,11 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/socket_udp_test.go
-              - src/ami/stdlib/io/socket_tcp_test.go
-              - src/ami/stdlib/io/socket_read_test.go
-              - src/ami/stdlib/io/socket_tcp_listen_test.go
-              - src/ami/stdlib/io/more_coverage_test.go
+              - src/ami/runtime/host/io/socket_udp_test.go
+              - src/ami/runtime/host/io/socket_tcp_test.go
+              - src/ami/runtime/host/io/socket_read_test.go
+              - src/ami/runtime/host/io/socket_tcp_listen_test.go
+              - src/ami/runtime/host/io/more_coverage_test.go
 
           - id: E-1-3-2
             statement: |
@@ -1064,9 +1064,9 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/socket_udp_test.go
-              - src/ami/stdlib/io/socket_tcp_test.go
-              - src/ami/stdlib/io/socket_tcp_listen_test.go
+              - src/ami/runtime/host/io/socket_udp_test.go
+              - src/ami/runtime/host/io/socket_tcp_test.go
+              - src/ami/runtime/host/io/socket_tcp_listen_test.go
 
           - id: E-1-3-3
             statement: |
@@ -1076,9 +1076,9 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/socket_udp_test.go
-              - src/ami/stdlib/io/socket_tcp_test.go
-              - src/ami/stdlib/io/socket_helpers_test.go
+              - src/ami/runtime/host/io/socket_udp_test.go
+              - src/ami/runtime/host/io/socket_tcp_test.go
+              - src/ami/runtime/host/io/socket_helpers_test.go
 
           - id: E-1-3-4
             statement: |
@@ -1087,7 +1087,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_network_test.go
+              - src/ami/runtime/host/io/file_network_test.go
 
           - id: E-1-3-5
             statement: |
@@ -1096,7 +1096,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/io/file_network_test.go
+              - src/ami/runtime/host/io/file_network_test.go
 
       - id: F-1-4
         name: I/O POP Capability Enforcement
@@ -1136,10 +1136,10 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/os/process_test.go
-              - src/ami/stdlib/os/process_io_kill_test.go
-              - src/ami/stdlib/os/process_helpers_test.go
-              - src/ami/stdlib/os/process_kill_unix_test.go
+              - src/ami/runtime/host/os/process_test.go
+              - src/ami/runtime/host/os/process_io_kill_test.go
+              - src/ami/runtime/host/os/process_helpers_test.go
+              - src/ami/runtime/host/os/process_kill_unix_test.go
 
           - id: E-2-1-3
             statement: |
@@ -1149,8 +1149,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/os/process_test.go
-              - src/ami/stdlib/os/process_helpers_test.go
+              - src/ami/runtime/host/os/process_test.go
+              - src/ami/runtime/host/os/process_helpers_test.go
 
           - id: E-2-1-4
             statement: |
@@ -1161,9 +1161,9 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/os/process_test.go
-              - src/ami/stdlib/os/process_io_kill_test.go
-              - src/ami/stdlib/os/process_helpers_test.go
+              - src/ami/runtime/host/os/process_test.go
+              - src/ami/runtime/host/os/process_io_kill_test.go
+              - src/ami/runtime/host/os/process_helpers_test.go
 
           - id: E-2-1-5
             statement: |
@@ -1172,8 +1172,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/os/process_test.go
-              - src/ami/stdlib/os/process_helpers_test.go
+              - src/ami/runtime/host/os/process_test.go
+              - src/ami/runtime/host/os/process_helpers_test.go
 
           - id: E-2-1-6
             statement: |
@@ -1182,8 +1182,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/os/system_test.go
-              - src/ami/stdlib/os/watch_test.go
+              - src/ami/runtime/host/os/system_test.go
+              - src/ami/runtime/host/os/watch_test.go
 
   - id: S-3
     name: os package (general)
@@ -1198,8 +1198,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/os/env_test.go
-              - src/ami/stdlib/os/process_helpers_test.go
+              - src/ami/runtime/host/os/env_test.go
+              - src/ami/runtime/host/os/process_helpers_test.go
 
           - id: E-3-1-2
             statement: |
@@ -1208,8 +1208,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/os/env_test.go
-              - src/ami/stdlib/os/process_helpers_test.go
+              - src/ami/runtime/host/os/env_test.go
+              - src/ami/runtime/host/os/process_helpers_test.go
 
           - id: E-3-1-3
             statement: |
@@ -1218,8 +1218,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/os/env_test.go
-              - src/ami/stdlib/os/process_helpers_test.go
+              - src/ami/runtime/host/os/env_test.go
+              - src/ami/runtime/host/os/process_helpers_test.go
 
   - id: S-4
     name: signal package (AMI stdlib)
@@ -1233,8 +1233,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/signal/signal_test.go
-              - src/ami/stdlib/signal/more_signal_test.go
+              - src/ami/runtime/host/signal/signal_test.go
+              - src/ami/runtime/host/signal/more_signal_test.go
               - src/ami/compiler/driver/signal_enable_llvm_test.go
 
           - id: E-4-1-2
@@ -1244,8 +1244,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/signal/signal_test.go
-              - src/ami/stdlib/signal/more_signal_test.go
+              - src/ami/runtime/host/signal/signal_test.go
+              - src/ami/runtime/host/signal/more_signal_test.go
               - src/ami/compiler/driver/signal_mapping_more_llvm_test.go
 
           - id: E-4-1-3
@@ -1255,8 +1255,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/signal/signal_test.go
-              - src/ami/stdlib/signal/more_signal_test.go
+              - src/ami/runtime/host/signal/signal_test.go
+              - src/ami/runtime/host/signal/more_signal_test.go
               - src/ami/compiler/driver/signal_register_llvm_test.go
               - src/ami/compiler/driver/signal_register_immediate_llvm_test.go
               - src/ami/compiler/driver/signal_register_selector_llvm_test.go
@@ -1274,7 +1274,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/time_test.go
+              - src/ami/runtime/host/time/time_test.go
 
           - id: E-5-1-2
             statement: |
@@ -1283,7 +1283,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/time_test.go
+              - src/ami/runtime/host/time/time_test.go
 
           - id: E-5-1-3
             statement: |
@@ -1291,7 +1291,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/time_test.go
+              - src/ami/runtime/host/time/time_test.go
 
           - id: E-5-1-4
             statement: |
@@ -1299,7 +1299,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/time_test.go
+              - src/ami/runtime/host/time/time_test.go
 
           - id: E-5-1-5
             statement: |
@@ -1308,7 +1308,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/time_test.go
+              - src/ami/runtime/host/time/time_test.go
 
           - id: E-5-1-6
             statement: |
@@ -1317,7 +1317,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/time_test.go
+              - src/ami/runtime/host/time/time_test.go
 
           - id: E-5-1-7
             statement: |
@@ -1326,7 +1326,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/time_test.go
+              - src/ami/runtime/host/time/time_test.go
 
           - id: E-5-1-8
             statement: |
@@ -1335,7 +1335,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/time_test.go
+              - src/ami/runtime/host/time/time_test.go
 
       - id: F-5-2
         name: time handler
@@ -1348,8 +1348,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/ticker_test.go
-              - src/ami/stdlib/time/ticker_more_test.go
+              - src/ami/runtime/host/time/ticker_test.go
+              - src/ami/runtime/host/time/ticker_more_test.go
 
           - id: E-5-2-2
             statement: |
@@ -1358,8 +1358,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/ticker_test.go
-              - src/ami/stdlib/time/ticker_more_test.go
+              - src/ami/runtime/host/time/ticker_test.go
+              - src/ami/runtime/host/time/ticker_more_test.go
 
           - id: E-5-2-3
             statement: |
@@ -1368,8 +1368,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/ticker_test.go
-              - src/ami/stdlib/time/ticker_more_test.go
+              - src/ami/runtime/host/time/ticker_test.go
+              - src/ami/runtime/host/time/ticker_more_test.go
 
           - id: E-5-2-4
             statement: |
@@ -1378,8 +1378,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/time/ticker_test.go
-              - src/ami/stdlib/time/ticker_more_test.go
+              - src/ami/runtime/host/time/ticker_test.go
+              - src/ami/runtime/host/time/ticker_more_test.go
 
   - id: S-6
     name: trigger package
@@ -1394,11 +1394,11 @@ stdlib:
             dependencies: [F-11-11, F-11-23]
             status: complete
             tests:
-              - src/ami/stdlib/trigger/timer_schedule_test.go
-              - src/ami/stdlib/trigger/fsnotify_test.go
-              - src/ami/stdlib/trigger/fsnotify_interval_env_test.go
-              - src/ami/stdlib/trigger/netlisten_tcp_test.go
-              - src/ami/stdlib/trigger/netlisten_udp_test.go
+              - src/ami/runtime/host/trigger/timer_schedule_test.go
+              - src/ami/runtime/host/trigger/fsnotify_test.go
+              - src/ami/runtime/host/trigger/fsnotify_interval_env_test.go
+              - src/ami/runtime/host/trigger/netlisten_tcp_test.go
+              - src/ami/runtime/host/trigger/netlisten_udp_test.go
 
       - id: F-6-2
         name: trigger facility for Time-based events
@@ -1410,7 +1410,7 @@ stdlib:
             dependencies: [F-11-23]
             status: complete
             tests:
-              - src/ami/stdlib/trigger/timer_schedule_test.go
+              - src/ami/runtime/host/trigger/timer_schedule_test.go
 
           - id: E-6-2-2
             statement: |
@@ -1419,7 +1419,7 @@ stdlib:
             dependencies: [F-11-23]
             status: complete
             tests:
-              - src/ami/stdlib/trigger/timer_schedule_test.go
+              - src/ami/runtime/host/trigger/timer_schedule_test.go
 
       - id: F-6-3
         name: trigger facility for Filesystem Events
@@ -1431,8 +1431,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/trigger/fs.go
-              - src/ami/stdlib/trigger/fsnotify_test.go
+              - src/ami/runtime/host/trigger/fs.go
+              - src/ami/runtime/host/trigger/fsnotify_test.go
 
           - id: E-6-3-2
             statement: |
@@ -1441,8 +1441,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/trigger/fs.go
-              - src/ami/stdlib/trigger/fsnotify_test.go
+              - src/ami/runtime/host/trigger/fs.go
+              - src/ami/runtime/host/trigger/fsnotify_test.go
 
           - id: E-6-3-4
             statement: |
@@ -1452,8 +1452,8 @@ stdlib:
             dependencies: [F-11-23]
             status: complete
             tests:
-              - src/ami/stdlib/trigger/fsnotify_test.go
-              - src/ami/stdlib/trigger/fsnotify_interval_env_test.go
+              - src/ami/runtime/host/trigger/fsnotify_test.go
+              - src/ami/runtime/host/trigger/fsnotify_interval_env_test.go
 
       - id: F-6-4
         name: trigger facility for Network Events
@@ -1466,8 +1466,8 @@ stdlib:
             dependencies: [F-11-23]
             status: complete
             tests:
-              - src/ami/stdlib/trigger/netlisten_tcp_test.go
-              - src/ami/stdlib/trigger/netlisten_udp_test.go
+              - src/ami/runtime/host/trigger/netlisten_tcp_test.go
+              - src/ami/runtime/host/trigger/netlisten_udp_test.go
 
           - id: E-6-4-2
             statement: |
@@ -1476,7 +1476,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/trigger/net.go
+              - src/ami/runtime/host/trigger/net.go
 
           - id: E-6-4-3
             statement: |
@@ -1485,8 +1485,8 @@ stdlib:
             dependencies: [F-11-23, F-11-24]
             status: complete
             tests:
-              - src/ami/stdlib/trigger/netlisten_tcp_test.go
-              - src/ami/stdlib/trigger/netlisten_udp_test.go
+              - src/ami/runtime/host/trigger/netlisten_tcp_test.go
+              - src/ami/runtime/host/trigger/netlisten_udp_test.go
 
   - id: S-7
     name: math package
@@ -1501,8 +1501,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
-              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/runtime/host/math/math_test.go
+              - src/ami/runtime/host/math/more_math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-1-2
@@ -1512,7 +1512,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-1-3
@@ -1522,8 +1522,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
-              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/runtime/host/math/math_test.go
+              - src/ami/runtime/host/math/more_math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-1-4
@@ -1533,7 +1533,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_more_ami_test.go
 
       - id: F-7-2
@@ -1546,7 +1546,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-2-2
@@ -1556,7 +1556,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-2-3
@@ -1566,7 +1566,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
       - id: F-7-3
@@ -1579,7 +1579,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-3-2
@@ -1589,8 +1589,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
-              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/runtime/host/math/math_test.go
+              - src/ami/runtime/host/math/more_math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-3-3
@@ -1600,7 +1600,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_even_more_ami_test.go
 
       - id: F-7-4
@@ -1613,7 +1613,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_remaining_ami_test.go
 
           - id: E-7-4-2
@@ -1623,8 +1623,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
-              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/runtime/host/math/math_test.go
+              - src/ami/runtime/host/math/more_math_test.go
               - src/ami/compiler/driver/stdlib_math_even_more_ami_test.go
 
           - id: E-7-4-3
@@ -1634,8 +1634,8 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
-              - src/ami/stdlib/math/more_math_test.go
+              - src/ami/runtime/host/math/math_test.go
+              - src/ami/runtime/host/math/more_math_test.go
               - src/ami/compiler/driver/stdlib_math_more_ami_test.go
 
       - id: F-7-5
@@ -1648,7 +1648,7 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
               - src/ami/compiler/driver/stdlib_math_ami_test.go
 
       - id: F-8
@@ -1701,7 +1701,7 @@ stdlib:
             status: ready
             tests:
               - src/ami/compiler/driver/time_intrinsics_llvm_test.go
-              - src/ami/stdlib/math/math_test.go
+              - src/ami/runtime/host/math/math_test.go
 
           - id: E-8-5
             statement: |
@@ -1772,8 +1772,8 @@ stdlib:
             dependencies: []
             status: ready
             tests:
-              - src/ami/stdlib/gpu/cuda_discovery_test.go
-              - src/ami/stdlib/gpu/cuda_env_test.go
+              - src/ami/runtime/host/gpu/cuda_discovery_test.go
+              - src/ami/runtime/host/gpu/cuda_env_test.go
 
           - id: E-8-2-2
             statement: |
@@ -1782,9 +1782,9 @@ stdlib:
             dependencies: [F-11-21]
             status: ready
             tests:
-              - src/ami/stdlib/gpu/cuda_owned_handles_test.go
-              - src/ami/stdlib/gpu/stub_paths_test.go
-              - src/ami/stdlib/gpu/cuda_error_paths_test.go
+              - src/ami/runtime/host/gpu/cuda_owned_handles_test.go
+              - src/ami/runtime/host/gpu/stub_paths_test.go
+              - src/ami/runtime/host/gpu/cuda_error_paths_test.go
           - id: E-8-2-3
             statement: |
               As a user, I expect buffer and transfer APIs: `gpu.CudaAlloc(n int) (gpu.Buffer, error)`,
@@ -1794,8 +1794,8 @@ stdlib:
             dependencies: [F-11-21]
             status: in_progress
             tests:
-              - src/ami/stdlib/gpu/cuda_args_test.go
-              - src/ami/stdlib/gpu/stub_paths_test.go
+              - src/ami/runtime/host/gpu/cuda_args_test.go
+              - src/ami/runtime/host/gpu/stub_paths_test.go
           - id: E-8-2-4
             statement: |
               As a user, I expect kernel APIs with deterministic validation: `gpu.CudaLoadModule`, `gpu.CudaGetKernel`,
@@ -1803,8 +1803,8 @@ stdlib:
             dependencies: [F-11-21]
             status: in_progress
             tests:
-              - src/ami/stdlib/gpu/cuda_args_test.go
-              - src/ami/stdlib/gpu/launch_blocking_test.go
+              - src/ami/runtime/host/gpu/cuda_args_test.go
+              - src/ami/runtime/host/gpu/launch_blocking_test.go
 
           - id: E-8-2-3
             statement: |
@@ -1835,15 +1835,15 @@ stdlib:
             dependencies: []
             status: complete
             tests:
-              - src/ami/stdlib/gpu/metal_darwin_test.go
-              - src/ami/stdlib/gpu/metal_scalar_test.go
-              - src/ami/stdlib/gpu/metal_slice_i8_test.go
-              - src/ami/stdlib/gpu/metal_slice_i32_test.go
-              - src/ami/stdlib/gpu/metal_slice_u16_test.go
-              - src/ami/stdlib/gpu/metal_slice_u32_test.go
-              - src/ami/stdlib/gpu/metal_slice_u8_test.go
-              - src/ami/stdlib/gpu/metal_slice_f32_test.go
-              - src/ami/stdlib/gpu/metal_release_test.go
+              - src/ami/runtime/host/gpu/metal_darwin_test.go
+              - src/ami/runtime/host/gpu/metal_scalar_test.go
+              - src/ami/runtime/host/gpu/metal_slice_i8_test.go
+              - src/ami/runtime/host/gpu/metal_slice_i32_test.go
+              - src/ami/runtime/host/gpu/metal_slice_u16_test.go
+              - src/ami/runtime/host/gpu/metal_slice_u32_test.go
+              - src/ami/runtime/host/gpu/metal_slice_u8_test.go
+              - src/ami/runtime/host/gpu/metal_slice_f32_test.go
+              - src/ami/runtime/host/gpu/metal_release_test.go
 
           - id: E-8-3-2
             statement: |
@@ -1852,8 +1852,8 @@ stdlib:
             dependencies: [F-11-21]
             status: complete
             tests:
-              - src/ami/stdlib/gpu/metal_darwin_test.go
-              - src/ami/stdlib/gpu/metal_release_test.go
+              - src/ami/runtime/host/gpu/metal_darwin_test.go
+              - src/ami/runtime/host/gpu/metal_release_test.go
 
           - id: E-8-3-3
             statement: |
@@ -1863,15 +1863,15 @@ stdlib:
             dependencies: [F-11-21]
             status: complete
             tests:
-              - src/ami/stdlib/gpu/metal_compute_test.go
-              - src/ami/stdlib/gpu/metal_scalar_test.go
-              - src/ami/stdlib/gpu/metal_slice_i8_test.go
-              - src/ami/stdlib/gpu/metal_slice_i32_test.go
-              - src/ami/stdlib/gpu/metal_slice_u16_test.go
-              - src/ami/stdlib/gpu/metal_slice_u32_test.go
-              - src/ami/stdlib/gpu/metal_slice_u8_test.go
-              - src/ami/stdlib/gpu/metal_slice_f32_test.go
-              - src/ami/stdlib/gpu/blocking_test.go
+              - src/ami/runtime/host/gpu/metal_compute_test.go
+              - src/ami/runtime/host/gpu/metal_scalar_test.go
+              - src/ami/runtime/host/gpu/metal_slice_i8_test.go
+              - src/ami/runtime/host/gpu/metal_slice_i32_test.go
+              - src/ami/runtime/host/gpu/metal_slice_u16_test.go
+              - src/ami/runtime/host/gpu/metal_slice_u32_test.go
+              - src/ami/runtime/host/gpu/metal_slice_u8_test.go
+              - src/ami/runtime/host/gpu/metal_slice_f32_test.go
+              - src/ami/runtime/host/gpu/blocking_test.go
 
           - id: E-8-3-4
             statement: |
@@ -1881,9 +1881,9 @@ stdlib:
             dependencies: [F-11-21]
             status: complete
             tests:
-              - src/ami/stdlib/gpu/metal_release_test.go
-              - src/ami/stdlib/gpu/metal_scalar_u8_test.go
-              - src/ami/stdlib/gpu/metal_slice_f32_test.go
+              - src/ami/runtime/host/gpu/metal_release_test.go
+              - src/ami/runtime/host/gpu/metal_scalar_u8_test.go
+              - src/ami/runtime/host/gpu/metal_slice_f32_test.go
 
       - id: F-8-4
         name: OpenCL Backend (OpenCL*)
@@ -1895,9 +1895,9 @@ stdlib:
             dependencies: []
             status: ready
             tests:
-              - src/ami/stdlib/gpu/opencl_discovery_test.go
-              - src/ami/stdlib/gpu/opencl_env_test.go
-              - src/ami/stdlib/gpu/opencl_devices_test.go
+              - src/ami/runtime/host/gpu/opencl_discovery_test.go
+              - src/ami/runtime/host/gpu/opencl_env_test.go
+              - src/ami/runtime/host/gpu/opencl_devices_test.go
 
           - id: E-8-4-2
             statement: |
@@ -1909,9 +1909,9 @@ stdlib:
             dependencies: [F-11-21]
             status: ready
             tests:
-              - src/ami/stdlib/gpu/opencl_args_test.go
-              - src/ami/stdlib/gpu/opencl_owned_handles_test.go
-              - src/ami/stdlib/gpu/opencl_error_paths_test.go
+              - src/ami/runtime/host/gpu/opencl_args_test.go
+              - src/ami/runtime/host/gpu/opencl_owned_handles_test.go
+              - src/ami/runtime/host/gpu/opencl_error_paths_test.go
 
       - id: F-8-5
         name: Common Opaque Handles and Ownership
@@ -1924,9 +1924,9 @@ stdlib:
             dependencies: [F-11-21]
             status: ready
             tests:
-              - src/ami/stdlib/gpu/gpu_stub_test.go
-              - src/ami/stdlib/gpu/cuda_owned_handles_test.go
-              - src/ami/stdlib/gpu/opencl_owned_handles_test.go
+              - src/ami/runtime/host/gpu/gpu_stub_test.go
+              - src/ami/runtime/host/gpu/cuda_owned_handles_test.go
+              - src/ami/runtime/host/gpu/opencl_owned_handles_test.go
 
       - id: F-8-6
         name: Determinism, Scheduling, and Diagnostics
@@ -1938,5 +1938,5 @@ stdlib:
             dependencies: [F-11-23, F-11-22]
             status: in_progress
             tests:
-              - src/ami/stdlib/gpu/explain_test.go
-              - src/ami/stdlib/gpu/gpu_diag_test.go
+              - src/ami/runtime/host/gpu/explain_test.go
+              - src/ami/runtime/host/gpu/gpu_diag_test.go

@@ -3,7 +3,7 @@ package exec
 import (
     "testing"
     stdtime "time"
-    amitime "github.com/sam-caldwell/ami/src/ami/stdlib/time"
+    amitime "github.com/sam-caldwell/ami/src/ami/runtime/host/time"
 )
 
 func Test_toStdTime_RoundtripFields(t *testing.T) {

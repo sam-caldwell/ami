@@ -1,6 +1,6 @@
 # Language: signal (planned AMI example)
 
-This document sketches how AMI source could use the stdlib `signal` package once language hooks are enabled. The Go implementation (`src/ami/stdlib/signal`) is available today; this is forward‑looking AMI code.
+This document sketches how AMI source could use the stdlib `signal` package once language hooks are enabled. The host-backed Go implementation now resides under `src/ami/runtime/host/signal`; AMI sources live under `std/ami/stdlib/signal`.
 
 AMI sample (illustrative only):
 

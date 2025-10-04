@@ -7,6 +7,7 @@ import (
     "path/filepath"
     "testing"
     "time"
+    "github.com/sam-caldwell/ami/src/testutil"
     ir "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
@@ -66,12 +67,12 @@ func TestRunPipelineWithStats_TimerSource(t *testing.T) {
     m := ir.Module{Package: "app"}
     ctx, cancel := context.WithCancel(context.Background())
     defer cancel()
-    out, statsCh, err := eng.RunPipelineWithStats(ctx, m, "P", nil, nil, "", "", ExecOptions{Sandbox: SandboxPolicy{AllowDevice: true}, TimerInterval: 5 * time.Millisecond, TimerCount: 2})
+    out, statsCh, err := eng.RunPipelineWithStats(ctx, m, "P", nil, nil, "", "", ExecOptions{Sandbox: SandboxPolicy{AllowDevice: true}, TimerInterval: 5 * time.Millisecond, TimerCount: testutil.ScaleInt(2)})
     if err != nil { t.Fatalf("run: %v", err) }
     // consume a few timer outputs then cancel
     got := 0
-    for e := range out { _ = e; got++; if got >= 2 { break } }
+    for e := range out { _ = e; got++; if got >= testutil.ScaleInt(2) { break } }
     cancel()
     for range statsCh { /* drain */ }
-    if got < 2 { t.Fatalf("expected >=2 timer outputs, got %d", got) }
+    if got < testutil.ScaleInt(2) { t.Fatalf("expected >=%d timer outputs, got %d", testutil.ScaleInt(2), got) }
 }

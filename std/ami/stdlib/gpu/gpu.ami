@@ -1,0 +1,6 @@
+package gpu
+
+// AMI stdlib stubs (signatures only)
+func CudaAvailable() (bool) { return false }
+func MetalAvailable() (bool) { return ami_rt_metal_available() }
+func OpenCLAvailable() (bool) { return false }

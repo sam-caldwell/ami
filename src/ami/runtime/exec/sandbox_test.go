@@ -4,6 +4,7 @@ import (
 	"context"
 	ir "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 	ev "github.com/sam-caldwell/ami/src/schemas/events"
+	"github.com/sam-caldwell/ami/src/testutil"
 	"testing"
 	"time"
 )
@@ -26,7 +27,7 @@ func testSandbox_TimerDenied(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	// Deny device => timer should be blocked
-	_, _, err = eng.RunPipelineWithStats(ctx, m, "P", in, nil, "none", "none", ExecOptions{TimerInterval: 5 * time.Millisecond, TimerCount: 1, Sandbox: SandboxPolicy{AllowDevice: false, AllowFS: true, AllowNet: true}})
+	_, _, err = eng.RunPipelineWithStats(ctx, m, "P", in, nil, "none", "none", ExecOptions{TimerInterval: 5 * time.Millisecond, TimerCount: testutil.ScaleInt(1), Sandbox: SandboxPolicy{AllowDevice: false, AllowFS: true, AllowNet: true}})
 	if err == nil {
 		t.Fatalf("expected sandbox denial error")
 	}
@@ -50,7 +51,7 @@ func testSandbox_TimerAllowed(t *testing.T) {
 	close(in)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	out, statsCh, err := eng.RunPipelineWithStats(ctx, m, "P", in, nil, "none", "none", ExecOptions{TimerInterval: 5 * time.Millisecond, TimerCount: 3, Sandbox: SandboxPolicy{AllowDevice: true}})
+	out, statsCh, err := eng.RunPipelineWithStats(ctx, m, "P", in, nil, "none", "none", ExecOptions{TimerInterval: 5 * time.Millisecond, TimerCount: testutil.ScaleInt(3), Sandbox: SandboxPolicy{AllowDevice: true}})
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}

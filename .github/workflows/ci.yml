@@ -24,6 +24,9 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      - name: Stdlib guard (.ami only)
+        run: bash scripts/check_stdlib_ami_only.sh
+
       - name: Go tests (all)
         run: make test
 
@@ -39,3 +42,8 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           bash scripts/coverage_gate.sh
+      - name: Coverage gate (overall src)
+        env:
+          THRESHOLD: '0.80'
+        run: |
+          bash scripts/coverage_gate_total.sh

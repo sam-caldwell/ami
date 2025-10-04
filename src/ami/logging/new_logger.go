@@ -7,7 +7,7 @@ import (
     "strings"
     "time"
 
-    stdlogger "github.com/sam-caldwell/ami/src/ami/stdlib/logger"
+    stdlogger "github.com/sam-caldwell/ami/src/ami/runtime/host/logger"
 )
 
 // New creates a Logger configured by Options.

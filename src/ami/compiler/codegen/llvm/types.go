@@ -34,6 +34,8 @@ func mapType(t string) string {
     case "Owned":
         // Explicit mapping for Owned handle type
         return "ptr"
+    case "Duration", "Time", "SignalType":
+        return "i64"
     default:
         // Generic/container/event/error/owned types → opaque handle
         if strings.Contains(tt, "<") || strings.Contains(tt, ">") { return "ptr" }

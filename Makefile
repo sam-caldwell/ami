@@ -16,10 +16,14 @@ clean: ## Remove and recreate the build/ directory
 	rm -rf ./build
 	mkdir -p ./build
 
-lint: check-single-test check-single-declaration test-hotspots
+lint: check-single-test check-single-declaration test-hotspots stdlib-ami-only
 	## Run static checks: go vet + single-test-per-file + single-declaration-per-file
 	# Enforce one Test* per *_test.go (repo-wide)
 	go vet -v ./...
+
+.PHONY: stdlib-ami-only
+stdlib-ami-only: ## Ensure std/ami/stdlib contains only .ami files
+	bash scripts/check_stdlib_ami_only.sh
 
 check-single-test: ## Enforce one Test* per *_test.go across src/
 	go run ./scripts/check-single-test-per-file.go src/
@@ -45,10 +49,14 @@ coverage-short: ## Fast coverage on CLI (filters heavy tests) + sanity on schema
 	# Run only fast CLI tests: Root/Version/Help/Mod/Lint/Pipeline; skip Build/Test E2E-like suites
 	GOFLAGS= go test -count=1 -short -timeout 90s \
 	  -run '^(TestRoot_|TestVersion_|TestHelp_|TestMod_|TestLint_|TestPipeline_)' \
-	  -covermode=atomic -coverprofile=build/coverage-short.out ./src/
+	  -covermode=atomic -coverprofile=build/coverage-short.out ./src/...
 	@echo "CLI coverage written to build/coverage-short.out"
 	# Sanity run schema packages in short mode (no coverage merge)
-	GOFLAGS= go test -count=1 -short ./src/schemas/log ./src/
+	GOFLAGS= go test -count=1 -short ./src/schemas/log ./src/...
+
+.PHONY: coverage-gate-total
+coverage-gate-total: ## Enforce overall coverage threshold (THRESHOLD=0.80 default)
+	@THRESHOLD=$${THRESHOLD:-0.80} bash scripts/coverage_gate_total.sh
 
 build: clean ## Build the ami CLI binary to build/ami
 	go build -o build/ami ./src/cmd/ami

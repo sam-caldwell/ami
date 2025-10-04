@@ -4,6 +4,7 @@ import (
     "context"
     "testing"
     "time"
+    "github.com/sam-caldwell/ami/src/testutil"
     ir "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
 )
@@ -30,7 +31,7 @@ func TestExec_Timer_Transform_Collect(t *testing.T) {
     ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
     defer cancel()
 
-    out, statsCh, err := eng.RunPipelineWithStats(ctx, m, "P", in, nil, "none", "add_field:flag", ExecOptions{TimerInterval: 5 * time.Millisecond, TimerCount: 3, Sandbox: SandboxPolicy{AllowDevice: true}})
+    out, statsCh, err := eng.RunPipelineWithStats(ctx, m, "P", in, nil, "none", "add_field:flag", ExecOptions{TimerInterval: 5 * time.Millisecond, TimerCount: testutil.ScaleInt(3), Sandbox: SandboxPolicy{AllowDevice: true}})
     if err != nil { t.Fatalf("run: %v", err) }
 
     count := 0
@@ -43,6 +44,5 @@ func TestExec_Timer_Transform_Collect(t *testing.T) {
     }
     // Drain stats (not asserted here)
     for range statsCh { /* no-op */ }
-    if count != 3 { t.Fatalf("expected 3 outputs from timer, got %d", count) }
+    if count != testutil.ScaleInt(3) { t.Fatalf("expected %d outputs from timer, got %d", testutil.ScaleInt(3), count) }
 }
-

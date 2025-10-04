@@ -4,7 +4,7 @@ import (
     "io"
     "time"
 
-    stdlogger "github.com/sam-caldwell/ami/src/ami/stdlib/logger"
+    stdlogger "github.com/sam-caldwell/ami/src/ami/runtime/host/logger"
 )
 
 // Logger is a simple structured logger with JSON/human formats.

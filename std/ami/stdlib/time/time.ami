@@ -1,0 +1,44 @@
+package time
+
+// AMI stdlib implementations backed by runtime externs.
+// Duration represents elapsed time in nanoseconds; Time is a timestamp epoch-ns.
+
+// Sleep pauses execution for at least d.
+func Sleep(d Duration) {
+    // Convert ns → ms for runtime sleep helper
+    var ms int64 = d / 1000000
+    ami_rt_sleep_ms(ms)
+}
+
+// Now returns the current wall clock time.
+func Now() (Time) {
+    var t int64 = ami_rt_time_now()
+    return t
+}
+
+// Add returns t + d as a new Time.
+func Add(t Time, d Duration) (Time) {
+    var r int64 = ami_rt_time_add(t, d)
+    return r
+}
+
+// Delta returns b - a in nanoseconds.
+func Delta(a Time, b Time) (int64) {
+    return ami_rt_time_delta(a, b)
+}
+
+// Unix returns seconds since Unix epoch for t.
+func Unix(t Time) (int64) {
+    return ami_rt_time_unix(t)
+}
+
+// UnixNano returns nanoseconds since Unix epoch for t.
+func UnixNano(t Time) (int64) {
+    return ami_rt_time_unix_nano(t)
+}
+
+// Ticker API surface (package-level functions; parser lacks method decls)
+func NewTicker(d Duration) (Ticker) { var z Ticker; return z }
+func TickerStart(t Ticker) {}
+func TickerStop(t Ticker) {}
+func TickerRegister(t Ticker, fn any) {}

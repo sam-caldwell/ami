@@ -2,7 +2,7 @@ package exec
 
 import (
     "time"
-    amiio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
+    amiio "github.com/sam-caldwell/ami/src/ami/runtime/host/io"
 )
 
 // ExecOptions control runner behavior for sources/sinks in simulation.

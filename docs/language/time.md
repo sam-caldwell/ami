@@ -1,6 +1,6 @@
 # Language: time (planned AMI example)
 
-This document shows how AMI source uses the stdlib `time` package. The runtime implementation is opaque to AMI users; the API here is the stable AMI surface.
+This document shows how AMI source uses the stdlib `time` package. The runtime implementation is opaque to AMI users; the API here is the stable AMI surface. AMI sources for `time` live under `std/ami/stdlib/time`; host-backed helpers live under `src/ami/runtime/host/time`.
 
 AMI sample (illustrative only):
 

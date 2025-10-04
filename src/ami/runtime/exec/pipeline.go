@@ -5,9 +5,9 @@ import (
     "time"
     ir "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     rmerge "github.com/sam-caldwell/ami/src/ami/runtime/merge"
-    amitrigger "github.com/sam-caldwell/ami/src/ami/stdlib/trigger"
-    amiio "github.com/sam-caldwell/ami/src/ami/stdlib/io"
-    amitime "github.com/sam-caldwell/ami/src/ami/stdlib/time"
+    amitrigger "github.com/sam-caldwell/ami/src/ami/runtime/host/trigger"
+    amiio "github.com/sam-caldwell/ami/src/ami/runtime/host/io"
+    amitime "github.com/sam-caldwell/ami/src/ami/runtime/host/time"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
 )
 

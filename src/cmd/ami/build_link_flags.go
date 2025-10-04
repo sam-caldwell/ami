@@ -12,6 +12,11 @@ func linkExtraFlags(env string, opts []string) []string {
         // Link against Apple frameworks needed for Metal runtime integrations
         extra = append(extra, "-framework", "Foundation", "-framework", "Metal")
     }
+    // Linker libs for platforms
+    if strings.HasPrefix(env, "linux/") {
+        // required for dlopen/dlsym used in GPU shims
+        extra = append(extra, "-ldl")
+    }
     // Options mapping
     for _, opt := range opts {
         switch opt {
@@ -37,4 +42,3 @@ func linkExtraFlags(env string, opts []string) []string {
     }
     return extra
 }
-

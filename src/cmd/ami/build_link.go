@@ -255,22 +255,66 @@ void* ami_rt_metal_dispatch_blocking(void* ctxp, void* pipep,
 			_ = os.WriteFile(shim, []byte(`
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+static int has_cuda(void){ HMODULE h = LoadLibraryA("nvcuda.dll"); if(h){ FreeLibrary(h); return 1; } return 0; }
+static int has_opencl(void){ HMODULE h = LoadLibraryA("OpenCL.dll"); if(h){ FreeLibrary(h); return 1; } return 0; }
+#elif defined(__APPLE__)
+#include <dlfcn.h>
+static int has_cuda(void){ void* h = dlopen("libcuda.dylib", RTLD_LAZY); if(h){ dlclose(h); return 1; } return 0; }
+static int has_opencl(void){ void* h = dlopen("/System/Library/Frameworks/OpenCL.framework/OpenCL", RTLD_LAZY); if(!h) h = dlopen("libOpenCL.dylib", RTLD_LAZY); if(h){ dlclose(h); return 1; } return 0; }
+#else
+#include <dlfcn.h>
+static int has_cuda(void){ void* h = dlopen("libcuda.so.1", RTLD_LAZY); if(!h) h = dlopen("libcuda.so", RTLD_LAZY); if(h){ dlclose(h); return 1; } return 0; }
+static int has_opencl(void){ void* h = dlopen("libOpenCL.so.1", RTLD_LAZY); if(!h) h = dlopen("libOpenCL.so", RTLD_LAZY); if(h){ dlclose(h); return 1; } return 0; }
+#endif
 
 // Strong definitions override weak runtime stubs
 unsigned char ami_rt_cuda_available(void) {
     const char* v = getenv("AMI_GPU_FORCE_CUDA");
-    return v && v[0] ? 1 : 0;
+    if (v && v[0]) return 1;
+    return has_cuda() ? 1 : 0;
 }
 
 unsigned char ami_rt_opencl_available(void) {
     const char* v = getenv("AMI_GPU_FORCE_OPENCL");
-    return v && v[0] ? 1 : 0;
+    if (v && v[0]) return 1;
+    return has_opencl() ? 1 : 0;
 }
 
-// Enumeration stubs (to be replaced with real implementations later)
-void* ami_rt_cuda_devices(void) { return (void*)0; }
-void* ami_rt_opencl_platforms(void) { return (void*)0; }
-void* ami_rt_opencl_devices(void) { return (void*)0; }
+// Owned handle layout: { void* data; long long len }
+typedef struct { void* data; long long len; } AmiOwned;
+static void* mk_owned(const char* s){
+    if (!s) return (void*)0;
+    size_t n = strlen(s);
+    char* buf = (char*)malloc(n);
+    if (!buf) return (void*)0;
+    memcpy(buf, s, n);
+    AmiOwned* h = (AmiOwned*)malloc(sizeof(AmiOwned));
+    if (!h){ free(buf); return (void*)0; }
+    h->data = (void*)buf;
+    h->len = (long long)n;
+    return (void*)h;
+}
+
+// Enumeration (scaffold): return JSON arrays in Owned-like handle
+void* ami_rt_cuda_devices(void) {
+    if (!ami_rt_cuda_available()) return (void*)0;
+    // Minimal, deterministic JSON; expand when real enumeration lands
+    return mk_owned("{\"backend\":\"cuda\",\"devices\":[{\"id\":0,\"name\":\"stub\"}]}\n");
+}
+
+void* ami_rt_opencl_platforms(void) {
+    if (!ami_rt_opencl_available()) return (void*)0;
+    return mk_owned("{\"backend\":\"opencl\",\"platforms\":[{\"name\":\"stub\"}]}\n");
+}
+
+void* ami_rt_opencl_devices(void) {
+    if (!ami_rt_opencl_available()) return (void*)0;
+    return mk_owned("{\"backend\":\"opencl\",\"devices\":[{\"id\":0,\"name\":\"stub\"}]}\n");
+}
 
 `), 0o644)
 			shimObj := filepath.Join(rtDir, "gpu_shims.o")

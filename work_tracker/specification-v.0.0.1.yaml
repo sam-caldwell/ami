@@ -1990,3 +1990,118 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-examples-correct-periodiccounter-worker-sig
+    title: examples/correct PeriodicCounter ingress worker returns count but signature declares (Event<uint64>, error)
+    summary: |
+      In examples/correct/src/main.ami, the PeriodicCounter pipeline's ingress specifies a worker with the signature
+      `(Event<uint64>, error)` but the function body returns only `count` (a `uint64`). This is inconsistent. Under the
+      current compiler semantics, workers must return `(Event<U>, error)` and the body must return an `Event<U>` value.
+      Under the docx semantics, workers should return `(U, error)` and the VM emits `Event<U>`; in that case the
+      example’s function signature should be `(uint64, error)` rather than `(Event<uint64>, error)`.
+    status: ready
+    repro:
+      - step: Open examples/correct/src/main.ami
+      - step: Locate PeriodicCounter ingress worker
+      - code: |
+          worker=func(_ Event<time.Time>) (Event<uint64>, error ){
+              const defaultValue uint64 = 0
+              count:=strconv.AtoUint64(state.get("counter",defaultValue))
+              state.set("counter",count++)
+              return count
+          }
+      - step: ami build (note: pipeline parens and inline func parsing bugs may block earlier; see related bugs)
+      - observe: Signature and return mismatch (would be flagged once parser accepts the file and inline worker forms)
+    config:
+      workspace: examples/correct/ami.workspace
+      toolchain:
+        command: ami build
+        mode: default
+      references:
+        - file: examples/correct/src/main.ami
+        - sem: src/ami/compiler/sem/workers.go (current check expects `(Event<U>, error)`)
+        - docx: docs/Asynchronous Machine Interface.docx (VM emits Event<T>/Error<E>)
+        - related: B-2025-10-04-worker-returns-payload
+    expected_behavior: |
+      - If following current compiler semantics: keep `(Event<uint64>, error)` signature and return an `Event<uint64>`
+        (plus error), not a bare `uint64`.
+      - If aligning with docx: change the worker signature to `(uint64, error)` and allow the VM to emit `Event<uint64>`.
+    actual_behavior: |
+      - Function signature declares `(Event<uint64>, error)` but returns `count` (uint64), violating the declared
+        result type.
+    workaround: |
+      - Short term: wrap `count` into an appropriate `Event<uint64>` value and return `(Event<uint64>, nil)` to satisfy
+        the current signature; or change the signature to `(uint64, error)` once the compiler accepts docx-style
+        worker returns.
+    tests: []
+  - id: B-2025-10-04-worker-returns-payload
+    title: Worker must return payload type and error; VM emits Event<T>/Error<E>
+    summary: |
+      The authoritative docx specifies that all workers return the payload type `T` and `error`, and the
+      worker VM is responsible for emitting `Event<T>` on success and `Error<E>` on failure. The current
+      compiler/semantics require workers to return `(Event<U>, error)` and emit `E_WORKER_SIGNATURE` when
+      a worker returns `(U, error)`. This diverges from the docx and prevents writing workers that return the
+      bare payload type.
+    status: ready
+    repro:
+      - step: Create an AMI file with a worker returning `(uint64, error)` and a simple pipeline using it
+      - code: |
+          package app
+          func W(ev Event<uint64>) (uint64, error) { return 0, nil }
+          pipeline P() {
+            Transform(worker=W)
+            Egress()
+          }
+      - step: ami build
+      - observe:
+          - code: E_WORKER_SIGNATURE
+          - message: "invalid worker signature: want func(Event<T>)->(Event<U>, error)"
+    config:
+      toolchain:
+        command: ami build
+        mode: default
+      references:
+        - docx: docs/Asynchronous Machine Interface.docx (worker VM emits Event<T>/Error<E>)
+        - sem: src/ami/compiler/sem/workers.go (enforces Event<U> return)
+        - docs: docs/language/language-workers.md (needs reconciliation with docx)
+    expected_behavior: |
+      - Accept workers that return `(U, error)` where `U` is the payload type; the runtime/VM wraps the result
+        into `Event<U>` on success or emits an appropriate error channel/message on failure.
+      - Existing `(Event<U>, error)` workers may continue to be supported for migration if desired, but should not be
+        required by signature checks when the docx mandates `(U, error)`.
+    actual_behavior: |
+      - Workers returning `(U, error)` are rejected with `E_WORKER_SIGNATURE`; only `(Event<U>, error)` is accepted.
+    workaround: |
+      - Add a shim worker with the enforced signature that calls the docx-style worker, then wraps `U` into `Event<U>`
+        before returning. This preserves current compiler checks while the signature policy is aligned with the docx.
+    tests: []
+  - id: B-2025-10-04-pipeline-parens-optional
+    title: Pipeline declaration parentheses are optional per docx; parser incorrectly requires them
+    summary: |
+      The authoritative docx allows `pipeline <Name> { ... }` (no empty parameter list) and also
+      `pipeline <Name>() { ... }`. The current parser rejects the no-parens form with
+      E_PARSE_SYNTAX "expected '(', got '{'". This makes the pipeline attribute list effectively
+      mandatory syntactically, contrary to the spec which says the attribute list is optional.
+    status: ready
+    repro:
+      - step: cd examples/correct
+      - step: ami build
+      - observe:
+          - code: E_PARSE_SYNTAX
+          - message: "expected '(', got '{'" at the pipeline declaration line
+          - file: examples/correct/src/main.ami
+    config:
+      workspace: examples/correct/ami.workspace
+      toolchain:
+        command: ami build
+        mode: default
+      references:
+        - docx: docs/Asynchronous Machine Interface.docx (pipeline declaration allows optional parens)
+        - parser: src/ami/compiler/parser/Parser.parsePipelineDecl.go (requires LParenSym)
+    expected_behavior: |
+      - Accept both `pipeline Name { ... }` and `pipeline Name() { ... }`. When parentheses are omitted,
+        treat the parameter list as empty.
+    actual_behavior: |
+      - Parser emits E_PARSE_SYNTAX and refuses `pipeline Name { ... }` due to a hard requirement for '('.
+    workaround: |
+      - Add `()` after the pipeline name to satisfy the current parser until it accepts the optional form.
+    tests: []

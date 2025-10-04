@@ -1990,6 +1990,46 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-stdlib-go-parity-strings-strconv
+    title: Missing AMI stdlib parity for Go `strings` and `strconv`; add AMI modules with LLVM-backed codegen
+    summary: |
+      AMI sources currently cannot use Go-like string processing and numeric parsing/formatting helpers such as
+      `strings.*` and `strconv.*` because equivalent AMI stdlib modules are not implemented. The authoritative goal is
+      to provide these features under AMI semantics (pointer-free, deterministic, capability-aware), and lower them to
+      LLVM via the AMI compiler. Without these modules, examples attempting to call `strconv.*` or `strings.*` fail at
+      name resolution/semantics or codegen.
+    status: ready
+    repro:
+      - code: |
+          package app
+          func W(ev Event<string>) (Event<string>, error) {
+            let s = " 123 "
+            let t = strings.TrimSpace(s)
+            let n, err = strconv.Atoi(t)
+            _ = n; _ = err
+            return ev, nil
+          }
+          pipeline P() { Transform(worker=W); egress }
+      - step: ami build
+      - observe: unresolved module/function diagnostics (e.g., worker/ident undefined) for `strings.*` / `strconv.*`
+    config:
+      references:
+        - docs: docs/language/stdlib/* (time, io, os, math exist; strings/strconv missing)
+        - sem: name/type resolution and worker checks will flag undefined refs
+        - backend: src/ami/compiler/codegen/llvm/* (needs lowering hooks for new stdlib functions)
+    expected_behavior: |
+      - Provide AMI stdlib modules `strings` and `strconv` with a minimal, prioritized surface:
+        - strings: TrimSpace, HasPrefix, HasSuffix, Contains, Split, Join, ToUpper/Lower, Compare, etc.
+        - strconv: Atoi/ParseInt/ParseUint/ParseFloat, FormatInt/Uint/Float, Itoa, etc.
+      - Enforce AMI constraints (no raw pointers; deterministic behavior; clear error returns) and emit LLVM IR via
+        intrinsics where available or host-backed runtime helpers consistent with existing stdlib patterns.
+      - Document APIs under docs/language/stdlib/ and add tests to `src/ami/runtime/host/*` or compiler driver tests
+        validating lowering and runtime behavior.
+    actual_behavior: |
+      - No AMI `strings`/`strconv` modules; calls fail to resolve or are rejected by semantics checks.
+    workaround: |
+      - Implement local helpers within the package; this does not provide shared stdlib or codegen coverage.
+    tests: []
   - id: B-2025-10-04-edge-capacity-fieldnames
     title: Edge capacity fields should be minCapacity/maxCapacity (not min/max)
     summary: |

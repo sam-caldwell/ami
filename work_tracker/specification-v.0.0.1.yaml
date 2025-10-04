@@ -2104,6 +2104,43 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-missing-fallthrough
+    title: Missing parser/AST/lowering for `fallthrough` in switch cases
+    summary: |
+      While `KwFallthrough` is defined in the tokenizer, the compiler lacks parsing, AST, and lowering support for
+      `fallthrough` within `switch` statements. There is no `FallthroughStmt` node, no handling in the function block
+      parser, and no CFG construction to chain case bodies via fallthrough. This prevents AMI sources from expressing
+      Go-like fallthrough semantics in switch-case constructs.
+    status: ready
+    repro:
+      - code: |
+          package app
+          func F(x int){
+            switch x {
+            case 1:
+              // work
+              fallthrough
+            case 2:
+              // more work
+            }
+          }
+      - step: ami build
+      - observe: parse error on `fallthrough` (and `switch` itself if not yet implemented).
+    config:
+      references:
+        - parser: src/ami/compiler/parser/Parser.parseFuncBlock.go (no case for KwFallthrough)
+        - ast: src/ami/compiler/ast (no FallthroughStmt)
+        - lowering: src/ami/compiler/driver/lower_block_cfg.go (no chaining of case blocks via fallthrough)
+        - token: src/ami/compiler/token/kind.go (KwFallthrough present)
+        - related: B-2025-10-04-missing-switch-case
+    expected_behavior: |
+      - Parse `fallthrough` only inside switch cases; emit CFG to continue into the next case body unconditionally.
+      - Enforce rules (e.g., last case cannot fall through if there is no following case); emit clear diagnostics.
+    actual_behavior: |
+      - `fallthrough` is not recognized; there is no AST or lowering support.
+    workaround: |
+      - Duplicate code or refactor cases into shared helpers; no direct fallthrough equivalent exists without switch.
+    tests: []
   - id: B-2025-10-04-missing-continue
     title: Missing parser/AST/lowering for `continue` statements
     summary: |

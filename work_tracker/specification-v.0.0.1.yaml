@@ -2104,6 +2104,45 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-missing-switch-case
+    title: Missing parser/lowering for switch/case/default (and fallthrough)
+    summary: |
+      The tokenizer defines `KwSwitch`, `KwCase`, `KwDefault`, and `KwFallthrough`, but the compiler does not implement
+      `switch` parsing or lowering. There is no `SwitchStmt`/`CaseClause`/`FallthroughStmt` in the AST, no handling in
+      `parseFuncBlock`, and no lowering path in `lowerBlockCFG`. Fallthrough semantics are not implemented. As a
+      result, AMI sources cannot express `switch` statements or use `fallthrough`.
+    status: ready
+    repro:
+      - code: |
+          package app
+          func F(x int){
+            switch x {
+            case 0:
+              return
+            case 1, 2:
+              // work
+              fallthrough
+            default:
+              // other
+            }
+          }
+      - step: ami build
+      - observe: parse error in function block (unexpected token 'switch'/'case') due to no parser support.
+    config:
+      references:
+        - parser: src/ami/compiler/parser/Parser.parseFuncBlock.go (no case for KwSwitch/KwCase/KwDefault/KwFallthrough)
+        - ast: src/ami/compiler/ast (no SwitchStmt/Case/Fallthrough nodes)
+        - lowering: src/ami/compiler/driver/lower_block_cfg.go (no switch lowering)
+        - token: src/ami/compiler/token/kind.go (keywords present)
+    expected_behavior: |
+      - Parse switch with expression or empty (switch true) and case lists (single or comma‑separated), plus `default`.
+      - Support `fallthrough` semantics; emit CFG via chained CondBr or a small dispatch tree with PHIs at joins.
+      - Provide diagnostics for duplicate/overlapping cases and unreachable default, with stable positions.
+    actual_behavior: |
+      - `switch` is not recognized; there is no AST or lowering support; codegen receives no switch CFG.
+    workaround: |
+      - Use nested `if`/`else if`/`else` conditionals. No direct `fallthrough` equivalent exists without switch.
+    tests: []
   - id: B-2025-10-04-missing-for-loop
     title: Missing parser/lowering for `for` loops; break/continue unsupported
     summary: |

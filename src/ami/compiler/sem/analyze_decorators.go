@@ -12,14 +12,13 @@ func AnalyzeDecorators(f *ast.File) []diag.Record {
     var out []diag.Record
     if f == nil { return out }
     now := time.Unix(0, 0).UTC()
-    // recognize canonical worker signature
+    // recognize worker signature (docx-aligned): one Event<T> param; two results with second 'error'.
     typeIsEvent := func(s string) bool { return s == "Event" || strings.HasPrefix(s, "Event<") }
     isWorkerSig := func(fn *ast.FuncDecl) bool {
         if fn == nil { return false }
         if len(fn.Params) != 1 { return false }
         if !typeIsEvent(fn.Params[0].Type) { return false }
         if len(fn.Results) != 2 { return false }
-        if !typeIsEvent(fn.Results[0].Type) { return false }
         if fn.Results[1].Type != "error" { return false }
         return true
     }
@@ -74,4 +73,3 @@ func AnalyzeDecorators(f *ast.File) []diag.Record {
     }
     return out
 }
-

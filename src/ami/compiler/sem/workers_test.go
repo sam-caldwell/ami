@@ -58,6 +58,21 @@ func testWorkers_GoodSignature(t *testing.T) {
 	}
 }
 
+func testWorkers_GoodSignature_PayloadReturn(t *testing.T) {
+    code := "package app\n" +
+        "func G(ev Event<T>) (U, error) { return U{}, nil }\n" +
+        "pipeline P(){ ingress; Transform(G); egress }\n"
+    f := (&source.FileSet{}).AddFile("w3b.ami", code)
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    ds := AnalyzeWorkers(af)
+    for _, d := range ds {
+        if d.Code == "E_WORKER_SIGNATURE" || d.Code == "E_WORKER_UNDEFINED" {
+            t.Fatalf("unexpected: %+v", ds)
+        }
+    }
+}
+
 func testWorkers_Signature_Checked_WithDecorators(t *testing.T) {
 	code := "package app\n" +
 		"@metrics\nfunc F(a int){}\n" +

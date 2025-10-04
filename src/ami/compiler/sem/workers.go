@@ -62,22 +62,23 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
             }
             // accept factories New* without signature checks
             if strings.HasPrefix(fn.Name, "New") { continue }
-            // signature check: 1 param Event<...>; 2 results: Event<...>, error
+            // signature check (docx-aligned): 1 param Event<...>; 2 results with second 'error'; first result may be U or Event<U>.
             if len(fn.Params) != 1 || !strings.HasPrefix(fn.Params[0].Type, "Event<") {
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: want func(Event<T>)->(Event<U>, error)", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: want func(Event<T>)->(U, error) or (Event<U>, error)", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
                 if len(fn.Decorators) > 0 {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_SIGNATURE", Message: "decorators must not change worker signature", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
                 }
                 continue
             }
-            if len(fn.Results) != 2 || !strings.HasPrefix(fn.Results[0].Type, "Event<") || fn.Results[1].Type != "error" {
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: want func(Event<T>)->(Event<U>, error)", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
+            // Two results with second 'error'
+            if len(fn.Results) != 2 || fn.Results[1].Type != "error" {
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: want func(Event<T>)->(U, error) or (Event<U>, error)", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
                 if len(fn.Decorators) > 0 {
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_DECORATOR_SIGNATURE", Message: "decorators must not change worker signature", Pos: &diag.Position{Line: fn.NamePos.Line, Column: fn.NamePos.Column, Offset: fn.NamePos.Offset}})
                 }
                 continue
             }
-            // Enforce pointer-free Event<T>/Event<U> type arguments.
+            // Permit first result as U or Event<U>; enforce pointer-free when Event<...>.
             if t := eventTypeArg(fn.Params[0].Type); t != "" {
                 if strings.ContainsAny(t, "&*") {
                     p := fn.Params[0].Pos

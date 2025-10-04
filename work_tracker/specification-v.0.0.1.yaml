@@ -1990,6 +1990,38 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-multipath-inputs-brackets-docx
+    title: Docx mismatch — MultiPath inputs use bracketed lists `inputs=[ ... ]`
+    summary: |
+      The correct syntax for Collect multipath inputs in AMI is a named argument with a bracketed list:
+      `edge.MultiPath(inputs=[ edge.FIFO(...), edge.Pipeline(...), ... ], ...)`. The authoritative docx either omits
+      this or implies a different form. The implementation, examples, and debug indices expect a list of inputs and
+      surface them accordingly. The docx should be updated to state that `inputs=[ ... ]` is the canonical form.
+    status: ready
+    repro:
+      - step: Open examples/correct/src/main.ami and find the Collect MultiPath block
+      - code: |
+          in=edge.MultiPath(
+            inputs=[
+              edge.FIFO(...),
+              edge.Pipeline(...),
+            ],
+            // merge.* attributes ...
+          )
+      - step: Compare with the docx description of Collect inputs (does not show bracketed list)
+    config:
+      references:
+        - example: examples/correct/src/main.ami
+        - docs: docs/toolchain/merge.md (scaffold describes MultiPath on Collect)
+        - docs: docs/language/edges.md (debug indices show multipath inputs)
+        - docx: docs/Asynchronous Machine Interface.docx (needs update for inputs=[ ... ])
+    expected_behavior: |
+      - Documentation reflects `edge.MultiPath(inputs=[ ... ], merge.*...)` as the supported/required syntax.
+    actual_behavior: |
+      - Docx lacks or contradicts the bracketed `inputs=[ ... ]` form used by the implementation and examples.
+    workaround: |
+      - Use the bracketed list form in sources; track documentation update to align the spec with implementation.
+    tests: []
   - id: B-2025-10-04-collect-merge-api-mismatch
     title: Collect merge config must use merge.* API; example uses merge=Sort(...)
     summary: |

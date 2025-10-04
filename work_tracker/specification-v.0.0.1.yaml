@@ -1990,6 +1990,45 @@ bug_reports:
       - diag_codes: [E_PARSE_SYNTAX]
       - source: src/ami/compiler/parser/Parser.parsePipelineDecl.go
     tests: []
+  - id: B-2025-10-04-node-kvstore-state-identifier
+    title: Node KV store access via `state.get/set` not implemented; provide node-scoped `state` identifier per docx
+    summary: |
+      The docx specifies a node-scoped key/value store accessible from worker code via a special `state` identifier
+      (e.g., `state.get(key, default)` / `state.set(key, value)`). While the tokenizer recognizes `state` as a keyword,
+      the compiler/semantics do not wire a node KV store into worker scope and calls are not resolvable from AMI code.
+      A runtime KV store exists (`docs/toolchain/runtime-kvstore.md`), but there is no language-level binding that
+      exposes a per-node namespace to workers. Examples using `state.get/set` therefore fail to parse/resolve.
+    status: ready
+    repro:
+      - file: examples/correct/src/main.ami
+      - code: |
+          worker=func(_ Event<time.Time>) (Event<uint64>, error ){
+            const defaultValue uint64 = 0
+            count := strconv.AtoUint64(state.get("counter", defaultValue))
+            state.set("counter", count++)
+            return count
+          }
+      - step: ami build
+      - observe: unresolved identifier or semantics failure for `state.get`/`state.set` (blocked earlier by other parse
+          issues; once unblocked, `state` remains unimplemented as node KV in AMI sources)
+    config:
+      references:
+        - token: src/ami/compiler/token/kind.go (maps "state" → KwState)
+        - runtime: docs/toolchain/runtime-kvstore.md (process/global stores exist)
+        - docx: docs/Asynchronous Machine Interface.docx (node KV via `state` in workers)
+    expected_behavior: |
+      - Provide a node-scoped KV store bound to `state` in worker scope with operations like `get(key, default)` and
+        `set(key, value)`, consistent with AMI semantics (deterministic, pointer-free, capability/trust boundaries).
+      - Define lifecycle and namespacing (`pipeline/node`) and ensure scheduler-safe access; emit LLVM or use
+        host-backed helpers consistent with existing stdlib patterns.
+      - Surface diagnostics and debug artifacts (e.g., KV metrics/keys under build/debug when verbose/test flags on).
+    actual_behavior: |
+      - No language-level `state` binding; workers cannot access a node KV store directly. `state` is tokenized but
+        not implemented in parser/semantics/codegen.
+    workaround: |
+      - None from AMI sources today. Tests and runtime components can use the runtime KV store directly, but AMI
+        programs lack a stable `state` identifier to reach a node-scoped store.
+    tests: []
   - id: B-2025-10-04-stdlib-go-parity-strings-strconv
     title: Missing AMI stdlib parity for Go `strings` and `strconv`; add AMI modules with LLVM-backed codegen
     summary: |

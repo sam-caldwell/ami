@@ -9,6 +9,9 @@ type StepStmt struct {
     Args    []Arg
     Leading []Comment
     Attrs   []Attr
+    // Present when the step used call syntax. Zero when omitted.
+    LParen  source.Position
+    RParen  source.Position
 }
 
 func (*StepStmt) isNode() {}

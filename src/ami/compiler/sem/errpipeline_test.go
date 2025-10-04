@@ -42,18 +42,15 @@ func testErrorPipeline_MustEndWithEgress_Err(t *testing.T) {
 }
 
 func testErrorPipeline_UnknownNode_Err(t *testing.T) {
-	src := "package app\npipeline P(){ error { Foo().egress } }\n"
-	f := &source.File{Name: "t.ami", Content: src}
-	p := parser.New(f)
-	file, _ := p.ParseFile()
-	ds := AnalyzeErrorSemantics(file)
-	has := false
-	for _, d := range ds {
-		if d.Code == "E_UNKNOWN_NODE" {
-			has = true
-		}
-	}
-	if !has {
-		t.Fatalf("expected E_UNKNOWN_NODE, got %v", ds)
-	}
+    src := "package app\npipeline P(){ error { Foo().egress } }\n"
+    f := &source.File{Name: "t.ami", Content: src}
+    p := parser.New(f)
+    file, _ := p.ParseFile()
+    ds := AnalyzeErrorSemantics(file)
+    // Placeholder node Foo() should not be reported as unknown in error pipeline.
+    for _, d := range ds {
+        if d.Code == "E_UNKNOWN_NODE" {
+            t.Fatalf("did not expect E_UNKNOWN_NODE, got %v", ds)
+        }
+    }
 }

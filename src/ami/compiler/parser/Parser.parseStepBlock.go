@@ -30,6 +30,7 @@ func (p *Parser) parseStepBlock() (*ast.BlockStmt, error) {
                 st := &ast.StepStmt{Pos: startPos, Name: startName, Leading: p.pending}
                 p.pending = nil
                 if p.cur.Kind == token.LParenSym {
+                    st.LParen = p.cur.Pos
                     p.next()
                     var args []ast.Arg
                     for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
@@ -46,6 +47,7 @@ func (p *Parser) parseStepBlock() (*ast.BlockStmt, error) {
                         }
                     }
                     if p.cur.Kind == token.RParenSym {
+                        st.RParen = p.cur.Pos
                         p.next()
                     } else {
                         p.errf("missing ')' in step args")

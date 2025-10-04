@@ -33,14 +33,13 @@ func AnalyzeErrorSemantics(f *ast.File) []diag.Record {
         if strings.ToLower(last.Name) != "egress" {
             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_ERRPIPE_END_EGRESS", Message: "error pipeline must end with 'egress'", Pos: &diag.Position{Line: last.Pos.Line, Column: last.Pos.Column, Offset: last.Pos.Offset}})
         }
-        // unknown nodes
+        // unknown nodes (allow explicit empty-call placeholders as pass-through)
         for _, st := range steps {
             nameLower := strings.ToLower(st.Name)
-            if nameLower != "ingress" && nameLower != "egress" && nameLower != "transform" && nameLower != "fanout" && nameLower != "collect" && nameLower != "mutable" {
+            if nameLower != "ingress" && nameLower != "egress" && nameLower != "transform" && nameLower != "fanout" && nameLower != "collect" && nameLower != "mutable" && !isNoopPlaceholder(st) {
                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_UNKNOWN_NODE", Message: "unknown node: " + st.Name, Pos: &diag.Position{Line: st.Pos.Line, Column: st.Pos.Column, Offset: st.Pos.Offset}})
             }
         }
     }
     return out
 }
-

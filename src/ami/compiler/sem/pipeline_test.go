@@ -13,18 +13,15 @@ func codesJSON(diags any) string { b, _ := json.Marshal(diags); return string(b)
 func collectCodes(ds []any) []string { return nil }
 
 func testPipelineSemantics_KnownUnknownAndStartEnd(t *testing.T) {
-	code := "package app\npipeline P() { ingress; work(); egress }\n"
-	f := (&source.FileSet{}).AddFile("p.ami", code)
-	p := parser.New(f)
-	af, _ := p.ParseFile()
-	ds := AnalyzePipelineSemantics(af)
-	// Should only flag unknown node 'work', not start/end
-	if len(ds) != 1 {
-		t.Fatalf("want 1 diag, got %d: %s", len(ds), codesJSON(ds))
-	}
-	if ds[0].Code != "E_UNKNOWN_NODE" {
-		t.Fatalf("code: %s", ds[0].Code)
-	}
+    code := "package app\npipeline P() { ingress; work(); egress }\n"
+    f := (&source.FileSet{}).AddFile("p.ami", code)
+    p := parser.New(f)
+    af, _ := p.ParseFile()
+    ds := AnalyzePipelineSemantics(af)
+    // With empty-call placeholder nodes, no unknown should be reported.
+    if len(ds) != 0 {
+        t.Fatalf("want 0 diags, got %d: %s", len(ds), codesJSON(ds))
+    }
 }
 
 func testPipelineSemantics_MissingStart(t *testing.T) {

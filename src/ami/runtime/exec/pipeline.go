@@ -68,12 +68,25 @@ func (e *Engine) RunPipeline(ctx context.Context, m ir.Module, pipeline string, 
 // filterExpr/transformExpr are simple DSL stubs applied at Transform stages.
 func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline string, in <-chan ev.Event, emit func(StageInfo, rmerge.Stats), filterExpr, transformExpr string, opts ExecOptions) (<-chan ev.Event, <-chan StageStats, error) {
     statsOut := make(chan StageStats, 16)
-    forwardStats := func(info StageInfo, st rmerge.Stats){ if emit != nil { emit(info, st) }; statsOut <- StageStats{Stage: info, Stats: st} }
+    forwardStats := func(info StageInfo, st rmerge.Stats){
+        if emit != nil { emit(info, st) }
+        defer func(){ _ = recover() }()
+        statsOut <- StageStats{Stage: info, Stats: st}
+    }
     var out <-chan ev.Event = in
     // Align stdlib io capabilities with sandbox policy for the duration of this run.
     prev := amiio.GetPolicy()
     amiio.SetPolicy(amiio.Policy{AllowFS: opts.Sandbox.AllowFS, AllowNet: opts.Sandbox.AllowNet, AllowDevice: opts.Sandbox.AllowDevice})
     defer amiio.SetPolicy(prev)
+    // Prefer a dynamic invoker from manifest when not provided.
+    effectiveInvoker := opts.Invoker
+    if effectiveInvoker == nil && m.Package != "" {
+        if lib := loadWorkersLibFromManifest(".", m.Package); lib != "" {
+            if inv := NewDLSOInvoker(lib, "ami_worker_"); inv != nil {
+                effectiveInvoker = inv
+            }
+        }
+    }
     // helper: transform pass-through with counters and DSL filtering/transforming
     runTransform := func(idx int, name string, prev <-chan ev.Event) <-chan ev.Event {
         next := make(chan ev.Event, 1024)
@@ -103,13 +116,26 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
         go func(){ for e := range prev { st.Enqueued++; next <- e; st.Emitted++ }; close(next); forwardStats(StageInfo{Name:"egress", Kind:"egress", Index:0}, st); close(statsOut) }()
         return next
     }
-    // Worker-based transform stage. Looks up worker by name in opts.Workers.
+    // Worker-based transform stage. Looks up worker by name via dynamic invoker first,
+    // then falls back to opts.Workers registry if not found.
     runWorker := func(idx int, workerName string, prev <-chan ev.Event) <-chan ev.Event {
         next := make(chan ev.Event, 1024)
         var st rmerge.Stats
         wf := func(e ev.Event) (any, error) { return e, nil }
-        if opts.Workers != nil {
-            if f, ok := opts.Workers[workerName]; ok && f != nil { wf = f }
+        // Prefer dynamic invoker when available; remember if resolution succeeded
+        resolved := false
+        if effectiveInvoker != nil {
+            if f, ok := effectiveInvoker.Resolve(workerName); ok && f != nil {
+                wf = f
+                resolved = true
+            }
+        }
+        // Fallback to in-process registry if invoker not found the worker
+        if !resolved && opts.Workers != nil {
+            if f, ok := opts.Workers[workerName]; ok && f != nil {
+                wf = f
+                resolved = true
+            }
         }
         go func(){
             for e := range prev {

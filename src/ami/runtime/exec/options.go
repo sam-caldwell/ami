@@ -20,6 +20,11 @@ type ExecOptions struct {
     // Worker registry for Transform stages. Keyed by worker name (e.g., "W").
     // The function may return either an Event (already-wrapped) or a bare payload (docx-aligned), with error.
     Workers       map[string]func(e events.Event) (any, error)
+    // Invoker: optional dynamic worker invoker which resolves and calls compiled
+    // worker symbols via a stable runtime ABI. When present, this takes precedence
+    // over the in-process Workers registry. If a worker name cannot be resolved by
+    // the invoker, the registry will be consulted as a fallback.
+    Invoker       WorkerInvoker
     // ErrorChan: when provided, worker errors are sent here as errors.v1
     // payloads instead of being injected into the main event stream.
     // Callers should drain this channel to avoid goroutine leaks.

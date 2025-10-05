@@ -81,6 +81,8 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
     for _, p := range pkgs {
         if opts.Log != nil { opts.Log("pkg.start", map[string]any{"pkg": p.Name}) }
         if p.Files == nil { continue }
+        // Accumulate worker names across units for this package (for workers_impl.c)
+        pkgWorkers := map[string]struct{}{}
         // PHASE 0: sort files deterministically
         files := append([]*source.File(nil), p.Files.Files...)
         sort.SliceStable(files, func(i, j int) bool { return files[i].Name < files[j].Name })
@@ -357,6 +359,21 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                             }
                         }
                     }
+                    // Collect Transform worker names for workers_impl.c generation
+                    var pl struct{ Pipelines []struct{ Name string; Steps []struct{ Name string; Args []string } } }
+                    if b, rerr := os.ReadFile(pp); rerr == nil {
+                        if jerr := json.Unmarshal(b, &pl); jerr == nil {
+                            for _, pe := range pl.Pipelines {
+                                for _, s := range pe.Steps {
+                                    if s.Name == "Transform" && len(s.Args) > 0 {
+                                        w := s.Args[0]
+                                        if l := len(w); l >= 2 && ((w[0] == '"' && w[l-1] == '"') || (w[0] == '\'' && w[l-1] == '\'')) { w = w[1:l-1] }
+                                        if w != "" { pkgWorkers[w] = struct{}{} }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 if ct, err := writeContractsDebug(p.Name, unit, af); err == nil { bmu.Contracts = ct }
                 if ssa, err := writeSSADebug(p.Name, unit, m); err == nil { _ = ssa }
@@ -404,8 +421,16 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
                             }
                         } else if opts.Log != nil {
                             opts.Log("unit.obj.write", map[string]any{"pkg": p.Name, "unit": unit, "path": oPath})
-                        }
-                    }
+        }
+        // Generate workers_impl.c for this package (debug path) when any workers are present.
+        if opts.Debug && len(pkgWorkers) > 0 {
+            names := make([]string, 0, len(pkgWorkers))
+            for w := range pkgWorkers { names = append(names, w) }
+            if path, err := writeWorkersImplC(p.Name, names); err == nil {
+                if opts.Log != nil { opts.Log("unit.workers.impl", map[string]any{"pkg": p.Name, "path": path, "count": len(names)}) }
+            }
+        }
+    }
                 }
             } else {
                 // surface emission errors in debug as diagnostics too

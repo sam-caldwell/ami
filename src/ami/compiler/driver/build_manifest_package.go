@@ -8,5 +8,5 @@ type bmPackage struct {
     IRIndex       string   `json:"irIndex,omitempty"`
     IRTypesIndex  string   `json:"irTypesIndex,omitempty"`
     IRSymbolsIndex string  `json:"irSymbolsIndex,omitempty"`
+    WorkersLib    string   `json:"workersLib,omitempty"`
 }
-

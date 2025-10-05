@@ -427,7 +427,14 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             names := make([]string, 0, len(pkgWorkers))
             for w := range pkgWorkers { names = append(names, w) }
             if path, err := writeWorkersImplC(p.Name, names); err == nil {
-                if opts.Log != nil { opts.Log("unit.workers.impl", map[string]any{"pkg": p.Name, "path": path, "count": len(names)}) }
+                if opts.Log != nil { opts.Log("unit.workers.wrap", map[string]any{"pkg": p.Name, "path": path, "count": len(names)}) }
+            }
+            if rpath, err := writeWorkersImplRealC(p.Name, names); err == nil {
+                if opts.Log != nil { opts.Log("unit.workers.real", map[string]any{"pkg": p.Name, "path": rpath, "count": len(names)}) }
+            }
+            if spath, err := writeWorkersSymbolsIndex(p.Name, names); err == nil {
+                if opts.Log != nil { opts.Log("unit.workers.symbols", map[string]any{"pkg": p.Name, "path": spath, "count": len(names)}) }
+                // record in manifest after build below
             }
         }
     }
@@ -517,6 +524,11 @@ func Compile(ws workspace.Workspace, pkgs []Package, opts Options) (Artifacts, [
             }
             if si, err := writeIRSymbolsIndex(p.Name, symbolsUnits); err == nil {
                 for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].IRSymbolsIndex = si } }
+            }
+            // Record workers.symbols.json if present
+            wsi := filepath.Join("build", "debug", "ir", p.Name, "workers.symbols.json")
+            if st, err := os.Stat(wsi); err == nil && !st.IsDir() {
+                for i := range bmPkgs { if bmPkgs[i].Name == p.Name { bmPkgs[i].WorkersSymbolsIndex = wsi } }
             }
         }
         // Build object index for package under build/obj/<pkg> (always)

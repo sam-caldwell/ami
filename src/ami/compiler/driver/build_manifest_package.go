@@ -9,4 +9,5 @@ type bmPackage struct {
     IRTypesIndex  string   `json:"irTypesIndex,omitempty"`
     IRSymbolsIndex string  `json:"irSymbolsIndex,omitempty"`
     WorkersLib    string   `json:"workersLib,omitempty"`
+    WorkersSymbolsIndex string `json:"workersSymbolsIndex,omitempty"`
 }

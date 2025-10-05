@@ -438,15 +438,23 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
         if err := os.MkdirAll(outDir, 0o755); err != nil { continue }
         var libPath string
         var cmd *exec.Cmd
+        // Include both wrapper and real impl sources when available.
+        var sources []string
+        sources = append(sources, cfile)
+        realImpl := filepath.Join(dir, "build", "debug", "ir", pkg, "workers_real.c")
+        if st, err := os.Stat(realImpl); err == nil && !st.IsDir() { sources = append(sources, realImpl) }
         if strings.HasPrefix(env, "darwin/") {
             libPath = filepath.Join(outDir, "libworkers.dylib")
-            cmd = exec.Command(clang, "-dynamiclib", cfile, "-o", libPath, "-target", triple)
+            args := append([]string{"-dynamiclib"}, append(sources, []string{"-o", libPath, "-target", triple}...)...)
+            cmd = exec.Command(clang, args...)
         } else if strings.HasPrefix(env, "linux/") {
             libPath = filepath.Join(outDir, "libworkers.so")
-            cmd = exec.Command(clang, "-shared", "-fPIC", cfile, "-o", libPath, "-target", triple)
+            args := append([]string{"-shared", "-fPIC"}, append(sources, []string{"-o", libPath, "-target", triple}...)...)
+            cmd = exec.Command(clang, args...)
         } else if strings.HasPrefix(env, "windows/") {
             libPath = filepath.Join(outDir, "workers.dll")
-            cmd = exec.Command(clang, "-shared", cfile, "-o", libPath)
+            args := append([]string{"-shared"}, append(sources, []string{"-o", libPath}...)...)
+            cmd = exec.Command(clang, args...)
         }
         if cmd != nil {
             if outb, err := cmd.CombinedOutput(); err == nil {

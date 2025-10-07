@@ -256,6 +256,25 @@ func RuntimeLL(triple string, withMain bool) string {
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }
+    // JSON bridge helpers (stubs): in early bring-up, convert Event handles
+    // to a minimal JSON and return not-yet-implemented for payloads.
+    // Constants
+    {
+        ev := "{\"schema\":\"events.v1\"}"
+        esc := encodeCString(ev)
+        n := len(ev) + 1
+        s += "@.json.event.empty = private constant [" + itoa(n) + " x i8] c\"" + esc + "\"\n"
+        nul := "null"
+        esc2 := encodeCString(nul)
+        m := len(nul) + 1
+        s += "@.json.null = private constant [" + itoa(m) + " x i8] c\"" + esc2 + "\"\n\n"
+    }
+    // define ptr @ami_rt_json_to_event(ptr in, i32 inlen)
+    s += "define ptr @ami_rt_json_to_event(ptr %in, i32 %inlen) {\nentry:\n  ret ptr null\n}\n\n"
+    // define ptr @ami_rt_event_to_json(ptr ev, i32* outlen)
+    s += "define ptr @ami_rt_event_to_json(ptr %ev, i32* %outlen) {\nentry:\n  %src = getelementptr inbounds [" + itoa(len("{\"schema\":\"events.v1\"}")+1) + " x i8], ptr @.json.event.empty, i64 0, i64 0\n  %len = zext i32 " + itoa(len("{\"schema\":\"events.v1\"}")+1) + " to i64\n  %buf = call ptr @malloc(i64 %len)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %src, i64 %len, i1 false)\n  store i32 " + itoa(len("{\"schema\":\"events.v1\"}")) + ", ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+    // define ptr @ami_rt_payload_to_json(ptr p, i32* outlen)
+    s += "define ptr @ami_rt_payload_to_json(ptr %p, i32* %outlen) {\nentry:\n  %src = getelementptr inbounds [" + itoa(len("null")+1) + " x i8], ptr @.json.null, i64 0, i64 0\n  %len = zext i32 " + itoa(len("null")+1) + " to i64\n  %buf = call ptr @malloc(i64 %len)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %src, i64 %len, i1 false)\n  store i32 " + itoa(len("null")) + ", ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
     return s
 }
 

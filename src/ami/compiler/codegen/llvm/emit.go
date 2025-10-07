@@ -55,6 +55,8 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
     for _, f := range m.Functions {
         if err := e.AddFunction(f); err != nil { return "", err }
     }
+    // Emit worker core JSON-ABI wrappers for worker-shaped functions
+    emitWorkerCores(e, m.Functions)
     return e.Build(), nil
 }
 

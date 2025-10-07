@@ -77,13 +77,10 @@ func emitWorkerCores(e *ModuleEmitter, fns []ir.Function) {
             b.WriteString("  store ptr null, ptr %err, align 8\n")
             b.WriteString("  ret ptr %js\n")
         } else {
-            // Not yet implemented for bare payload returns; signal unimplemented
-            b.WriteString("  %msgp = getelementptr inbounds ["); b.WriteString(itoa(n)); b.WriteString(" x i8], ptr "); b.WriteString(gname); b.WriteString(", i64 0, i64 0\n")
-            b.WriteString("  %sz = zext i32 "); b.WriteString(itoa(n)); b.WriteString(" to i64\n")
-            b.WriteString("  %buf = call ptr @malloc(i64 %sz)\n")
-            b.WriteString("  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %msgp, i64 %sz, i1 false)\n")
-            b.WriteString("  store ptr %buf, ptr %err, align 8\n")
-            b.WriteString("  ret ptr null\n")
+            // Bare payload: convert to JSON via payload bridge (bring-up returns "null")
+            b.WriteString("  %js = call ptr @ami_rt_payload_to_json(ptr null, i32* %outlen)\n")
+            b.WriteString("  store ptr null, ptr %err, align 8\n")
+            b.WriteString("  ret ptr %js\n")
         }
         b.WriteString("}\n")
         e.funcs = append(e.funcs, b.String())

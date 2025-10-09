@@ -1,7 +1,6 @@
 package llvm
 
 import (
-    "os"
     "strings"
 )
 
@@ -31,6 +30,8 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "declare ptr @malloc(i64)\n"
     s += "declare void @free(ptr)\n"
     s += "declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1)\n\n"
+    // libc snprintf for primitive number formatting in payload->JSON helpers
+    s += "declare i32 @snprintf(ptr, i64, ptr, ...)\n\n"
 
     s += "define ptr @ami_rt_owned_new(i8* %data, i64 %len) {\n" +
         "entry:\n  %mem = call ptr @malloc(i64 16)\n  ; allocate data buffer and copy\n  %buf = call ptr @malloc(i64 %len)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %data, i64 %len, i1 false)\n  ; write handle fields\n  %pfield = bitcast ptr %mem to ptr\n  store ptr %buf, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %mem, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  store i64 %len, ptr %lfield, align 8\n  ret ptr %mem\n}\n\n"
@@ -66,6 +67,8 @@ func RuntimeLL(triple string, withMain bool) string {
         "entry:\n  %lenptr.i8 = getelementptr i8, ptr %e, i64 16\n  %lp = bitcast ptr %lenptr.i8 to ptr\n  %l = load i64, ptr %lp, align 8\n  ret i64 %l\n}\n\n"
     s += "define void @ami_rt_error_free(ptr %e) {\n" +
         "entry:\n  %msgptr.i8 = getelementptr i8, ptr %e, i64 8\n  %mp = bitcast ptr %msgptr.i8 to ptr\n  %p = load ptr, ptr %mp, align 8\n  call void @free(ptr %p)\n  call void @free(ptr %e)\n  ret void\n}\n\n"
+    // Convert error handle to C string (malloc'd) and set outlen
+    s += "define ptr @ami_rt_error_to_cstring(ptr %e, i32* %outlen) {\nentry:\n  %msg = call ptr @ami_rt_error_msg(ptr %e)\n  %len64 = call i64 @ami_rt_error_len(ptr %e)\n  %len = trunc i64 %len64 to i32\n  %sz = zext i32 %len to i64\n  %buf = call ptr @malloc(i64 %sz)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %msg, i64 %sz, i1 false)\n  store i32 %len, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
     // GPU blocking submit: until an explicit runtime queue is added, accept an opaque
     // arg and return success (null Error). Callers should prefer direct dispatch lowerings.
     s += "define ptr @ami_rt_gpu_blocking_submit(ptr %arg) {\nentry:\n  ret ptr null\n}\n\n"
@@ -256,23 +259,147 @@ func RuntimeLL(triple string, withMain bool) string {
     if withMain {
         s += "define i32 @main() {\nentry:\n  ret i32 0\n}\n"
     }
-    // JSON bridge helpers (stubs): in early bring-up, convert Event handles
-    // to a minimal JSON and return not-yet-implemented for payloads.
-    // Constants
-    evJSON := "{\"schema\":\"events.v1\"}"
-    evEsc := encodeCString(evJSON)
-    evN := len(evJSON) + 1
-    s += "@.json.event.empty = private constant [" + itoa(evN) + " x i8] c\"" + evEsc + "\"\n"
+    // JSON bridge helpers: Introduce a minimal Event handle layout and convert to/from JSON
+    // Event handle layout: { i8* payload_ptr; i64 payload_len }
+    s += "%Event = type { i8*, i64 }\n\n"
+    // Constants for JSON composition
+    prefix := "{\"schema\":\"events.v1\",\"payload\":"
+    suffix := "}"
+    evEsc := encodeCString(prefix)
+    evN := len(prefix) + 1
+    s += "@.json.event.prefix = private constant [" + itoa(evN) + " x i8] c\"" + evEsc + "\"\n"
+    sufEsc := encodeCString(suffix)
+    sufN := len(suffix) + 1
+    s += "@.json.event.suffix = private constant [" + itoa(sufN) + " x i8] c\"" + sufEsc + "\"\n"
     nulJSON := "null"
     nulEsc := encodeCString(nulJSON)
     nulN := len(nulJSON) + 1
     s += "@.json.null = private constant [" + itoa(nulN) + " x i8] c\"" + nulEsc + "\"\n\n"
     // define ptr @ami_rt_json_to_event(ptr in, i32 inlen)
-    s += "define ptr @ami_rt_json_to_event(ptr %in, i32 %inlen) {\nentry:\n  ret ptr null\n}\n\n"
+    s += "define ptr @ami_rt_json_to_event(ptr %in, i32 %inlen) {\n" +
+        "entry:\n  %sz = zext i32 %inlen to i64\n  %buf = call ptr @malloc(i64 %sz)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %in, i64 %sz, i1 false)\n  %eh = call ptr @malloc(i64 16)\n  %pfield = bitcast ptr %eh to ptr\n  store ptr %buf, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %eh, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  store i64 %sz, ptr %lfield, align 8\n  ret ptr %eh\n}\n\n"
     // define ptr @ami_rt_event_to_json(ptr ev, i32* outlen)
-    s += "define ptr @ami_rt_event_to_json(ptr %ev, i32* %outlen) {\nentry:\n  %src = getelementptr inbounds [" + itoa(evN) + " x i8], ptr @.json.event.empty, i64 0, i64 0\n  %len = zext i32 " + itoa(evN) + " to i64\n  %buf = call ptr @malloc(i64 %len)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %src, i64 %len, i1 false)\n  store i32 " + itoa(len(evJSON)) + ", ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+    s += "define ptr @ami_rt_event_to_json(ptr %ev, i32* %outlen) {\nentry:\n  ; load payload ptr and len from Event handle\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %ev, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  %plen = load i64, ptr %lfield, align 8\n  ; compute total size = prefix + payload + suffix (no NUL terminator)\n  %pref = zext i32 " + itoa(evN-1) + " to i64\n  %suf = zext i32 " + itoa(sufN-1) + " to i64\n  %psum = add i64 %pref, %plen\n  %tot = add i64 %psum, %suf\n  %buf = call ptr @malloc(i64 %tot)\n  ; copy prefix\n  %pfx = getelementptr inbounds [" + itoa(evN) + " x i8], ptr @.json.event.prefix, i64 0, i64 0\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %pfx, i64 %pref, i1 false)\n  ; copy payload just after prefix\n  %dst1 = getelementptr i8, ptr %buf, i64 %pref\n  call void @llvm.memcpy.p0.p0.i64(ptr %dst1, ptr %pp, i64 %plen, i1 false)\n  ; copy suffix at end\n  %dst2 = getelementptr i8, ptr %buf, i64 %psum\n  %sfx = getelementptr inbounds [" + itoa(sufN) + " x i8], ptr @.json.event.suffix, i64 0, i64 0\n  call void @llvm.memcpy.p0.p0.i64(ptr %dst2, ptr %sfx, i64 %suf, i1 false)\n  ; outlen = total length (i32)\n  %tot32 = trunc i64 %tot to i32\n  store i32 %tot32, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
     // define ptr @ami_rt_payload_to_json(ptr p, i32* outlen)
     s += "define ptr @ami_rt_payload_to_json(ptr %p, i32* %outlen) {\nentry:\n  %src = getelementptr inbounds [" + itoa(nulN) + " x i8], ptr @.json.null, i64 0, i64 0\n  %len = zext i32 " + itoa(nulN) + " to i64\n  %buf = call ptr @malloc(i64 %len)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %src, i64 %len, i1 false)\n  store i32 " + itoa(len(nulJSON)) + ", ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+
+    // Primitive payload JSON helpers
+    // Booleans
+    s += "@.json.true = private constant [5 x i8] c\"true\\00\"\n"
+    s += "@.json.false = private constant [6 x i8] c\"false\\00\"\n"
+    s += "define ptr @ami_rt_bool_to_json(i1 %v, i32* %outlen) {\n"
+    s += "entry:\n  br i1 %v, label %ltrue, label %lfalse\n"
+    s += "ltrue:\n  %src_t = getelementptr inbounds [5 x i8], ptr @.json.true, i64 0, i64 0\n  %len_t = zext i32 4 to i64\n  %buf_t = call ptr @malloc(i64 %len_t)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf_t, ptr %src_t, i64 %len_t, i1 false)\n  store i32 4, ptr %outlen, align 4\n  ret ptr %buf_t\n"
+    s += "lfalse:\n  %src_f = getelementptr inbounds [6 x i8], ptr @.json.false, i64 0, i64 0\n  %len_f = zext i32 5 to i64\n  %buf_f = call ptr @malloc(i64 %len_f)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf_f, ptr %src_f, i64 %len_f, i1 false)\n  store i32 5, ptr %outlen, align 4\n  ret ptr %buf_f\n}\n\n"
+
+    // Integer formatting using snprintf("%lld") into a heap buffer
+    s += "@.fmt.i64 = private constant [5 x i8] c\"%lld\\00\"\n"
+    s += "define ptr @ami_rt_i64_to_json(i64 %n, i32* %outlen) {\n"
+    s += "entry:\n  ; allocate a temporary buffer; snprintf returns length excluding NUL\n  %buf = call ptr @malloc(i64 64)\n  %fmt = getelementptr inbounds [5 x i8], ptr @.fmt.i64, i64 0, i64 0\n  %written = call i32 (ptr, i64, ptr, ...) @snprintf(ptr %buf, i64 64, ptr %fmt, i64 %n)\n  store i32 %written, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+
+    // Double formatting using snprintf("%.17g")
+    s += "@.fmt.f64 = private constant [7 x i8] c\"%.17g\\00\"\n"
+    s += "define ptr @ami_rt_double_to_json(double %x, i32* %outlen) {\n"
+    s += "entry:\n  %buf = call ptr @malloc(i64 64)\n  %fmt = getelementptr inbounds [7 x i8], ptr @.fmt.f64, i64 0, i64 0\n  %written = call i32 (ptr, i64, ptr, ...) @snprintf(ptr %buf, i64 64, ptr %fmt, double %x)\n  store i32 %written, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+
+    // String to JSON with proper escaping per RFC 8259: \" \\ control chars -> \b\f\n\r\t; others <0x20 -> \u00XX
+    s += "define ptr @ami_rt_string_to_json(ptr %p, i32* %outlen) {\n"
+    s += "entry:\n  %len64 = call i64 @ami_rt_owned_len(ptr %p)\n  %src = call ptr @ami_rt_owned_ptr(ptr %p)\n  ; max size = 6*len + 2 (quotes)\n  %two = shl i64 %len64, 1\n  %four = shl i64 %len64, 2\n  %six = add i64 %two, %four\n  %max = add i64 %six, 2\n  %buf = call ptr @malloc(i64 %max)\n  ; opening quote at pos 0\n  store i8 34, ptr %buf\n  br label %loop\n"
+    s += "loop:\n  %i = phi i64 [ 0, %entry ], [ %inext, %cont ]\n  %j = phi i64 [ 1, %entry ], [ %jphi, %cont ]\n  %done = icmp uge i64 %i, %len64\n  br i1 %done, label %after, label %body\n"
+    s += "body:\n  %ip = getelementptr i8, ptr %src, i64 %i\n  %b = load i8, ptr %ip, align 1\n  %isq = icmp eq i8 %b, 34\n  %isb = icmp eq i8 %b, 92\n  %escq = or i1 %isq, %isb\n  br i1 %escq, label %esc_qbs, label %check_b\n"
+    s += "esc_qbs:\n  %dq1 = getelementptr i8, ptr %buf, i64 %j\n  store i8 92, ptr %dq1\n  %j1 = add i64 %j, 1\n  %dq2 = getelementptr i8, ptr %buf, i64 %j1\n  store i8 %b, ptr %dq2\n  %jout1 = add i64 %j1, 1\n  br label %cont\n"
+    s += "check_b:\n  %is_b = icmp eq i8 %b, 8\n  br i1 %is_b, label %esc_b, label %check_f\n"
+    s += "esc_b:\n  %db1 = getelementptr i8, ptr %buf, i64 %j\n  store i8 92, ptr %db1\n  %jb1 = add i64 %j, 1\n  %db2 = getelementptr i8, ptr %buf, i64 %jb1\n  store i8 98, ptr %db2\n  %joutb = add i64 %jb1, 1\n  br label %cont\n"
+    s += "check_f:\n  %is_f = icmp eq i8 %b, 12\n  br i1 %is_f, label %esc_f, label %check_n\n"
+    s += "esc_f:\n  %df1 = getelementptr i8, ptr %buf, i64 %j\n  store i8 92, ptr %df1\n  %jf1 = add i64 %j, 1\n  %df2 = getelementptr i8, ptr %buf, i64 %jf1\n  store i8 102, ptr %df2\n  %joutf = add i64 %jf1, 1\n  br label %cont\n"
+    s += "check_n:\n  %is_n = icmp eq i8 %b, 10\n  br i1 %is_n, label %esc_n, label %check_r\n"
+    s += "esc_n:\n  %dn1 = getelementptr i8, ptr %buf, i64 %j\n  store i8 92, ptr %dn1\n  %jn1 = add i64 %j, 1\n  %dn2 = getelementptr i8, ptr %buf, i64 %jn1\n  store i8 110, ptr %dn2\n  %joutn = add i64 %jn1, 1\n  br label %cont\n"
+    s += "check_r:\n  %is_r = icmp eq i8 %b, 13\n  br i1 %is_r, label %esc_r, label %check_t\n"
+    s += "esc_r:\n  %dr1 = getelementptr i8, ptr %buf, i64 %j\n  store i8 92, ptr %dr1\n  %jr1 = add i64 %j, 1\n  %dr2 = getelementptr i8, ptr %buf, i64 %jr1\n  store i8 114, ptr %dr2\n  %joutr = add i64 %jr1, 1\n  br label %cont\n"
+    s += "check_t:\n  %is_t = icmp eq i8 %b, 9\n  br i1 %is_t, label %esc_t, label %check_lt\n"
+    s += "esc_t:\n  %dt1 = getelementptr i8, ptr %buf, i64 %j\n  store i8 92, ptr %dt1\n  %jt1 = add i64 %j, 1\n  %dt2 = getelementptr i8, ptr %buf, i64 %jt1\n  store i8 116, ptr %dt2\n  %joutt = add i64 %jt1, 1\n  br label %cont\n"
+    s += "check_lt:\n  %lt = icmp ult i8 %b, 32\n  br i1 %lt, label %esc_u, label %copy\n"
+    s += "esc_u:\n  %b32 = zext i8 %b to i32\n  %hib = lshr i32 %b32, 4\n  %hi = and i32 %hib, 15\n  %lo = and i32 %b32, 15\n  %hi_lt10 = icmp ult i32 %hi, 10\n  %hi_base = select i1 %hi_lt10, i32 48, i32 55\n  %hi_ascii32 = add i32 %hi_base, %hi\n  %hi_ascii = trunc i32 %hi_ascii32 to i8\n  %lo_lt10 = icmp ult i32 %lo, 10\n  %lo_base = select i1 %lo_lt10, i32 48, i32 55\n  %lo_ascii32 = add i32 %lo_base, %lo\n  %lo_ascii = trunc i32 %lo_ascii32 to i8\n  %du0 = getelementptr i8, ptr %buf, i64 %j\n  store i8 92, ptr %du0\n  %ju1 = add i64 %j, 1\n  %du1 = getelementptr i8, ptr %buf, i64 %ju1\n  store i8 117, ptr %du1\n  %ju2 = add i64 %ju1, 1\n  %du2 = getelementptr i8, ptr %buf, i64 %ju2\n  store i8 48, ptr %du2\n  %ju3 = add i64 %ju2, 1\n  %du3 = getelementptr i8, ptr %buf, i64 %ju3\n  store i8 48, ptr %du3\n  %ju4 = add i64 %ju3, 1\n  %du4 = getelementptr i8, ptr %buf, i64 %ju4\n  store i8 %hi_ascii, ptr %du4\n  %ju5 = add i64 %ju4, 1\n  %du5 = getelementptr i8, ptr %buf, i64 %ju5\n  store i8 %lo_ascii, ptr %du5\n  %joutu = add i64 %ju5, 1\n  br label %cont\n"
+    s += "copy:\n  %dc = getelementptr i8, ptr %buf, i64 %j\n  store i8 %b, ptr %dc\n  %jnorm = add i64 %j, 1\n  br label %cont\n"
+    s += "cont:\n  %inext = add i64 %i, 1\n  %jphi = phi i64 [ %jout1, %esc_qbs ], [ %joutb, %esc_b ], [ %joutf, %esc_f ], [ %joutn, %esc_n ], [ %joutr, %esc_r ], [ %joutt, %esc_t ], [ %joutu, %esc_u ], [ %jnorm, %copy ]\n  br label %loop\n"
+    s += "after:\n  %endp = getelementptr i8, ptr %buf, i64 %j\n  store i8 34, ptr %endp\n  %jfin = add i64 %j, 1\n  %olen = trunc i64 %jfin to i32\n  store i32 %olen, ptr %outlen\n  ret ptr %buf\n}\n\n"
+    // Structured passthrough: treat %p as Owned handle containing pre-serialized JSON bytes
+    s += "define ptr @ami_rt_structured_to_json(ptr %p, i32* %outlen) {\n"
+    s += "entry:\n  %len64 = call i64 @ami_rt_owned_len(ptr %p)\n  %src = call ptr @ami_rt_owned_ptr(ptr %p)\n  %buf = call ptr @malloc(i64 %len64)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %src, i64 %len64, i1 false)\n  %len32 = trunc i64 %len64 to i32\n  store i32 %len32, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+    // Struct walker: 'S' + i32 count + entries (u8 nameLen, name bytes, u8 kind). Values: array of ptrs
+    s += "define ptr @ami_rt_struct_to_json(ptr %td, i64 %vh, i32* %outlen) {\n"
+    s += "entry:\n  %vals = inttoptr i64 %vh to ptr\n  %cntp.i8 = getelementptr i8, ptr %td, i64 1\n  %cntp = bitcast ptr %cntp.i8 to ptr\n  %cnt = load i32, ptr %cntp, align 1\n  %n64 = zext i32 %cnt to i64\n  %pos = getelementptr i8, ptr %cntp.i8, i64 4\n  %has = icmp ugt i32 %cnt, 0\n  %cm1 = add i32 %cnt, 4294967295\n  %comma32 = select i1 %has, i32 %cm1, i32 0\n  %comma64 = zext i32 %comma32 to i64\n  %sum0 = add i64 2, %comma64\n  %tmpout = alloca i32, align 4\n  br label %lenloop\n"
+    s += "lenloop:\n  %i = phi i64 [ 0, %entry ], [ %inext, %lencont ]\n  %pcur = phi ptr [ %pos, %entry ], [ %pafter, %lencont ]\n  %sum = phi i64 [ %sum0, %entry ], [ %sum2, %lencont ]\n  %done = icmp uge i64 %i, %n64\n  br i1 %done, label %alloc, label %lenbody\n"
+    s += "lenbody:\n  %nl = load i8, ptr %pcur, align 1\n  %nl64 = zext i8 %nl to i64\n  %pname = getelementptr i8, ptr %pcur, i64 1\n  %pnend = getelementptr i8, ptr %pname, i64 %nl64\n  %kind = load i8, ptr %pnend, align 1\n  %pafter = getelementptr i8, ptr %pnend, i64 1\n  %vpp = getelementptr ptr, ptr %vals, i64 %i\n  %vhp = load ptr, ptr %vpp, align 8\n  ; branch by kind to compute value length\n  %isk_i = icmp eq i8 %kind, 105\n  %isk_d = icmp eq i8 %kind, 100\n  %isk_b = icmp eq i8 %kind, 98\n  %isk_s = icmp eq i8 %kind, 115\n  br i1 %isk_i, label %len_i, label %chk_d\n"
+    s += "len_i:\n  %ival = load i64, ptr %vhp, align 8\n  %tbi = call ptr @ami_rt_i64_to_json(i64 %ival, i32* %tmpout)\n  %vlen32i = load i32, ptr %tmpout, align 4\n  %vleni = zext i32 %vlen32i to i64\n  call void @free(ptr %tbi)\n  br label %len_accum\n"
+    s += "chk_d:\n  br i1 %isk_d, label %len_d, label %chk_b\n"
+    s += "len_d:\n  %dval = load double, ptr %vhp, align 8\n  %tbd = call ptr @ami_rt_double_to_json(double %dval, i32* %tmpout)\n  %vlen32d = load i32, ptr %tmpout, align 4\n  %vlend = zext i32 %vlen32d to i64\n  call void @free(ptr %tbd)\n  br label %len_accum\n"
+    s += "chk_b:\n  br i1 %isk_b, label %len_b, label %chk_s\n"
+    s += "len_b:\n  %b8 = load i8, ptr %vhp, align 1\n  %b1 = icmp ne i8 %b8, 0\n  %tbb = call ptr @ami_rt_bool_to_json(i1 %b1, i32* %tmpout)\n  %vlen32b = load i32, ptr %tmpout, align 4\n  %vlenb = zext i32 %vlen32b to i64\n  call void @free(ptr %tbb)\n  br label %len_accum\n"
+    s += "chk_s:\n  br i1 %isk_s, label %len_s, label %len_o\n"
+    s += "len_s:\n  %tbs = call ptr @ami_rt_string_to_json(ptr %vhp, i32* %tmpout)\n  %vlen32s = load i32, ptr %tmpout, align 4\n  %vlens = zext i32 %vlen32s to i64\n  call void @free(ptr %tbs)\n  br label %len_accum\n"
+    s += "len_o:\n  %vlen = call i64 @ami_rt_owned_len(ptr %vhp)\n  br label %len_accum2\n"
+    s += "len_accum:\n  %vlen = phi i64 [ %vleni, %len_i ], [ %vlend, %len_d ], [ %vlenb, %len_b ], [ %vlens, %len_s ]\n  br label %len_accum2\n"
+    s += "len_accum2:\n  %tmp1 = add i64 %sum, 2\n  %tmp2 = add i64 %tmp1, %nl64\n  %tmp3 = add i64 %tmp2, 1\n  %sum2 = add i64 %tmp3, %vlen\n  %inext = add i64 %i, 1\n  br label %lencont\n"
+    s += "lencont:\n  br label %lenloop\n"
+    s += "alloc:\n  %buf = call ptr @malloc(i64 %sum)\n  store i8 123, ptr %buf\n  %outp = getelementptr i8, ptr %buf, i64 1\n  br label %emitloop\n"
+    s += "emitloop:\n  %j = phi i64 [ 0, %alloc ], [ %jnext, %emitcont ]\n  %pcur2 = phi ptr [ %pos, %alloc ], [ %pafter2, %emitcont ]\n  %dst = phi ptr [ %outp, %alloc ], [ %dst2, %emitcont ]\n  %done2 = icmp uge i64 %j, %n64\n  br i1 %done2, label %after, label %emitbody\n"
+    s += "emitbody:\n  %gt0 = icmp ugt i64 %j, 0\n  br i1 %gt0, label %comma, label %noc\n"
+    s += "comma:\n  store i8 44, ptr %dst\n  %dstc = getelementptr i8, ptr %dst, i64 1\n  br label %nocont\n"
+    s += "noc:\n  %dstc = %dst\n  br label %nocont\n"
+    s += "nocont:\n  %nl2 = load i8, ptr %pcur2, align 1\n  %nl64b = zext i8 %nl2 to i64\n  %pname2 = getelementptr i8, ptr %pcur2, i64 1\n  %pnend2 = getelementptr i8, ptr %pname2, i64 %nl64b\n  %kind2 = load i8, ptr %pnend2, align 1\n  %pafter2 = getelementptr i8, ptr %pnend2, i64 1\n  store i8 34, ptr %dstc\n  %dstn = getelementptr i8, ptr %dstc, i64 1\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstn, ptr %pname2, i64 %nl64b, i1 false)\n  %dstn2 = getelementptr i8, ptr %dstn, i64 %nl64b\n  store i8 34, ptr %dstn2\n  %dstcol = getelementptr i8, ptr %dstn2, i64 1\n  store i8 58, ptr %dstcol\n  %dstv = getelementptr i8, ptr %dstcol, i64 1\n  %vpp2 = getelementptr ptr, ptr %vals, i64 %j\n  %vhp2 = load ptr, ptr %vpp2, align 8\n  %isk2_i = icmp eq i8 %kind2, 105\n  %isk2_d = icmp eq i8 %kind2, 100\n  %isk2_b = icmp eq i8 %kind2, 98\n  %isk2_s = icmp eq i8 %kind2, 115\n  br i1 %isk2_i, label %emit_i, label %echk_d\n"
+    s += "emit_i:\n  %ival2 = load i64, ptr %vhp2, align 8\n  %bufi = call ptr @ami_rt_i64_to_json(i64 %ival2, i32* %tmpout)\n  %len32i = load i32, ptr %tmpout, align 4\n  %len64i = zext i32 %len32i to i64\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstv, ptr %bufi, i64 %len64i, i1 false)\n  call void @free(ptr %bufi)\n  %dst2 = getelementptr i8, ptr %dstv, i64 %len64i\n  br label %emitadv\n"
+    s += "echk_d:\n  br i1 %isk2_d, label %emit_d, label %echk_b\n"
+    s += "emit_d:\n  %dval2 = load double, ptr %vhp2, align 8\n  %bufd = call ptr @ami_rt_double_to_json(double %dval2, i32* %tmpout)\n  %len32d = load i32, ptr %tmpout, align 4\n  %len64d = zext i32 %len32d to i64\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstv, ptr %bufd, i64 %len64d, i1 false)\n  call void @free(ptr %bufd)\n  %dst2 = getelementptr i8, ptr %dstv, i64 %len64d\n  br label %emitadv\n"
+    s += "echk_b:\n  br i1 %isk2_b, label %emit_b, label %echk_s\n"
+    s += "emit_b:\n  %b82 = load i8, ptr %vhp2, align 1\n  %b12 = icmp ne i8 %b82, 0\n  %bufb = call ptr @ami_rt_bool_to_json(i1 %b12, i32* %tmpout)\n  %len32b = load i32, ptr %tmpout, align 4\n  %len64b = zext i32 %len32b to i64\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstv, ptr %bufb, i64 %len64b, i1 false)\n  call void @free(ptr %bufb)\n  %dst2 = getelementptr i8, ptr %dstv, i64 %len64b\n  br label %emitadv\n"
+    s += "echk_s:\n  br i1 %isk2_s, label %emit_s, label %emit_o\n"
+    s += "emit_s:\n  %bufs = call ptr @ami_rt_string_to_json(ptr %vhp2, i32* %tmpout)\n  %len32s = load i32, ptr %tmpout, align 4\n  %len64s = zext i32 %len32s to i64\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstv, ptr %bufs, i64 %len64s, i1 false)\n  call void @free(ptr %bufs)\n  %dst2 = getelementptr i8, ptr %dstv, i64 %len64s\n  br label %emitadv\n"
+    s += "emit_o:\n  %vlen2 = call i64 @ami_rt_owned_len(ptr %vhp2)\n  %vptr2 = call ptr @ami_rt_owned_ptr(ptr %vhp2)\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstv, ptr %vptr2, i64 %vlen2, i1 false)\n  %dst2 = getelementptr i8, ptr %dstv, i64 %vlen2\n  br label %emitadv\n"
+    s += "emitadv:\n  %jnext = add i64 %j, 1\n  br label %emitcont\n"
+    s += "emitcont:\n  br label %emitloop\n"
+    s += "after:\n  store i8 125, ptr %dst\n  %dptr = ptrtoint ptr %dst to i64\n  %bptr = ptrtoint ptr %buf to i64\n  %delta = sub i64 %dptr, %bptr\n  %olen64 = add i64 %delta, 1\n  %olen = trunc i64 %olen64 to i32\n  store i32 %olen, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+    // Array walker: descriptor 'A' + i32 count; if count==0, value handle points to {i64 count; ptr elems}; descriptor carries elem kind at +5
+    s += "define ptr @ami_rt_array_to_json(ptr %td, i64 %vh, i32* %outlen) {\n"
+    s += "entry:\n  %cntp.i8 = getelementptr i8, ptr %td, i64 1\n  %cntp = bitcast ptr %cntp.i8 to ptr\n  %cnt = load i32, ptr %cntp, align 1\n  %kindp = getelementptr i8, ptr %td, i64 5\n  %ekind = load i8, ptr %kindp, align 1\n  %isZero = icmp eq i32 %cnt, 0\n  br i1 %isZero, label %hdrpath, label %fixed\n"
+    s += "hdrpath:\n  %hdr = inttoptr i64 %vh to ptr\n  %n64 = load i64, ptr %hdr, align 8\n  %arrptr.i8 = getelementptr i8, ptr %hdr, i64 8\n  %arrptr = bitcast ptr %arrptr.i8 to ptr\n  %vals = load ptr, ptr %arrptr, align 8\n  br label %calc\n"
+    s += "fixed:\n  %n64 = zext i32 %cnt to i64\n  %vals = inttoptr i64 %vh to ptr\n  br label %calc\n"
+    s += "calc:\n  %has = icmp ugt i64 %n64, 0\n  %nm1 = add i64 %n64, 18446744073709551615\n  %comma64 = select i1 %has, i64 %nm1, i64 0\n  %sum0 = add i64 2, %comma64\n  %tmpout = alloca i32, align 4\n  br label %llen\n"
+    s += "llen:\n  %i = phi i64 [ 0, %calc ], [ %inext, %llen ]\n  %sum = phi i64 [ %sum0, %calc ], [ %sum2, %llen ]\n  %done = icmp uge i64 %i, %n64\n  br i1 %done, label %alloc, label %lb\n"
+    s += "lb:\n  %vpp = getelementptr ptr, ptr %vals, i64 %i\n  %vhp = load ptr, ptr %vpp, align 8\n  ; compute element len by kind\n  %isk_i = icmp eq i8 %ekind, 105\n  %isk_d = icmp eq i8 %ekind, 100\n  %isk_b = icmp eq i8 %ekind, 98\n  %isk_s = icmp eq i8 %ekind, 115\n  br i1 %isk_i, label %len_i, label %chk_d\n"
+    s += "len_i:\n  %ival = load i64, ptr %vhp, align 8\n  %tbi = call ptr @ami_rt_i64_to_json(i64 %ival, i32* %tmpout)\n  %vlen32i = load i32, ptr %tmpout, align 4\n  %vleni = zext i32 %vlen32i to i64\n  call void @free(ptr %tbi)\n  br label %len_accum\n"
+    s += "chk_d:\n  br i1 %isk_d, label %len_d, label %chk_b\n"
+    s += "len_d:\n  %dval = load double, ptr %vhp, align 8\n  %tbd = call ptr @ami_rt_double_to_json(double %dval, i32* %tmpout)\n  %vlen32d = load i32, ptr %tmpout, align 4\n  %vlend = zext i32 %vlen32d to i64\n  call void @free(ptr %tbd)\n  br label %len_accum\n"
+    s += "chk_b:\n  br i1 %isk_b, label %len_b, label %chk_s\n"
+    s += "len_b:\n  %b8 = load i8, ptr %vhp, align 1\n  %b1 = icmp ne i8 %b8, 0\n  %tbb = call ptr @ami_rt_bool_to_json(i1 %b1, i32* %tmpout)\n  %vlen32b = load i32, ptr %tmpout, align 4\n  %vlenb = zext i32 %vlen32b to i64\n  call void @free(ptr %tbb)\n  br label %len_accum\n"
+    s += "chk_s:\n  br i1 %isk_s, label %len_s, label %len_o\n"
+    s += "len_s:\n  %tbs = call ptr @ami_rt_string_to_json(ptr %vhp, i32* %tmpout)\n  %vlen32s = load i32, ptr %tmpout, align 4\n  %vlens = zext i32 %vlen32s to i64\n  call void @free(ptr %tbs)\n  br label %len_accum\n"
+    s += "len_o:\n  %vlen = call i64 @ami_rt_owned_len(ptr %vhp)\n  br label %len_accum2\n"
+    s += "len_accum:\n  %vlen = phi i64 [ %vleni, %len_i ], [ %vlend, %len_d ], [ %vlenb, %len_b ], [ %vlens, %len_s ]\n  br label %len_accum2\n"
+    s += "len_accum2:\n  %sum2 = add i64 %sum, %vlen\n  %inext = add i64 %i, 1\n  br label %llen\n"
+    s += "alloc:\n  %buf = call ptr @malloc(i64 %sum)\n  store i8 91, ptr %buf\n  %dst = getelementptr i8, ptr %buf, i64 1\n  br label %emit\n"
+    s += "emit:\n  %j = phi i64 [ 0, %alloc ], [ %jnext, %emit2 ]\n  %dstp = phi ptr [ %dst, %alloc ], [ %dst2, %emit2 ]\n  %done2 = icmp uge i64 %j, %n64\n  br i1 %done2, label %end, label %emit2\n"
+    s += "emit2:\n  %gt0 = icmp ugt i64 %j, 0\n  br i1 %gt0, label %comma, label %noc\n"
+    s += "comma:\n  store i8 44, ptr %dstp\n  %dstc = getelementptr i8, ptr %dstp, i64 1\n  br label %nocont\n"
+    s += "noc:\n  %dstc = %dstp\n  br label %nocont\n"
+    s += "nocont:\n  %vpp2 = getelementptr ptr, ptr %vals, i64 %j\n  %vhp2 = load ptr, ptr %vpp2, align 8\n  ; emit by kind\n  %isk2_i = icmp eq i8 %ekind, 105\n  %isk2_d = icmp eq i8 %ekind, 100\n  %isk2_b = icmp eq i8 %ekind, 98\n  %isk2_s = icmp eq i8 %ekind, 115\n  br i1 %isk2_i, label %emit_i, label %echk_d\n"
+    s += "emit_i:\n  %ival2 = load i64, ptr %vhp2, align 8\n  %bufi = call ptr @ami_rt_i64_to_json(i64 %ival2, i32* %tmpout)\n  %len32i = load i32, ptr %tmpout, align 4\n  %len64i = zext i32 %len32i to i64\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstc, ptr %bufi, i64 %len64i, i1 false)\n  call void @free(ptr %bufi)\n  %dst2 = getelementptr i8, ptr %dstc, i64 %len64i\n  br label %emitadv\n"
+    s += "echk_d:\n  br i1 %isk2_d, label %emit_d, label %echk_b\n"
+    s += "emit_d:\n  %dval2 = load double, ptr %vhp2, align 8\n  %bufd = call ptr @ami_rt_double_to_json(double %dval2, i32* %tmpout)\n  %len32d = load i32, ptr %tmpout, align 4\n  %len64d = zext i32 %len32d to i64\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstc, ptr %bufd, i64 %len64d, i1 false)\n  call void @free(ptr %bufd)\n  %dst2 = getelementptr i8, ptr %dstc, i64 %len64d\n  br label %emitadv\n"
+    s += "echk_b:\n  br i1 %isk2_b, label %emit_b, label %echk_s\n"
+    s += "emit_b:\n  %b82 = load i8, ptr %vhp2, align 1\n  %b12 = icmp ne i8 %b82, 0\n  %bufb = call ptr @ami_rt_bool_to_json(i1 %b12, i32* %tmpout)\n  %len32b = load i32, ptr %tmpout, align 4\n  %len64b = zext i32 %len32b to i64\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstc, ptr %bufb, i64 %len64b, i1 false)\n  call void @free(ptr %bufb)\n  %dst2 = getelementptr i8, ptr %dstc, i64 %len64b\n  br label %emitadv\n"
+    s += "echk_s:\n  br i1 %isk2_s, label %emit_s, label %emit_o\n"
+    s += "emit_s:\n  %bufs = call ptr @ami_rt_string_to_json(ptr %vhp2, i32* %tmpout)\n  %len32s = load i32, ptr %tmpout, align 4\n  %len64s = zext i32 %len32s to i64\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstc, ptr %bufs, i64 %len64s, i1 false)\n  call void @free(ptr %bufs)\n  %dst2 = getelementptr i8, ptr %dstc, i64 %len64s\n  br label %emitadv\n"
+    s += "emit_o:\n  %vlen2 = call i64 @ami_rt_owned_len(ptr %vhp2)\n  %vptr2 = call ptr @ami_rt_owned_ptr(ptr %vhp2)\n  call void @llvm.memcpy.p0.p0.i64(ptr %dstc, ptr %vptr2, i64 %vlen2, i1 false)\n  %dst2 = getelementptr i8, ptr %dstc, i64 %vlen2\n  br label %emitadv\n"
+    s += "emitadv:\n  %jnext = add i64 %j, 1\n  br label %emit\n"
+    s += "end:\n  store i8 93, ptr %dstp\n  %dptr = ptrtoint ptr %dstp to i64\n  %bptr = ptrtoint ptr %buf to i64\n  %delta = sub i64 %dptr, %bptr\n  %olen64 = add i64 %delta, 1\n  %olen = trunc i64 %olen64 to i32\n  store i32 %olen, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+    // Central dispatcher
+    s += "define ptr @ami_rt_value_to_json(ptr %typedescr, i64 %vh, i32* %outlen) {\n"
+    s += "entry:\n  %k = load i8, ptr %typedescr, align 1\n  %isS = icmp eq i8 %k, 83\n  br i1 %isS, label %struct, label %chkA\n"
+    s += "struct:\n  %js1 = call ptr @ami_rt_struct_to_json(ptr %typedescr, i64 %vh, i32* %outlen)\n  ret ptr %js1\n"
+    s += "chkA:\n  %isA = icmp eq i8 %k, 65\n  br i1 %isA, label %arr, label %fallback\n"
+    s += "arr:\n  %js2 = call ptr @ami_rt_array_to_json(ptr %typedescr, i64 %vh, i32* %outlen)\n  ret ptr %js2\n"
+    s += "fallback:\n  %p = inttoptr i64 %vh to ptr\n  %js3 = call ptr @ami_rt_structured_to_json(ptr %p, i32* %outlen)\n  ret ptr %js3\n}\n\n"
     return s
 }
 
@@ -281,26 +408,7 @@ func RuntimeLL(triple string, withMain bool) string {
 
 // gpuAllowedBackends inspects the AMI_GPU_BACKENDS env var and returns booleans for
 // allowing metal, cuda, opencl in the generated runtime IR. Empty or missing means all allowed.
-func gpuAllowedBackends() (metal, cuda, opencl bool) {
-    v := os.Getenv("AMI_GPU_BACKENDS")
-    if v == "" {
-        return true, true, true
-    }
-    var m, c, o bool
-    parts := strings.Split(v, ",")
-    for _, p := range parts {
-        p = strings.TrimSpace(strings.ToLower(p))
-        switch p {
-        case "metal":
-            m = true
-        case "cuda":
-            c = true
-        case "opencl", "ocl":
-            o = true
-        }
-    }
-    return m, c, o
-}
+// moved to runtime_gpu_backends.go
 
 // itoa is a tiny integer to string formatter for small positive values used in IR lengths.
 // itoa helper provided in emit_util.go

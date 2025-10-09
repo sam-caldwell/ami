@@ -63,15 +63,30 @@ func builtinStdlibPackages() []Package {
         "func NewReader(src any) (Reader, error) {}\n" +
         // single-return variants to simplify lowering tests
         "func NewReaderSingle(src any) (Reader) {}\n" +
+        // Method-style Reader APIs
+        "func (r Reader) Read(n int) (Owned<slice<uint8>>, error) {}\n" +
+        "func (r Reader) Peek(n int) (Owned<slice<uint8>>, error) {}\n" +
+        "func (r Reader) UnreadByte() (error) {}\n" +
+        // Function-style shims retained temporarily for older tests
         "func ReaderRead(r any, n int) (Owned<slice<uint8>>, error) {}\n" +
         "func ReaderPeek(r any, n int) (Owned<slice<uint8>>, error) {}\n" +
         "func ReaderUnreadByte(r any) (error) {}\n" +
         "func NewWriter(dst any) (Writer, error) {}\n" +
         // single-return variants to simplify lowering tests
         "func NewWriterSingle(dst any) (Writer) {}\n" +
+        // Method-style Writer APIs
+        "func (w Writer) Write(p Owned<slice<uint8>>) (int, error) {}\n" +
+        "func (w Writer) Flush() (error) {}\n" +
+        // Function-style shims retained temporarily
         "func WriterWrite(w any, p Owned<slice<uint8>>) (int, error) {}\n" +
         "func WriterFlush(w any) (error) {}\n" +
         "func NewScanner(r any) (Scanner, error) {}\n" +
+        // Method-style Scanner APIs
+        "func (s Scanner) Scan() (bool) {}\n" +
+        "func (s Scanner) Text() (string) {}\n" +
+        "func (s Scanner) Bytes() (Owned<slice<uint8>>) {}\n" +
+        "func (s Scanner) Err() (error) {}\n" +
+        // Function-style shims retained temporarily
         "func ScannerScan(s any) (bool) {}\n" +
         "func ScannerText(s any) (string) {}\n" +
         "func ScannerBytes(s any) (Owned<slice<uint8>>) {}\n" +

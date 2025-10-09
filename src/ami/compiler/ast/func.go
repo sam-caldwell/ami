@@ -7,6 +7,12 @@ type FuncDecl struct {
     Pos     source.Position // position of 'func'
     NamePos source.Position
     Name    string
+    // Optional method receiver (for method-style declarations):
+    // func (RecvName RecvType) Name(...)
+    RecvName    string
+    RecvNamePos source.Position
+    RecvType    string
+    RecvTypePos source.Position
     TypeParams []TypeParam
     Params  []Param
     Results []Result // tuple of result types (scaffold)

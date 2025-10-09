@@ -4,6 +4,7 @@ import (
     "fmt"
 
     "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+    "github.com/sam-caldwell/ami/src/ami/compiler/source"
     "github.com/sam-caldwell/ami/src/ami/compiler/token"
 )
 
@@ -11,6 +12,32 @@ import (
 func (p *Parser) parseFuncDecl() (*ast.FuncDecl, error) {
     pos := p.cur.Pos
     p.next()
+    // Optional method receiver: (name Type)
+    var recvName string
+    var recvNamePos, recvTypePos source.Position
+    var recvType string
+    if p.cur.Kind == token.LParenSym {
+        // parse receiver
+        p.next()
+        if p.cur.Kind != token.Ident {
+            return nil, fmt.Errorf("expected receiver name, got %q", p.cur.Lexeme)
+        }
+        recvName = p.cur.Lexeme
+        recvNamePos = p.cur.Pos
+        p.next()
+        if !p.isTypeName(p.cur.Kind) {
+            return nil, fmt.Errorf("expected receiver type, got %q", p.cur.Lexeme)
+        }
+        recvType = p.cur.Lexeme
+        recvTypePos = p.cur.Pos
+        p.next()
+        // support qualified receiver types: pkg.Type
+        recvType = p.captureQualifiedType(recvType)
+        if p.cur.Kind != token.RParenSym {
+            return nil, fmt.Errorf("expected ')' after receiver, got %q", p.cur.Lexeme)
+        }
+        p.next()
+    }
     if p.cur.Kind != token.Ident {
         return nil, fmt.Errorf("expected function name, got %q", p.cur.Lexeme)
     }
@@ -64,7 +91,10 @@ func (p *Parser) parseFuncDecl() (*ast.FuncDecl, error) {
     if err != nil {
         return nil, err
     }
-    fn := &ast.FuncDecl{Pos: pos, NamePos: namePos, Name: name, TypeParams: typeParams, Params: params, Results: results, Body: body, Leading: p.pending,
+    fn := &ast.FuncDecl{Pos: pos, NamePos: namePos, Name: name,
+        RecvName: recvName, RecvNamePos: recvNamePos,
+        RecvType: recvType, RecvTypePos: recvTypePos,
+        TypeParams: typeParams, Params: params, Results: results, Body: body, Leading: p.pending,
         Decorators: p.pendingDecos, ParamsLParen: lp, ParamsRParen: rp, ResultsLParen: rlp, ResultsRParen: rrp}
     p.pending = nil
     p.pendingDecos = nil

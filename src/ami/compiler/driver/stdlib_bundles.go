@@ -61,10 +61,14 @@ func builtinStdlibPackages() []Package {
         "type Writer struct{}\n" +
         "type Scanner struct{}\n" +
         "func NewReader(src any) (Reader, error) {}\n" +
+        // single-return variants to simplify lowering tests
+        "func NewReaderSingle(src any) (Reader) {}\n" +
         "func ReaderRead(r any, n int) (Owned<slice<uint8>>, error) {}\n" +
         "func ReaderPeek(r any, n int) (Owned<slice<uint8>>, error) {}\n" +
         "func ReaderUnreadByte(r any) (error) {}\n" +
         "func NewWriter(dst any) (Writer, error) {}\n" +
+        // single-return variants to simplify lowering tests
+        "func NewWriterSingle(dst any) (Writer) {}\n" +
         "func WriterWrite(w any, p Owned<slice<uint8>>) (int, error) {}\n" +
         "func WriterFlush(w any) (error) {}\n" +
         "func NewScanner(r any) (Scanner, error) {}\n" +

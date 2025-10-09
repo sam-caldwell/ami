@@ -1841,7 +1841,7 @@ stdlib:
               and obey RAII; writers accept Owned buffers or strings converted to Owned internally, with documented
               ownership transfer rules. All operations return deterministic errors.
             dependencies: [F-11-10, F-11-18]
-            status: ready
+            status: complete
             tests:
               - src/ami/compiler/driver/raii_bufio_owned_test.go
       - id: F-11-2
@@ -1858,7 +1858,7 @@ stdlib:
               - method Scanner.Err() error
               Deterministic limits for token size are documented and enforce errors rather than panics.
             dependencies: [S-1, F-11-10, F-11-18]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/bufio/scanner_test.go
               - src/ami/compiler/driver/stdlib_bufio_scanner_lowering_test.go

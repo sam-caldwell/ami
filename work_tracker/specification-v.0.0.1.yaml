@@ -1745,8 +1745,9 @@ stdlib:
               As a user, I expect a stdlib `gpu` package that enables Transform nodes to execute GPU kernels with
               deterministic integration into the runtime scheduler and event model.
             dependencies: [F-11-23, F-11-22, F-11-11]
-            status: ready
-            tests: []
+            status: complete
+            tests:
+              - src/ami/runtime/exec/gpu_dispatch_transform_test.go
 
   - id: S-9
     name: json package
@@ -1763,7 +1764,7 @@ stdlib:
               - json.Decode[T](s string) (T, error) — decodes into AMI types/Struct; errors are deterministic.
               - Optional bytes variants may use `Owned<slice<uint8>>` in place of string.
             dependencies: [F-11-10, F-11-18]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/json/json_encode_decode_test.go
               - src/ami/compiler/driver/stdlib_json_lowering_test.go
@@ -1774,7 +1775,7 @@ stdlib:
               handling consistent with AMI math semantics, and no raw pointers in exposed APIs. Decoding rejects
               unknown fields in strict mode with clear diagnostics.
             dependencies: [F-11-18]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/json/json_canonical_order_test.go
               - src/ami/compiler/driver/stdlib_json_strict_mode_test.go
@@ -1793,7 +1794,7 @@ stdlib:
               - yaml.Decode[T](s string) (T, error)
               - Optional bytes variants may use `Owned<slice<uint8>>`.
             dependencies: [F-11-10, F-11-18]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/yaml/yaml_encode_decode_test.go
               - src/ami/compiler/driver/stdlib_yaml_lowering_test.go
@@ -1804,7 +1805,7 @@ stdlib:
               default), stable ordering where representable, and strict decoding mode that rejects unknown fields with
               clear diagnostics.
             dependencies: [F-11-18]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/yaml/yaml_strict_mode_test.go
 
@@ -2053,7 +2054,7 @@ stdlib:
               As a user, I expect GPU operations to integrate deterministically with the runtime scheduler and event
               model; backend availability is probed explicitly, and launches produce clear diagnostics on failure.
             dependencies: [F-11-23, F-11-22]
-            status: in_progress
+            status: complete
             tests:
               - src/ami/runtime/host/gpu/explain_test.go
               - src/ami/runtime/host/gpu/gpu_diag_test.go

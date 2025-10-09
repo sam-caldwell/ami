@@ -47,6 +47,12 @@ func lowerFuncDeclWithSCC(fn *ast.FuncDecl, funcResMap, funcParamMap map[string]
     }
     blocks := []ir.Block{{Name: "entry", Instr: instrs}}
     if len(extraBlocks) > 0 { blocks = append(blocks, extraBlocks...) }
-    return ir.Function{Name: fn.Name, Params: params, Results: outResults, Blocks: blocks, Decorators: decos}
+    // Map collected GPU blocks
+    var gbs []ir.GPUBlock
+    for _, g := range st.gpuBlocks {
+        gb := ir.GPUBlock{Family: g.family, Name: g.name, Source: g.source, N: g.n, Grid: g.grid, TPG: g.tpg}
+        gbs = append(gbs, gb)
+    }
+    return ir.Function{Name: fn.Name, Params: params, Results: outResults, Blocks: blocks, Decorators: decos, GPUBlocks: gbs}
 }
 // helper moved to lower_func_debugtext.go

@@ -88,9 +88,20 @@ func EncodeModule(m Module) ([]byte, error) {
             bl = append(bl, jb)
         }
         jf["blocks"] = bl
+        if len(f.GPUBlocks) > 0 {
+            gbs := make([]any, 0, len(f.GPUBlocks))
+            for _, g := range f.GPUBlocks {
+                obj := map[string]any{"family": g.Family, "source": g.Source}
+                if g.Name != "" { obj["name"] = g.Name }
+                if g.N > 0 { obj["n"] = g.N }
+                if g.Grid != [3]int{} { obj["grid"] = []int{g.Grid[0], g.Grid[1], g.Grid[2]} }
+                if g.TPG != [3]int{} { obj["tpg"] = []int{g.TPG[0], g.TPG[1], g.TPG[2]} }
+                gbs = append(gbs, obj)
+            }
+            jf["gpuBlocks"] = gbs
+        }
         fns = append(fns, jf)
     }
     jm["functions"] = fns
     return json.MarshalIndent(jm, "", "  ")
 }
-

@@ -9,5 +9,5 @@ type lowerState struct {
     funcParamNames map[string][]string
     currentFn string
     methodRecv map[string]irValue
+    gpuBlocks []gpuBlock
 }
-

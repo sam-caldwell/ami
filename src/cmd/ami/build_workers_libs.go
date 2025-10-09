@@ -10,6 +10,7 @@ import (
 
     "github.com/sam-caldwell/ami/src/ami/workspace"
     "github.com/sam-caldwell/ami/src/schemas/diag"
+    "strconv"
 )
 
 // emitWorkersLibs scans debug IR pipelines for each package and emits a per-package
@@ -63,7 +64,7 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
             cfile = filepath.Join(outDir, "workers_shim.c")
             _ = os.WriteFile(cfile, []byte(csrc.String()), 0o644)
         }
-        // Generate real GPU worker implementations for Metal-prefixed workers (darwin only).
+        // Generate real GPU worker implementations for: (1) Metal-prefixed workers, (2) functions with gpuBlocks in IR.
         // Pattern: worker name starts with "metal:" (case-insensitive). The implementation embeds a
         // simple Metal kernel that writes out[i] = i*3 for n elements and returns a JSON array.
         {
@@ -74,7 +75,40 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                     metalWorkers = append(metalWorkers, w)
                 }
             }
-            if len(metalWorkers) > 0 {
+            // Also detect functions with gpuBlocks from IR JSON; include only those referenced in pipelines.
+            type gb struct{ Family, Name, Source string; N int }
+            gpuFuncs := map[string][]gb{}
+            irDir := filepath.Join(dir, "build", "debug", "ir", pkg)
+            if ents, err := os.ReadDir(irDir); err == nil {
+                for _, e := range ents {
+                    if e.IsDir() || !strings.HasSuffix(e.Name(), ".ir.json") { continue }
+                    b, err := os.ReadFile(filepath.Join(irDir, e.Name()))
+                    if err != nil { continue }
+                    var obj map[string]any
+                    if err := json.Unmarshal(b, &obj); err != nil { continue }
+                    fns, _ := obj["functions"].([]any)
+                    for _, fv := range fns {
+                        fm := fv.(map[string]any)
+                        fname, _ := fm["name"].(string)
+                        gbl, _ := fm["gpuBlocks"].([]any)
+                        if len(gbl) == 0 { continue }
+                        var list []gb
+                        for _, gv := range gbl {
+                            gm := gv.(map[string]any)
+                            fam, _ := gm["family"].(string)
+                            src, _ := gm["source"].(string)
+                            kn, _ := gm["name"].(string)
+                            n := 0
+                            if nn, ok := gm["n"].(float64); ok { n = int(nn) }
+                            list = append(list, gb{Family: strings.ToLower(fam), Name: kn, Source: src, N: n})
+                        }
+                        if len(list) > 0 {
+                            gpuFuncs[fname] = list
+                        }
+                    }
+                }
+            }
+            if len(metalWorkers) > 0 || len(gpuFuncs) > 0 {
                 var c strings.Builder
                 c.WriteString("#include <stdlib.h>\n#include <string.h>\n#include <stdint.h>\n\n")
                 // Runtime externs from Metal shim
@@ -124,6 +158,48 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                     c.WriteString("    ami_rt_metal_free(dbuf); ami_rt_metal_ctx_destroy(ctx);\n")
                     c.WriteString("    return (const char*)js;\n")
                     c.WriteString("#else\n    (void)out_len; if (err) *err = strdup(\"metal unavailable\"); return NULL;\n#endif\n}\n\n")
+                }
+                // Generate from gpuBlocks in IR for functions referenced as workers
+                for w := range workers {
+                    // only generate if IR has gpuBlocks for this function name
+                    blocks, ok := gpuFuncs[w]
+                    if !ok || len(blocks) == 0 { continue }
+                    impl := sanitizeForCSymbol("ami_worker_impl_", w)
+                    c.WriteString("const char* ")
+                    c.WriteString(impl)
+                    c.WriteString("(const char* in_json, int in_len, int* out_len, const char** err) { (void)in_json; (void)in_len;\n")
+                    c.WriteString("    if (err) *err = NULL;\n")
+                    // Switch on family at runtime; currently implement only metal.
+                    // Try Metal first
+                    c.WriteString("#if defined(__APPLE__)\n")
+                    // Use the first metal block if present
+                    c.WriteString("    // metal backend\n")
+                    // Find a metal block
+                    c.WriteString("    const char* metal_src = NULL; unsigned int n = 8;\n")
+                    // Embed the first metal source as static; fallback to error
+                    for _, blk := range blocks {
+                        if blk.Family == "metal" && blk.Source != "" {
+                            esc := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Source)
+                            c.WriteString("    metal_src = \""); c.WriteString(esc); c.WriteString("\";\n")
+                            if blk.N > 0 { c.WriteString("    n = "); c.WriteString(strconv.Itoa(blk.N)); c.WriteString(";\n") }
+                            break
+                        }
+                    }
+                    c.WriteString("    if (metal_src) {\n")
+                    c.WriteString("      void* ctx = ami_rt_metal_ctx_create(NULL); if (!ctx) { if (err) *err = strdup(\"metal ctx\"); return NULL; }\n")
+                    c.WriteString("      void* lib = ami_rt_metal_lib_compile((void*)metal_src); if (!lib) { if (err) *err = strdup(\"metal lib\"); return NULL; }\n")
+                    c.WriteString("      const char* kname = \"mul3_from_i64_slice\"; void* pipe = ami_rt_metal_pipe_create(lib, (void*)kname); if (!pipe) { if (err) *err = strdup(\"metal pipe\"); return NULL; }\n")
+                    c.WriteString("      void* dbuf = ami_rt_metal_alloc((long long)n * 8); if (!dbuf) { if (err) *err = strdup(\"metal alloc\"); return NULL; }\n")
+                    c.WriteString("      (void)ami_rt_metal_dispatch_blocking_1buf1u32(ctx, pipe, dbuf, n, (long long)n, 1, 1, 1, 1, 1);\n")
+                    c.WriteString("      long* raw = (long*)malloc((size_t)n * 8); if (!raw) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
+                    c.WriteString("      ami_rt_metal_copy_from_device((void*)raw, dbuf, (long long)n * 8);\n")
+                    c.WriteString("      size_t cap = (size_t)n * 24 + 2; char* js = (char*)malloc(cap); if (!js) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
+                    c.WriteString("      size_t pos = 0; js[pos++]='['; for (unsigned int i=0;i<n;i++){ if (i>0) js[pos++]=','; pos += (size_t)snprintf(js+pos, cap-pos, \"%ld\", raw[i]); } js[pos++]=']'; *out_len=(int)pos;\n")
+                    c.WriteString("      free(raw); ami_rt_metal_free(dbuf); ami_rt_metal_ctx_destroy(ctx); return (const char*)js;\n")
+                    c.WriteString("    }\n")
+                    c.WriteString("#endif\n")
+                    c.WriteString("    if (err) *err = strdup(\"no supported GPU backend\"); return NULL;\n")
+                    c.WriteString("}\n\n")
                 }
                 // Write to build/debug/ir/<pkg>/workers_real.c
                 out := filepath.Join(dir, "build", "debug", "ir", pkg, "workers_real.c")

@@ -7,4 +7,5 @@ type Function struct {
     Results []Value
     Blocks  []Block
     Decorators []Decorator
+    GPUBlocks []GPUBlock
 }

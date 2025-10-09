@@ -22,6 +22,57 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
             continue
         }
         switch p.cur.Kind {
+        case token.KwGpu:
+            // Parse: gpu(attr=val, ...){ raw GPU source }
+            gpos := p.cur.Pos
+            p.next()
+            // optional attrs in parens
+            var gattrs []ast.Arg
+            if p.cur.Kind == token.LParenSym {
+                p.next()
+                for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
+                    if arg, ok := p.parseAttrArg(); ok {
+                        gattrs = append(gattrs, arg)
+                    } else {
+                        p.errf("unexpected token in gpu() attrs: %q", p.cur.Lexeme)
+                        p.syncUntil(token.CommaSym, token.RParenSym)
+                    }
+                    if p.cur.Kind == token.CommaSym { p.next(); continue }
+                }
+                if p.cur.Kind == token.RParenSym { p.next() } else { p.errf("missing ')' after gpu(...) attrs") }
+            }
+            // require '{' and capture raw balanced content
+            if p.cur.Kind != token.LBraceSym {
+                p.errf("expected '{' to start gpu block, got %q", p.cur.Lexeme)
+                p.syncUntil(token.RBraceSym, token.SemiSym)
+                if p.cur.Kind == token.SemiSym { p.next() }
+                continue
+            }
+            lb := p.cur.Pos
+            // capture content between braces using depth tracking
+            startOff := lb.Offset
+            depth := 0
+            var lastBraceOff int
+            for {
+                if p.cur.Kind == token.EOF { break }
+                if p.cur.Kind == token.LBraceSym { depth++ }
+                if p.cur.Kind == token.RBraceSym {
+                    depth--
+                    lastBraceOff = p.cur.Pos.Offset
+                    p.next()
+                    if depth == 0 { break }
+                    continue
+                }
+                p.next()
+            }
+            src := p.s.FileContent()
+            var payload string
+            if lastBraceOff > startOff+1 && lastBraceOff <= len(src) {
+                payload = src[startOff+1 : lastBraceOff]
+            }
+            g := &ast.GPUBlockStmt{Pos: gpos, Attrs: gattrs, LBrace: lb, RBrace: source.Position{Offset: lastBraceOff}, Source: payload}
+            stmts = append(stmts, g)
+            if p.cur.Kind == token.SemiSym { p.next() }
         case token.KwIf:
             leading := p.pending
             p.pending = nil

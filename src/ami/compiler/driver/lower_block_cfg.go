@@ -270,6 +270,26 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                     if e, ok := lowerExpr(st, v.X); ok { out = append(out, e) }
                 }
             }
+        case *ast.GPUBlockStmt:
+            // Collect GPU block metadata for this function; parsing minimal attributes.
+            var fam, name string
+            var n int
+            for _, a := range v.Attrs {
+                t := a.Text
+                // expect key=value
+                eq := -1
+                for i := 0; i < len(t); i++ { if t[i] == '=' { eq = i; break } }
+                if eq <= 0 { continue }
+                k := t[:eq]
+                val := t[eq+1:]
+                switch k {
+                case "family": fam = trimQuotes(val)
+                case "name": name = trimQuotes(val)
+                case "n":
+                    if v, ok := atoiSafe(val); ok { n = v }
+            }
+            }
+            st.gpuBlocks = append(st.gpuBlocks, gpuBlock{family: fam, name: name, source: v.Source, n: n})
         }
     }
     return out, extras

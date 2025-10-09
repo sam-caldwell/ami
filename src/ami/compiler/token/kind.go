@@ -56,6 +56,7 @@ const (
     KwIngress
     KwEgress
     KwError
+    KwGpu
     // Primitive/type keywords (subset used by parser as type names)
     KwBool
     KwByte
@@ -194,6 +195,7 @@ var Keywords = map[string]Kind{
     "ingress":  KwIngress,
     "egress":   KwEgress,
     "error":    KwError,
+    "gpu":      KwGpu,
     // Primitive types
     "bool":     KwBool,
     "byte":     KwByte,

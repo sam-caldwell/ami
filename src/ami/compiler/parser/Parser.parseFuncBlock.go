@@ -177,6 +177,8 @@ func (p *Parser) parseFuncBlock() (*ast.BlockStmt, error) {
                 tname = p.cur.Lexeme
                 tpos = p.cur.Pos
                 p.next()
+                // Allow qualified type like pkg.Type in var declarations
+                tname = p.captureQualifiedType(tname)
                 // Capture Struct{...} var types fully
                 if tname == "Struct" && p.cur.Kind == token.LBraceSym {
                     startOff := tpos.Offset

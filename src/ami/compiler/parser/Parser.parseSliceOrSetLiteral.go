@@ -16,6 +16,8 @@ func (p *Parser) parseSliceOrSetLiteral(isSlice bool, namePos source.Position) (
     }
     tname := p.cur.Lexeme
     p.next()
+    // Support qualified element types like pkg.Type
+    tname = p.captureQualifiedType(tname)
     if p.cur.Kind != token.Gt {
         p.errf("expected '>' after type name, got %q", p.cur.Lexeme)
         return nil, false
@@ -52,4 +54,3 @@ func (p *Parser) parseSliceOrSetLiteral(isSlice bool, namePos source.Position) (
     }
     return &ast.SetLit{Pos: namePos, TypeName: tname, LBrace: lb, Elems: elems, RBrace: rb}, true
 }
-

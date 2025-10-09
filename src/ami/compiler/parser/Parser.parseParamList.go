@@ -33,6 +33,8 @@ func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position
             typePos = p.cur.Pos
             typ = p.cur.Lexeme
             p.next()
+            // Extend with cross-package selectors like pkg.Type
+            typ = p.captureQualifiedType(typ)
             // Capture Struct{...} types fully
             if typ == "Struct" && p.cur.Kind == token.LBraceSym {
                 startOff := typePos.Offset
@@ -135,4 +137,3 @@ func (p *Parser) parseParamList() ([]ast.Param, source.Position, source.Position
     }
     return params, lp, rp, nil
 }
-

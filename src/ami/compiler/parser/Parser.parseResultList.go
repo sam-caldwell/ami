@@ -24,6 +24,8 @@ func (p *Parser) parseResultList() ([]ast.Result, source.Position, source.Positi
         rtype := p.cur.Lexeme
         rtypePos := rpos
         p.next()
+        // Extend with cross-package selectors like pkg.Type
+        rtype = p.captureQualifiedType(rtype)
         // Capture Struct{...} results
         if rtype == "Struct" && p.cur.Kind == token.LBraceSym {
             startOff := rtypePos.Offset
@@ -121,4 +123,3 @@ func (p *Parser) parseResultList() ([]ast.Result, source.Position, source.Positi
     }
     return results, lp, rp, nil
 }
-

@@ -15,6 +15,8 @@ func (p *Parser) parseMapLiteral(namePos source.Position) (ast.Expr, bool) {
     }
     k := p.cur.Lexeme
     p.next()
+    // Support qualified key types like pkg.Type
+    k = p.captureQualifiedType(k)
     if p.cur.Kind != token.CommaSym {
         p.errf("expected ',' between key and value type, got %q", p.cur.Lexeme)
         return nil, false
@@ -26,6 +28,8 @@ func (p *Parser) parseMapLiteral(namePos source.Position) (ast.Expr, bool) {
     }
     v := p.cur.Lexeme
     p.next()
+    // Support qualified value types
+    v = p.captureQualifiedType(v)
     if p.cur.Kind != token.Gt {
         p.errf("expected '>' after map type params, got %q", p.cur.Lexeme)
         return nil, false
@@ -80,4 +84,3 @@ func (p *Parser) parseMapLiteral(namePos source.Position) (ast.Expr, bool) {
     }
     return &ast.MapLit{Pos: namePos, KeyType: k, ValType: v, LBrace: lb, Elems: elems, RBrace: rb}, true
 }
-

@@ -7,16 +7,6 @@ import (
     "sort"
 )
 
-type workersSymbolsIndex struct {
-    Schema  string `json:"schema"`
-    Package string `json:"package"`
-    Symbols []struct{
-        Name      string `json:"name"`
-        Sanitized string `json:"sanitized"`
-        Impl      string `json:"impl"`
-    } `json:"symbols"`
-}
-
 func writeWorkersSymbolsIndex(pkg string, workers []string) (string, error) {
     if len(workers) == 0 { return "", nil }
     uniq := map[string]struct{}{}

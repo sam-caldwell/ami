@@ -50,10 +50,6 @@ type DLSOInvoker struct {
     handle  unsafe.Pointer
 }
 
-// NewDLSOInvoker creates an invoker for the given shared library. When libPath is empty,
-// symbols are resolved from the current process (RTLD_DEFAULT).
-func NewDLSOInvoker(libPath, prefix string) *DLSOInvoker { return &DLSOInvoker{libPath: libPath, prefix: prefix} }
-
 func (d *DLSOInvoker) open() {
     if d.handle != nil { return }
     cpath := C.CString(d.libPath)

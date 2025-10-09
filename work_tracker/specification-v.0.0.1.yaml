@@ -1830,7 +1830,7 @@ stdlib:
               Backing sources/sinks include AMI `io` handles and in‑memory buffers (Owned<slice<uint8>>). Behavior is
               deterministic with explicit flushes and bounded internal buffers.
             dependencies: [S-1, F-11-10, F-11-18]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/bufio/reader_writer_test.go
               - src/ami/compiler/driver/stdlib_bufio_lowering_test.go

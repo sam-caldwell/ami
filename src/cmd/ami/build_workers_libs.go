@@ -119,16 +119,37 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
             if len(metalWorkers) > 0 || len(gpuFuncs) > 0 {
                 var c strings.Builder
                 c.WriteString("#include <stdlib.h>\n#include <string.h>\n#include <stdint.h>\n\n")
-                c.WriteString("extern unsigned char ami_rt_gpu_has(long long);\n")
-                // Runtime externs from Metal shim
-                c.WriteString("extern void* ami_rt_metal_ctx_create(void*);")
-                c.WriteString("\nextern void  ami_rt_metal_ctx_destroy(void*);")
-                c.WriteString("\nextern void* ami_rt_metal_lib_compile(void*);")
-                c.WriteString("\nextern void* ami_rt_metal_pipe_create(void*, void*);")
-                c.WriteString("\nextern void* ami_rt_metal_alloc(long long);")
-                c.WriteString("\nextern void  ami_rt_metal_free(void*);")
-                c.WriteString("\nextern void  ami_rt_metal_copy_from_device(void*, void*, long long);")
-                c.WriteString("\nextern void* ami_rt_metal_dispatch_blocking_1buf1u32(void*, void*, void*, unsigned int, long long, long long, long long, long long, long long, long long);\n\n")
+                c.WriteString("#if defined(__APPLE__) || defined(__linux__)\n#include <dlfcn.h>\nstatic void* _sym(const char* n){ return dlsym(RTLD_DEFAULT,n);}\n#endif\n")
+                // Function pointer typedefs for runtime symbols
+                c.WriteString("typedef unsigned char (*p_gpu_has)(long long);\n")
+                c.WriteString("typedef void* (*p_metal_ctx_create)(void*);\n")
+                c.WriteString("typedef void  (*p_metal_ctx_destroy)(void*);\n")
+                c.WriteString("typedef void* (*p_metal_lib_compile)(void*);\n")
+                c.WriteString("typedef void* (*p_metal_pipe_create)(void*, void*);\n")
+                c.WriteString("typedef void* (*p_metal_alloc)(long long);\n")
+                c.WriteString("typedef void  (*p_metal_free)(void*);\n")
+                c.WriteString("typedef void  (*p_metal_copy_from_device)(void*, void*, long long);\n")
+                c.WriteString("typedef void* (*p_metal_dispatch_1buf1u32)(void*, void*, void*, unsigned int, long long, long long, long long, long long, long long, long long);\n\n")
+                // Minimal OpenCL typedefs (opaque pointers)
+                c.WriteString("typedef void* cl_platform_id; typedef void* cl_device_id; typedef void* cl_context; typedef void* cl_command_queue; typedef void* cl_program; typedef void* cl_kernel; typedef void* cl_mem; typedef unsigned long cl_ulong; typedef unsigned int cl_uint; typedef long cl_int; typedef size_t cl_size_t;\n")
+                c.WriteString("#define CL_DEVICE_TYPE_DEFAULT 1UL\n#define CL_MEM_READ_WRITE (1UL<<0)\n#define CL_TRUE 1\n#define CL_SUCCESS 0\n")
+                c.WriteString("typedef cl_int (*p_clGetPlatformIDs)(cl_uint, cl_platform_id*, cl_uint*);\n")
+                c.WriteString("typedef cl_int (*p_clGetDeviceIDs)(cl_platform_id, cl_ulong, cl_uint, cl_device_id*, cl_uint*);\n")
+                c.WriteString("typedef cl_context (*p_clCreateContext)(const void*, cl_uint, const cl_device_id*, void*, void*, cl_int*);\n")
+                c.WriteString("typedef cl_command_queue (*p_clCreateCommandQueue)(cl_context, cl_device_id, cl_ulong, cl_int*);\n")
+                c.WriteString("typedef cl_program (*p_clCreateProgramWithSource)(cl_context, cl_uint, const char**, const size_t*, cl_int*);\n")
+                c.WriteString("typedef cl_int (*p_clBuildProgram)(cl_program, cl_uint, const cl_device_id*, const char*, void*, void*);\n")
+                c.WriteString("typedef cl_kernel (*p_clCreateKernel)(cl_program, const char*, cl_int*);\n")
+                c.WriteString("typedef cl_mem (*p_clCreateBuffer)(cl_context, cl_ulong, size_t, void*, cl_int*);\n")
+                c.WriteString("typedef cl_int (*p_clSetKernelArg)(cl_kernel, cl_uint, size_t, const void*);\n")
+                c.WriteString("typedef cl_int (*p_clEnqueueNDRangeKernel)(cl_command_queue, cl_kernel, cl_uint, const size_t*, const size_t*, const size_t*, cl_uint, const void*, void*);\n")
+                c.WriteString("typedef cl_int (*p_clEnqueueReadBuffer)(cl_command_queue, cl_mem, cl_uint, size_t, size_t, void*, cl_uint, const void*, void*);\n")
+                c.WriteString("typedef cl_int (*p_clFinish)(cl_command_queue);\n")
+                c.WriteString("typedef cl_int (*p_clReleaseMemObject)(cl_mem);\n")
+                c.WriteString("typedef cl_int (*p_clReleaseKernel)(cl_kernel);\n")
+                c.WriteString("typedef cl_int (*p_clReleaseProgram)(cl_program);\n")
+                c.WriteString("typedef cl_int (*p_clReleaseCommandQueue)(cl_command_queue);\n")
+                c.WriteString("typedef cl_int (*p_clReleaseContext)(cl_context);\n\n")
                 // Embed simple Metal shader
                 c.WriteString("static const char* _metal_kernel_src = \"#include <metal_stdlib>\\nusing namespace metal;\\n\\nkernel void mul3_from_i64_slice(device long* out [[buffer(0)]], constant uint& n [[buffer(1)]], uint gid [[thread_position_in_grid]]) { if (gid < n) { out[gid] = (long)(gid) * 3; } }\\n\";\n\n")
                 for _, w := range metalWorkers {
@@ -185,6 +206,9 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                     // Select first metal block; embed its source and kernel name
                     c.WriteString("    const char* metal_src = NULL; const char* metal_kname = NULL; unsigned int n = 8;\n")
                     c.WriteString("    long long gx=0, gy=1, gz=1, tx=1, ty=1, tz=1;\n")
+                    // OpenCL block (if present)
+                    c.WriteString("    const char* ocl_src = NULL; const char* ocl_kname = NULL;\n")
+                    c.WriteString("    size_t ocl_gx=0, ocl_tx=1;\n")
                     for _, blk := range blocks {
                         if blk.Family == "metal" && blk.Source != "" {
                             esc := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Source)
@@ -211,24 +235,98 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                             }
                             break
                         }
+                        if blk.Family == "opencl" && blk.Source != "" {
+                            esc2 := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Source)
+                            c.WriteString("    ocl_src = \""); c.WriteString(esc2); c.WriteString("\";\n")
+                            if blk.Name != "" {
+                                kn2 := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Name)
+                                c.WriteString("    ocl_kname = \""); c.WriteString(kn2); c.WriteString("\";\n")
+                            }
+                            // adopt same n/grid defaults
+                            if blk.N > 0 { c.WriteString("    n = "); c.WriteString(strconv.Itoa(blk.N)); c.WriteString(";\n") }
+                            if blk.Grid != [3]int{} {
+                                gx := blk.Grid[0]; if gx <= 0 { gx = 1 }
+                                c.WriteString("    ocl_gx = "); c.WriteString(strconv.Itoa(gx)); c.WriteString(";\n")
+                            } else {
+                                c.WriteString("    ocl_gx = (size_t)n;\n")
+                            }
+                            if blk.TPG != [3]int{} {
+                                tx := blk.TPG[0]; if tx <= 0 { tx = 1 }
+                                c.WriteString("    ocl_tx = "); c.WriteString(strconv.Itoa(tx)); c.WriteString(";\n")
+                            }
+                        }
                     }
-                    c.WriteString("    if (metal_src && ami_rt_gpu_has(0)) {\n")
-                    c.WriteString("      void* ctx = ami_rt_metal_ctx_create(NULL); if (!ctx) { if (err) *err = strdup(\"metal ctx\"); return NULL; }\n")
-                    c.WriteString("      void* lib = ami_rt_metal_lib_compile((void*)metal_src); if (!lib) { if (err) *err = strdup(\"metal lib\"); return NULL; }\n")
-                    c.WriteString("      const char* kname = metal_kname ? metal_kname : \"main\"; void* pipe = ami_rt_metal_pipe_create(lib, (void*)kname); if (!pipe) { if (err) *err = strdup(\"metal pipe\"); return NULL; }\n")
-                    c.WriteString("      void* dbuf = ami_rt_metal_alloc((long long)n * 8); if (!dbuf) { if (err) *err = strdup(\"metal alloc\"); return NULL; }\n")
-                    c.WriteString("      (void)ami_rt_metal_dispatch_blocking_1buf1u32(ctx, pipe, dbuf, n, gx, gy, gz, tx, ty, tz);\n")
-                    c.WriteString("      long* raw = (long*)malloc((size_t)n * 8); if (!raw) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
-                    c.WriteString("      ami_rt_metal_copy_from_device((void*)raw, dbuf, (long long)n * 8);\n")
+                    c.WriteString("    if (metal_src) {\n")
+                    c.WriteString("      p_gpu_has f_has = (p_gpu_has)_sym(\"ami_rt_gpu_has\");\n")
+                    c.WriteString("      if (f_has && f_has(0)) {\n")
+                    c.WriteString("        p_metal_ctx_create f_ctx_create = (p_metal_ctx_create)_sym(\"ami_rt_metal_ctx_create\");\n")
+                    c.WriteString("        p_metal_ctx_destroy f_ctx_destroy = (p_metal_ctx_destroy)_sym(\"ami_rt_metal_ctx_destroy\");\n")
+                    c.WriteString("        p_metal_lib_compile f_lib_compile = (p_metal_lib_compile)_sym(\"ami_rt_metal_lib_compile\");\n")
+                    c.WriteString("        p_metal_pipe_create f_pipe_create = (p_metal_pipe_create)_sym(\"ami_rt_metal_pipe_create\");\n")
+                    c.WriteString("        p_metal_alloc f_alloc = (p_metal_alloc)_sym(\"ami_rt_metal_alloc\");\n")
+                    c.WriteString("        p_metal_free f_free = (p_metal_free)_sym(\"ami_rt_metal_free\");\n")
+                    c.WriteString("        p_metal_copy_from_device f_copy_from = (p_metal_copy_from_device)_sym(\"ami_rt_metal_copy_from_device\");\n")
+                    c.WriteString("        p_metal_dispatch_1buf1u32 f_dispatch = (p_metal_dispatch_1buf1u32)_sym(\"ami_rt_metal_dispatch_blocking_1buf1u32\");\n")
+                    c.WriteString("        if (!f_ctx_create||!f_ctx_destroy||!f_lib_compile||!f_pipe_create||!f_alloc||!f_free||!f_copy_from||!f_dispatch){ if (err) *err = strdup(\"metal symbols\"); return NULL; }\n")
+                    c.WriteString("        void* ctx = f_ctx_create(NULL); if (!ctx) { if (err) *err = strdup(\"metal ctx\"); return NULL; }\n")
+                    c.WriteString("        void* lib = f_lib_compile((void*)metal_src); if (!lib) { if (err) *err = strdup(\"metal lib\"); return NULL; }\n")
+                    c.WriteString("        const char* kname = metal_kname ? metal_kname : \"main\"; void* pipe = f_pipe_create(lib, (void*)kname); if (!pipe) { if (err) *err = strdup(\"metal pipe\"); return NULL; }\n")
+                    c.WriteString("        void* dbuf = f_alloc((long long)n * 8); if (!dbuf) { if (err) *err = strdup(\"metal alloc\"); return NULL; }\n")
+                    c.WriteString("        (void)f_dispatch(ctx, pipe, dbuf, n, gx, gy, gz, tx, ty, tz);\n")
+                    c.WriteString("        long* raw = (long*)malloc((size_t)n * 8); if (!raw) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
+                    c.WriteString("        f_copy_from((void*)raw, dbuf, (long long)n * 8);\n")
                     c.WriteString("      size_t cap = (size_t)n * 24 + 2; char* js = (char*)malloc(cap); if (!js) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
                     c.WriteString("      size_t pos = 0; js[pos++]='['; for (unsigned int i=0;i<n;i++){ if (i>0) js[pos++]=','; pos += (size_t)snprintf(js+pos, cap-pos, \"%ld\", raw[i]); } js[pos++]=']'; *out_len=(int)pos;\n")
-                    c.WriteString("      free(raw); ami_rt_metal_free(dbuf); ami_rt_metal_ctx_destroy(ctx); return (const char*)js;\n")
+                    c.WriteString("      free(raw); f_free(dbuf); f_ctx_destroy(ctx); return (const char*)js;\n")
+                    c.WriteString("      }\n")
                     c.WriteString("    }\n")
                     c.WriteString("#endif\n")
                     // CUDA branch placeholder
                     c.WriteString("    if (ami_rt_gpu_has(1)) { if (err) *err = strdup(\"cuda backend unimplemented\"); return NULL; }\n")
-                    // OpenCL branch placeholder
-                    c.WriteString("    if (ami_rt_gpu_has(2)) { if (err) *err = strdup(\"opencl backend unimplemented\"); return NULL; }\n")
+                    // OpenCL branch: dynamic dispatch using dlsym
+                    c.WriteString("#if defined(__APPLE__) || defined(__linux__)\n")
+                    c.WriteString("    if (ocl_src && ami_rt_gpu_has(2)) {\n")
+                    c.WriteString("      void* libcl = NULL;\n")
+                    c.WriteString("#if defined(__APPLE__)\n      libcl = dlopen(\"/System/Library/Frameworks/OpenCL.framework/OpenCL\", RTLD_LAZY); if(!libcl) libcl = dlopen(\"libOpenCL.dylib\", RTLD_LAZY);\n#else\n      libcl = dlopen(\"libOpenCL.so.1\", RTLD_LAZY); if(!libcl) libcl = dlopen(\"libOpenCL.so\", RTLD_LAZY);\n#endif\n")
+                    c.WriteString("      if (!libcl) { if (err) *err = strdup(\"opencl dlopen\"); return NULL; }\n")
+                    c.WriteString("      // resolve required symbols\n")
+                    c.WriteString("      p_clGetPlatformIDs clGetPlatformIDs = (p_clGetPlatformIDs)dlsym(libcl, \"clGetPlatformIDs\");\n")
+                    c.WriteString("      p_clGetDeviceIDs clGetDeviceIDs = (p_clGetDeviceIDs)dlsym(libcl, \"clGetDeviceIDs\");\n")
+                    c.WriteString("      p_clCreateContext clCreateContext = (p_clCreateContext)dlsym(libcl, \"clCreateContext\");\n")
+                    c.WriteString("      p_clCreateCommandQueue clCreateCommandQueue = (p_clCreateCommandQueue)dlsym(libcl, \"clCreateCommandQueue\");\n")
+                    c.WriteString("      p_clCreateProgramWithSource clCreateProgramWithSource = (p_clCreateProgramWithSource)dlsym(libcl, \"clCreateProgramWithSource\");\n")
+                    c.WriteString("      p_clBuildProgram clBuildProgram = (p_clBuildProgram)dlsym(libcl, \"clBuildProgram\");\n")
+                    c.WriteString("      p_clCreateKernel clCreateKernel = (p_clCreateKernel)dlsym(libcl, \"clCreateKernel\");\n")
+                    c.WriteString("      p_clCreateBuffer clCreateBuffer = (p_clCreateBuffer)dlsym(libcl, \"clCreateBuffer\");\n")
+                    c.WriteString("      p_clSetKernelArg clSetKernelArg = (p_clSetKernelArg)dlsym(libcl, \"clSetKernelArg\");\n")
+                    c.WriteString("      p_clEnqueueNDRangeKernel clEnqueueNDRangeKernel = (p_clEnqueueNDRangeKernel)dlsym(libcl, \"clEnqueueNDRangeKernel\");\n")
+                    c.WriteString("      p_clEnqueueReadBuffer clEnqueueReadBuffer = (p_clEnqueueReadBuffer)dlsym(libcl, \"clEnqueueReadBuffer\");\n")
+                    c.WriteString("      p_clFinish clFinish = (p_clFinish)dlsym(libcl, \"clFinish\");\n")
+                    c.WriteString("      p_clReleaseMemObject clReleaseMemObject = (p_clReleaseMemObject)dlsym(libcl, \"clReleaseMemObject\");\n")
+                    c.WriteString("      p_clReleaseKernel clReleaseKernel = (p_clReleaseKernel)dlsym(libcl, \"clReleaseKernel\");\n")
+                    c.WriteString("      p_clReleaseProgram clReleaseProgram = (p_clReleaseProgram)dlsym(libcl, \"clReleaseProgram\");\n")
+                    c.WriteString("      p_clReleaseCommandQueue clReleaseCommandQueue = (p_clReleaseCommandQueue)dlsym(libcl, \"clReleaseCommandQueue\");\n")
+                    c.WriteString("      p_clReleaseContext clReleaseContext = (p_clReleaseContext)dlsym(libcl, \"clReleaseContext\");\n")
+                    c.WriteString("      if(!clGetPlatformIDs||!clGetDeviceIDs||!clCreateContext||!clCreateCommandQueue||!clCreateProgramWithSource||!clBuildProgram||!clCreateKernel||!clCreateBuffer||!clSetKernelArg||!clEnqueueNDRangeKernel||!clEnqueueReadBuffer||!clFinish||!clReleaseMemObject||!clReleaseKernel||!clReleaseProgram||!clReleaseCommandQueue||!clReleaseContext){ if (err) *err = strdup(\"opencl symbols\"); return NULL; }\n")
+                    c.WriteString("      cl_platform_id platform = 0; cl_uint nplat = 0; if (clGetPlatformIDs(1, &platform, &nplat) != CL_SUCCESS || nplat == 0) { if (err) *err = strdup(\"opencl platform\"); return NULL; }\n")
+                    c.WriteString("      cl_device_id device = 0; cl_uint ndev = 0; if (clGetDeviceIDs(platform, CL_DEVICE_TYPE_DEFAULT, 1, &device, &ndev) != CL_SUCCESS || ndev == 0) { if (err) *err = strdup(\"opencl device\"); return NULL; }\n")
+                    c.WriteString("      cl_int e = 0; cl_context ctx = clCreateContext(NULL, 1, &device, NULL, NULL, &e); if (!ctx || e != CL_SUCCESS) { if (err) *err = strdup(\"opencl ctx\"); return NULL; }\n")
+                    c.WriteString("      cl_command_queue q = clCreateCommandQueue(ctx, device, 0, &e); if (!q || e != CL_SUCCESS) { if (err) *err = strdup(\"opencl queue\"); return NULL; }\n")
+                    c.WriteString("      const char* srcs[1] = { ocl_src }; cl_program prog = clCreateProgramWithSource(ctx, 1, srcs, NULL, &e); if (!prog || e != CL_SUCCESS) { if (err) *err = strdup(\"opencl program\"); return NULL; }\n")
+                    c.WriteString("      if (clBuildProgram(prog, 1, &device, NULL, NULL, NULL) != CL_SUCCESS) { if (err) *err = strdup(\"opencl build\"); return NULL; }\n")
+                    c.WriteString("      const char* kname2 = ocl_kname ? ocl_kname : \"main\"; cl_kernel kern = clCreateKernel(prog, kname2, &e); if (!kern || e != CL_SUCCESS) { if (err) *err = strdup(\"opencl kernel\"); return NULL; }\n")
+                    c.WriteString("      cl_mem buf = clCreateBuffer(ctx, CL_MEM_READ_WRITE, (size_t)n * 8, NULL, &e); if (!buf || e != CL_SUCCESS) { if (err) *err = strdup(\"opencl buffer\"); return NULL; }\n")
+                    c.WriteString("      // set args: out buffer (arg0) and n (arg1)\n")
+                    c.WriteString("      unsigned int ncopy = n; if (clSetKernelArg(kern, 0, sizeof(cl_mem), &buf) != CL_SUCCESS || clSetKernelArg(kern, 1, sizeof(unsigned int), &ncopy) != CL_SUCCESS) { if (err) *err = strdup(\"opencl args\"); return NULL; }\n")
+                    c.WriteString("      size_t gws[1] = { ocl_gx ? ocl_gx : (size_t)n }; size_t lws[1] = { ocl_tx ? ocl_tx : 1 }; if (clEnqueueNDRangeKernel(q, kern, 1, NULL, gws, lws, 0, NULL, NULL) != CL_SUCCESS) { if (err) *err = strdup(\"opencl enqueue\"); return NULL; }\n")
+                    c.WriteString("      if (clFinish(q) != CL_SUCCESS) { if (err) *err = strdup(\"opencl finish\"); return NULL; }\n")
+                    c.WriteString("      long* raw = (long*)malloc((size_t)n * 8); if (!raw) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
+                    c.WriteString("      if (clEnqueueReadBuffer(q, buf, CL_TRUE, 0, (size_t)n * 8, raw, 0, NULL, NULL) != CL_SUCCESS) { if (err) *err = strdup(\"opencl read\"); return NULL; }\n")
+                    c.WriteString("      size_t cap = (size_t)n * 24 + 2; char* js = (char*)malloc(cap); if (!js) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
+                    c.WriteString("      size_t pos = 0; js[pos++]='['; for (unsigned int i=0;i<n;i++){ if (i>0) js[pos++]=','; pos += (size_t)snprintf(js+pos, cap-pos, \"%ld\", raw[i]); } js[pos++]=']'; *out_len=(int)pos;\n")
+                    c.WriteString("      free(raw); clReleaseMemObject(buf); clReleaseKernel(kern); clReleaseProgram(prog); clReleaseCommandQueue(q); clReleaseContext(ctx); return (const char*)js;\n")
+                    c.WriteString("    }\n")
+                    c.WriteString("#endif\n")
                     c.WriteString("    if (err) *err = strdup(\"no supported GPU backend\"); return NULL;\n")
                     c.WriteString("}\n\n")
                 }

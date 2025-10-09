@@ -348,6 +348,9 @@ void* ami_rt_opencl_devices(void) {
     return mk_owned("{\"backend\":\"opencl\",\"devices\":[{\"id\":0,\"name\":\"stub\"}]}\n");
 }
 
+// Provide a no-op probe symbol so entry points can link even when runtime.o is unavailable.
+void ami_rt_gpu_probe_init(void) { }
+
 `), 0o644)
 			shimObj := filepath.Join(rtDir, "gpu_shims.o")
 			args := []string{"-x", "c", "-c", shim, "-o", shimObj, "-target", triple}

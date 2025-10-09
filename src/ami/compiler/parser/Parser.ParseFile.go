@@ -24,10 +24,12 @@ func (p *Parser) ParseFile() (*ast.File, error) {
         }
     }
     p.next()
-    if p.cur.Kind != token.Ident {
+    // Accept a standard identifier for the package name. Also allow certain
+    // reserved keywords which are valid package identifiers in stdlib, e.g. "gpu".
+    if p.cur.Kind != token.Ident && p.cur.Kind != token.KwGpu {
         p.errf("expected package name, got %q", p.cur.Lexeme)
         p.syncTop()
-        if p.cur.Kind != token.Ident {
+        if p.cur.Kind != token.Ident && p.cur.Kind != token.KwGpu {
             return f, p.firstErr()
         }
     }
@@ -197,4 +199,3 @@ func (p *Parser) ParseFile() (*ast.File, error) {
     f.Pragmas = p.collectPragmas()
     return f, p.firstErr()
 }
-

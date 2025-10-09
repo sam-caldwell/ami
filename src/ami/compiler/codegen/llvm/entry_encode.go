@@ -20,4 +20,3 @@ func encodeCString(s string) string {
     b = append(b, '\\', '0', '0')
     return string(b)
 }
-

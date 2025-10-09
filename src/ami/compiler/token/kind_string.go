@@ -79,6 +79,8 @@ func (k Kind) String() string {
         return "KwEgress"
     case KwError:
         return "KwError"
+    case KwGpu:
+        return "KwGpu"
     case KwBool:
         return "KwBool"
     case KwByte:

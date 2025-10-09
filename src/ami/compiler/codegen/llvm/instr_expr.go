@@ -154,6 +154,10 @@ func lowerExpr(e ir.Expr) string {
                 ret = "void"
             case "ami_rt_get_handler_thunk":
                 ret = "ptr"
+            case "ami_rt_gpu_has":
+                ret = "i1"
+            case "ami_rt_cuda_devices", "ami_rt_opencl_platforms", "ami_rt_opencl_devices":
+                ret = "ptr"
             default:
                 // fall back to result type when provided
                 if len(e.Results) > 1 {

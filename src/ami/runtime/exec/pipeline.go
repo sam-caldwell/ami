@@ -8,6 +8,7 @@ import (
     amitrigger "github.com/sam-caldwell/ami/src/ami/runtime/host/trigger"
     amiio "github.com/sam-caldwell/ami/src/ami/runtime/host/io"
     amitime "github.com/sam-caldwell/ami/src/ami/runtime/host/time"
+    amigpu "github.com/sam-caldwell/ami/src/ami/runtime/host/gpu"
     ev "github.com/sam-caldwell/ami/src/schemas/events"
     errs "github.com/sam-caldwell/ami/src/schemas/errors"
 )
@@ -109,6 +110,31 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
         var st rmerge.Stats
         go func(){ for e := range prev { st.Enqueued++; next <- e; st.Emitted++ }; close(next); forwardStats(StageInfo{Name:"ingress", Kind:"ingress", Index:0}, st) }()
         return next
+    }
+    // runGpuDispatch is a minimal GPU transform stage placeholder that integrates with
+    // scheduling and honors sandbox policy. It performs backend preflight checks and
+    // then passes events through unchanged to keep determinism in tests/environments
+    // without a real GPU. Deterministic stats are emitted upon completion.
+    runGpuDispatch := func(idx int, prev <-chan ev.Event) (<-chan ev.Event, error) {
+        if err := sandboxCheck(opts.Sandbox, "device"); err != nil { return nil, err }
+        // Preflight probes: call availability helpers (results are advisory here)
+        _ = amigpu.MetalAvailable()
+        _ = amigpu.CudaAvailable()
+        _ = amigpu.OpenCLAvailable()
+        next := make(chan ev.Event, 1024)
+        var st rmerge.Stats
+        go func(){
+            for e := range prev {
+                st.Enqueued++
+                // In this bring-up stage, dispatch is a no-op to preserve determinism
+                // across hosts; the payload is forwarded unmodified.
+                next <- e
+                st.Emitted++
+            }
+            close(next)
+            forwardStats(StageInfo{Name: "GpuDispatch", Kind: "transform", Index: idx}, st)
+        }()
+        return next, nil
     }
     runEgress := func(prev <-chan ev.Event) <-chan ev.Event {
         next := make(chan ev.Event, 1024)
@@ -228,7 +254,11 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                     }
                 default:
                     // If a worker name is available for this transform, run the worker; otherwise, identity transform+DSL stubs.
-                    if name == "Transform" && tIdxForNames < len(tnames) && tnames[tIdxForNames] != "" {
+                    if name == "GpuDispatch" {
+                        ch, err := runGpuDispatch(tIdx, cur)
+                        if err != nil { return nil, nil, err }
+                        cur = ch
+                    } else if name == "Transform" && tIdxForNames < len(tnames) && tnames[tIdxForNames] != "" {
                         cur = runWorker(tIdx, tnames[tIdxForNames], cur)
                         tIdxForNames++
                     } else {

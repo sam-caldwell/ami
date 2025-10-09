@@ -7,5 +7,5 @@ type gpuBlock struct {
     n      int
     grid   [3]int
     tpg    [3]int
+    args   string
 }
-

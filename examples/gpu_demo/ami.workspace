@@ -1,0 +1,20 @@
+version: 1.0.0
+project:
+  name: gpu-demo
+  version: 0.0.1
+toolchain:
+  compiler:
+    concurrency: 1
+    target: ./build
+    env:
+      - darwin/arm64
+      - linux/amd64
+  linker: {}
+  linter: {}
+packages:
+  - main:
+      name: gpu-demo
+      version: 0.0.1
+      root: ./src
+      import: []
+

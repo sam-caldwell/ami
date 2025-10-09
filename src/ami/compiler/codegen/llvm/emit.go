@@ -1,6 +1,7 @@
 package llvm
 
 import (
+    "os"
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
     "strings"
 )
@@ -61,15 +62,17 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
         if err := e.AddFunction(f); err != nil { return "", err }
     }
     // Synthesize lightweight references to ensure driver LLVM tests consistently
-    // observe GPU extern calls in minimal modules.
-    ref := ir.Function{Name: "__gpu_refs", Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{
-        ir.Expr{Op: "call", Callee: "ami_rt_gpu_has", Args: []ir.Value{{ID: "#0", Type: "int64"}}},
-        ir.Expr{Op: "call", Callee: "ami_rt_cuda_devices"},
-        ir.Expr{Op: "call", Callee: "ami_rt_opencl_platforms"},
-        ir.Expr{Op: "call", Callee: "ami_rt_opencl_devices"},
-        ir.Return{},
-    }}}}
-    _ = e.AddFunction(ref)
+    // observe GPU extern calls in minimal modules unless suppressed via env.
+    if os.Getenv("AMI_LLVM_SUPPRESS_GPU_REFS") == "" {
+        ref := ir.Function{Name: "__gpu_refs", Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{
+            ir.Expr{Op: "call", Callee: "ami_rt_gpu_has", Args: []ir.Value{{ID: "#0", Type: "int64"}}},
+            ir.Expr{Op: "call", Callee: "ami_rt_cuda_devices"},
+            ir.Expr{Op: "call", Callee: "ami_rt_opencl_platforms"},
+            ir.Expr{Op: "call", Callee: "ami_rt_opencl_devices"},
+            ir.Return{},
+        }}}}
+        _ = e.AddFunction(ref)
+    }
     // Emit worker core JSON-ABI wrappers for worker-shaped functions
     emitWorkerCores(e, m.Functions)
     return e.Build(), nil

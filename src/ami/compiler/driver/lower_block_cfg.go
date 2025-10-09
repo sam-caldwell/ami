@@ -274,6 +274,8 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
             // Collect GPU block metadata for this function; parsing minimal attributes.
             var fam, name string
             var n int
+            var grid [3]int
+            var tpg [3]int
             for _, a := range v.Attrs {
                 t := a.Text
                 // expect key=value
@@ -287,9 +289,13 @@ func lowerBlockCFG(st *lowerState, b *ast.BlockStmt, blockId int) ([]ir.Instruct
                 case "name": name = trimQuotes(val)
                 case "n":
                     if v, ok := atoiSafe(val); ok { n = v }
+                case "grid":
+                    if g, ok := parseIntList3(val); ok { grid = g }
+                case "tpg":
+                    if g, ok := parseIntList3(val); ok { tpg = g }
+                }
             }
-            }
-            st.gpuBlocks = append(st.gpuBlocks, gpuBlock{family: fam, name: name, source: v.Source, n: n})
+            st.gpuBlocks = append(st.gpuBlocks, gpuBlock{family: fam, name: name, source: v.Source, n: n, grid: grid, tpg: tpg})
         }
     }
     return out, extras

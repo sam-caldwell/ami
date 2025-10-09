@@ -76,7 +76,7 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                 }
             }
             // Also detect functions with gpuBlocks from IR JSON; include only those referenced in pipelines.
-            type gb struct{ Family, Name, Source string; N int }
+            type gb struct{ Family, Name, Source string; N int; Grid [3]int; TPG [3]int }
             gpuFuncs := map[string][]gb{}
             irDir := filepath.Join(dir, "build", "debug", "ir", pkg)
             if ents, err := os.ReadDir(irDir); err == nil {
@@ -100,7 +100,15 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                             kn, _ := gm["name"].(string)
                             n := 0
                             if nn, ok := gm["n"].(float64); ok { n = int(nn) }
-                            list = append(list, gb{Family: strings.ToLower(fam), Name: kn, Source: src, N: n})
+                            var grid [3]int
+                            var tpg [3]int
+                            if arr, ok := gm["grid"].([]any); ok {
+                                for i := 0; i < len(arr) && i < 3; i++ { if v, ok := arr[i].(float64); ok { grid[i] = int(v) } }
+                            }
+                            if arr, ok := gm["tpg"].([]any); ok {
+                                for i := 0; i < len(arr) && i < 3; i++ { if v, ok := arr[i].(float64); ok { tpg[i] = int(v) } }
+                            }
+                            list = append(list, gb{Family: strings.ToLower(fam), Name: kn, Source: src, N: n, Grid: grid, TPG: tpg})
                         }
                         if len(list) > 0 {
                             gpuFuncs[fname] = list
@@ -111,6 +119,7 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
             if len(metalWorkers) > 0 || len(gpuFuncs) > 0 {
                 var c strings.Builder
                 c.WriteString("#include <stdlib.h>\n#include <string.h>\n#include <stdint.h>\n\n")
+                c.WriteString("extern unsigned char ami_rt_gpu_has(long long);\n")
                 // Runtime externs from Metal shim
                 c.WriteString("extern void* ami_rt_metal_ctx_create(void*);")
                 c.WriteString("\nextern void  ami_rt_metal_ctx_destroy(void*);")
@@ -172,25 +181,43 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                     // Switch on family at runtime; currently implement only metal.
                     // Try Metal first
                     c.WriteString("#if defined(__APPLE__)\n")
-                    // Use the first metal block if present
                     c.WriteString("    // metal backend\n")
-                    // Find a metal block
-                    c.WriteString("    const char* metal_src = NULL; unsigned int n = 8;\n")
-                    // Embed the first metal source as static; fallback to error
+                    // Select first metal block; embed its source and kernel name
+                    c.WriteString("    const char* metal_src = NULL; const char* metal_kname = NULL; unsigned int n = 8;\n")
+                    c.WriteString("    long long gx=0, gy=1, gz=1, tx=1, ty=1, tz=1;\n")
                     for _, blk := range blocks {
                         if blk.Family == "metal" && blk.Source != "" {
                             esc := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Source)
                             c.WriteString("    metal_src = \""); c.WriteString(esc); c.WriteString("\";\n")
+                            if blk.Name != "" {
+                                kn := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Name)
+                                c.WriteString("    metal_kname = \""); c.WriteString(kn); c.WriteString("\";\n")
+                            }
                             if blk.N > 0 { c.WriteString("    n = "); c.WriteString(strconv.Itoa(blk.N)); c.WriteString(";\n") }
+                            // grid/tpg
+                            if blk.Grid != [3]int{} {
+                                gx := blk.Grid[0]; if gx <= 0 { gx = 1 }
+                                gy := blk.Grid[1]; if gy <= 0 { gy = 1 }
+                                gz := blk.Grid[2]; if gz <= 0 { gz = 1 }
+                                c.WriteString("    gx = "); c.WriteString(strconv.Itoa(gx)); c.WriteString("; gy = "); c.WriteString(strconv.Itoa(gy)); c.WriteString("; gz = "); c.WriteString(strconv.Itoa(gz)); c.WriteString(";\n")
+                            } else {
+                                c.WriteString("    gx = (long long)n; gy = 1; gz = 1;\n")
+                            }
+                            if blk.TPG != [3]int{} {
+                                tx := blk.TPG[0]; if tx <= 0 { tx = 1 }
+                                ty := blk.TPG[1]; if ty <= 0 { ty = 1 }
+                                tz := blk.TPG[2]; if tz <= 0 { tz = 1 }
+                                c.WriteString("    tx = "); c.WriteString(strconv.Itoa(tx)); c.WriteString("; ty = "); c.WriteString(strconv.Itoa(ty)); c.WriteString("; tz = "); c.WriteString(strconv.Itoa(tz)); c.WriteString(";\n")
+                            }
                             break
                         }
                     }
-                    c.WriteString("    if (metal_src) {\n")
+                    c.WriteString("    if (metal_src && ami_rt_gpu_has(0)) {\n")
                     c.WriteString("      void* ctx = ami_rt_metal_ctx_create(NULL); if (!ctx) { if (err) *err = strdup(\"metal ctx\"); return NULL; }\n")
                     c.WriteString("      void* lib = ami_rt_metal_lib_compile((void*)metal_src); if (!lib) { if (err) *err = strdup(\"metal lib\"); return NULL; }\n")
-                    c.WriteString("      const char* kname = \"mul3_from_i64_slice\"; void* pipe = ami_rt_metal_pipe_create(lib, (void*)kname); if (!pipe) { if (err) *err = strdup(\"metal pipe\"); return NULL; }\n")
+                    c.WriteString("      const char* kname = metal_kname ? metal_kname : \"main\"; void* pipe = ami_rt_metal_pipe_create(lib, (void*)kname); if (!pipe) { if (err) *err = strdup(\"metal pipe\"); return NULL; }\n")
                     c.WriteString("      void* dbuf = ami_rt_metal_alloc((long long)n * 8); if (!dbuf) { if (err) *err = strdup(\"metal alloc\"); return NULL; }\n")
-                    c.WriteString("      (void)ami_rt_metal_dispatch_blocking_1buf1u32(ctx, pipe, dbuf, n, (long long)n, 1, 1, 1, 1, 1);\n")
+                    c.WriteString("      (void)ami_rt_metal_dispatch_blocking_1buf1u32(ctx, pipe, dbuf, n, gx, gy, gz, tx, ty, tz);\n")
                     c.WriteString("      long* raw = (long*)malloc((size_t)n * 8); if (!raw) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
                     c.WriteString("      ami_rt_metal_copy_from_device((void*)raw, dbuf, (long long)n * 8);\n")
                     c.WriteString("      size_t cap = (size_t)n * 24 + 2; char* js = (char*)malloc(cap); if (!js) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
@@ -198,6 +225,10 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                     c.WriteString("      free(raw); ami_rt_metal_free(dbuf); ami_rt_metal_ctx_destroy(ctx); return (const char*)js;\n")
                     c.WriteString("    }\n")
                     c.WriteString("#endif\n")
+                    // CUDA branch placeholder
+                    c.WriteString("    if (ami_rt_gpu_has(1)) { if (err) *err = strdup(\"cuda backend unimplemented\"); return NULL; }\n")
+                    // OpenCL branch placeholder
+                    c.WriteString("    if (ami_rt_gpu_has(2)) { if (err) *err = strdup(\"opencl backend unimplemented\"); return NULL; }\n")
                     c.WriteString("    if (err) *err = strdup(\"no supported GPU backend\"); return NULL;\n")
                     c.WriteString("}\n\n")
                 }

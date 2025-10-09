@@ -53,23 +53,25 @@ func builtinStdlibPackages() []Package {
     out = append(out, Package{Name: "gpu", Files: gfs})
 
     // bufio package minimal stubs (signatures only)
+    // TODO: When method receivers and cross-package type references are implemented,
+    // replace these function-shaped APIs with true methods on Reader/Writer/Scanner.
     bufioSrc := "package bufio\n" +
         "// Minimal signatures to allow compiling AMI code importing bufio in tests.\n" +
         "type Reader struct{}\n" +
         "type Writer struct{}\n" +
         "type Scanner struct{}\n" +
         "func NewReader(src any) (Reader, error) {}\n" +
-        "func ReaderRead(r Reader, n int) (Owned<slice<uint8>>, error) {}\n" +
-        "func ReaderPeek(r Reader, n int) (Owned<slice<uint8>>, error) {}\n" +
-        "func ReaderUnreadByte(r Reader) (error) {}\n" +
+        "func ReaderRead(r any, n int) (Owned<slice<uint8>>, error) {}\n" +
+        "func ReaderPeek(r any, n int) (Owned<slice<uint8>>, error) {}\n" +
+        "func ReaderUnreadByte(r any) (error) {}\n" +
         "func NewWriter(dst any) (Writer, error) {}\n" +
-        "func WriterWrite(w Writer, p Owned<slice<uint8>>) (int, error) {}\n" +
-        "func WriterFlush(w Writer) (error) {}\n" +
-        "func NewScanner(r Reader) (Scanner, error) {}\n" +
-        "func ScannerScan(s Scanner) (bool) {}\n" +
-        "func ScannerText(s Scanner) (string) {}\n" +
-        "func ScannerBytes(s Scanner) (Owned<slice<uint8>>) {}\n" +
-        "func ScannerErr(s Scanner) (error) {}\n"
+        "func WriterWrite(w any, p Owned<slice<uint8>>) (int, error) {}\n" +
+        "func WriterFlush(w any) (error) {}\n" +
+        "func NewScanner(r any) (Scanner, error) {}\n" +
+        "func ScannerScan(s any) (bool) {}\n" +
+        "func ScannerText(s any) (string) {}\n" +
+        "func ScannerBytes(s any) (Owned<slice<uint8>>) {}\n" +
+        "func ScannerErr(s any) (error) {}\n"
     bfs := &source.FileSet{}
     bfs.AddFile("bufio.ami", bufioSrc)
     out = append(out, Package{Name: "bufio", Files: bfs})

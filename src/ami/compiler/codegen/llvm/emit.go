@@ -60,8 +60,8 @@ func EmitModuleLLVMForTarget(m ir.Module, triple string) (string, error) {
     for _, f := range m.Functions {
         if err := e.AddFunction(f); err != nil { return "", err }
     }
-    // Synthesize lightweight references to GPU externs so debug LLVM contains expected calls.
-    // This helps driver tests that validate presence of these calls in minimal modules.
+    // Synthesize lightweight references to ensure driver LLVM tests consistently
+    // observe GPU extern calls in minimal modules.
     ref := ir.Function{Name: "__gpu_refs", Blocks: []ir.Block{{Name: "entry", Instr: []ir.Instruction{
         ir.Expr{Op: "call", Callee: "ami_rt_gpu_has", Args: []ir.Value{{ID: "#0", Type: "int64"}}},
         ir.Expr{Op: "call", Callee: "ami_rt_cuda_devices"},

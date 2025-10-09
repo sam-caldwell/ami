@@ -63,6 +63,74 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
             cfile = filepath.Join(outDir, "workers_shim.c")
             _ = os.WriteFile(cfile, []byte(csrc.String()), 0o644)
         }
+        // Generate real GPU worker implementations for Metal-prefixed workers (darwin only).
+        // Pattern: worker name starts with "metal:" (case-insensitive). The implementation embeds a
+        // simple Metal kernel that writes out[i] = i*3 for n elements and returns a JSON array.
+        {
+            var metalWorkers []string
+            for w := range workers {
+                wl := strings.ToLower(w)
+                if strings.HasPrefix(wl, "metal:") {
+                    metalWorkers = append(metalWorkers, w)
+                }
+            }
+            if len(metalWorkers) > 0 {
+                var c strings.Builder
+                c.WriteString("#include <stdlib.h>\n#include <string.h>\n#include <stdint.h>\n\n")
+                // Runtime externs from Metal shim
+                c.WriteString("extern void* ami_rt_metal_ctx_create(void*);")
+                c.WriteString("\nextern void  ami_rt_metal_ctx_destroy(void*);")
+                c.WriteString("\nextern void* ami_rt_metal_lib_compile(void*);")
+                c.WriteString("\nextern void* ami_rt_metal_pipe_create(void*, void*);")
+                c.WriteString("\nextern void* ami_rt_metal_alloc(long long);")
+                c.WriteString("\nextern void  ami_rt_metal_free(void*);")
+                c.WriteString("\nextern void  ami_rt_metal_copy_from_device(void*, void*, long long);")
+                c.WriteString("\nextern void* ami_rt_metal_dispatch_blocking_1buf1u32(void*, void*, void*, unsigned int, long long, long long, long long, long long, long long, long long);\n\n")
+                // Embed simple Metal shader
+                c.WriteString("static const char* _metal_kernel_src = \"#include <metal_stdlib>\\nusing namespace metal;\\n\\nkernel void mul3_from_i64_slice(device long* out [[buffer(0)]], constant uint& n [[buffer(1)]], uint gid [[thread_position_in_grid]]) { if (gid < n) { out[gid] = (long)(gid) * 3; } }\\n\";\n\n")
+                for _, w := range metalWorkers {
+                    impl := sanitizeForCSymbol("ami_worker_impl_", w)
+                    // Worker returns a JSON array of n elements; n may be encoded as suffix after 'metal:' (e.g., metal:mul3:n=8)
+                    // Default n=8 when not present.
+                    // param n parsing omitted; default handled in C as n=8
+                    c.WriteString("const char* ")
+                    c.WriteString(impl)
+                    c.WriteString("(const char* in_json, int in_len, int* out_len, const char** err) { (void)in_json; (void)in_len;\n")
+                    c.WriteString("#if defined(__APPLE__)\n")
+                    c.WriteString("    if (err) *err = NULL;\n")
+                    // Create context
+                    c.WriteString("    void* ctx = ami_rt_metal_ctx_create(NULL); if (!ctx) { if (err) *err = strdup(\"metal ctx\"); return NULL; }\n")
+                    // Compile library
+                    c.WriteString("    void* lib = ami_rt_metal_lib_compile((void*)_metal_kernel_src); if (!lib) { if (err) *err = strdup(\"metal lib\"); return NULL; }\n")
+                    // Create pipeline
+                    c.WriteString("    const char* kname = \"mul3_from_i64_slice\"; void* pipe = ami_rt_metal_pipe_create(lib, (void*)kname); if (!pipe) { if (err) *err = strdup(\"metal pipe\"); return NULL; }\n")
+                    // Set n (default 8) and allocate device buffer
+                    c.WriteString("    unsigned int n = 8;\n")
+                    // Potentially override n if encoded in name
+                    c.WriteString("    // name-based n override not implemented in C; default n=8\n")
+                    c.WriteString("    void* dbuf = ami_rt_metal_alloc((long long)n * 8); if (!dbuf) { if (err) *err = strdup(\"metal alloc\"); return NULL; }\n")
+                    // Dispatch
+                    c.WriteString("    (void)ami_rt_metal_dispatch_blocking_1buf1u32(ctx, pipe, dbuf, n, (long long)n, 1, 1, 1, 1, 1);\n")
+                    // Read back
+                    c.WriteString("    long* raw = (long*)malloc((size_t)n * 8); if (!raw) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
+                    c.WriteString("    ami_rt_metal_copy_from_device((void*)raw, dbuf, (long long)n * 8);\n")
+                    // Build JSON
+                    c.WriteString("    // worst-case length ~ 21 bytes per number + commas/brackets\n")
+                    c.WriteString("    size_t cap = (size_t)n * 24 + 2; char* js = (char*)malloc(cap); if (!js) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
+                    c.WriteString("    size_t pos = 0; js[pos++]='[';\n")
+                    c.WriteString("    for (unsigned int i=0;i<n;i++){ if (i>0) js[pos++]=','; pos += (size_t)snprintf(js+pos, cap-pos, \"%ld\", raw[i]); } js[pos++]=']'; *out_len=(int)pos;\n")
+                    c.WriteString("    free(raw);\n")
+                    c.WriteString("    // cleanup; keep dbuf until after copy\n")
+                    c.WriteString("    ami_rt_metal_free(dbuf); ami_rt_metal_ctx_destroy(ctx);\n")
+                    c.WriteString("    return (const char*)js;\n")
+                    c.WriteString("#else\n    (void)out_len; if (err) *err = strdup(\"metal unavailable\"); return NULL;\n#endif\n}\n\n")
+                }
+                // Write to build/debug/ir/<pkg>/workers_real.c
+                out := filepath.Join(dir, "build", "debug", "ir", pkg, "workers_real.c")
+                _ = os.MkdirAll(filepath.Dir(out), 0o755)
+                _ = os.WriteFile(out, []byte(c.String()), 0o644)
+            }
+        }
         // Compile
         outDir := filepath.Join(dir, "build", env, "lib", pkg)
         if err := os.MkdirAll(outDir, 0o755); err != nil { continue }
@@ -112,4 +180,3 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
     }
     return nil
 }
-

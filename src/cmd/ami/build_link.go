@@ -231,6 +231,38 @@ void* ami_rt_metal_dispatch_blocking(void* ctxp, void* pipep,
     return NULL;
 }
 
+// Convenience dispatch binding a single device buffer at index 0 and a uint32 'n' at index 1.
+void* ami_rt_metal_dispatch_blocking_1buf1u32(void* ctxp, void* pipep, void* bufp, unsigned int n,
+                                              long long gx, long long gy, long long gz,
+                                              long long tx, long long ty, long long tz) {
+    if (!ctxp || !pipep || !bufp) return NULL;
+    AmiRtMetalCtx* C = (AmiRtMetalCtx*)ctxp;
+    AmiRtMetalPipe* P = (AmiRtMetalPipe*)pipep;
+    AmiRtMetalBuf*  B = (AmiRtMetalBuf*)bufp;
+    id<MTLDevice> devCtx = (__bridge id<MTLDevice>)C->dev;
+    id<MTLDevice> devP   = (__bridge id<MTLDevice>)P->dev;
+    id<MTLDevice> devBuf = (__bridge id<MTLDevice>)B->dev;
+    if (devCtx != devP || devCtx != devBuf) { return NULL; }
+    id<MTLCommandQueue> q = (__bridge id<MTLCommandQueue>)C->q;
+    id<MTLComputePipelineState> ps = (__bridge id<MTLComputePipelineState>)P->ps;
+    id<MTLCommandBuffer> cb = [q commandBuffer];
+    id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+    [enc setComputePipelineState:ps];
+    // Bind buffer at index 0
+    id<MTLBuffer> buf = (__bridge id<MTLBuffer>)B->buf;
+    [enc setBuffer:buf offset:0 atIndex:0];
+    // Bind n as constant bytes at index 1
+    unsigned int ncopy = n;
+    [enc setBytes:&ncopy length:sizeof(unsigned int) atIndex:1];
+    MTLSize grid = MTLSizeMake((NSUInteger)gx, (NSUInteger)gy, (NSUInteger)gz);
+    MTLSize tpg  = MTLSizeMake((NSUInteger)(tx?tx:1), (NSUInteger)(ty?ty:1), (NSUInteger)(tz?tz:1));
+    [enc dispatchThreads:grid threadsPerThreadgroup:tpg];
+    [enc endEncoding];
+    [cb commit];
+    [cb waitUntilCompleted];
+    return NULL;
+}
+
 #ifdef __cplusplus
 }
 #endif

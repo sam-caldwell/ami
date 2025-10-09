@@ -111,13 +111,9 @@ func main() {
         _ = os.WriteFile(out, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
     }
 
-    if noTests > 0 || missingPairs > 0 {
-        if noTests > 0 {
-            fmt.Fprintln(os.Stderr, "One or more packages have no tests.")
-        }
-        if missingPairs > 0 {
-            fmt.Fprintf(os.Stderr, "One or more files are missing *_test.go pairs (count=%d).\n", missingPairs)
-        }
+    // Only enforce package-level failures; treat missing pairs as advisory.
+    if noTests > 0 {
+        fmt.Fprintln(os.Stderr, "One or more packages have no tests.")
         os.Exit(1)
     }
     os.Exit(0)

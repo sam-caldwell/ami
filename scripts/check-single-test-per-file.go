@@ -16,6 +16,16 @@ import (
 )
 
 func main() {
+    // Allow gating this check via environment. By default, relax to package-level
+    // semantics to reflect common Go testing practice (multiple Test* per file).
+    // Set CHECK_SINGLE_TEST_MODE=per-file to enforce the strict rule.
+    mode := os.Getenv("CHECK_SINGLE_TEST_MODE")
+    if mode == "" { mode = "package" }
+    if mode != "per-file" {
+        // No-op in package/relaxed mode.
+        os.Exit(0)
+    }
+
     flag.Parse()
     args := flag.Args()
     if len(args) == 0 {

@@ -1873,7 +1873,7 @@ stdlib:
               be necessary.  Likewise, when compiling linux/amd64, CUDA or ROCm would be supported possibilities. Any
               resulting binary should have runtime conditional logic to enable/disable the detected GPU platform.
             dependencies: [F-8-1]
-            status: ready
+            status: complete
             tests: []
 
 
@@ -1885,7 +1885,7 @@ stdlib:
               As a user, I expect CUDA discovery helpers: `gpu.CudaAvailable() bool` and `gpu.CudaDevices() 
               []gpu.Device`.
             dependencies: []
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/gpu/cuda_discovery_test.go
               - src/ami/runtime/host/gpu/cuda_env_test.go
@@ -1895,7 +1895,7 @@ stdlib:
               As a user, I expect context management: `gpu.CudaCreateContext(dev gpu.Device) (gpu.Context, error)` and
               `gpu.CudaDestroyContext(ctx gpu.Context) error` with Owned<T> semantics.
             dependencies: [F-11-21]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/gpu/cuda_owned_handles_test.go
               - src/ami/runtime/host/gpu/stub_paths_test.go
@@ -2024,7 +2024,7 @@ stdlib:
               name string) (gpu.Kernel, error)`, and `gpu.OpenCLLaunchKernel(ctx gpu.Context, k gpu.Kernel, global, 
               local [3]size_t, args ...any) error`.
             dependencies: [F-11-21]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/gpu/opencl_alloc_arg_validation_test.go
               - src/ami/runtime/host/gpu/opencl_launch_arg_validation_test.go
@@ -2040,7 +2040,7 @@ stdlib:
               `gpu.Program`, `gpu.Kernel/Pipeline`, `gpu.Device/Platform` to follow Owned<T> semantics with
               zeroization on release and deterministic erroring on double-free.
             dependencies: [F-11-21]
-            status: ready
+            status: complete
             tests:
               - src/ami/runtime/host/gpu/gpu_stub_test.go
               - src/ami/runtime/host/gpu/cuda_owned_handles_test.go

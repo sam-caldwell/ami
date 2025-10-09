@@ -76,6 +76,7 @@ func newRootCmd() *cobra.Command {
     errorsCmd.AddCommand(newErrorsSchemaCmd())
     errorsCmd.AddCommand(newErrorsValidateCmd())
     cmd.AddCommand(errorsCmd)
+    // hidden dev command: emit wrappers-only LLVM
+    cmd.AddCommand(newEmitWrappersCmd())
     return cmd
 }
-

@@ -50,7 +50,7 @@ func lowerFuncDeclWithSCC(fn *ast.FuncDecl, funcResMap, funcParamMap map[string]
     // Map collected GPU blocks
     var gbs []ir.GPUBlock
     for _, g := range st.gpuBlocks {
-        gb := ir.GPUBlock{Family: g.family, Name: g.name, Source: g.source, N: g.n, Grid: g.grid, TPG: g.tpg}
+        gb := ir.GPUBlock{Family: g.family, Name: g.name, Source: g.source, N: g.n, Grid: g.grid, TPG: g.tpg, Args: g.args}
         gbs = append(gbs, gb)
     }
     return ir.Function{Name: fn.Name, Params: params, Results: outResults, Blocks: blocks, Decorators: decos, GPUBlocks: gbs}

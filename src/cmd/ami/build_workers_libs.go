@@ -76,7 +76,7 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                 }
             }
             // Also detect functions with gpuBlocks from IR JSON; include only those referenced in pipelines.
-            type gb struct{ Family, Name, Source string; N int; Grid [3]int; TPG [3]int }
+            type gb struct{ Family, Name, Source, Args string; N int; Grid [3]int; TPG [3]int }
             gpuFuncs := map[string][]gb{}
             irDir := filepath.Join(dir, "build", "debug", "ir", pkg)
             if ents, err := os.ReadDir(irDir); err == nil {
@@ -98,6 +98,7 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                             fam, _ := gm["family"].(string)
                             src, _ := gm["source"].(string)
                             kn, _ := gm["name"].(string)
+                            argsSpec, _ := gm["args"].(string)
                             n := 0
                             if nn, ok := gm["n"].(float64); ok { n = int(nn) }
                             var grid [3]int
@@ -108,7 +109,7 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                             if arr, ok := gm["tpg"].([]any); ok {
                                 for i := 0; i < len(arr) && i < 3; i++ { if v, ok := arr[i].(float64); ok { tpg[i] = int(v) } }
                             }
-                            list = append(list, gb{Family: strings.ToLower(fam), Name: kn, Source: src, N: n, Grid: grid, TPG: tpg})
+                            list = append(list, gb{Family: strings.ToLower(fam), Name: kn, Source: src, Args: argsSpec, N: n, Grid: grid, TPG: tpg})
                         }
                         if len(list) > 0 {
                             gpuFuncs[fname] = list
@@ -118,7 +119,8 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
             }
             if len(metalWorkers) > 0 || len(gpuFuncs) > 0 {
                 var c strings.Builder
-                c.WriteString("#include <stdlib.h>\n#include <string.h>\n#include <stdint.h>\n\n")
+                c.WriteString("#include <stdlib.h>\n#include <string.h>\n#include <stdint.h>\n")
+                c.WriteString("#ifdef _WIN32\n#include <windows.h>\n#endif\n\n")
                 c.WriteString("#if defined(__APPLE__) || defined(__linux__)\n#include <dlfcn.h>\nstatic void* _sym(const char* n){ return dlsym(RTLD_DEFAULT,n);}\n#endif\n")
                 // Function pointer typedefs for runtime symbols
                 c.WriteString("typedef unsigned char (*p_gpu_has)(long long);\n")
@@ -141,7 +143,9 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                 c.WriteString("typedef CUresult (*p_cuMemAlloc)(CUdeviceptr*, size_t);\n")
                 c.WriteString("typedef CUresult (*p_cuMemFree)(CUdeviceptr);\n")
                 c.WriteString("typedef CUresult (*p_cuMemcpyDtoH)(void*, CUdeviceptr, size_t);\n")
-                c.WriteString("typedef CUresult (*p_cuLaunchKernel)(CUfunction, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, void*, void**, void**);\n\n")
+                c.WriteString("typedef CUresult (*p_cuLaunchKernel)(CUfunction, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, void*, void**, void**);\n")
+                c.WriteString("typedef CUresult (*p_cuCtxSynchronize)(void);\n")
+                c.WriteString("typedef CUresult (*p_cuModuleUnload)(CUmodule);\n\n")
 
                 // Minimal OpenCL typedefs (opaque pointers)
                 c.WriteString("typedef void* cl_platform_id; typedef void* cl_device_id; typedef void* cl_context; typedef void* cl_command_queue; typedef void* cl_program; typedef void* cl_kernel; typedef void* cl_mem; typedef unsigned long cl_ulong; typedef unsigned int cl_uint; typedef long cl_int; typedef size_t cl_size_t;\n")
@@ -217,11 +221,14 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                     c.WriteString("#if defined(__APPLE__)\n")
                     c.WriteString("    // metal backend\n")
                     // Select first metal block; embed its source and kernel name
-                    c.WriteString("    const char* metal_src = NULL; const char* metal_kname = NULL; unsigned int n = 8;\n")
+                    c.WriteString("    const char* metal_src = NULL; const char* metal_kname = NULL; const char* metal_args = \"1buf1u32\"; unsigned int n = 8;\n")
                     c.WriteString("    long long gx=0, gy=1, gz=1, tx=1, ty=1, tz=1;\n")
+                    // CUDA block (if present)
+                    c.WriteString("    const char* cuda_ptx = NULL; const char* cuda_kname = NULL; const char* cuda_args = \"1buf1u32\";\n")
+                    c.WriteString("    unsigned int cuda_gx=0, cuda_gy=1, cuda_gz=1, cuda_bx=1, cuda_by=1, cuda_bz=1;\n")
                     // OpenCL block (if present)
-                    c.WriteString("    const char* ocl_src = NULL; const char* ocl_kname = NULL;\n")
-                    c.WriteString("    size_t ocl_gx=0, ocl_tx=1;\n")
+                    c.WriteString("    const char* ocl_src = NULL; const char* ocl_kname = NULL; const char* ocl_args = \"1buf1u32\";\n")
+                    c.WriteString("    size_t ocl_gx=0, ocl_gy=1, ocl_gz=1, ocl_tx=1, ocl_ty=1, ocl_tz=1;\n")
                     for _, blk := range blocks {
                         if blk.Family == "metal" && blk.Source != "" {
                             esc := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Source)
@@ -231,6 +238,7 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                                 c.WriteString("    metal_kname = \""); c.WriteString(kn); c.WriteString("\";\n")
                             }
                             if blk.N > 0 { c.WriteString("    n = "); c.WriteString(strconv.Itoa(blk.N)); c.WriteString(";\n") }
+                            if blk.Args != "" { c.WriteString("    metal_args = \""); c.WriteString(strings.ReplaceAll(blk.Args, "\"", "\\\"")); c.WriteString("\";\n") }
                             // grid/tpg
                             if blk.Grid != [3]int{} {
                                 gx := blk.Grid[0]; if gx <= 0 { gx = 1 }
@@ -257,15 +265,45 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                             }
                             // adopt same n/grid defaults
                             if blk.N > 0 { c.WriteString("    n = "); c.WriteString(strconv.Itoa(blk.N)); c.WriteString(";\n") }
+                            if blk.Args != "" { c.WriteString("    ocl_args = \""); c.WriteString(strings.ReplaceAll(blk.Args, "\"", "\\\"")); c.WriteString("\";\n") }
                             if blk.Grid != [3]int{} {
                                 gx := blk.Grid[0]; if gx <= 0 { gx = 1 }
-                                c.WriteString("    ocl_gx = "); c.WriteString(strconv.Itoa(gx)); c.WriteString(";\n")
+                                gy := blk.Grid[1]; if gy <= 0 { gy = 1 }
+                                gz := blk.Grid[2]; if gz <= 0 { gz = 1 }
+                                c.WriteString("    ocl_gx = "); c.WriteString(strconv.Itoa(gx)); c.WriteString("; ocl_gy = "); c.WriteString(strconv.Itoa(gy)); c.WriteString("; ocl_gz = "); c.WriteString(strconv.Itoa(gz)); c.WriteString(";\n")
                             } else {
-                                c.WriteString("    ocl_gx = (size_t)n;\n")
+                                c.WriteString("    ocl_gx = (size_t)n; ocl_gy = 1; ocl_gz = 1;\n")
                             }
                             if blk.TPG != [3]int{} {
                                 tx := blk.TPG[0]; if tx <= 0 { tx = 1 }
-                                c.WriteString("    ocl_tx = "); c.WriteString(strconv.Itoa(tx)); c.WriteString(";\n")
+                                ty := blk.TPG[1]; if ty <= 0 { ty = 1 }
+                                tz := blk.TPG[2]; if tz <= 0 { tz = 1 }
+                                c.WriteString("    ocl_tx = "); c.WriteString(strconv.Itoa(tx)); c.WriteString("; ocl_ty = "); c.WriteString(strconv.Itoa(ty)); c.WriteString("; ocl_tz = "); c.WriteString(strconv.Itoa(tz)); c.WriteString(";\n")
+                            }
+                        }
+                        if blk.Family == "cuda" && blk.Source != "" {
+                            // Embed PTX for CUDA and capture kernel name and dims
+                            esc3 := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Source)
+                            c.WriteString("    cuda_ptx = \""); c.WriteString(esc3); c.WriteString("\";\n")
+                            if blk.Name != "" {
+                                kn3 := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(blk.Name)
+                                c.WriteString("    cuda_kname = \""); c.WriteString(kn3); c.WriteString("\";\n")
+                            }
+                            if blk.N > 0 { c.WriteString("    n = "); c.WriteString(strconv.Itoa(blk.N)); c.WriteString(";\n") }
+                            if blk.Args != "" { c.WriteString("    cuda_args = \""); c.WriteString(strings.ReplaceAll(blk.Args, "\"", "\\\"")); c.WriteString("\";\n") }
+                            if blk.Grid != [3]int{} {
+                                gx := blk.Grid[0]; if gx <= 0 { gx = 1 }
+                                gy := blk.Grid[1]; if gy <= 0 { gy = 1 }
+                                gz := blk.Grid[2]; if gz <= 0 { gz = 1 }
+                                c.WriteString("    cuda_gx = "); c.WriteString(strconv.Itoa(gx)); c.WriteString("; cuda_gy = "); c.WriteString(strconv.Itoa(gy)); c.WriteString("; cuda_gz = "); c.WriteString(strconv.Itoa(gz)); c.WriteString(";\n")
+                            } else {
+                                c.WriteString("    cuda_gx = n; cuda_gy = 1; cuda_gz = 1;\n")
+                            }
+                            if blk.TPG != [3]int{} {
+                                bx := blk.TPG[0]; if bx <= 0 { bx = 1 }
+                                by := blk.TPG[1]; if by <= 0 { by = 1 }
+                                bz := blk.TPG[2]; if bz <= 0 { bz = 1 }
+                                c.WriteString("    cuda_bx = "); c.WriteString(strconv.Itoa(bx)); c.WriteString("; cuda_by = "); c.WriteString(strconv.Itoa(by)); c.WriteString("; cuda_bz = "); c.WriteString(strconv.Itoa(bz)); c.WriteString(";\n")
                             }
                         }
                     }
@@ -308,6 +346,36 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                     c.WriteString("      const char* ms = (rc==0)? ok : bad; size_t L = strlen(ms); char* js = (char*)malloc(L); if(!js){ if(err)*err=strdup(\"oom\"); return NULL; } memcpy(js, ms, L); *out_len=(int)L; return (const char*)js;\n")
                     c.WriteString("    }\n")
                     c.WriteString("#endif\n")
+                    // CUDA branch: dlopen libcuda + driver API launch
+                    c.WriteString("#if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)\n")
+                    c.WriteString("    if (cuda_ptx && ami_rt_gpu_has(1)) {\n")
+                    // Load driver library
+                    c.WriteString("      void* libc = NULL;\n")
+                    c.WriteString("#if defined(__APPLE__)\n      libc = dlopen(\"libcuda.dylib\", RTLD_LAZY);\n#elif defined(_WIN32)\n      libc = (void*)LoadLibraryA(\"nvcuda.dll\");\n#else\n      libc = dlopen(\"libcuda.so.1\", RTLD_LAZY); if(!libc) libc = dlopen(\"libcuda.so\", RTLD_LAZY);\n#endif\n")
+                    c.WriteString("      if (!libc) { if (err) *err = strdup(\"cuda dlopen\"); return NULL; }\n")
+                    // Resolve symbols
+                    c.WriteString("#if defined(_WIN32)\n      p_cuInit cuInit = (p_cuInit)GetProcAddress((HMODULE)libc, \"cuInit\");\n      p_cuDeviceGet cuDeviceGet = (p_cuDeviceGet)GetProcAddress((HMODULE)libc, \"cuDeviceGet\");\n      p_cuCtxCreate cuCtxCreate = (p_cuCtxCreate)GetProcAddress((HMODULE)libc, \"cuCtxCreate_v2\");\n      p_cuCtxDestroy cuCtxDestroy = (p_cuCtxDestroy)GetProcAddress((HMODULE)libc, \"cuCtxDestroy_v2\");\n      p_cuModuleLoadData cuModuleLoadData = (p_cuModuleLoadData)GetProcAddress((HMODULE)libc, \"cuModuleLoadData\");\n      p_cuModuleGetFunction cuModuleGetFunction = (p_cuModuleGetFunction)GetProcAddress((HMODULE)libc, \"cuModuleGetFunction\");\n      p_cuMemAlloc cuMemAlloc = (p_cuMemAlloc)GetProcAddress((HMODULE)libc, \"cuMemAlloc_v2\");\n      p_cuMemFree cuMemFree = (p_cuMemFree)GetProcAddress((HMODULE)libc, \"cuMemFree_v2\");\n      p_cuMemcpyDtoH cuMemcpyDtoH = (p_cuMemcpyDtoH)GetProcAddress((HMODULE)libc, \"cuMemcpyDtoH_v2\");\n      p_cuLaunchKernel cuLaunchKernel = (p_cuLaunchKernel)GetProcAddress((HMODULE)libc, \"cuLaunchKernel\");\n      p_cuCtxSynchronize cuCtxSynchronize = (p_cuCtxSynchronize)GetProcAddress((HMODULE)libc, \"cuCtxSynchronize\");\n      p_cuModuleUnload cuModuleUnload = (p_cuModuleUnload)GetProcAddress((HMODULE)libc, \"cuModuleUnload\");\n#else\n      p_cuInit cuInit = (p_cuInit)dlsym(libc, \"cuInit\");\n      p_cuDeviceGet cuDeviceGet = (p_cuDeviceGet)dlsym(libc, \"cuDeviceGet\");\n      p_cuCtxCreate cuCtxCreate = (p_cuCtxCreate)dlsym(libc, \"cuCtxCreate_v2\");\n      p_cuCtxDestroy cuCtxDestroy = (p_cuCtxDestroy)dlsym(libc, \"cuCtxDestroy_v2\");\n      p_cuModuleLoadData cuModuleLoadData = (p_cuModuleLoadData)dlsym(libc, \"cuModuleLoadData\");\n      p_cuModuleGetFunction cuModuleGetFunction = (p_cuModuleGetFunction)dlsym(libc, \"cuModuleGetFunction\");\n      p_cuMemAlloc cuMemAlloc = (p_cuMemAlloc)dlsym(libc, \"cuMemAlloc_v2\");\n      p_cuMemFree cuMemFree = (p_cuMemFree)dlsym(libc, \"cuMemFree_v2\");\n      p_cuMemcpyDtoH cuMemcpyDtoH = (p_cuMemcpyDtoH)dlsym(libc, \"cuMemcpyDtoH_v2\");\n      p_cuLaunchKernel cuLaunchKernel = (p_cuLaunchKernel)dlsym(libc, \"cuLaunchKernel\");\n      p_cuCtxSynchronize cuCtxSynchronize = (p_cuCtxSynchronize)dlsym(libc, \"cuCtxSynchronize\");\n      p_cuModuleUnload cuModuleUnload = (p_cuModuleUnload)dlsym(libc, \"cuModuleUnload\");\n#endif\n")
+                    c.WriteString("      if(!cuInit||!cuDeviceGet||!cuCtxCreate||!cuCtxDestroy||!cuModuleLoadData||!cuModuleGetFunction||!cuMemAlloc||!cuMemFree||!cuMemcpyDtoH||!cuLaunchKernel){ if (err) *err = strdup(\"cuda symbols\"); return NULL; }\n")
+                    c.WriteString("      if (cuInit(0) != 0) { if (err) *err = strdup(\"cuda init\"); return NULL; }\n")
+                    c.WriteString("      CUdevice dev = 0; if (cuDeviceGet(&dev, 0) != 0) { if (err) *err = strdup(\"cuda device\"); return NULL; }\n")
+                    c.WriteString("      CUcontext cuctx = 0; if (cuCtxCreate(&cuctx, 0, dev) != 0 || !cuctx) { if (err) *err = strdup(\"cuda ctx\"); return NULL; }\n")
+                    c.WriteString("      CUmodule mod = 0; if (cuModuleLoadData(&mod, (const void*)cuda_ptx) != 0 || !mod) { if (err) *err = strdup(\"cuda module\"); return NULL; }\n")
+                    c.WriteString("      const char* kname3 = cuda_kname ? cuda_kname : \"main\"; CUfunction fn = 0; if (cuModuleGetFunction(&fn, mod, kname3) != 0 || !fn) { if (err) *err = strdup(\"cuda kernel\"); return NULL; }\n")
+                    c.WriteString("      CUdeviceptr dptr = 0; size_t bytes = (size_t)n * 8; if (cuMemAlloc(&dptr, bytes) != 0 || !dptr) { if (err) *err = strdup(\"cuda alloc\"); return NULL; }\n")
+                    c.WriteString("      unsigned int n32 = n; void* args2[2]; void* args1[1]; void** argv = args2; args2[0] = &dptr; args2[1] = &n32; args1[0] = &dptr;\n")
+                    c.WriteString("      if (cuda_args && cuda_args[0]=='1' && cuda_args[1]=='b' && cuda_args[2]=='u' && cuda_args[3]=='f') { argv = args1; }\n")
+                    c.WriteString("      unsigned int gx3 = cuda_gx ? cuda_gx : n; unsigned int gy3 = cuda_gy ? cuda_gy : 1; unsigned int gz3 = cuda_gz ? cuda_gz : 1;\n")
+                    c.WriteString("      unsigned int bx3 = cuda_bx ? cuda_bx : 1; unsigned int by3 = cuda_by ? cuda_by : 1; unsigned int bz3 = cuda_bz ? cuda_bz : 1;\n")
+                    c.WriteString("      if (cuLaunchKernel(fn, gx3, gy3, gz3, bx3, by3, bz3, 0, (void*)0, argv, (void**)0) != 0) { if (err) *err = strdup(\"cuda launch\"); return NULL; }\n")
+                    c.WriteString("      if (cuCtxSynchronize) { (void)cuCtxSynchronize(); }\n")
+                    c.WriteString("      long* raw = (long*)malloc(bytes); if (!raw) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
+                    c.WriteString("      if (cuMemcpyDtoH((void*)raw, dptr, bytes) != 0) { if (err) *err = strdup(\"cuda memcpy\"); return NULL; }\n")
+                    c.WriteString("      size_t cap = (size_t)n * 24 + 2; char* js = (char*)malloc(cap); if (!js) { if (err) *err = strdup(\"oom\"); (void)cuMemFree(dptr); if (cuModuleUnload) (void)cuModuleUnload(mod); (void)cuCtxDestroy(cuctx); return NULL; }\n")
+                    c.WriteString("      size_t pos = 0; js[pos++]='['; for (unsigned int i=0;i<n;i++){ if (i>0) js[pos++]=','; pos += (size_t)snprintf(js+pos, cap-pos, \"%ld\", raw[i]); } js[pos++]=']'; *out_len=(int)pos;\n")
+                    c.WriteString("      free(raw); (void)cuMemFree(dptr); if (cuModuleUnload) (void)cuModuleUnload(mod); (void)cuCtxDestroy(cuctx); return (const char*)js;\n")
+                    c.WriteString("    }\n")
+                    c.WriteString("#endif\n")
+
                     // OpenCL branch: dynamic dispatch using dlsym
                     c.WriteString("#if defined(__APPLE__) || defined(__linux__)\n")
                     c.WriteString("    if (ocl_src && ami_rt_gpu_has(2)) {\n")
@@ -341,9 +409,13 @@ func emitWorkersLibs(clang, dir string, ws workspace.Workspace, env, triple stri
                     c.WriteString("      if (clBuildProgram(prog, 1, &device, NULL, NULL, NULL) != CL_SUCCESS) { if (err) *err = strdup(\"opencl build\"); return NULL; }\n")
                     c.WriteString("      const char* kname2 = ocl_kname ? ocl_kname : \"main\"; cl_kernel kern = clCreateKernel(prog, kname2, &e); if (!kern || e != CL_SUCCESS) { if (err) *err = strdup(\"opencl kernel\"); return NULL; }\n")
                     c.WriteString("      cl_mem buf = clCreateBuffer(ctx, CL_MEM_READ_WRITE, (size_t)n * 8, NULL, &e); if (!buf || e != CL_SUCCESS) { if (err) *err = strdup(\"opencl buffer\"); return NULL; }\n")
-                    c.WriteString("      // set args: out buffer (arg0) and n (arg1)\n")
-                    c.WriteString("      unsigned int ncopy = n; if (clSetKernelArg(kern, 0, sizeof(cl_mem), &buf) != CL_SUCCESS || clSetKernelArg(kern, 1, sizeof(unsigned int), &ncopy) != CL_SUCCESS) { if (err) *err = strdup(\"opencl args\"); return NULL; }\n")
-                    c.WriteString("      size_t gws[1] = { ocl_gx ? ocl_gx : (size_t)n }; size_t lws[1] = { ocl_tx ? ocl_tx : 1 }; if (clEnqueueNDRangeKernel(q, kern, 1, NULL, gws, lws, 0, NULL, NULL) != CL_SUCCESS) { if (err) *err = strdup(\"opencl enqueue\"); return NULL; }\n")
+                    c.WriteString("      // set args: out buffer (arg0) and optionally n (arg1) depending on args spec\n")
+                    c.WriteString("      unsigned int ncopy = n; if (clSetKernelArg(kern, 0, sizeof(cl_mem), &buf) != CL_SUCCESS) { if (err) *err = strdup(\"opencl args buf\"); return NULL; }\n")
+                    c.WriteString("      if (!ocl_args || (ocl_args && ocl_args[0]=='1' && ocl_args[1]=='b' && ocl_args[2]=='u' && ocl_args[3]=='f' && ocl_args[4]=='1')) { if (clSetKernelArg(kern, 1, sizeof(unsigned int), &ncopy) != CL_SUCCESS) { if (err) *err = strdup(\"opencl args n\"); return NULL; } }\n")
+                    c.WriteString("      size_t gws3[3] = { ocl_gx ? ocl_gx : (size_t)n, ocl_gy ? ocl_gy : 1, ocl_gz ? ocl_gz : 1 };\n")
+                    c.WriteString("      size_t lws3[3] = { ocl_tx ? ocl_tx : 1, ocl_ty ? ocl_ty : 1, ocl_tz ? ocl_tz : 1 };\n")
+                    c.WriteString("      cl_uint work_dim = 1; if (gws3[2] > 1 || lws3[2] > 1) work_dim = 3; else if (gws3[1] > 1 || lws3[1] > 1) work_dim = 2;\n")
+                    c.WriteString("      if (clEnqueueNDRangeKernel(q, kern, work_dim, NULL, gws3, lws3, 0, NULL, NULL) != CL_SUCCESS) { if (err) *err = strdup(\"opencl enqueue\"); return NULL; }\n")
                     c.WriteString("      if (clFinish(q) != CL_SUCCESS) { if (err) *err = strdup(\"opencl finish\"); return NULL; }\n")
                     c.WriteString("      long* raw = (long*)malloc((size_t)n * 8); if (!raw) { if (err) *err = strdup(\"oom\"); return NULL; }\n")
                     c.WriteString("      if (clEnqueueReadBuffer(q, buf, CL_TRUE, 0, (size_t)n * 8, raw, 0, NULL, NULL) != CL_SUCCESS) { if (err) *err = strdup(\"opencl read\"); return NULL; }\n")

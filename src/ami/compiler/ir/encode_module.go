@@ -96,6 +96,7 @@ func EncodeModule(m Module) ([]byte, error) {
                 if g.N > 0 { obj["n"] = g.N }
                 if g.Grid != [3]int{} { obj["grid"] = []int{g.Grid[0], g.Grid[1], g.Grid[2]} }
                 if g.TPG != [3]int{} { obj["tpg"] = []int{g.TPG[0], g.TPG[1], g.TPG[2]} }
+                if g.Args != "" { obj["args"] = g.Args }
                 gbs = append(gbs, obj)
             }
             jf["gpuBlocks"] = gbs

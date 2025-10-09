@@ -16,6 +16,30 @@ func (p *Parser) parseAttrArg() (ast.Arg, bool) {
         if p.cur.Kind == token.Assign {
             // k = value
             p.next()
+            // Special-case bracketed list forms: [a,b,c]
+            if p.cur.Kind == token.LBracketSym {
+                start := p.cur.Pos.Offset
+                depth := 0
+                var last int
+                for {
+                    if p.cur.Kind == token.EOF { break }
+                    if p.cur.Kind == token.LBracketSym { depth++ }
+                    if p.cur.Kind == token.RBracketSym {
+                        if depth > 0 { depth-- }
+                        last = p.cur.Pos.Offset
+                        p.next()
+                        if depth == 0 { break }
+                        continue
+                    }
+                    p.next()
+                }
+                src := p.s.FileContent()
+                val := "[]"
+                if last > start && last+1 <= len(src) {
+                    val = src[start : last+1]
+                }
+                return ast.Arg{Pos: pos, Text: key + "=" + val}, true
+            }
             e, ok := p.parseExprPrec(1)
             if !ok {
                 p.errf("expected value expression after '=', got %q", p.cur.Lexeme)
@@ -34,4 +58,3 @@ func (p *Parser) parseAttrArg() (ast.Arg, bool) {
     }
     return ast.Arg{Pos: ePos(e), Text: exprText(e), IsString: isStringLit(e)}, true
 }
-

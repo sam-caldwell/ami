@@ -39,8 +39,17 @@
 - Env knobs: `AMI_PACKAGE_CACHE`, `AMI_STRICT_DEDUP_PARTITION`, `AMI_E2E_ENABLE_GIT=1`.
 - Stdlib policy: only `.ami` files under `std/ami/stdlib` (CI guard).
 
+## GPU Integration (S-8) Notes
+- gpu(...) blocks: author inline GPU kernels in functions and tag via attrs:
+  - `family`: `"metal" | "opencl" | "cuda"`
+  - `name`: kernel entry symbol (e.g., `"main"`)
+  - `n`: element count hint (default 8)
+  - `grid`/`tpg`: list forms accepted — `[gx,gy,gz]`, `[tx,ty,tz]`
+- Worker generator: when a pipeline Transform references a function with `gpuBlocks`, the build emits `workers_real.c` that can dispatch backends dynamically (Metal on macOS, OpenCL on Darwin/Linux, CUDA via driver API if present). Shared lib is written to `build/<env>/lib/<pkg>/libworkers.*`.
+- Runtime probe mask: `ami_rt_gpu_has(bit)` backs `gpu.*Available()`; entrypoint calls the probe init.
+- Debug LLVM noise: to suppress synthetic GPU refs in emitted LLVM, set `AMI_LLVM_SUPPRESS_GPU_REFS=1`.
+
 ## Architecture Overview (Brief)
 - Frontend: scanner → parser → semantics.
 - IR/Codegen: LLVM emission; math maps to LLVM intrinsics or runtime helpers.
 - Runtime: executor/scheduler/merge; host stdlib in `src/ami/runtime/host`.
-

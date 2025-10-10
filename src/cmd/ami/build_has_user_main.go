@@ -26,6 +26,8 @@ func hasUserMain(ws workspace.Workspace, root string) bool {
             sf := &source.File{Name: f, Content: string(b)}
             af, _ := parser.New(sf).ParseFile()
             if af == nil { continue }
+            // Only consider functions in package "main" as a true user entrypoint
+            if af.PackageName != "main" { continue }
             for _, d := range af.Decls {
                 if fn, ok := d.(*ast.FuncDecl); ok {
                     if fn.Name == "main" { return true }
@@ -35,4 +37,3 @@ func hasUserMain(ws workspace.Workspace, root string) bool {
     }
     return false
 }
-

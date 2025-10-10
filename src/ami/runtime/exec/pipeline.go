@@ -92,8 +92,8 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
         }
     }
     // helper: transform pass-through with counters and DSL filtering/transforming
-    type edgePolicy struct{ cap int; bp string }
-    sendWithBP := func(next chan ev.Event, e ev.Event, st *rmerge.Stats, bp string) {
+    type edgePolicy struct{ cap int; bp string; from string; to string }
+    sendWithBP := func(next chan ev.Event, e ev.Event, st *rmerge.Stats, bp string, pol edgePolicy) {
         switch bp {
         case "dropNewest":
             select {
@@ -108,6 +108,32 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                 // buffer full: evict one oldest then try once more
                 select { case <-next: default: }
                 select { case next <- e: default: if st != nil { st.Dropped++ } }
+            }
+        case "shuntNewest":
+            // attempt send; if full, emit shunt advisory and drop from main stream
+            select {
+            case next <- e:
+            default:
+                if st != nil { st.Dropped++ }
+                if opts.ErrorChan != nil {
+                    select { case opts.ErrorChan <- errs.Error{Level: "warn", Code: "W_SHUNTED_NEWEST", Message: "shunted (newest)", Data: map[string]any{"from": pol.from, "to": pol.to}}: default: }
+                }
+            }
+        case "shuntOldest":
+            // attempt send; if full, evict one oldest and attempt once, else shunt
+            select {
+            case next <- e:
+            default:
+                // evict oldest
+                select { case <-next: default: }
+                select {
+                case next <- e:
+                default:
+                    if st != nil { st.Dropped++ }
+                    if opts.ErrorChan != nil {
+                        select { case opts.ErrorChan <- errs.Error{Level: "warn", Code: "W_SHUNTED_OLDEST", Message: "shunted (oldest)", Data: map[string]any{"from": pol.from, "to": pol.to}}: default: }
+                    }
+                }
             }
         default: // block
             next <- e
@@ -124,7 +150,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                 // Apply simple filter/transform stubs
                 if keep := applyFilter(filterExpr, e); !keep { st.Dropped++; continue }
                 e = applyTransform(transformExpr, e)
-                sendWithBP(next, e, &st, pol.bp); st.Emitted++
+                sendWithBP(next, e, &st, pol.bp, pol); st.Emitted++
             }
             close(next)
             forwardStats(StageInfo{Name: name, Kind: "transform", Index: idx}, st)
@@ -136,7 +162,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
         if buf <= 0 { buf = 1024 }
         next := make(chan ev.Event, buf)
         var st rmerge.Stats
-        go func(){ for e := range prev { st.Enqueued++; sendWithBP(next, e, &st, pol.bp); st.Emitted++ }; close(next); forwardStats(StageInfo{Name:"ingress", Kind:"ingress", Index:0}, st) }()
+        go func(){ for e := range prev { st.Enqueued++; sendWithBP(next, e, &st, pol.bp, pol); st.Emitted++ }; close(next); forwardStats(StageInfo{Name:"ingress", Kind:"ingress", Index:0}, st) }()
         return next
     }
     // runGpuDispatch is a minimal GPU transform stage placeholder that integrates with
@@ -158,7 +184,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                 st.Enqueued++
                 // In this bring-up stage, dispatch is a no-op to preserve determinism
                 // across hosts; the payload is forwarded unmodified.
-                sendWithBP(next, e, &st, pol.bp)
+                sendWithBP(next, e, &st, pol.bp, pol)
                 st.Emitted++
             }
             close(next)
@@ -171,7 +197,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
         if buf <= 0 { buf = 1024 }
         next := make(chan ev.Event, buf)
         var st rmerge.Stats
-        go func(){ for e := range prev { st.Enqueued++; sendWithBP(next, e, &st, pol.bp); st.Emitted++ }; close(next); forwardStats(StageInfo{Name:"egress", Kind:"egress", Index:0}, st); close(statsOut) }()
+        go func(){ for e := range prev { st.Enqueued++; sendWithBP(next, e, &st, pol.bp, pol); st.Emitted++ }; close(next); forwardStats(StageInfo{Name:"egress", Kind:"egress", Index:0}, st); close(statsOut) }()
         return next
     }
     // worker wrapper is inlined where needed to honor per-edge backpressure
@@ -188,7 +214,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
         // helper resolver: capacity/backpressure for pair
         resolveEP := func(from, to string) edgePolicy {
             // default
-            pol := edgePolicy{cap: 1024, bp: "block"}
+            pol := edgePolicy{cap: 1024, bp: "block", from: from, to: to}
             path := filepath.Join(".", "build", "debug", "asm", m.Package, "edges.json")
             if b, err := os.ReadFile(path); err == nil {
                 if err := json.Unmarshal(b, &eidx); err == nil {
@@ -240,7 +266,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                         case tm := <-tCh:
                             st.Enqueued++
                             e := ev.Event{Payload: map[string]any{"i": i, "ts": toStdTime(tm.Value)}}
-                            sendWithBP(ch, e, &st, pol.bp)
+                            sendWithBP(ch, e, &st, pol.bp, pol)
                             st.Emitted++
                             i++
                         }
@@ -268,7 +294,7 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                         pol := resolveEP(prevName, "Collect")
                         buf := pol.cap; if buf <= 0 { buf = 1024 }
                         ch := make(chan ev.Event, buf)
-                        go func(prev <-chan ev.Event, next chan ev.Event, pol edgePolicy){ for e := range prev { sendWithBP(next, e, nil, pol.bp) }; close(next) }(cur, ch, pol)
+                        go func(prev <-chan ev.Event, next chan ev.Event, pol edgePolicy){ for e := range prev { sendWithBP(next, e, nil, pol.bp, pol) }; close(next) }(cur, ch, pol)
                         oc, s, err := e.runMergeStageWithStats(ctx, *mp, ch)
                         if err != nil { return nil, nil, err }
                         go func(idx int, sp *rmerge.Stats){ <-ctx.Done(); forwardStats(StageInfo{Name:"Collect", Kind:"collect", Index:idx}, *sp) }(cIdx, s)
@@ -304,14 +330,14 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                                     out, err := wf(e)
                                     if err != nil {
                                         ee := errs.Error{Level: "error", Code: "E_WORKER", Message: err.Error(), Data: map[string]any{"worker": wname}}
-                                        if opts.ErrorChan != nil { select { case opts.ErrorChan <- ee: default: } } else { ne := e; ne.Payload = ee; sendWithBP(outc, ne, &st, pol.bp); st.Emitted++ }
+                                        if opts.ErrorChan != nil { select { case opts.ErrorChan <- ee: default: } } else { ne := e; ne.Payload = ee; sendWithBP(outc, ne, &st, pol.bp, pol); st.Emitted++ }
                                         continue
                                     }
                                     switch v := out.(type) {
                                     case ev.Event:
-                                        sendWithBP(outc, v, &st, pol.bp)
+                                        sendWithBP(outc, v, &st, pol.bp, pol)
                                     default:
-                                        ne := e; ne.Payload = v; sendWithBP(outc, ne, &st, pol.bp)
+                                        ne := e; ne.Payload = v; sendWithBP(outc, ne, &st, pol.bp, pol)
                                     }
                                     st.Emitted++
                                 }

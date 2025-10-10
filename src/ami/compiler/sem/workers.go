@@ -109,8 +109,6 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
                     // No results at all: treat as invalid
                     out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: missing results", Pos: &diag.Position{Line: warg.Pos.Line, Column: warg.Pos.Column, Offset: warg.Pos.Offset}})
                 }
-                // Emit a soft warning to signal partial codegen support for inline workers.
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_WORKER_INLINE", Message: "inline worker literal accepted", Pos: &diag.Position{Line: warg.Pos.Line, Column: warg.Pos.Column, Offset: warg.Pos.Offset}})
                 continue
             }
             if i := strings.LastIndexByte(wname, '.'); i >= 0 {

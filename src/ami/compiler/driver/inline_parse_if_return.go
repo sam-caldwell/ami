@@ -2,36 +2,21 @@ package driver
 
 import "strings"
 
-type ifReturn struct {
-    lhs string
-    op  string
-    rhs string
-    thenIsEv bool
-    thenLit  string
-    elseIsEv bool
-    elseLit  string
-}
-
 // parseInlineIfReturn recognizes: if <lit> <cmp> <lit> { return <lit|ev> [, nil] } else { return <lit|ev> [, nil] }
 func parseInlineIfReturn(body string) (ifReturn, bool) {
     var out ifReturn
     s := strings.TrimSpace(body)
     if !strings.HasPrefix(s, "if ") { return out, false }
-    // find condition and blocks
     s = s[len("if ") : ]
-    // condition until first '{'
     i := strings.IndexByte(s, '{')
     if i < 0 { return out, false }
     cond := strings.TrimSpace(s[:i])
     rest := strings.TrimSpace(s[i:])
-    // cond: expect three tokens
     toks := fieldsPreserveQuotes(cond)
     if len(toks) != 3 { return out, false }
     op := toks[1]
     if !(op == "==" || op == "!=" || op == "<" || op == "<=" || op == ">" || op == ">=") { return out, false }
     out.lhs, out.op, out.rhs = stripQuotes(toks[0]), op, stripQuotes(toks[2])
-    // then block between first {} and else
-    // find matching '}' from the start
     depth := 0
     end := -1
     for idx := 0; idx < len(rest); idx++ {
@@ -41,11 +26,9 @@ func parseInlineIfReturn(body string) (ifReturn, bool) {
     if end < 0 { return out, false }
     thenBlk := rest[1:end]
     tail := strings.TrimSpace(rest[end+1:])
-    // must have else
     if !strings.HasPrefix(tail, "else") { return out, false }
     tail = strings.TrimSpace(tail[len("else"):])
     if !strings.HasPrefix(tail, "{") { return out, false }
-    // find else block
     depth = 0
     eend := -1
     for idx := 0; idx < len(tail); idx++ {
@@ -54,14 +37,11 @@ func parseInlineIfReturn(body string) (ifReturn, bool) {
     }
     if eend < 0 { return out, false }
     elseBlk := tail[1:eend]
-    // parse returns in then/else blocks
     parseRet := func(b string) (isEv bool, lit string, ok bool) {
         b = strings.TrimSpace(b)
-        // find "return ..."
         j := strings.Index(b, "return")
         if j < 0 { return false, "", false }
         val := strings.TrimSpace(b[j+len("return"):])
-        // strip trailing ';' and optional , nil
         if k := strings.IndexByte(val, ';'); k >= 0 { val = strings.TrimSpace(val[:k]) }
         if idx := strings.LastIndex(val, ","); idx >= 0 {
             if strings.EqualFold(strings.TrimSpace(val[idx+1:]), "nil") { val = strings.TrimSpace(val[:idx]) }

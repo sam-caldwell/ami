@@ -1833,8 +1833,9 @@ stdlib:
             status: complete
             tests:
               - src/ami/runtime/host/bufio/reader_writer_test.go
-              - src/ami/compiler/driver/stdlib_bufio_lowering_test.go
-              - src/ami/compiler/codegen/llvm/stdlib_bufio_emit_test.go
+              - src/ami/compiler/driver/stdlib_bufio_reader_writer_lowering_test.go
+              - src/ami/compiler/driver/stdlib_bufio_methods_lowering_test.go
+              - src/ami/compiler/driver/bufio_methods_llvm_test.go
           - id: E-11-1-2
             statement: |
               As a maintainer, I expect Owned<T>-aware zeroization and no leaks: reads allocate Owned<slice<uint8>>

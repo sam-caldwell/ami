@@ -8,7 +8,8 @@ import (
 )
 
 // lowerFile lowers functions found in an AST file into a single IR module.
-func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[string][]string, paramNames map[string][]string) ir.Module {
+// unit is the compilation unit (usually the file stem) used for deterministic names.
+func lowerFile(pkg, unit string, f *ast.File, params map[string][]string, results map[string][]string, paramNames map[string][]string) ir.Module {
     // signature maps are provided by caller (compile phase)
     var fns []ir.Function
     var concurrency int
@@ -119,6 +120,10 @@ func lowerFile(pkg string, f *ast.File, params map[string][]string, results map[
     em := &ir.EventMeta{Schema: "eventmeta.v1", Fields: []string{"id", "ts", "attempt", "trace"}}
     // extract pipeline merge/collect specs into IR for downstream runtimes
     pipes := lowerPipelines(f)
+    // Synthesize inline worker functions from pipelines (func literals) so codegen emits worker cores.
+    if f != nil {
+        fns = append(fns, lowerInlineWorkers(pkg, unit, f)...)
+    }
     return ir.Module{Package: pkg, Functions: fns, Directives: dirs, Pipelines: pipes, ErrorPipes: errpipes, Concurrency: concurrency, Backpressure: backpressure, Schedule: schedule, TelemetryEnabled: telemetry, Capabilities: capabilities, TrustLevel: trustLevel, EventMeta: em}
 }
 

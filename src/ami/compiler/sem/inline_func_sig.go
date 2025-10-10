@@ -61,3 +61,5 @@ func inlineFuncSig(text string) (paramType string, results []string, ok bool) {
     if one != "" { return paramType, []string{one}, true }
     return paramType, nil, true
 }
+
+// InlineFuncSigForDriver moved to inline_func_sig_export.go to satisfy declaration rule

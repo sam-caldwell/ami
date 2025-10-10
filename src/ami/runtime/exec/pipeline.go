@@ -116,7 +116,14 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
             default:
                 if st != nil { st.Dropped++ }
                 if opts.ErrorChan != nil {
-                    select { case opts.ErrorChan <- errs.Error{Level: "warn", Code: "W_SHUNTED_NEWEST", Message: "shunted (newest)", Data: map[string]any{"from": pol.from, "to": pol.to}}: default: }
+                    data := map[string]any{"pipeline": pipeline, "edge": map[string]any{"from": pol.from, "to": pol.to, "id": pol.from+"->"+pol.to}}
+                    select { case opts.ErrorChan <- errs.Error{Level: "warn", Code: "W_SHUNTED_NEWEST", Message: "shunted (newest)", Data: data}: default: }
+                }
+                if opts.ShuntChan != nil {
+                    se := e
+                    if se.Trace == nil { se.Trace = map[string]any{} }
+                    se.Trace["shunt"] = map[string]any{"pipeline": pipeline, "edge": map[string]any{"from": pol.from, "to": pol.to, "id": pol.from+"->"+pol.to}, "policy": pol.bp}
+                    select { case opts.ShuntChan <- se: default: }
                 }
             }
         case "shuntOldest":
@@ -131,7 +138,14 @@ func (e *Engine) RunPipelineWithStats(ctx context.Context, m ir.Module, pipeline
                 default:
                     if st != nil { st.Dropped++ }
                     if opts.ErrorChan != nil {
-                        select { case opts.ErrorChan <- errs.Error{Level: "warn", Code: "W_SHUNTED_OLDEST", Message: "shunted (oldest)", Data: map[string]any{"from": pol.from, "to": pol.to}}: default: }
+                        data := map[string]any{"pipeline": pipeline, "edge": map[string]any{"from": pol.from, "to": pol.to, "id": pol.from+"->"+pol.to}}
+                        select { case opts.ErrorChan <- errs.Error{Level: "warn", Code: "W_SHUNTED_OLDEST", Message: "shunted (oldest)", Data: data}: default: }
+                    }
+                    if opts.ShuntChan != nil {
+                        se := e
+                        if se.Trace == nil { se.Trace = map[string]any{} }
+                        se.Trace["shunt"] = map[string]any{"pipeline": pipeline, "edge": map[string]any{"from": pol.from, "to": pol.to, "id": pol.from+"->"+pol.to}, "policy": pol.bp}
+                        select { case opts.ShuntChan <- se: default: }
                     }
                 }
             }

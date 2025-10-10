@@ -29,4 +29,8 @@ type ExecOptions struct {
     // payloads instead of being injected into the main event stream.
     // Callers should drain this channel to avoid goroutine leaks.
     ErrorChan     chan errs.Error
+    // ShuntChan: optional sink for shunted events when backpressure policy triggers shunting.
+    // When set, shunted events are copied, enriched with trace context under key "shunt",
+    // and forwarded here non-blockingly.
+    ShuntChan     chan events.Event
 }

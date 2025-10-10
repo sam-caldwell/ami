@@ -52,10 +52,53 @@ func writePipelinesDebug(pkg, unit string, f *ast.File) (string, error) {
         for si, s := range pd.Stmts {
             if st, ok := s.(*ast.StepStmt); ok { nameCount[st.Name]++; occs[st.Name] = append(occs[st.Name], occ{id: nameCount[st.Name], stmtIdx: si}) }
         }
+        // inline worker counter for deterministic synthetic names
+        inlineIdx := 0
         for _, s := range pd.Stmts {
             if st, ok := s.(*ast.StepStmt); ok {
                 var args []string
+                // detect inline worker literal and normalize to a generated name
+                genInlineName := func(id int) string {
+                    // deterministic synthetic name per unit/pipeline/occurrence
+                    name := "InlineWorker_" + unit + "_" + pd.Name + "_" + itoa(id)
+                    // keep as plain identifier; symbol sanitization performed later
+                    return name
+                }
+                // copy args; rewrite worker literal if present
+                // prefer named worker=...; else first positional
+                workerArgIdx := -1
+                workerIsNamed := false
+                for i, a := range st.Args {
+                    s := a.Text
+                    if eq := strings.IndexByte(s, '='); eq > 0 {
+                        key := strings.TrimSpace(s[:eq])
+                        if strings.EqualFold(key, "worker") {
+                            workerArgIdx = i
+                            workerIsNamed = true
+                        }
+                    } else if i == 0 {
+                        workerArgIdx = 0
+                    }
+                }
+                // build initial args
                 for _, a := range st.Args { args = append(args, a.Text) }
+                // normalize inline function literal
+                if strings.EqualFold(st.Name, "Transform") && workerArgIdx >= 0 {
+                    text := args[workerArgIdx]
+                    rhs := text
+                    if workerIsNamed {
+                        if eq := strings.IndexByte(text, '='); eq > 0 { rhs = strings.TrimSpace(text[eq+1:]) }
+                    }
+                    if strings.HasPrefix(strings.TrimSpace(rhs), "func") {
+                        inlineIdx++
+                        wname := genInlineName(inlineIdx)
+                        if workerIsNamed {
+                            args[workerArgIdx] = "worker=" + wname
+                        } else {
+                            args[workerArgIdx] = wname
+                        }
+                    }
+                }
                 id := 0
                 if arr := occs[st.Name]; len(arr) > 0 { for _, o := range arr { if o.stmtIdx == indexOfStmt(pd.Stmts, s) { id = o.id; break } } }
                 op := pipelineOp{Name: st.Name, ID: id, Args: args}

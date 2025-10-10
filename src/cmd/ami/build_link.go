@@ -52,9 +52,7 @@ func buildLink(out io.Writer, dir string, ws workspace.Workspace, envs []string,
 				objs = append(objs, matches...)
 			}
 		}
-		if len(objs) == 0 {
-			continue
-		}
+        // Do not early-continue here; we may still produce runtime and entry objects below.
 		triple := be.TripleForEnv(env)
 		rtDir := filepath.Join(dir, "build", "runtime", env)
 		rtObj := filepath.Join(rtDir, "runtime.o")
@@ -278,9 +276,9 @@ void* ami_rt_metal_dispatch_blocking_1buf1u32(void* ctxp, void* pipep, void* buf
 				}
 			}
 		}
-		if st, _ := os.Stat(rtObj); st != nil {
-			objs = append(objs, rtObj)
-		}
+        if st, _ := os.Stat(rtObj); st != nil {
+            objs = append(objs, rtObj)
+        }
 		// Compile generic GPU C shims (CUDA/OpenCL availability + enumeration stubs)
 		{
 			shim := filepath.Join(rtDir, "gpu_shims.c")
@@ -388,7 +386,11 @@ void ami_rt_gpu_probe_init(void) { }
 				}
 			}
 		}
-		outDir := filepath.Join(dir, "build", env)
+        // If we still have no objects to link (e.g., runtime failed to compile), skip linking for this env.
+        if len(objs) == 0 {
+            continue
+        }
+        outDir := filepath.Join(dir, "build", env)
 		_ = os.MkdirAll(outDir, 0o755)
 		outBin := filepath.Join(outDir, binName)
 		extra := linkExtraFlags(env, ws.Toolchain.Linker.Options)

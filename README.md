@@ -26,6 +26,7 @@ Documentation Index (docs/*)
   - `docs/language/grammar-ebnf.md` — EBNF overview for the language
 - Pipelines and Concurrency
   - `docs/language/edges.md` — edges, backpressure, and type validation
+  - Runtime honors edge policies: edges.json now includes `minCapacity`, `maxCapacity`, and `backpressure` (block, dropOldest, dropNewest). The executor sizes Go channels from `maxCapacity` and emulates backpressure policies per edge.
   - `docs/toolchain/pipelines-v1-quickstart.md` — reading pipelines.v1 (debug) outputs
   - `docs/toolchain/scheduler-guide.md` — scheduling and worker configuration
   - `docs/toolchain/concurrency.md` — concurrency notes and invariants

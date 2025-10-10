@@ -96,17 +96,24 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                     bounded := false
                     del := defaultDelivery
                     exec := "thread"
+                    minCap := 0
+                    maxCap := 0
+                    backpressure := ""
                     for _, at := range st.Attrs {
                         if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 && at.Args[0].Text != "" {
                             typ = at.Args[0].Text
                         }
                         if len(at.Name) >= 6 && at.Name[:6] == "merge." {
                             if at.Name == "merge.Buffer" {
-                                if len(at.Args) > 0 && at.Args[0].Text != "0" && at.Args[0].Text != "" { bounded = true }
+                                if len(at.Args) > 0 && at.Args[0].Text != "" {
+                                    if at.Args[0].Text != "0" { bounded = true }
+                                    if n, err := strconv.Atoi(at.Args[0].Text); err == nil { maxCap = n }
+                                }
                                 if len(at.Args) > 1 {
                                     pol := at.Args[1].Text
                                     if pol == "dropOldest" || pol == "dropNewest" { del = "bestEffort" }
                                     if pol == "block" { del = "atLeastOnce" }
+                                    if backpressure == "" { backpressure = pol }
                                 }
                             }
                         }
@@ -116,13 +123,17 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                             for _, a := range at.Args { if eq := strings.IndexByte(a.Text, '='); eq > 0 { kv[strings.TrimSpace(a.Text[:eq])] = strings.TrimSpace(a.Text[eq+1:]) } }
                             if t := kv["type"]; t != "" && typ == "" { typ = t }
                             max := kv["max"]; if max == "" { max = kv["maxCapacity"] }
+                            min := kv["min"]; if min == "" { min = kv["minCapacity"] }
                             if max != "" && max != "0" { bounded = true }
+                            if min != "" { if n, err := strconv.Atoi(min); err == nil { minCap = n } }
+                            if max != "" { if n, err := strconv.Atoi(max); err == nil { maxCap = n } }
                             switch kv["backpressure"] {
                             case "dropOldest", "dropNewest": del = "bestEffort"
                             case "block": del = "atLeastOnce"
                             case "shuntNewest": del = "shuntNewest"
                             case "shuntOldest": del = "shuntOldest"
                             }
+                            if bp := kv["backpressure"]; bp != "" { backpressure = bp }
                         }
                     }
                     lname := strings.ToLower(st.Name)
@@ -139,7 +150,7 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                         exec = "process"
                     }
                     if strings.EqualFold(trustLevel, "untrusted") { exec = "process" }
-                    steps = append(steps, contractStep{Name: st.Name, Type: typ, Bounded: bounded, Delivery: del, ExecModel: exec})
+                    steps = append(steps, contractStep{Name: st.Name, Type: typ, Bounded: bounded, Delivery: del, MinCapacity: minCap, MaxCapacity: maxCap, Backpressure: backpressure, ExecModel: exec})
                 }
             }
             pentries = append(pentries, contractPipeline{Name: pd.Name, Steps: steps})

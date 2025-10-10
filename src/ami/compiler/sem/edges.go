@@ -64,7 +64,7 @@ func AnalyzeEdges(f *ast.File) []diag.Record {
                     kv := parseKV(at.Args)
                     // Unknown parameter detection
                     for k := range kv {
-                        if k != "min" && k != "max" && k != "backpressure" {
+                        if k != "min" && k != "max" && k != "backpressure" && k != "minCapacity" && k != "maxCapacity" {
                             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_PARAM_UNKNOWN", Message: "unknown edge parameter: " + k, Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                         }
                     }
@@ -72,6 +72,11 @@ func AnalyzeEdges(f *ast.File) []diag.Record {
                     if v, ok := kv["min"]; ok {
                         if n, err := strconv.Atoi(v); err != nil || n < 0 {
                             out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_INVALID", Message: "min must be non-negative", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                        }
+                    }
+                    if v, ok := kv["minCapacity"]; ok {
+                        if n, err := strconv.Atoi(v); err != nil || n < 0 {
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_INVALID", Message: "minCapacity must be non-negative", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                         }
                     }
                     // max >= min
@@ -83,6 +88,17 @@ func AnalyzeEdges(f *ast.File) []diag.Record {
                         } else if vmin, ok := kv["min"]; ok {
                             if nmin, err := strconv.Atoi(vmin); err == nil && nmax < nmin {
                                 out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_ORDER", Message: "max must be >= min", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                            }
+                        }
+                    }
+                    if vmax, ok := kv["maxCapacity"]; ok {
+                        if nmax, err := strconv.Atoi(vmax); err != nil {
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_INVALID", Message: "maxCapacity must be an integer", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                        } else if nmax < 0 {
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_INVALID", Message: "maxCapacity must be non-negative", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
+                        } else if vmin, ok := kv["minCapacity"]; ok {
+                            if nmin, err := strconv.Atoi(vmin); err == nil && nmax < nmin {
+                                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EDGE_CAPACITY_ORDER", Message: "maxCapacity must be >= minCapacity", Pos: &diag.Position{Line: at.Pos.Line, Column: at.Pos.Column, Offset: at.Pos.Offset}})
                             }
                         }
                     }

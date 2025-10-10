@@ -54,3 +54,13 @@ func testEdges_Backpressure_InvalidPolicy(t *testing.T) {
 		t.Fatalf("expected E_EDGE_BACKPRESSURE for invalid value, got %v", ds)
 	}
 }
+
+func testEdges_FIFO_Synonyms_NoUnknown(t *testing.T) {
+    code := "package app\npipeline P() { Collect edge.FIFO(minCapacity=1, maxCapacity=2, backpressure=block); egress }"
+    f := &source.File{Name: "e8.ami", Content: code}
+    af, _ := parser.New(f).ParseFile()
+    ds := AnalyzeEdges(af)
+    for _, d := range ds {
+        if d.Code == "E_EDGE_PARAM_UNKNOWN" { t.Fatalf("unexpected unknown param diag: %v", ds) }
+    }
+}

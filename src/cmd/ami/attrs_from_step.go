@@ -2,6 +2,7 @@ package main
 
 import (
     "strings"
+    "strconv"
     ast "github.com/sam-caldwell/ami/src/ami/compiler/ast"
 )
 
@@ -11,6 +12,9 @@ func attrsFromStep(st *ast.StepStmt) map[string]any {
     delivery := ""
     typ := ""
     multipath := ""
+    minCap := 0
+    maxCap := 0
+    backpressure := ""
     for _, at := range st.Attrs {
         if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 { typ = at.Args[0].Text }
         if len(at.Name) >= 6 && at.Name[:6] == "merge." {
@@ -41,13 +45,17 @@ func attrsFromStep(st *ast.StepStmt) map[string]any {
             if t := kv["type"]; t != "" && typ == "" { typ = t }
             // capacity synonyms
             max := kv["max"]; if max == "" { max = kv["maxCapacity"] }
+            min := kv["min"]; if min == "" { min = kv["minCapacity"] }
             if max != "" && max != "0" { bounded = true }
+            if min != "" { if n, err := strconv.Atoi(min); err == nil { minCap = n } }
+            if max != "" { if n, err := strconv.Atoi(max); err == nil { maxCap = n } }
             switch kv["backpressure"] {
             case "dropOldest", "dropNewest": delivery = "bestEffort"
             case "block": delivery = "atLeastOnce"
             case "shuntNewest": delivery = "shuntNewest"
             case "shuntOldest": delivery = "shuntOldest"
             }
+            if bp := kv["backpressure"]; bp != "" { backpressure = bp }
         }
         if at.Name == "edge.MultiPath" || at.Name == "MultiPath" {
             if len(at.Args) > 0 {
@@ -62,6 +70,9 @@ func attrsFromStep(st *ast.StepStmt) map[string]any {
     if delivery != "" { m["delivery"] = delivery }
     if typ != "" { m["type"] = typ }
     if multipath != "" { m["multipath"] = multipath }
+    if minCap != 0 { m["minCapacity"] = minCap }
+    if maxCap != 0 { m["maxCapacity"] = maxCap }
+    if backpressure != "" { m["backpressure"] = backpressure }
     if len(m) == 0 { return nil }
     return m
 }

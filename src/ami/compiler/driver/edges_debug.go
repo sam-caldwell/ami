@@ -11,6 +11,10 @@ type edgeEntry struct {
     Delivery string `json:"delivery"`
     Type     string `json:"type,omitempty"`
     Tiny     bool   `json:"tinyBuffer,omitempty"`
+    // Explicit capacity/backpressure for runtime consumption
+    MinCapacity int    `json:"minCapacity,omitempty"`
+    MaxCapacity int    `json:"maxCapacity,omitempty"`
+    Backpressure string `json:"backpressure,omitempty"`
     // Derived connectivity hints
     FromReachable bool `json:"fromReachableFromIngress,omitempty"`
     ToReachable   bool `json:"toCanReachEgress,omitempty"`

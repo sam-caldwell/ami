@@ -68,11 +68,14 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
 
         for i, s := range pd.Stmts {
             if e, ok := s.(*ast.EdgeStmt); ok {
-                // derive bounded/delivery from target step attributes
+                // derive bounded/delivery and explicit capacity/backpressure from target step attributes
                 bounded := false
                 delivery := "atLeastOnce"
                 etype := ""
                 tiny := false
+                minCap := 0
+                maxCap := 0
+                backpressure := ""
                 // helper to parse k=v list into map
                 parseKV := func(args []ast.Arg) map[string]string {
                     m := map[string]string{}
@@ -87,10 +90,14 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                     return m
                 }
                 for _, at := range stepAttrs[e.To] {
-                    if at.Name == "dropOldest" || at.Name == "dropNewest" { delivery = "bestEffort" }
+                    if at.Name == "dropOldest" || at.Name == "dropNewest" { delivery = "bestEffort"; if backpressure == "" { backpressure = at.Name } }
                     if at.Name == "merge.Buffer" {
                         if len(at.Args) > 0 {
-                            if at.Args[0].Text != "0" && at.Args[0].Text != "" { bounded = true }
+                            if at.Args[0].Text != "" {
+                                if at.Args[0].Text != "0" { bounded = true }
+                                // try parse as capacity
+                                if n, ok := atoiSafe(at.Args[0].Text); ok { maxCap = n }
+                            }
                             if at.Args[0].Text == "0" || at.Args[0].Text == "1" {
                                 if len(at.Args) > 1 {
                                     pol := at.Args[1].Text
@@ -102,6 +109,7 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                             pol := at.Args[1].Text
                             if pol == "dropOldest" || pol == "dropNewest" { delivery = "bestEffort" }
                             if pol == "block" { delivery = "atLeastOnce" }
+                            if backpressure == "" { backpressure = pol }
                         }
                     }
                     // Resolve configured edges: edge.FIFO / edge.LIFO
@@ -114,12 +122,15 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                         if min == "" { min = kv["minCapacity"] }
                         bp := kv["backpressure"]
                         if max != "" && max != "0" { bounded = true }
+                        if min != "" { if n, ok := atoiSafe(min); ok { minCap = n } }
+                        if max != "" { if n, ok := atoiSafe(max); ok { maxCap = n } }
                         switch bp {
                         case "dropOldest", "dropNewest": delivery = "bestEffort"
                         case "block": delivery = "atLeastOnce"
                         case "shuntNewest": delivery = "shuntNewest"
                         case "shuntOldest": delivery = "shuntOldest"
                         }
+                        if bp != "" { backpressure = bp }
                         if t := kv["type"]; t != "" { etype = t }
                         // tiny heuristic: very small buffer with lossy policy
                         if (max == "0" || max == "1") && (bp == "dropOldest" || bp == "dropNewest") { tiny = true }
@@ -143,7 +154,7 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                 fr := reach[e.From]
                 tr := reachTo[e.To]
                 on := fr && tr
-                out = append(out, edgeEntry{Unit: unit, Pipeline: pd.Name, From: e.From, To: e.To, FromID: fromID, ToID: toID, Bounded: bounded, Delivery: delivery, Type: etype, Tiny: tiny, FromReachable: fr, ToReachable: tr, OnPath: on})
+                out = append(out, edgeEntry{Unit: unit, Pipeline: pd.Name, From: e.From, To: e.To, FromID: fromID, ToID: toID, Bounded: bounded, Delivery: delivery, Type: etype, Tiny: tiny, MinCapacity: minCap, MaxCapacity: maxCap, Backpressure: backpressure, FromReachable: fr, ToReachable: tr, OnPath: on})
             }
         }
     }

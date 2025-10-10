@@ -8,15 +8,7 @@ type OwnedBytes struct {
     valid bool
 }
 
-// newOwnedBytes creates a new OwnedBytes handle from a copy of p.
-func newOwnedBytes(p []byte) OwnedBytes {
-    if len(p) == 0 {
-        return OwnedBytes{b: nil, valid: true}
-    }
-    q := make([]byte, len(p))
-    copy(q, p)
-    return OwnedBytes{b: q, valid: true}
-}
+// newOwnedBytes moved to owned_new.go to satisfy single-declaration lint.
 
 // Bytes returns the underlying slice. Caller must not modify after Release.
 func (o *OwnedBytes) Bytes() ([]byte, error) {
@@ -40,4 +32,3 @@ func (o *OwnedBytes) Release() error {
     o.valid = false
     return nil
 }
-

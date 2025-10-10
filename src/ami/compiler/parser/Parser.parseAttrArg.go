@@ -40,6 +40,12 @@ func (p *Parser) parseAttrArg() (ast.Arg, bool) {
                 }
                 return ast.Arg{Pos: pos, Text: key + "=" + val}, true
             }
+            // Permit bare primitive/alias type keywords and certain domain keywords (not plain identifiers)
+            if p.isAttrBareValueKeyword(p.cur.Kind) {
+                val := p.cur.Lexeme
+                p.next()
+                return ast.Arg{Pos: pos, Text: key + "=" + val}, true
+            }
             e, ok := p.parseExprPrec(1)
             if !ok {
                 p.errf("expected value expression after '=', got %q", p.cur.Lexeme)

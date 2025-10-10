@@ -13,25 +13,7 @@ type Reader struct {
     buf  *bytes.Buffer // optional backing store when src is []byte or string
 }
 
-// NewReader constructs a Reader from supported sources: string, []byte, *bytes.Buffer, io.Reader.
-func NewReader(src any) (Reader, error) {
-    switch v := src.(type) {
-    case string:
-        b := bytes.NewBufferString(v)
-        return Reader{rdr: gobufio.NewReader(b), buf: b}, nil
-    case []byte:
-        b := bytes.NewBuffer(append([]byte(nil), v...))
-        return Reader{rdr: gobufio.NewReader(b), buf: b}, nil
-    case *bytes.Buffer:
-        if v == nil { return Reader{}, ErrInvalidArg }
-        return Reader{rdr: gobufio.NewReader(v), buf: v}, nil
-    case io.Reader:
-        if v == nil { return Reader{}, ErrInvalidArg }
-        return Reader{rdr: gobufio.NewReader(v)}, nil
-    default:
-        return Reader{}, ErrInvalidArg
-    }
-}
+// NewReader moved to new_reader.go to satisfy single-declaration lint.
 
 // Peek returns up to n bytes without advancing the reader. Returns fewer
 // than n bytes if fewer are available.
@@ -66,4 +48,3 @@ func (r Reader) UnreadByte() error {
     if r.rdr == nil { return ErrInvalidHandle }
     return r.rdr.UnreadByte()
 }
-

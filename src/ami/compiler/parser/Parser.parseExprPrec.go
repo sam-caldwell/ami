@@ -57,6 +57,76 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         p.next()
         left := p.parseIdentExpr(name, npos)
         return p.parseWithTernary(left, minPrec), true
+    case token.KwFunc:
+        // Tolerate function literal expressions in attribute values: func(...) [results] { ... }
+        pos := p.cur.Pos
+        p.next()
+        // params
+        if p.cur.Kind == token.LParenSym {
+            depth := 0
+            for {
+                if p.cur.Kind == token.EOF { break }
+                if p.cur.Kind == token.LParenSym { depth++ }
+                if p.cur.Kind == token.RParenSym {
+                    if depth > 0 { depth--; p.next(); if depth == 0 { break }; continue }
+                    break
+                }
+                p.next()
+            }
+            if p.cur.Kind == token.RParenSym { p.next() }
+        }
+        // single unparenthesized result or parenthesized list
+        if p.cur.Kind == token.LParenSym {
+            depth := 0
+            for {
+                if p.cur.Kind == token.EOF { break }
+                if p.cur.Kind == token.LParenSym { depth++ }
+                if p.cur.Kind == token.RParenSym {
+                    if depth > 0 { depth--; p.next(); if depth == 0 { break }; continue }
+                    break
+                }
+                p.next()
+            }
+            if p.cur.Kind == token.RParenSym { p.next() }
+        } else if p.isTypeName(p.cur.Kind) || p.cur.Kind == token.Ident {
+            // consume a simple result type, allow qualified/generic
+            p.next()
+            for p.cur.Kind == token.DotSym { p.next(); if p.cur.Kind == token.Ident { p.next() } else { break } }
+            if p.cur.Kind == token.Lt || p.cur.Kind == token.Shl {
+                depth := 0
+                for {
+                    if p.cur.Kind == token.EOF { break }
+                    switch p.cur.Kind {
+                    case token.Lt:
+                        depth++
+                    case token.Shl:
+                        depth += 2
+                    case token.Gt:
+                        depth--
+                        p.next()
+                        if depth == 0 { break }
+                        continue
+                    case token.Shr:
+                        depth -= 2
+                        p.next()
+                        if depth == 0 { break }
+                        continue
+                    }
+                    p.next()
+                }
+            }
+        }
+        // body
+        if p.cur.Kind == token.LBraceSym {
+            depth := 0
+            for {
+                if p.cur.Kind == token.EOF { break }
+                if p.cur.Kind == token.LBraceSym { depth++ }
+                if p.cur.Kind == token.RBraceSym { depth--; p.next(); if depth == 0 { break }; continue }
+                p.next()
+            }
+        }
+        return p.parseWithTernary(&ast.IdentExpr{Pos: pos, Name: "func"}, minPrec), true
     case token.String:
         v := p.cur.Lexeme
         pos := p.cur.Pos
@@ -83,4 +153,3 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         return nil, false
     }
 }
-

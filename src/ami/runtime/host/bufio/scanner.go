@@ -11,13 +11,7 @@ type Scanner struct {
     tok []byte
 }
 
-// NewScanner constructs a Scanner from a Reader.
-func NewScanner(r Reader) (Scanner, error) {
-    if r.rdr == nil { return Scanner{}, ErrInvalidArg }
-    sc := gobufio.NewScanner(r.rdr)
-    // Default split is ScanLines (deterministic); keep default bufsize
-    return Scanner{s: sc}, nil
-}
+// NewScanner moved to new_scanner.go to satisfy single-declaration lint.
 
 // Scan advances the scanner to the next token. It copies token bytes into
 // an internal buffer to ensure Bytes() returns an Owned copy independent of
@@ -49,4 +43,3 @@ func (sc *Scanner) Err() error {
     if sc == nil || sc.s == nil { return ErrInvalidHandle }
     return sc.s.Err()
 }
-

@@ -446,6 +446,60 @@ func RuntimeLL(triple string, withMain bool) string {
     // Helper: return pointer to payload as string pointer (not NUL-terminated guaranteed)
     s += "define ptr @ami_rt_event_payload_to_string(ptr %ev) {\n"
     s += "entry:\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  ret ptr %pp\n}\n\n"
+
+    // Structured JSON field readers using libc helpers for searching and parsing.
+    s += "declare ptr @strstr(ptr, ptr)\n"
+    s += "declare i64 @strtoll(ptr, ptr, i32)\n"
+    s += "declare double @strtod(ptr, ptr)\n\n"
+
+    // Duplicate payload into NUL-terminated buffer
+    s += "define ptr @ami_rt_dup_nul(ptr %p, i64 %n) {\n"
+    s += "entry:\n  %sz = add i64 %n, 1\n  %buf = call ptr @malloc(i64 %sz)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %p, i64 %n, i1 false)\n  %last = getelementptr i8, ptr %buf, i64 %n\n  store i8 0, ptr %last, align 1\n  ret ptr %buf\n}\n\n"
+
+    // Build quoted key string "<seg>" as C-string
+    s += "define ptr @ami_rt_build_quoted(ptr %seg, i32 %len) {\n"
+    s += "entry:\n  %n = zext i32 %len to i64\n  %sz = add i64 %n, 3\n  %buf = call ptr @malloc(i64 %sz)\n  store i8 34, ptr %buf, align 1\n  %dst = getelementptr i8, ptr %buf, i64 1\n  call void @llvm.memcpy.p0.p0.i64(ptr %dst, ptr %seg, i64 %n, i1 false)\n  %q2 = getelementptr i8, ptr %buf, i64 add (i64 %n, i64 1)\n  store i8 34, ptr %q2, align 1\n  %nul = getelementptr i8, ptr %buf, i64 add (i64 %n, i64 2)\n  store i8 0, ptr %nul, align 1\n  ret ptr %buf\n}\n\n"
+
+    // Advance to first non-space after ':' starting at p
+    s += "define ptr @ami_rt_after_colon(ptr %p) {\n"
+    s += "entry:\n  br label %loop\n"
+    s += "loop:\n  %c = load i8, ptr %p, align 1\n  %isColon = icmp eq i8 %c, 58\n  br i1 %isColon, label %adv, label %next\n"
+    s += "next:\n  %p2 = getelementptr i8, ptr %p, i64 1\n  br label %loop\n"
+    s += "adv:\n  %p3 = getelementptr i8, ptr %p, i64 1\n  br label %ws\n"
+    s += "ws:\n  %c2 = load i8, ptr %p3, align 1\n  %isSp = icmp eq i8 %c2, 32\n  %isTb = icmp eq i8 %c2, 9\n  %isNl = icmp eq i8 %c2, 10\n  %isCr = icmp eq i8 %c2, 13\n  %sp1 = or i1 %isSp, %isTb\n  %sp2 = or i1 %isNl, %isCr\n  %isWS = or i1 %sp1, %sp2\n  br i1 %isWS, label %ws_adv, label %done\n"
+    s += "ws_adv:\n  %p3n = getelementptr i8, ptr %p3, i64 1\n  br label %ws\n"
+    s += "done:\n  ret ptr %p3\n}\n\n"
+
+    // Find pointer to value for dotted path within JSON buffer
+    s += "define ptr @ami_rt_find_path(ptr %json, ptr %path, i32 %plen) {\n"
+    s += "entry:\n  %buf = %json\n  %start = %path\n  %remain = %plen\n  br label %segloop\n"
+    s += "segloop:\n  %p = phi ptr [ %start, %entry ], [ %pnext, %segcont ]\n  %r = phi i32 [ %remain, %entry ], [ %rnext, %segcont ]\n  %b = phi ptr [ %buf, %entry ], [ %bnext, %segcont ]\n  ; find seglen up to '.' or end\n  %i = alloca i32, align 4\n  store i32 0, ptr %i, align 4\n  br label %finddot\n"
+    s += "finddot:\n  %idx = load i32, ptr %i, align 4\n  %done = icmp uge i32 %idx, %r\n  br i1 %done, label %segfound, label %fdstep\n"
+    s += "fdstep:\n  %cp = getelementptr i8, ptr %p, i32 %idx\n  %ch = load i8, ptr %cp, align 1\n  %isdot = icmp eq i8 %ch, 46\n  br i1 %isdot, label %segfound, label %fdcont\n"
+    s += "fdcont:\n  %idx2 = add i32 %idx, 1\n  store i32 %idx2, ptr %i, align 4\n  br label %finddot\n"
+    s += "segfound:\n  %seglen = load i32, ptr %i, align 4\n  %qkey = call ptr @ami_rt_build_quoted(ptr %p, i32 %seglen)\n  %hit = call ptr @strstr(ptr %b, ptr %qkey)\n  %isnull = icmp eq ptr %hit, null\n  br i1 %isnull, label %notfound, label %afterkey\n"
+    s += "afterkey:\n  %two = add i64 0, 2\n  %seg64 = zext i32 %seglen to i64\n  %off = add i64 %seg64, %two\n  %afterq = getelementptr i8, ptr %hit, i64 %off\n  %val = call ptr @ami_rt_after_colon(ptr %afterq)\n  %atend = icmp eq i32 %seglen, %r\n  br i1 %atend, label %done, label %contnest\n"
+    s += "contnest:\n  %bnext = %val\n  %segp = add i32 %seglen, 1\n  %pnext = getelementptr i8, ptr %p, i32 %segp\n  %rnext = sub i32 %r, %segp\n  br label %segloop\n"
+    s += "notfound:\n  ret ptr null\n"
+    s += "done:\n  ret ptr %val\n}\n\n"
+
+    s += "define i64 @ami_rt_event_get_i64(ptr %ev, ptr %path, i32 %plen) {\n"
+    s += "entry:\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %ev, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  %plen64 = load i64, ptr %lfield, align 8\n  %cpy = call ptr @ami_rt_dup_nul(ptr %pp, i64 %plen64)\n  %v = call ptr @ami_rt_find_path(ptr %cpy, ptr %path, i32 %plen)\n  %isnull = icmp eq ptr %v, null\n  br i1 %isnull, label %ret0, label %parse\n"
+    s += "parse:\n  %n = call i64 @strtoll(ptr %v, ptr null, i32 10)\n  call void @free(ptr %cpy)\n  ret i64 %n\n"
+    s += "ret0:\n  call void @free(ptr %cpy)\n  ret i64 0\n}\n\n"
+
+    s += "define double @ami_rt_event_get_double(ptr %ev, ptr %path, i32 %plen) {\n"
+    s += "entry:\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %ev, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  %plen64 = load i64, ptr %lfield, align 8\n  %cpy = call ptr @ami_rt_dup_nul(ptr %pp, i64 %plen64)\n  %v = call ptr @ami_rt_find_path(ptr %cpy, ptr %path, i32 %plen)\n  %isnull = icmp eq ptr %v, null\n  br i1 %isnull, label %ret0, label %parse\n"
+    s += "parse:\n  %x = call double @strtod(ptr %v, ptr null)\n  call void @free(ptr %cpy)\n  ret double %x\n"
+    s += "ret0:\n  call void @free(ptr %cpy)\n  ret double 0.0\n}\n\n"
+
+    s += "define i1 @ami_rt_event_get_bool(ptr %ev, ptr %path, i32 %plen) {\n"
+    s += "entry:\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %ev, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  %plen64 = load i64, ptr %lfield, align 8\n  %cpy = call ptr @ami_rt_dup_nul(ptr %pp, i64 %plen64)\n  %v = call ptr @ami_rt_find_path(ptr %cpy, ptr %path, i32 %plen)\n  %isnull = icmp eq ptr %v, null\n  br i1 %isnull, label %ret0, label %parse\n"
+    s += "parse:\n  %c = load i8, ptr %v, align 1\n  %isT = icmp eq i8 %c, 116\n  call void @free(ptr %cpy)\n  ret i1 %isT\n"
+    s += "ret0:\n  call void @free(ptr %cpy)\n  ret i1 false\n}\n\n"
+
+    s += "define ptr @ami_rt_event_get_string(ptr %ev, ptr %path, i32 %plen) {\n"
+    s += "entry:\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %ev, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  %plen64 = load i64, ptr %lfield, align 8\n  %cpy = call ptr @ami_rt_dup_nul(ptr %pp, i64 %plen64)\n  %v = call ptr @ami_rt_find_path(ptr %cpy, ptr %path, i32 %plen)\n  ret ptr %v\n}\n\n"
     return s
 }
 

@@ -67,3 +67,20 @@ func TestLowerExpr_Field_SuccessPath(t *testing.T) {
     s := lowerExpr(ir.Expr{Op: "field.a", Args: []ir.Value{base}, Result: &ir.Value{ID: "r", Type: "int"}})
     if !strings.Contains(s, "getelementptr") || !strings.Contains(s, "load i64") { t.Fatalf("field success: %s", s) }
 }
+
+func TestLowerExpr_EventPayload_Field_HelperCalls(t *testing.T) {
+    // Ensure event.payload.field.<path> lowers to runtime helper calls by type.
+    ev := ir.Value{ID: "ev", Type: "Event<int>"}
+    // int
+    s := lowerExpr(ir.Expr{Op: "event.payload.field.k", Args: []ir.Value{ev}, Result: &ir.Value{ID: "i", Type: "int"}})
+    if !strings.Contains(s, "@ami_rt_event_get_i64") { t.Fatalf("int helper missing: %s", s) }
+    // float
+    s = lowerExpr(ir.Expr{Op: "event.payload.field.k", Args: []ir.Value{ev}, Result: &ir.Value{ID: "d", Type: "float64"}})
+    if !strings.Contains(s, "@ami_rt_event_get_double") { t.Fatalf("double helper missing: %s", s) }
+    // bool
+    s = lowerExpr(ir.Expr{Op: "event.payload.field.k", Args: []ir.Value{ev}, Result: &ir.Value{ID: "b", Type: "bool"}})
+    if !strings.Contains(s, "@ami_rt_event_get_bool") { t.Fatalf("bool helper missing: %s", s) }
+    // string
+    s = lowerExpr(ir.Expr{Op: "event.payload.field.k", Args: []ir.Value{ev}, Result: &ir.Value{ID: "s", Type: "string"}})
+    if !strings.Contains(s, "@ami_rt_event_get_string") { t.Fatalf("string helper missing: %s", s) }
+}

@@ -92,6 +92,46 @@ func lowerExpr(e ir.Expr) string {
         }
         return "  ; expr event.payload\n"
     }
+    // Event payload field extraction: op form "event.payload.field.<path>".
+    // Calls runtime helpers with a best-effort JSON field reader. For now, pass a null path
+    // when globals are not available; runtime may fall back to whole-payload parse.
+    if strings.HasPrefix(strings.ToLower(e.Op), "event.payload.field.") {
+        if e.Result != nil && e.Result.ID != "" && len(e.Args) >= 1 {
+            ty := mapType(e.Result.Type)
+            ev := e.Args[0]
+            // Extract field path and materialize it on stack as raw bytes; pass ptr+len
+            path := strings.TrimPrefix(e.Op, "event.payload.field.")
+            n := len(path)
+            // Build stores for each byte
+            var b strings.Builder
+            buf := "pathbuf_" + e.Result.ID
+            base := "pathptr_" + e.Result.ID
+            fmt.Fprintf(&b, "  %%%s = alloca [%d x i8], align 1\n", buf, n)
+            fmt.Fprintf(&b, "  %%%s = getelementptr inbounds [%d x i8], ptr %%%s, i64 0, i64 0\n", base, n, buf)
+            for i := 0; i < n; i++ {
+                ch := int(path[i])
+                fmt.Fprintf(&b, "  %%p%d_%s = getelementptr i8, ptr %%%s, i64 %d\n", i, e.Result.ID, base, i)
+                fmt.Fprintf(&b, "  store i8 %d, ptr %%p%d_%s, align 1\n", ch, i, e.Result.ID)
+            }
+            // Call appropriate helper
+            switch ty {
+            case "i64":
+                fmt.Fprintf(&b, "  %%%s = call i64 @ami_rt_event_get_i64(ptr %%%s, ptr %%%s, i32 %d)\n", e.Result.ID, ev.ID, base, n)
+            case "double":
+                fmt.Fprintf(&b, "  %%%s = call double @ami_rt_event_get_double(ptr %%%s, ptr %%%s, i32 %d)\n", e.Result.ID, ev.ID, base, n)
+            case "i1":
+                fmt.Fprintf(&b, "  %%%s = call i1 @ami_rt_event_get_bool(ptr %%%s, ptr %%%s, i32 %d)\n", e.Result.ID, ev.ID, base, n)
+            default:
+                if e.Result.Type == "string" {
+                    fmt.Fprintf(&b, "  %%%s = call ptr @ami_rt_event_get_string(ptr %%%s, ptr %%%s, i32 %d)\n", e.Result.ID, ev.ID, base, n)
+                } else {
+                    fmt.Fprintf(&b, "  %%%s = add i64 0, 0\n", e.Result.ID)
+                }
+            }
+            return b.String()
+        }
+        return "  ; expr event.payload.field\n"
+    }
     if strings.EqualFold(e.Op, "call") {
         // Return type resolution
         // - Runtime helpers: use their true ABI regardless of whether result captured

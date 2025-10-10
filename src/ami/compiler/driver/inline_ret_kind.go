@@ -9,4 +9,5 @@ const (
     retBinOp
     retCmp
     retUnary
+    retField
 )

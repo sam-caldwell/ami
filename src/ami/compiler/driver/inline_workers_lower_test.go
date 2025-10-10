@@ -3,6 +3,7 @@ package driver
 import (
     "testing"
     ast "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+    ir "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
 
 // Ensure inline func-literal workers synthesize IR functions with deterministic names.
@@ -105,4 +106,48 @@ func TestLowerInlineWorkers_Unary_Forms(t *testing.T) {
     f2.Decls = append(f2.Decls, pd2)
     g2 := lowerInlineWorkers("app", "u", f2)
     if len(g2) != 1 { t.Fatalf("not literal: expected 1 fn") }
+}
+
+// Verify tiny let/assignment patterns are lowered equivalently to direct returns.
+func TestLowerInlineWorkers_Let_Assign_Return(t *testing.T) {
+    // let x = 5; return x
+    f := &ast.File{PackageName: "app"}
+    pd := &ast.PipelineDecl{Name: "P"}
+    st := &ast.StepStmt{Name: "Transform", Args: []ast.Arg{{Text: "worker=func(ev Event<int>) (int, error) { let x = 5; return x }"}}}
+    pd.Stmts = append(pd.Stmts, st)
+    f.Decls = append(f.Decls, pd)
+    fns := lowerInlineWorkers("app", "u", f)
+    if len(fns) != 1 { t.Fatalf("expected 1 fn, got %d", len(fns)) }
+    if fns[0].Results[0].Type != "int" { t.Fatalf("want int result, got %+v", fns[0].Results) }
+    if len(fns[0].Blocks) == 0 || len(fns[0].Blocks[0].Instr) < 2 { t.Fatalf("expected instructions for let, got %+v", fns[0].Blocks) }
+
+    // x := ev; return x
+    f2 := &ast.File{PackageName: "app"}
+    pd2 := &ast.PipelineDecl{Name: "Q"}
+    st2 := &ast.StepStmt{Name: "Transform", Args: []ast.Arg{{Text: "worker=func(ev Event<int>) (int, error) { x := ev; return x }"}}}
+    pd2.Stmts = append(pd2.Stmts, st2)
+    f2.Decls = append(f2.Decls, pd2)
+    g := lowerInlineWorkers("app", "u", f2)
+    if len(g) != 1 { t.Fatalf("expected 1 fn, got %d", len(g)) }
+    if len(g[0].Blocks) == 0 || len(g[0].Blocks[0].Instr) < 2 { t.Fatalf("expected payload extract for ev assign, got %+v", g[0].Blocks) }
+}
+
+// Verify payload field return lowers to field helper op
+func TestLowerInlineWorkers_PayloadField_Return(t *testing.T) {
+    f := &ast.File{PackageName: "app"}
+    pd := &ast.PipelineDecl{Name: "P"}
+    st := &ast.StepStmt{Name: "Transform", Args: []ast.Arg{{Text: "worker=func(ev Event<int>) (int, error) { return event.payload.field.k }"}}}
+    pd.Stmts = append(pd.Stmts, st)
+    f.Decls = append(f.Decls, pd)
+    fns := lowerInlineWorkers("app", "u", f)
+    if len(fns) != 1 { t.Fatalf("expected 1 fn, got %d", len(fns)) }
+    if len(fns[0].Blocks) == 0 { t.Fatalf("no blocks") }
+    found := false
+    for _, ins := range fns[0].Blocks[0].Instr {
+        if e, ok := ins.(ir.Expr); ok && len(e.Op) > 0 && len(e.Args) == 1 && e.Op == "event.payload.field.k" {
+            found = true
+            break
+        }
+    }
+    if !found { t.Fatalf("missing event.payload.field.k op in lowered IR: %+v", fns[0].Blocks[0].Instr) }
 }

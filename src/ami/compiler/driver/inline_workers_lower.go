@@ -217,6 +217,169 @@ func lowerInlineWorkers(pkg, unit string, f *ast.File) []ir.Function {
                     }
                 }
             }
+            // Direct return with variable substitution (a + b, etc.)
+            if !lowered {
+                if r, ok := parseInlineReturnWithVars(body); ok {
+                    switch r.kind {
+                    case retEV:
+                        if strings.HasPrefix(r0Ty, "Event<") {
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: "ev", Type: evTy}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        } else if isPrimitiveLike(r0Ty) {
+                            pid := "p0"
+                            instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}})
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: pid, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        }
+                    case retLit:
+                        valID := "v0"
+                        instr = append(instr, ir.Expr{Op: "lit:" + r.lit, Result: &ir.Value{ID: valID, Type: r0Ty}})
+                        fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: valID, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                        lowered = true
+                    case retField:
+                        pid := "pf0"
+                        instr = append(instr, ir.Expr{Op: "event.payload.field." + r.path, Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}})
+                        fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: pid, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                        lowered = true
+                    case retBinOp:
+                        if isNumericLike(r0Ty) {
+                            lhsID := "c0"; rhsID := "c1"; resID := "v0"
+                            if r.lhsIsEv {
+                                pid := "p0"; instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}}); lhsID = pid
+                            } else { instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: lhsID, Type: r0Ty}}) }
+                            if r.rhsIsEv {
+                                pid := "p1"; instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}}); rhsID = pid
+                            } else { instr = append(instr, ir.Expr{Op: "lit:" + r.rhs, Result: &ir.Value{ID: rhsID, Type: r0Ty}}) }
+                            op := map[string]string{"+": "add", "-": "sub", "*": "mul", "/": "div", "%": "mod"}[r.op]
+                            instr = append(instr, ir.Expr{Op: op, Args: []ir.Value{{ID: lhsID, Type: r0Ty}, {ID: rhsID, Type: r0Ty}}, Result: &ir.Value{ID: resID, Type: r0Ty}})
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        }
+                    case retCmp:
+                        boolTy := r0Ty; if strings.TrimSpace(boolTy) == "" || !strings.EqualFold(boolTy, "bool") { boolTy = "bool" }
+                        numTy := "int"; if strings.Contains(r.lhs, ".") || strings.Contains(r.rhs, ".") { numTy = "real" }
+                        lhsID := "c0"; rhsID := "c1"; resID := "v0"
+                        instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: lhsID, Type: numTy}})
+                        instr = append(instr, ir.Expr{Op: "lit:" + r.rhs, Result: &ir.Value{ID: rhsID, Type: numTy}})
+                        op := map[string]string{"==": "eq", "!=": "ne", "<": "lt", "<=": "le", ">": "gt", ">=": "ge"}[r.op]
+                        instr = append(instr, ir.Expr{Op: op, Args: []ir.Value{{ID: lhsID, Type: numTy}, {ID: rhsID, Type: numTy}}, Result: &ir.Value{ID: resID, Type: boolTy}})
+                        fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: boolTy}, {ID: errID, Type: "error"}}})}}
+                        lowered = true
+                    case retUnary:
+                        switch r.op {
+                        case "neg":
+                            if isNumericLike(r0Ty) {
+                                inID := "u0"
+                                if r.lhsIsEv { instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: inID, Type: r0Ty}}) } else { instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: inID, Type: r0Ty}}) }
+                                resID := "v0"
+                                instr = append(instr, ir.Expr{Op: "neg", Args: []ir.Value{{ID: inID, Type: r0Ty}}, Result: &ir.Value{ID: resID, Type: r0Ty}})
+                                fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                                lowered = true
+                            }
+                        case "not":
+                            boolTy := "bool"; inID := "b0"
+                            if r.lhsIsEv { instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: inID, Type: boolTy}}) } else { lit := r.lhs; if lit != "true" && lit != "false" { lit = "false" }; instr = append(instr, ir.Expr{Op: "lit:" + lit, Result: &ir.Value{ID: inID, Type: boolTy}}) }
+                            resID := "v0"; instr = append(instr, ir.Expr{Op: "not", Args: []ir.Value{{ID: inID, Type: boolTy}}, Result: &ir.Value{ID: resID, Type: boolTy}})
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: boolTy}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        }
+                    }
+                }
+            }
+            if !lowered {
+                // let/assignment tiny patterns culminating in return var
+                if r, ok := parseInlineLetReturn(body); ok {
+                    switch r.kind {
+                    case retEV:
+                        // identity return of ev
+                        if strings.HasPrefix(r0Ty, "Event<") {
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: "ev", Type: evTy}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        } else if isPrimitiveLike(r0Ty) {
+                            // extract payload of expected primitive type
+                            pid := "p0"
+                            instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}})
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: pid, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        }
+                    case retLit:
+                        valID := "v0"
+                        instr = append(instr, ir.Expr{Op: "lit:" + r.lit, Result: &ir.Value{ID: valID, Type: r0Ty}})
+                        fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: valID, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                        lowered = true
+                    case retBinOp:
+                        if isNumericLike(r0Ty) {
+                            lhsID := "c0"
+                            rhsID := "c1"
+                            resID := "v0"
+                            if r.lhsIsEv {
+                                pid := "p0"
+                                instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}})
+                                lhsID = pid
+                            } else {
+                                instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: lhsID, Type: r0Ty}})
+                            }
+                            if r.rhsIsEv {
+                                pid := "p1"
+                                instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}})
+                                rhsID = pid
+                            } else {
+                                instr = append(instr, ir.Expr{Op: "lit:" + r.rhs, Result: &ir.Value{ID: rhsID, Type: r0Ty}})
+                            }
+                            op := map[string]string{"+": "add", "-": "sub", "*": "mul", "/": "div", "%": "mod"}[r.op]
+                            instr = append(instr, ir.Expr{Op: op, Args: []ir.Value{{ID: lhsID, Type: r0Ty}, {ID: rhsID, Type: r0Ty}}, Result: &ir.Value{ID: resID, Type: r0Ty}})
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        }
+                    case retCmp:
+                        // coerce to bool
+                        boolTy := r0Ty
+                        if strings.TrimSpace(boolTy) == "" || !strings.EqualFold(boolTy, "bool") { boolTy = "bool" }
+                        // pick numeric kind based on literals having dot
+                        numTy := "int"
+                        if strings.Contains(r.lhs, ".") || strings.Contains(r.rhs, ".") { numTy = "real" }
+                        lhsID := "c0"
+                        rhsID := "c1"
+                        resID := "v0"
+                        instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: lhsID, Type: numTy}})
+                        instr = append(instr, ir.Expr{Op: "lit:" + r.rhs, Result: &ir.Value{ID: rhsID, Type: numTy}})
+                        op := map[string]string{"==": "eq", "!=": "ne", "<": "lt", "<=": "le", ">": "gt", ">=": "ge"}[r.op]
+                        instr = append(instr, ir.Expr{Op: op, Args: []ir.Value{{ID: lhsID, Type: numTy}, {ID: rhsID, Type: numTy}}, Result: &ir.Value{ID: resID, Type: boolTy}})
+                        fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: boolTy}, {ID: errID, Type: "error"}}})}}
+                        lowered = true
+                    case retUnary:
+                        switch r.op {
+                        case "neg":
+                            if isNumericLike(r0Ty) {
+                                inID := "u0"
+                                if r.lhsIsEv {
+                                    instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: inID, Type: r0Ty}})
+                                } else {
+                                    instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: inID, Type: r0Ty}})
+                                }
+                                resID := "v0"
+                                instr = append(instr, ir.Expr{Op: "neg", Args: []ir.Value{{ID: inID, Type: r0Ty}}, Result: &ir.Value{ID: resID, Type: r0Ty}})
+                                fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                                lowered = true
+                            }
+                        case "not":
+                            boolTy := "bool"
+                            inID := "b0"
+                            if r.lhsIsEv {
+                                instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: inID, Type: boolTy}})
+                            } else {
+                                lit := r.lhs
+                                if lit != "true" && lit != "false" { lit = "false" }
+                                instr = append(instr, ir.Expr{Op: "lit:" + lit, Result: &ir.Value{ID: inID, Type: boolTy}})
+                            }
+                            resID := "v0"
+                            instr = append(instr, ir.Expr{Op: "not", Args: []ir.Value{{ID: inID, Type: boolTy}}, Result: &ir.Value{ID: resID, Type: boolTy}})
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: boolTy}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        }
+                    }
+                }
+            }
             if !lowered {
                 // Fallback: identity Event return to preserve previous behavior
                 // If r0Ty is not an Event, produce a zero literal for primitive-like types.

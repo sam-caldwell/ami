@@ -20,6 +20,12 @@ func parseInlineReturn(body string) (returnParse, bool) {
         if strings.EqualFold(tail, "nil") { rest = strings.TrimSpace(rest[:j]) }
     }
     if rest == "ev" { rp.kind = retEV; return rp, true }
+    // event.payload.field.<path>
+    if strings.HasPrefix(rest, "event.payload.field.") {
+        rp.kind = retField
+        rp.path = strings.TrimPrefix(rest, "event.payload.field.")
+        return rp, true
+    }
     toks := fieldsPreserveQuotes(rest)
     if len(toks) == 3 {
         op := toks[1]

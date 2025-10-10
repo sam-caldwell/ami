@@ -33,6 +33,22 @@ func attrsFromStep(st *ast.StepStmt) map[string]any {
                 }
             }
         }
+        // Resolve configured edges: edge.FIFO / edge.LIFO
+        if at.Name == "edge.FIFO" || at.Name == "edge.LIFO" {
+            // parse kv
+            kv := map[string]string{}
+            for _, a := range at.Args { if eq := strings.IndexByte(a.Text, '='); eq > 0 { kv[strings.TrimSpace(a.Text[:eq])] = strings.TrimSpace(a.Text[eq+1:]) } }
+            if t := kv["type"]; t != "" && typ == "" { typ = t }
+            // capacity synonyms
+            max := kv["max"]; if max == "" { max = kv["maxCapacity"] }
+            if max != "" && max != "0" { bounded = true }
+            switch kv["backpressure"] {
+            case "dropOldest", "dropNewest": delivery = "bestEffort"
+            case "block": delivery = "atLeastOnce"
+            case "shuntNewest": delivery = "shuntNewest"
+            case "shuntOldest": delivery = "shuntOldest"
+            }
+        }
         if at.Name == "edge.MultiPath" || at.Name == "MultiPath" {
             if len(at.Args) > 0 {
                 var parts []string
@@ -49,4 +65,3 @@ func attrsFromStep(st *ast.StepStmt) map[string]any {
     if len(m) == 0 { return nil }
     return m
 }
-

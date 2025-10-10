@@ -8,9 +8,15 @@ import (
     "github.com/sam-caldwell/ami/src/schemas/diag"
 )
 
-// AnalyzeWorkers validates worker references in pipeline Transform nodes.
-// - Emits E_WORKER_UNDEFINED when referenced worker function is not declared in the file (simple, local scope only).
-// - Emits E_WORKER_SIGNATURE when a non-factory worker does not match the canonical signature
+// AnalyzeWorkers validates worker references in pipeline nodes.
+// It supports both positional and named-argument styles:
+//   - Transform FooWorker
+//   - Transform(worker=FooWorker)
+//   - Ingress(worker=...)
+//   - Egress(worker=...)
+// It will:
+// - Emit E_WORKER_UNDEFINED when a referenced local worker function is not declared in the file.
+// - Emit E_WORKER_SIGNATURE when a non-factory worker does not match the canonical signature
 //   func(Event<T>) (Event<U>, error) under text-based checks.
 func AnalyzeWorkers(f *ast.File) []diag.Record {
     var out []diag.Record
@@ -32,17 +38,81 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
         for _, s := range pd.Stmts {
             st, ok := s.(*ast.StepStmt)
             if !ok { continue }
-            if strings.ToLower(st.Name) != "transform" { continue }
-            if len(st.Args) == 0 { continue }
-            a0 := st.Args[0]
-            wname := a0.Text
-            if a0.IsString {
-                // use literal value
-                wname = a0.Text
+            // Only consider steps that can carry a worker
+            switch strings.ToLower(st.Name) {
+            case "transform", "ingress", "egress":
+            default:
+                continue
             }
-            // trim quotes if present
-            wname = strings.Trim(wname, "\"")
+
+            // Resolve worker name/value from args:
+            // - prefer named arg 'worker=...'
+            // - else if first positional arg is present and not a key=value, treat as worker
+            // - if value looks like a function literal 'func(' then accept without lookup
+            var warg ast.Arg
+            var hasWorker bool
+            for _, a := range st.Args {
+                if eq := strings.IndexByte(a.Text, '='); eq > 0 {
+                    key := strings.TrimSpace(a.Text[:eq])
+                    if strings.EqualFold(key, "worker") {
+                        // capture only the right-hand side
+                        rhs := strings.TrimSpace(a.Text[eq+1:])
+                        warg = ast.Arg{Pos: a.Pos, Text: rhs, IsString: a.IsString}
+                        hasWorker = true
+                        break
+                    }
+                    continue
+                }
+                // positional argument encountered; treat first positional as candidate worker
+                if !hasWorker {
+                    warg = a
+                    hasWorker = true
+                }
+            }
+            if !hasWorker { continue }
+
+            wname := strings.Trim(warg.Text, "\"")
             if wname == "" { continue }
+            // Inline function literal? Parse and validate signature and accept.
+            if wname == "func" || strings.HasPrefix(wname, "func") {
+                // Try to parse a signature from the literal text
+                paramTyp, results, ok := inlineFuncSig(strings.TrimSpace(warg.Text))
+                if !ok {
+                    // Unable to parse; treat as soft acceptance to avoid false positives.
+                    continue
+                }
+                // Enforce pointer-free Event<...> for param/result when present
+                if t := eventTypeArg(paramTyp); t != "" {
+                    if strings.ContainsAny(t, "&*") {
+                        p := warg.Pos
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_PTR_FORBIDDEN", Message: "Event<T> must be pointer-free (no '&' or '*')", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
+                    }
+                }
+                if len(results) > 0 {
+                    if t := eventTypeArg(results[0]); t != "" {
+                        if strings.ContainsAny(t, "&*") {
+                            p := warg.Pos
+                            out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_EVENT_PTR_FORBIDDEN", Message: "Event<U> must be pointer-free (no '&' or '*')", Pos: &diag.Position{Line: p.Line, Column: p.Column, Offset: p.Offset}})
+                        }
+                    }
+                }
+                // Basic shape acceptance: either single 'error' or two results with second 'error'.
+                if len(results) == 1 {
+                    if strings.TrimSpace(results[0]) != "error" {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: want error or (X, error)", Pos: &diag.Position{Line: warg.Pos.Line, Column: warg.Pos.Column, Offset: warg.Pos.Offset}})
+                    }
+                } else if len(results) >= 2 {
+                    if strings.TrimSpace(results[1]) != "error" {
+                        out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: second result must be error", Pos: &diag.Position{Line: warg.Pos.Line, Column: warg.Pos.Column, Offset: warg.Pos.Offset}})
+                    }
+                } else {
+                    // No results at all: treat as invalid
+                    out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_SIGNATURE", Message: "invalid worker signature: missing results", Pos: &diag.Position{Line: warg.Pos.Line, Column: warg.Pos.Column, Offset: warg.Pos.Offset}})
+                }
+                // Emit a soft warning to signal partial codegen support for inline workers.
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Warn, Code: "W_WORKER_INLINE", Message: "inline worker literal accepted", Pos: &diag.Position{Line: warg.Pos.Line, Column: warg.Pos.Column, Offset: warg.Pos.Offset}})
+                continue
+            }
             if i := strings.LastIndexByte(wname, '.'); i >= 0 {
                 // if prefix is an import alias, treat as external and skip undefined/signature checks
                 prefix := wname[:i]
@@ -53,7 +123,7 @@ func AnalyzeWorkers(f *ast.File) []diag.Record {
             }
             fn, ok := funcs[wname]
             if !ok {
-                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: "worker undefined: " + wname, Pos: &diag.Position{Line: a0.Pos.Line, Column: a0.Pos.Column, Offset: a0.Pos.Offset}})
+                out = append(out, diag.Record{Timestamp: now, Level: diag.Error, Code: "E_WORKER_UNDEFINED", Message: "worker undefined: " + wname, Pos: &diag.Position{Line: warg.Pos.Line, Column: warg.Pos.Column, Offset: warg.Pos.Offset}})
                 continue
             }
             // Workers cannot be decorated

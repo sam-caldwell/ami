@@ -1,6 +1,9 @@
 package driver
 
-import "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+import (
+    "strings"
+    "github.com/sam-caldwell/ami/src/ami/compiler/ast"
+)
 
 // collectEdges returns all edge entries for a parsed file, tagged with unit.
 func collectEdges(unit string, f *ast.File) []edgeEntry {
@@ -70,6 +73,19 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                 delivery := "atLeastOnce"
                 etype := ""
                 tiny := false
+                // helper to parse k=v list into map
+                parseKV := func(args []ast.Arg) map[string]string {
+                    m := map[string]string{}
+                    for _, a := range args {
+                        s := a.Text
+                        if eq := strings.IndexByte(s, '='); eq > 0 {
+                            k := strings.TrimSpace(s[:eq])
+                            v := strings.TrimSpace(s[eq+1:])
+                            m[k] = v
+                        }
+                    }
+                    return m
+                }
                 for _, at := range stepAttrs[e.To] {
                     if at.Name == "dropOldest" || at.Name == "dropNewest" { delivery = "bestEffort" }
                     if at.Name == "merge.Buffer" {
@@ -87,6 +103,27 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
                             if pol == "dropOldest" || pol == "dropNewest" { delivery = "bestEffort" }
                             if pol == "block" { delivery = "atLeastOnce" }
                         }
+                    }
+                    // Resolve configured edges: edge.FIFO / edge.LIFO
+                    if at.Name == "edge.FIFO" || at.Name == "edge.LIFO" {
+                        kv := parseKV(at.Args)
+                        // synonyms for capacities
+                        max := kv["max"]
+                        if max == "" { max = kv["maxCapacity"] }
+                        min := kv["min"]
+                        if min == "" { min = kv["minCapacity"] }
+                        bp := kv["backpressure"]
+                        if max != "" && max != "0" { bounded = true }
+                        switch bp {
+                        case "dropOldest", "dropNewest": delivery = "bestEffort"
+                        case "block": delivery = "atLeastOnce"
+                        case "shuntNewest": delivery = "shuntNewest"
+                        case "shuntOldest": delivery = "shuntOldest"
+                        }
+                        if t := kv["type"]; t != "" { etype = t }
+                        // tiny heuristic: very small buffer with lossy policy
+                        if (max == "0" || max == "1") && (bp == "dropOldest" || bp == "dropNewest") { tiny = true }
+                        _ = min // reserved for future
                     }
                     if (at.Name == "type" || at.Name == "Type") && len(at.Args) > 0 {
                         if at.Args[0].Text != "" { etype = at.Args[0].Text }
@@ -112,4 +149,3 @@ func collectEdges(unit string, f *ast.File) []edgeEntry {
     }
     return out
 }
-

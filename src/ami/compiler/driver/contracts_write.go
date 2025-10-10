@@ -110,6 +110,20 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
                                 }
                             }
                         }
+                        if at.Name == "edge.FIFO" || at.Name == "edge.LIFO" {
+                            // parse kv
+                            kv := map[string]string{}
+                            for _, a := range at.Args { if eq := strings.IndexByte(a.Text, '='); eq > 0 { kv[strings.TrimSpace(a.Text[:eq])] = strings.TrimSpace(a.Text[eq+1:]) } }
+                            if t := kv["type"]; t != "" && typ == "" { typ = t }
+                            max := kv["max"]; if max == "" { max = kv["maxCapacity"] }
+                            if max != "" && max != "0" { bounded = true }
+                            switch kv["backpressure"] {
+                            case "dropOldest", "dropNewest": del = "bestEffort"
+                            case "block": del = "atLeastOnce"
+                            case "shuntNewest": del = "shuntNewest"
+                            case "shuntOldest": del = "shuntOldest"
+                            }
+                        }
                     }
                     lname := strings.ToLower(st.Name)
                     if strings.HasPrefix(lname, "io.") {
@@ -154,4 +168,3 @@ func writeContractsDebug(pkg, unit string, f *ast.File) (string, error) {
     if err := os.WriteFile(out, b, 0o644); err != nil { return "", err }
     return out, nil
 }
-

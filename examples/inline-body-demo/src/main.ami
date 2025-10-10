@@ -1,0 +1,10 @@
+package app
+
+// Demo inline worker with literals, arithmetic, comparisons, and if/else lowering.
+pipeline Demo(){
+  ingress;
+  // returns 5 when 1<2, else 7
+  transform(worker=func(ev Event<int>) (int, error) { if 1 < 2 { return 5 } else { return 7 } });
+  egress
+}
+

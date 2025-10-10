@@ -18,6 +18,9 @@ import (
 // TestE2E_Examples_Correct_Build compiles examples/correct and verifies the produced artifacts.
 func TestE2E_Examples_Correct_Build(t *testing.T) {
     bin := buildAmi(t)
+    if _, err := exec.LookPath("clang"); err != nil {
+        t.Skip("clang not found; skipping verbose link test")
+    }
 
     // Stage the example into an isolated workspace under build/test/e2e/examples/correct
     wd, _ := os.Getwd()
@@ -38,7 +41,7 @@ func TestE2E_Examples_Correct_Build(t *testing.T) {
     cmd.Stdin = io.NopCloser(bytes.NewReader(nil))
     var stdout, stderr bytes.Buffer
     cmd.Stdout, cmd.Stderr = &stdout, &stderr
-    _ = cmd.Run() // Non-zero is expected if compiler emits diagnostics
+    _ = cmd.Run()
 
     // Parse JSON summary
     var res struct {
@@ -52,9 +55,9 @@ func TestE2E_Examples_Correct_Build(t *testing.T) {
         Data          map[string]any      `json:"data"`
         Code          string              `json:"code"`
     }
-    // If compiler emitted diagnostics (schema=diag.v1), skip artifact verification until example is updated
+    // Expect no diagnostics in verbose JSON mode
     if bytes.Contains(stdout.Bytes(), []byte(`"schema":"diag.v1"`)) {
-        t.Skipf("examples/correct emits diagnostics; skipping artifact checks.\nstdout=%s\nstderr=%s", stdout.String(), stderr.String())
+        t.Fatalf("unexpected diagnostics in verbose build.\nstdout=%s\nstderr=%s", stdout.String(), stderr.String())
     }
     if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
         t.Fatalf("json: %v\nstderr=%s\nstdout=%s", err, stderr.String(), stdout.String())

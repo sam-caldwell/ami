@@ -51,9 +51,13 @@ func parseInlineLetReturn(body string) (returnParse, bool) {
         break
     }
     if rhs == "" { return rp, false }
-    // Resolve simple alias: if RHS is a bare identifier, try to resolve its assignment.
+    // Resolve alias transitively: follow simple identifier chains a reasonable amount.
     if isIdent(rhs) && rhs != "ev" && !isLiteral(rhs) {
-        if repl, ok := lookupLetAssign(body, rhs); ok { rhs = repl }
+        seen := map[string]bool{retVar: true}
+        for steps := 0; steps < 4 && isIdent(rhs) && rhs != "ev" && !seen[rhs]; steps++ {
+            seen[rhs] = true
+            if repl, ok := lookupLetAssign(body, rhs); ok { rhs = repl } else { break }
+        }
     }
     // Reuse parseInlineReturn by synthesizing a 'return <rhs>' line.
     if pr, ok := parseInlineReturn("return " + rhs); ok {

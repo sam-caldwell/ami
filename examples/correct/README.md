@@ -1,8 +1,9 @@
-Correct Example (Intentional WIP)
+Correct Example
 
-This example contains a sketch of an AMI workspace using richer surface syntax that is not yet fully supported by the current parser. It is kept here to drive future language work and intentionally emits diagnostics when built.
+This example now builds cleanly in verbose JSON mode and links a host binary when a C toolchain (clang) is available. It exercises basic package setup and a minimal pipeline.
 
-For green builds and a working inline worker lowering demo, use:
+To build:
+- From this directory: `../../build/ami build --verbose --json` (or `go run ../../src/cmd/ami build --verbose --json`).
+
+For an inline worker demo using event payload field reads, also see:
 - examples/inline-body-demo
-
-Nothing in CI depends on building this directory.

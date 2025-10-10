@@ -263,14 +263,17 @@ func RuntimeLL(triple string, withMain bool) string {
     // Event handle layout: { i8* payload_ptr; i64 payload_len }
     s += "%Event = type { i8*, i64 }\n\n"
     // Constants for JSON composition
+    // Note: The [N x i8] length must match the number of bytes (not the escaped
+    // source length). We compute N using the original literal length + 1 for NUL,
+    // then escape for the IR text. Copy lengths exclude the trailing NUL.
     prefix := "{\"schema\":\"events.v1\",\"payload\":"
     suffix := "}"
     evEsc := encodeCString(prefix)
-    evN := len(prefix) + 1
-    s += "@.json.event.prefix = private constant [" + itoa(evN) + " x i8] c\"" + evEsc + "\"\n"
+    evBytes := len(prefix) + 1 // bytes including NUL
+    s += "@.json.event.prefix = private constant [" + itoa(evBytes) + " x i8] c\"" + evEsc + "\"\n"
     sufEsc := encodeCString(suffix)
-    sufN := len(suffix) + 1
-    s += "@.json.event.suffix = private constant [" + itoa(sufN) + " x i8] c\"" + sufEsc + "\"\n"
+    sufBytes := len(suffix) + 1 // bytes including NUL
+    s += "@.json.event.suffix = private constant [" + itoa(sufBytes) + " x i8] c\"" + sufEsc + "\"\n"
     nulJSON := "null"
     nulEsc := encodeCString(nulJSON)
     nulN := len(nulJSON) + 1
@@ -279,7 +282,7 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "define ptr @ami_rt_json_to_event(ptr %in, i32 %inlen) {\n" +
         "entry:\n  %sz = zext i32 %inlen to i64\n  %buf = call ptr @malloc(i64 %sz)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %in, i64 %sz, i1 false)\n  %eh = call ptr @malloc(i64 16)\n  %pfield = bitcast ptr %eh to ptr\n  store ptr %buf, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %eh, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  store i64 %sz, ptr %lfield, align 8\n  ret ptr %eh\n}\n\n"
     // define ptr @ami_rt_event_to_json(ptr ev, i32* outlen)
-    s += "define ptr @ami_rt_event_to_json(ptr %ev, i32* %outlen) {\nentry:\n  ; load payload ptr and len from Event handle\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %ev, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  %plen = load i64, ptr %lfield, align 8\n  ; compute total size = prefix + payload + suffix (no NUL terminator)\n  %pref = zext i32 " + itoa(evN-1) + " to i64\n  %suf = zext i32 " + itoa(sufN-1) + " to i64\n  %psum = add i64 %pref, %plen\n  %tot = add i64 %psum, %suf\n  %buf = call ptr @malloc(i64 %tot)\n  ; copy prefix\n  %pfx = getelementptr inbounds [" + itoa(evN) + " x i8], ptr @.json.event.prefix, i64 0, i64 0\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %pfx, i64 %pref, i1 false)\n  ; copy payload just after prefix\n  %dst1 = getelementptr i8, ptr %buf, i64 %pref\n  call void @llvm.memcpy.p0.p0.i64(ptr %dst1, ptr %pp, i64 %plen, i1 false)\n  ; copy suffix at end\n  %dst2 = getelementptr i8, ptr %buf, i64 %psum\n  %sfx = getelementptr inbounds [" + itoa(sufN) + " x i8], ptr @.json.event.suffix, i64 0, i64 0\n  call void @llvm.memcpy.p0.p0.i64(ptr %dst2, ptr %sfx, i64 %suf, i1 false)\n  ; outlen = total length (i32)\n  %tot32 = trunc i64 %tot to i32\n  store i32 %tot32, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
+    s += "define ptr @ami_rt_event_to_json(ptr %ev, i32* %outlen) {\nentry:\n  ; load payload ptr and len from Event handle\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %ev, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  %plen = load i64, ptr %lfield, align 8\n  ; compute total size = prefix + payload + suffix (no NUL terminator)\n  %pref = zext i32 " + itoa(evBytes-1) + " to i64\n  %suf = zext i32 " + itoa(sufBytes-1) + " to i64\n  %psum = add i64 %pref, %plen\n  %tot = add i64 %psum, %suf\n  %buf = call ptr @malloc(i64 %tot)\n  ; copy prefix\n  %pfx = getelementptr inbounds [" + itoa(evBytes) + " x i8], ptr @.json.event.prefix, i64 0, i64 0\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %pfx, i64 %pref, i1 false)\n  ; copy payload just after prefix\n  %dst1 = getelementptr i8, ptr %buf, i64 %pref\n  call void @llvm.memcpy.p0.p0.i64(ptr %dst1, ptr %pp, i64 %plen, i1 false)\n  ; copy suffix at end\n  %dst2 = getelementptr i8, ptr %buf, i64 %psum\n  %sfx = getelementptr inbounds [" + itoa(sufBytes) + " x i8], ptr @.json.event.suffix, i64 0, i64 0\n  call void @llvm.memcpy.p0.p0.i64(ptr %dst2, ptr %sfx, i64 %suf, i1 false)\n  ; outlen = total length (i32)\n  %tot32 = trunc i64 %tot to i32\n  store i32 %tot32, ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
     // define ptr @ami_rt_payload_to_json(ptr p, i32* outlen)
     s += "define ptr @ami_rt_payload_to_json(ptr %p, i32* %outlen) {\nentry:\n  %src = getelementptr inbounds [" + itoa(nulN) + " x i8], ptr @.json.null, i64 0, i64 0\n  %len = zext i32 " + itoa(nulN) + " to i64\n  %buf = call ptr @malloc(i64 %len)\n  call void @llvm.memcpy.p0.p0.i64(ptr %buf, ptr %src, i64 %len, i1 false)\n  store i32 " + itoa(len(nulJSON)) + ", ptr %outlen, align 4\n  ret ptr %buf\n}\n\n"
 
@@ -460,27 +463,88 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "define ptr @ami_rt_build_quoted(ptr %seg, i32 %len) {\n"
     s += "entry:\n  %n = zext i32 %len to i64\n  %sz = add i64 %n, 3\n  %buf = call ptr @malloc(i64 %sz)\n  store i8 34, ptr %buf, align 1\n  %dst = getelementptr i8, ptr %buf, i64 1\n  call void @llvm.memcpy.p0.p0.i64(ptr %dst, ptr %seg, i64 %n, i1 false)\n  %q2 = getelementptr i8, ptr %buf, i64 add (i64 %n, i64 1)\n  store i8 34, ptr %q2, align 1\n  %nul = getelementptr i8, ptr %buf, i64 add (i64 %n, i64 2)\n  store i8 0, ptr %nul, align 1\n  ret ptr %buf\n}\n\n"
 
+    // Whitespace skipper used by multiple scanners
+    s += "define ptr @ami_rt_skip_ws(ptr %p) {\n"
+    s += "entry:\n  br label %ws\n"
+    s += "ws:\n  %c = load i8, ptr %p, align 1\n  %isSp = icmp eq i8 %c, 32\n  %isTb = icmp eq i8 %c, 9\n  %isNl = icmp eq i8 %c, 10\n  %isCr = icmp eq i8 %c, 13\n  %sp1 = or i1 %isSp, %isTb\n  %sp2 = or i1 %isNl, %isCr\n  %isWS = or i1 %sp1, %sp2\n  br i1 %isWS, label %ws_adv, label %done\n"
+    s += "ws_adv:\n  %p2 = getelementptr i8, ptr %p, i64 1\n  %p = %p2\n  br label %ws\n"
+    s += "done:\n  ret ptr %p\n}\n\n"
+
     // Advance to first non-space after ':' starting at p
     s += "define ptr @ami_rt_after_colon(ptr %p) {\n"
     s += "entry:\n  br label %loop\n"
     s += "loop:\n  %c = load i8, ptr %p, align 1\n  %isColon = icmp eq i8 %c, 58\n  br i1 %isColon, label %adv, label %next\n"
-    s += "next:\n  %p2 = getelementptr i8, ptr %p, i64 1\n  br label %loop\n"
-    s += "adv:\n  %p3 = getelementptr i8, ptr %p, i64 1\n  br label %ws\n"
-    s += "ws:\n  %c2 = load i8, ptr %p3, align 1\n  %isSp = icmp eq i8 %c2, 32\n  %isTb = icmp eq i8 %c2, 9\n  %isNl = icmp eq i8 %c2, 10\n  %isCr = icmp eq i8 %c2, 13\n  %sp1 = or i1 %isSp, %isTb\n  %sp2 = or i1 %isNl, %isCr\n  %isWS = or i1 %sp1, %sp2\n  br i1 %isWS, label %ws_adv, label %done\n"
-    s += "ws_adv:\n  %p3n = getelementptr i8, ptr %p3, i64 1\n  br label %ws\n"
-    s += "done:\n  ret ptr %p3\n}\n\n"
+    s += "next:\n  %p2 = getelementptr i8, ptr %p, i64 1\n  %p = %p2\n  br label %loop\n"
+    s += "adv:\n  %p3 = getelementptr i8, ptr %p, i64 1\n  %p4 = call ptr @ami_rt_skip_ws(ptr %p3)\n  ret ptr %p4\n}\n\n"
 
-    // Find pointer to value for dotted path within JSON buffer
+    // Scan to the end of a string starting at an opening quote at %p; returns ptr after closing quote
+    s += "define ptr @ami_rt_scan_string_end(ptr %p) {\n"
+    s += "entry:\n  %q = getelementptr i8, ptr %p, i64 1\n  br label %loop\n"
+    s += "loop:\n  %c = load i8, ptr %q, align 1\n  %isEsc = icmp eq i8 %c, 92\n  br i1 %isEsc, label %esc, label %chkq\n"
+    s += "esc:\n  %q2 = getelementptr i8, ptr %q, i64 2\n  %q = %q2\n  br label %loop\n"
+    s += "chkq:\n  %isQ = icmp eq i8 %c, 34\n  br i1 %isQ, label %done, label %adv\n"
+    s += "adv:\n  %q3 = getelementptr i8, ptr %q, i64 1\n  %q = %q3\n  br label %loop\n"
+    s += "done:\n  %aft = getelementptr i8, ptr %q, i64 1\n  ret ptr %aft\n}\n\n"
+
+    // Find key within a JSON object and return ptr to the value (first non-space after ':')
+    s += "define ptr @ami_rt_find_key(ptr %obj, ptr %key, i32 %klen) {\n"
+    s += "entry:\n  %p = call ptr @ami_rt_skip_ws(ptr %obj)\n  br label %seek\n"
+    s += "seek:\n  %cb = load i8, ptr %p, align 1\n  %isOB = icmp eq i8 %cb, 123\n  br i1 %isOB, label %inobj, label %advb\n"
+    s += "advb:\n  %p1 = getelementptr i8, ptr %p, i64 1\n  %p = %p1\n  br label %seek\n"
+    s += "inobj:\n  %q = getelementptr i8, ptr %p, i64 1\n  br label %scan\n"
+    s += "scan:\n  %c = load i8, ptr %q, align 1\n  %eof = icmp eq i8 %c, 0\n  br i1 %eof, label %nf, label %ns\n"
+    s += "ns:\n  %isSp = icmp eq i8 %c, 32\n  %isTb = icmp eq i8 %c, 9\n  %isNl = icmp eq i8 %c, 10\n  %isCr = icmp eq i8 %c, 13\n  %isComma = icmp eq i8 %c, 44\n  %sp1 = or i1 %isSp, %isTb\n  %sp2 = or i1 %isNl, %isCr\n  %isWS = or i1 %sp1, %sp2\n  %skip = or i1 %isWS, %isComma\n  br i1 %skip, label %adv, label %chkq\n"
+    s += "adv:\n  %q2 = getelementptr i8, ptr %q, i64 1\n  %q = %q2\n  br label %scan\n"
+    s += "chkq:\n  %isQ = icmp eq i8 %c, 34\n  br i1 %isQ, label %keyscan, label %nxt\n"
+    s += "nxt:\n  %isOB2 = icmp eq i8 %c, 123\n  %isAB2 = icmp eq i8 %c, 91\n  br i1 %isOB2, label %skipstruct, label %chkarr\n"
+    s += "chkarr:\n  br i1 %isAB2, label %skipstruct, label %adv\n"
+    s += "skipstruct:\n  %h = %q\n  %d = alloca i32, align 4\n  store i32 0, ptr %d, align 4\n  br label %sklp\n"
+    s += "sklp:\n  %ch = load i8, ptr %h, align 1\n  %isq2 = icmp eq i8 %ch, 34\n  br i1 %isq2, label %skstr, label %skbody\n"
+    s += "skstr:\n  %h1 = call ptr @ami_rt_scan_string_end(ptr %h)\n  %h = %h1\n  br label %sklp\n"
+    s += "skbody:\n  %iso = icmp eq i8 %ch, 123\n  %isc = icmp eq i8 %ch, 125\n  %isa = icmp eq i8 %ch, 91\n  %isz = icmp eq i8 %ch, 93\n  %d0 = load i32, ptr %d, align 4\n  %d1 = add i32 %d0, select (i1 %iso, i32 1, i32 0)\n  %d2 = add i32 %d1, select (i1 %isa, i32 1, i32 0)\n  %d3 = sub i32 %d2, select (i1 %isc, i32 1, i32 0)\n  %d4 = sub i32 %d3, select (i1 %isz, i32 1, i32 0)\n  store i32 %d4, ptr %d, align 4\n  %end = icmp eq i8 %ch, 0\n  br i1 %end, label %nf, label %skcont\n"
+    s += "skcont:\n  %hn = getelementptr i8, ptr %h, i64 1\n  %h = %hn\n  %dz = icmp eq i32 (load i32, ptr %d, align 4), 0\n  %isComma = icmp eq i8 %ch, 44\n  %atEnd = and i1 %dz, %isComma\n  br i1 %atEnd, label %scan, label %sklp\n"
+    s += "keyscan:\n  %kidx = alloca i32, align 4\n  store i32 0, ptr %kidx, align 4\n  %kp = getelementptr i8, ptr %q, i64 1\n  br label %kloop\n"
+    s += "kloop:\n  %kc = load i8, ptr %kp, align 1\n  %kend = icmp eq i8 %kc, 34\n  br i1 %kend, label %kdone, label %kbody\n"
+    s += "kbody:\n  %i = load i32, ptr %kidx, align 4\n  %lt = icmp ult i32 %i, %klen\n  br i1 %lt, label %kcmp, label %kadv\n"
+    s += "kcmp:\n  %ko = getelementptr i8, ptr %key, i32 %i\n  %kb = load i8, ptr %ko, align 1\n  %eq = icmp eq i8 %kb, %kc\n  br i1 %eq, label %kincr, label %kskip\n"
+    s += "kskip:\n  %kp2 = call ptr @ami_rt_scan_string_end(ptr %q)\n  %q = %kp2\n  br label %scan\n"
+    s += "kincr:\n  %i2 = add i32 %i, 1\n  store i32 %i2, ptr %kidx, align 4\n  %kp1 = getelementptr i8, ptr %kp, i64 1\n  %kp = %kp1\n  br label %kloop\n"
+    s += "kdone:\n  %ilen = load i32, ptr %kidx, align 4\n  %eqLen = icmp eq i32 %ilen, %klen\n  br i1 %eqLen, label %afterkey, label %adv_after\n"
+    s += "adv_after:\n  %kp2 = call ptr @ami_rt_scan_string_end(ptr %q)\n  %q = %kp2\n  br label %scan\n"
+    s += "afterkey:\n  %aft = call ptr @ami_rt_scan_string_end(ptr %q)\n  %aft2 = call ptr @ami_rt_skip_ws(ptr %aft)\n  %iscol = icmp eq i8 (load i8, ptr %aft2), 58\n  br i1 %iscol, label %retv, label %scan\n"
+    s += "retv:\n  %col = getelementptr i8, ptr %aft2, i64 1\n  %valp = call ptr @ami_rt_skip_ws(ptr %col)\n  ret ptr %valp\n"
+    s += "nf:\n  ret ptr null\n}\n\n"
+
+    // Return pointer to the idx-th element within a JSON array at %arr
+    s += "define ptr @ami_rt_array_index(ptr %arr, i32 %idx) {\n"
+    s += "entry:\n  %p = call ptr @ami_rt_skip_ws(ptr %arr)\n  %c0 = load i8, ptr %p, align 1\n  %isLB = icmp eq i8 %c0, 91\n  br i1 %isLB, label %start, label %seek\n"
+    s += "seek:\n  %p1 = getelementptr i8, ptr %p, i64 1\n  %p = %p1\n  br label %entry\n"
+    s += "start:\n  %q = getelementptr i8, ptr %p, i64 1\n  %cur = alloca i32, align 4\n  store i32 0, ptr %cur, align 4\n  br label %loop\n"
+    s += "loop:\n  %ws = call ptr @ami_rt_skip_ws(ptr %q)\n  %q = %ws\n  %c = load i8, ptr %q, align 1\n  %isEnd = icmp eq i8 %c, 93\n  br i1 %isEnd, label %nf, label %elem\n"
+    s += "elem:\n  %i = load i32, ptr %cur, align 4\n  %match = icmp eq i32 %i, %idx\n  br i1 %match, label %retp, label %skipelem\n"
+    s += "retp:\n  ret ptr %q\n"
+    s += "skipelem:\n  %h = %q\n  %d = alloca i32, align 4\n  store i32 0, ptr %d, align 4\n  br label %sloop\n"
+    s += "sloop:\n  %ch = load i8, ptr %h, align 1\n  %isq = icmp eq i8 %ch, 34\n  br i1 %isq, label %sstr, label %sbody\n"
+    s += "sstr:\n  %h1 = call ptr @ami_rt_scan_string_end(ptr %h)\n  %h = %h1\n  br label %sloop\n"
+    s += "sbody:\n  %iso = icmp eq i8 %ch, 123\n  %isc = icmp eq i8 %ch, 125\n  %isa = icmp eq i8 %ch, 91\n  %isz = icmp eq i8 %ch, 93\n  %d0 = load i32, ptr %d, align 4\n  %d1 = add i32 %d0, select (i1 %iso, i32 1, i32 0)\n  %d2 = add i32 %d1, select (i1 %isa, i32 1, i32 0)\n  %d3 = sub i32 %d2, select (i1 %isc, i32 1, i32 0)\n  %d4 = sub i32 %d3, select (i1 %isz, i32 1, i32 0)\n  store i32 %d4, ptr %d, align 4\n  %end = icmp eq i8 %ch, 0\n  br i1 %end, label %nf, label %scont\n"
+    s += "scont:\n  %hn = getelementptr i8, ptr %h, i64 1\n  %dz = icmp eq i32 (load i32, ptr %d, align 4), 0\n  %isComma = icmp eq i8 %ch, 44\n  %atComma = and i1 %dz, %isComma\n  br i1 %atComma, label %bump, label %sloop\n"
+    s += "bump:\n  %j = load i32, ptr %cur, align 4\n  %j1 = add i32 %j, 1\n  store i32 %j1, ptr %cur, align 4\n  %q = getelementptr i8, ptr %hn, i64 0\n  br label %loop\n"
+    s += "nf:\n  ret ptr null\n}\n\n"
+
+    // Find pointer to value for dotted path within JSON buffer; supports array indices and escape-aware scanning
     s += "define ptr @ami_rt_find_path(ptr %json, ptr %path, i32 %plen) {\n"
     s += "entry:\n  %buf = %json\n  %start = %path\n  %remain = %plen\n  br label %segloop\n"
-    s += "segloop:\n  %p = phi ptr [ %start, %entry ], [ %pnext, %segcont ]\n  %r = phi i32 [ %remain, %entry ], [ %rnext, %segcont ]\n  %b = phi ptr [ %buf, %entry ], [ %bnext, %segcont ]\n  ; find seglen up to '.' or end\n  %i = alloca i32, align 4\n  store i32 0, ptr %i, align 4\n  br label %finddot\n"
+    s += "segloop:\n  %p = phi ptr [ %start, %entry ], [ %pnext, %segcont ]\n  %r = phi i32 [ %remain, %entry ], [ %rnext, %segcont ]\n  %b = phi ptr [ %buf, %entry ], [ %bnext, %segcont ]\n  %i = alloca i32, align 4\n  %isnum = alloca i1, align 1\n  store i32 0, ptr %i, align 4\n  store i1 true, ptr %isnum, align 1\n  br label %finddot\n"
     s += "finddot:\n  %idx = load i32, ptr %i, align 4\n  %done = icmp uge i32 %idx, %r\n  br i1 %done, label %segfound, label %fdstep\n"
-    s += "fdstep:\n  %cp = getelementptr i8, ptr %p, i32 %idx\n  %ch = load i8, ptr %cp, align 1\n  %isdot = icmp eq i8 %ch, 46\n  br i1 %isdot, label %segfound, label %fdcont\n"
+    s += "fdstep:\n  %cp = getelementptr i8, ptr %p, i32 %idx\n  %ch = load i8, ptr %cp, align 1\n  %isdot = icmp eq i8 %ch, 46\n  %ge0 = icmp sge i8 %ch, 48\n  %le9 = icmp sle i8 %ch, 57\n  %isdig = and i1 %ge0, %le9\n  %numcur = load i1, ptr %isnum, align 1\n  %numupd = and i1 %numcur, %isdig\n  store i1 %numupd, ptr %isnum, align 1\n  br i1 %isdot, label %segfound, label %fdcont\n"
     s += "fdcont:\n  %idx2 = add i32 %idx, 1\n  store i32 %idx2, ptr %i, align 4\n  br label %finddot\n"
-    s += "segfound:\n  %seglen = load i32, ptr %i, align 4\n  %qkey = call ptr @ami_rt_build_quoted(ptr %p, i32 %seglen)\n  %hit = call ptr @strstr(ptr %b, ptr %qkey)\n  %isnull = icmp eq ptr %hit, null\n  br i1 %isnull, label %notfound, label %afterkey\n"
-    s += "afterkey:\n  %two = add i64 0, 2\n  %seg64 = zext i32 %seglen to i64\n  %off = add i64 %seg64, %two\n  %afterq = getelementptr i8, ptr %hit, i64 %off\n  %val = call ptr @ami_rt_after_colon(ptr %afterq)\n  %atend = icmp eq i32 %seglen, %r\n  br i1 %atend, label %done, label %contnest\n"
+    s += "segfound:\n  %seglen = load i32, ptr %i, align 4\n  %isN = load i1, ptr %isnum, align 1\n  br i1 %isN, label %arrcase, label %objcase\n"
+    s += "arrcase:\n  %acc = alloca i32, align 4\n  store i32 0, ptr %acc, align 4\n  %k = alloca i32, align 4\n  store i32 0, ptr %k, align 4\n  br label %iparse\n"
+    s += "iparse:\n  %kcur = load i32, ptr %k, align 4\n  %kend = icmp uge i32 %kcur, %seglen\n  br i1 %kend, label %iget, label %inext\n"
+    s += "inext:\n  %pp = getelementptr i8, ptr %p, i32 %kcur\n  %ch2 = load i8, ptr %pp, align 1\n  %d = sub i32 (zext i8 %ch2 to i32), 48\n  %old = load i32, ptr %acc, align 4\n  %tmp = mul i32 %old, 10\n  %new = add i32 %tmp, %d\n  store i32 %new, ptr %acc, align 4\n  %k2 = add i32 %kcur, 1\n  store i32 %k2, ptr %k, align 4\n  br label %iparse\n"
+    s += "iget:\n  %index = load i32, ptr %acc, align 4\n  %val = call ptr @ami_rt_array_index(ptr %b, i32 %index)\n  %atend = icmp eq i32 %seglen, %r\n  br i1 %atend, label %done, label %contnest\n"
+    s += "objcase:\n  %val = call ptr @ami_rt_find_key(ptr %b, ptr %p, i32 %seglen)\n  %atend2 = icmp eq i32 %seglen, %r\n  br i1 %atend2, label %done, label %contnest\n"
     s += "contnest:\n  %bnext = %val\n  %segp = add i32 %seglen, 1\n  %pnext = getelementptr i8, ptr %p, i32 %segp\n  %rnext = sub i32 %r, %segp\n  br label %segloop\n"
-    s += "notfound:\n  ret ptr null\n"
     s += "done:\n  ret ptr %val\n}\n\n"
 
     s += "define i64 @ami_rt_event_get_i64(ptr %ev, ptr %path, i32 %plen) {\n"

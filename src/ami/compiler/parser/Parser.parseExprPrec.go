@@ -51,7 +51,7 @@ func (p *Parser) parseExprPrec(minPrec int) (ast.Expr, bool) {
         }
         u := &ast.UnaryExpr{Pos: pos, Op: token.TildeSym, X: rhs}
         return p.parseWithTernary(u, minPrec), true
-    case token.Ident, token.KwSlice, token.KwSet, token.KwMap:
+    case token.Ident, token.KwSlice, token.KwSet, token.KwMap, token.KwType, token.KwEvent:
         name := p.cur.Lexeme
         npos := p.cur.Pos
         p.next()

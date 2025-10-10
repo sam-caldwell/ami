@@ -53,15 +53,57 @@ func (p *Parser) parseIdentExpr(first string, firstPos source.Position) ast.Expr
         for p.cur.Kind != token.RParenSym && p.cur.Kind != token.EOF {
             e, ok := p.parseExprPrec(1)
             if ok {
-                args = append(args, e)
+                // Named arg detection: ident followed by '='
+                if p.cur.Kind == token.Assign {
+                    if _, isIdent := e.(*ast.IdentExpr); isIdent {
+                        // consume '=' and parse value
+                        p.next()
+                        if p.cur.Kind == token.LBracketSym {
+                            // consume balanced brackets
+                            depth := 0
+                            for {
+                                if p.cur.Kind == token.EOF { break }
+                                if p.cur.Kind == token.LBracketSym { depth++ }
+                                if p.cur.Kind == token.RBracketSym {
+                                    if depth > 0 { depth-- }
+                                    p.next()
+                                    if depth == 0 { break }
+                                    continue
+                                }
+                                p.next()
+                            }
+                            args = append(args, &ast.IdentExpr{Pos: ePos(e), Name: "_"})
+                        } else if p.isAttrBareValueKeyword(p.cur.Kind) {
+                            p.next()
+                            args = append(args, &ast.IdentExpr{Pos: ePos(e), Name: "_"})
+                        } else if p.cur.Kind == token.KwEvent {
+                            name := p.cur.Lexeme
+                            pos := p.cur.Pos
+                            p.next()
+                            _ = p.parseIdentExpr(name, pos)
+                            args = append(args, &ast.IdentExpr{Pos: ePos(e), Name: "_"})
+                        } else {
+                            if v, ok2 := p.parseExprPrec(1); ok2 {
+                                _ = v
+                                args = append(args, &ast.IdentExpr{Pos: ePos(e), Name: "_"})
+                            } else {
+                                p.errf("unexpected token in call args: %q", p.cur.Lexeme)
+                                p.syncUntil(token.CommaSym, token.RParenSym)
+                            }
+                        }
+                    } else {
+                        // malformed named arg; treat as positional
+                        args = append(args, e)
+                    }
+                } else {
+                    // positional arg
+                    args = append(args, e)
+                }
             } else {
                 p.errf("unexpected token in call args: %q", p.cur.Lexeme)
                 p.syncUntil(token.CommaSym, token.RParenSym)
             }
-            if p.cur.Kind == token.CommaSym {
-                p.next()
-                continue
-            }
+            if p.cur.Kind == token.CommaSym { p.next(); continue }
         }
         rp := p.cur.Pos
         if p.cur.Kind == token.RParenSym {
@@ -81,4 +123,3 @@ func (p *Parser) parseIdentExpr(first string, firstPos source.Position) ast.Expr
     }
     return x
 }
-

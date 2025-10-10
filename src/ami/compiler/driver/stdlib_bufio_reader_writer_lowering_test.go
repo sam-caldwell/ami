@@ -17,15 +17,17 @@ func TestStdlib_Bufio_ReaderWriter_Lowering_Callees(t *testing.T) {
     code := "package app\n" +
         "import bufio\n" +
         "func F(){\n" +
-        "  var a any\n" +
-        "  a = bufio.NewReaderSingle(a)\n" +
-        "  bufio.ReaderPeek(a, 1)\n" +
-        "  bufio.ReaderRead(a, 2)\n" +
-        "  _ = bufio.ReaderUnreadByte(a)\n" +
-        "  a = bufio.NewWriterSingle(a)\n" +
+        "  var src any\n" +
+        "  var r bufio.Reader\n" +
+        "  r = bufio.NewReaderSingle(src)\n" +
+        "  r.Peek(1)\n" +
+        "  r.Read(2)\n" +
+        "  _ = r.UnreadByte()\n" +
+        "  var w bufio.Writer\n" +
+        "  w = bufio.NewWriterSingle(src)\n" +
         "  var b Owned<slice<uint8>>\n" +
-        "  bufio.WriterWrite(a, b)\n" +
-        "  _ = bufio.WriterFlush(a)\n" +
+        "  w.Write(b)\n" +
+        "  _ = w.Flush()\n" +
         "}\n"
     fs.AddFile("u.ami", code)
     pkgs := []Package{{Name: "app", Files: fs}}
@@ -38,13 +40,13 @@ func TestStdlib_Bufio_ReaderWriter_Lowering_Callees(t *testing.T) {
     fns, _ := obj["functions"].([]any)
     if len(fns) == 0 { t.Fatalf("no functions in IR: %v", obj) }
     want := map[string]bool{
-        "bufio.NewReaderSingle": false,
-        "bufio.ReaderPeek":     false,
-        "bufio.ReaderRead":     false,
-        "bufio.ReaderUnreadByte": false,
-        "bufio.NewWriterSingle": false,
-        "bufio.WriterWrite":    false,
-        "bufio.WriterFlush":    false,
+        "bufio.NewReaderSingle":        false,
+        "bufio.NewWriterSingle":        false,
+        "ami_rt_bufio_reader_peek":     false,
+        "ami_rt_bufio_reader_read":     false,
+        "ami_rt_bufio_reader_unread_byte": false,
+        "ami_rt_bufio_writer_write":    false,
+        "ami_rt_bufio_writer_flush":    false,
     }
     for _, f := range fns {
         fn := f.(map[string]any)

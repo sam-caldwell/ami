@@ -6,11 +6,18 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
 
-// synthesizeMethodRecvArg extracts receiver value for method-form calls.
-func synthesizeMethodRecvArg(st *lowerState, fullName string) (ir.Value, bool) {
+// synthesizeMethodRecvArgWithFallback extracts the receiver value for a method-form call
+// encoded in fullName (e.g., "r.Read", "x.a.b.Scan"). It returns the lowered IR value
+// of the receiver. If the receiver's static type cannot be determined, it uses
+// fallbackType for the returned IR value type.
+func synthesizeMethodRecvArgWithFallback(st *lowerState, fullName, fallbackType string) (ir.Value, bool) {
     if st == nil || fullName == "" { return ir.Value{}, false }
     if st.methodRecv != nil {
-        if v, ok := st.methodRecv[fullName]; ok { return ir.Value{ID: v.id, Type: v.typ}, true }
+        if v, ok := st.methodRecv[fullName]; ok {
+            typ := v.typ
+            if typ == "" || typ == "any" { typ = fallbackType }
+            return ir.Value{ID: v.id, Type: typ}, true
+        }
     }
     i := strings.LastIndex(fullName, ".")
     if i <= 0 { return ir.Value{}, false }
@@ -21,6 +28,13 @@ func synthesizeMethodRecvArg(st *lowerState, fullName string) (ir.Value, bool) {
     for j := 1; j < len(parts); j++ { x = &ast.SelectorExpr{X: x, Sel: parts[j]} }
     ex, ok := lowerExpr(st, x)
     if !ok || ex.Result == nil { return ir.Value{}, false }
-    return ir.Value{ID: ex.Result.ID, Type: "int64"}, true
+    typ := ex.Result.Type
+    if typ == "" || typ == "any" { typ = fallbackType }
+    return ir.Value{ID: ex.Result.ID, Type: typ}, true
 }
 
+// Backward-compatible helper for existing time.* method lowering that expects
+// an int64 receiver handle.
+func synthesizeMethodRecvArg(st *lowerState, fullName string) (ir.Value, bool) {
+    return synthesizeMethodRecvArgWithFallback(st, fullName, "int64")
+}

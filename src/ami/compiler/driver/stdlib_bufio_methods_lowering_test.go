@@ -42,15 +42,15 @@ func TestStdlib_Bufio_Methods_Lowering_Callees(t *testing.T) {
     fns, _ := obj["functions"].([]any)
     if len(fns) == 0 { t.Fatalf("no functions in IR: %v", obj) }
     want := map[string]bool{
-        "r.Read":       false,
-        "r.Peek":       false,
-        "r.UnreadByte": false,
-        "w.Write":      false,
-        "w.Flush":      false,
-        "s.Scan":       false,
-        "s.Text":       false,
-        "s.Bytes":      false,
-        "s.Err":        false,
+        "ami_rt_bufio_reader_read":       false,
+        "ami_rt_bufio_reader_peek":       false,
+        "ami_rt_bufio_reader_unread_byte": false,
+        "ami_rt_bufio_writer_write":      false,
+        "ami_rt_bufio_writer_flush":      false,
+        "ami_rt_bufio_scanner_scan":      false,
+        "ami_rt_bufio_scanner_text":      false,
+        "ami_rt_bufio_scanner_bytes":     false,
+        "ami_rt_bufio_scanner_err":       false,
     }
     for _, f := range fns {
         fn := f.(map[string]any)
@@ -72,4 +72,3 @@ func TestStdlib_Bufio_Methods_Lowering_Callees(t *testing.T) {
         if !v { t.Fatalf("missing call callee %s in IR: %s", k, string(b)) }
     }
 }
-

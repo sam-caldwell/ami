@@ -50,6 +50,25 @@ func collectExterns(m ir.Module) []string {
                         add("ami_rt_install_handler_thunk")
                     case "ami_rt_get_handler_thunk":
                         add("ami_rt_get_handler_thunk")
+                    // bufio runtime shims
+                    case "ami_rt_bufio_reader_read":
+                        add("ami_rt_bufio_reader_read")
+                    case "ami_rt_bufio_reader_peek":
+                        add("ami_rt_bufio_reader_peek")
+                    case "ami_rt_bufio_reader_unread_byte":
+                        add("ami_rt_bufio_reader_unread_byte")
+                    case "ami_rt_bufio_writer_write":
+                        add("ami_rt_bufio_writer_write")
+                    case "ami_rt_bufio_writer_flush":
+                        add("ami_rt_bufio_writer_flush")
+                    case "ami_rt_bufio_scanner_scan":
+                        add("ami_rt_bufio_scanner_scan")
+                    case "ami_rt_bufio_scanner_text":
+                        add("ami_rt_bufio_scanner_text")
+                    case "ami_rt_bufio_scanner_bytes":
+                        add("ami_rt_bufio_scanner_bytes")
+                    case "ami_rt_bufio_scanner_err":
+                        add("ami_rt_bufio_scanner_err")
                     }
                 } else if d, ok := ins.(ir.Defer); ok {
                     ex := d.Expr
@@ -91,6 +110,25 @@ func collectExterns(m ir.Module) []string {
                             add("ami_rt_install_handler_thunk")
                         case "ami_rt_get_handler_thunk":
                             add("ami_rt_get_handler_thunk")
+                        // bufio runtime shims
+                        case "ami_rt_bufio_reader_read":
+                            add("ami_rt_bufio_reader_read")
+                        case "ami_rt_bufio_reader_peek":
+                            add("ami_rt_bufio_reader_peek")
+                        case "ami_rt_bufio_reader_unread_byte":
+                            add("ami_rt_bufio_reader_unread_byte")
+                        case "ami_rt_bufio_writer_write":
+                            add("ami_rt_bufio_writer_write")
+                        case "ami_rt_bufio_writer_flush":
+                            add("ami_rt_bufio_writer_flush")
+                        case "ami_rt_bufio_scanner_scan":
+                            add("ami_rt_bufio_scanner_scan")
+                        case "ami_rt_bufio_scanner_text":
+                            add("ami_rt_bufio_scanner_text")
+                        case "ami_rt_bufio_scanner_bytes":
+                            add("ami_rt_bufio_scanner_bytes")
+                        case "ami_rt_bufio_scanner_err":
+                            add("ami_rt_bufio_scanner_err")
                         }
                     }
                 }
@@ -102,4 +140,3 @@ func collectExterns(m ir.Module) []string {
     sortStrings(out)
     return out
 }
-

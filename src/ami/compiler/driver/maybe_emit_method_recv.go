@@ -20,11 +20,18 @@ func maybeEmitMethodRecv(st *lowerState, c *ast.CallExpr, out *[]ir.Instruction)
     parts := strings.Split(recv, ".")
     var x ast.Expr = &ast.IdentExpr{Name: parts[0]}
     for i := 1; i < len(parts); i++ { x = &ast.SelectorExpr{X: x, Sel: parts[i]} }
-    sel, _ := x.(*ast.SelectorExpr)
-    if sel == nil { return }
-    if ex, ok := lowerSelectorField(st, sel); ok {
-        *out = append(*out, ex)
+    // If receiver is a selector, attempt a field projection to materialize the value.
+    if sel, _ := x.(*ast.SelectorExpr); sel != nil {
+        if ex, ok := lowerSelectorField(st, sel); ok {
+            *out = append(*out, ex)
+            if ex.Result != nil { st.methodRecv[name] = irValue{id: ex.Result.ID, typ: ex.Result.Type} }
+        }
+        return
+    }
+    // Otherwise, receiver is a bare identifier; record its lowered value to enable
+    // method receiver synthesis later.
+    if ex, ok := lowerExpr(st, x); ok {
+        if ex.Op != "" || ex.Callee != "" || len(ex.Args) > 0 { *out = append(*out, ex) }
         if ex.Result != nil { st.methodRecv[name] = irValue{id: ex.Result.ID, typ: ex.Result.Type} }
     }
 }
-

@@ -7,6 +7,12 @@ import (
     "github.com/sam-caldwell/ami/src/ami/compiler/ir"
 )
 
+// Feature flag: when true, method-style bufio calls (e.g., r.Read()) are
+// rewritten to function-style shims (e.g., bufio.ReaderRead(r, ...)) with the
+// receiver synthesized as the first argument. Default: false to preserve
+// existing IR callee strings and tests.
+var enableBufioMethodRewrite = true
+
 // lowerStdlibCall recognizes AMI stdlib calls and lowers them.
 func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
     if c == nil { return ir.Expr{}, false }
@@ -154,7 +160,7 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         if len(c.Args) >= 1 {
             if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
         } else {
-            if recv, ok := synthesizeMethodRecvArg(st, c.Name); ok { args = append(args, recv) }
+            if recv, ok := synthesizeMethodRecvArgWithFallback(st, c.Name, "int64"); ok { args = append(args, recv) }
         }
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
         return ir.Expr{Op: "call", Callee: "ami_rt_time_unix_nano", Args: args, Result: res}, true
@@ -164,7 +170,7 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         if len(c.Args) >= 1 {
             if ex, ok := lowerExpr(st, c.Args[0]); ok && ex.Result != nil { args = append(args, ir.Value{ID: ex.Result.ID, Type: "int64"}) }
         } else {
-            if recv, ok := synthesizeMethodRecvArg(st, c.Name); ok { args = append(args, recv) }
+            if recv, ok := synthesizeMethodRecvArgWithFallback(st, c.Name, "int64"); ok { args = append(args, recv) }
         }
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
         return ir.Expr{Op: "call", Callee: "ami_rt_time_unix", Args: args, Result: res}, true
@@ -219,6 +225,70 @@ func lowerStdlibCall(st *lowerState, c *ast.CallExpr) (ir.Expr, bool) {
         }
         id := st.newTemp(); res := &ir.Value{ID: id, Type: "int64"}
         return ir.Expr{Op: "lit:0", Result: res}, true
+    }
+    // Phase 1 (guarded): Map method-style bufio calls to function-style shims by suffix.
+    // Disabled by default to avoid changing current IR callee strings (e.g., "r.Read").
+    if enableBufioMethodRewrite {
+        // Only consider method-style names with a receiver (contains ".").
+        if strings.Contains(name, ".") {
+            last := strings.LastIndex(name, ".")
+            recvPath := name[:last]
+            meth := name[last+1:]
+            // Synthesize receiver as first argument; prefer its static type, else 'any'.
+            recv, ok := synthesizeMethodRecvArgWithFallback(st, name, "any")
+            if ok {
+                // Lower remaining call args
+                var rest []ir.Value
+                for _, a := range c.Args {
+                    if ex, ok2 := lowerExpr(st, a); ok2 && ex.Result != nil { rest = append(rest, *ex.Result) }
+                }
+                // Restrict mapping to known bufio receiver types.
+                rty := recv.Type
+                // Helper to prepend recv to rest
+                prepend := func(v ir.Value, xs []ir.Value) []ir.Value { return append([]ir.Value{v}, xs...) }
+                switch rty {
+                case "bufio.Reader":
+                    switch meth {
+                    case "Read":
+                        // (Owned<slice<uint8>>, error) → runtime shim aggregate
+                        res := []ir.Value{{ID: st.newTemp(), Type: "Owned<slice<uint8>>"}, {ID: st.newTemp(), Type: "error"}}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_reader_read", Args: prepend(recv, rest), Results: res, ResultTypes: []string{"Owned<slice<uint8>>", "error"}}, true
+                    case "Peek":
+                        res := []ir.Value{{ID: st.newTemp(), Type: "Owned<slice<uint8>>"}, {ID: st.newTemp(), Type: "error"}}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_reader_peek", Args: prepend(recv, rest), Results: res, ResultTypes: []string{"Owned<slice<uint8>>", "error"}}, true
+                    case "UnreadByte":
+                        id := st.newTemp(); r := &ir.Value{ID: id, Type: "error"}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_reader_unread_byte", Args: prepend(recv, rest), Result: r, ResultTypes: []string{"error"}}, true
+                    }
+                case "bufio.Writer":
+                    switch meth {
+                    case "Write":
+                        res := []ir.Value{{ID: st.newTemp(), Type: "int"}, {ID: st.newTemp(), Type: "error"}}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_writer_write", Args: prepend(recv, rest), Results: res, ResultTypes: []string{"int", "error"}}, true
+                    case "Flush":
+                        id := st.newTemp(); r := &ir.Value{ID: id, Type: "error"}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_writer_flush", Args: prepend(recv, rest), Result: r, ResultTypes: []string{"error"}}, true
+                    }
+                case "bufio.Scanner":
+                    switch meth {
+                    case "Scan":
+                        id := st.newTemp(); r := &ir.Value{ID: id, Type: "bool"}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_scanner_scan", Args: prepend(recv, rest), Result: r, ResultTypes: []string{"bool"}}, true
+                    case "Text":
+                        id := st.newTemp(); r := &ir.Value{ID: id, Type: "string"}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_scanner_text", Args: prepend(recv, rest), Result: r, ResultTypes: []string{"string"}}, true
+                    case "Bytes":
+                        id := st.newTemp(); r := &ir.Value{ID: id, Type: "Owned<slice<uint8>>"}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_scanner_bytes", Args: prepend(recv, rest), Result: r, ResultTypes: []string{"Owned<slice<uint8>>"}}, true
+                    case "Err":
+                        id := st.newTemp(); r := &ir.Value{ID: id, Type: "error"}
+                        return ir.Expr{Op: "call", Callee: "ami_rt_bufio_scanner_err", Args: prepend(recv, rest), Result: r, ResultTypes: []string{"error"}}, true
+                    }
+                default:
+                    _ = recvPath // currently unused; reserved for future type resolution
+                }
+            }
+        }
     }
     return ir.Expr{}, false
 }

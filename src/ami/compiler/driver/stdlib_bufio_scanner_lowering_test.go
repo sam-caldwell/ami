@@ -17,15 +17,14 @@ func TestStdlib_Bufio_Scanner_Lowering_Callees(t *testing.T) {
     code := "package app\n" +
         "import bufio\n" +
         "func F(){\n" +
-        "  var s any\n" +
+        "  var s bufio.Scanner\n" +
         "  var ok bool\n" +
-        "  ok = bufio.ScannerScan(s)\n" +
+        "  ok = s.Scan()\n" +
         "  var txt string\n" +
-        "  txt = bufio.ScannerText(s)\n" +
+        "  txt = s.Text()\n" +
         "  var b Owned<slice<uint8>>\n" +
-        "  b = bufio.ScannerBytes(s)\n" +
-        "  var e error\n" +
-        "  e = bufio.ScannerErr(s)\n" +
+        "  b = s.Bytes()\n" +
+        "  e = s.Err()\n" +
         "  _ = ok; _ = txt; _ = b; _ = e\n" +
         "}\n"
     fs.AddFile("u.ami", code)
@@ -39,10 +38,10 @@ func TestStdlib_Bufio_Scanner_Lowering_Callees(t *testing.T) {
     fns, _ := obj["functions"].([]any)
     if len(fns) == 0 { t.Fatalf("no functions in IR: %v", obj) }
     want := map[string]bool{
-        "bufio.ScannerScan":    false,
-        "bufio.ScannerText":    false,
-        "bufio.ScannerBytes":   false,
-        "bufio.ScannerErr":     false,
+        "ami_rt_bufio_scanner_scan":  false,
+        "ami_rt_bufio_scanner_text":  false,
+        "ami_rt_bufio_scanner_bytes": false,
+        "ami_rt_bufio_scanner_err":   false,
     }
     for _, f := range fns {
         fn := f.(map[string]any)

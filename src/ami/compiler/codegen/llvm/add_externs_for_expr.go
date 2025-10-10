@@ -102,5 +102,24 @@ func addExternsForExpr(e *ModuleEmitter, ex ir.Expr) {
         e.RequireExtern("declare ptr @ami_rt_opencl_platforms()")
     case "ami_rt_opencl_devices":
         e.RequireExtern("declare ptr @ami_rt_opencl_devices()")
+    // Bufio runtime shims
+    case "ami_rt_bufio_reader_read":
+        e.RequireExtern("declare { i64, i64 } @ami_rt_bufio_reader_read(i64, i64)")
+    case "ami_rt_bufio_reader_peek":
+        e.RequireExtern("declare { i64, i64 } @ami_rt_bufio_reader_peek(i64, i64)")
+    case "ami_rt_bufio_reader_unread_byte":
+        e.RequireExtern("declare ptr @ami_rt_bufio_reader_unread_byte(i64)")
+    case "ami_rt_bufio_writer_write":
+        e.RequireExtern("declare { i64, i64 } @ami_rt_bufio_writer_write(i64, i64)")
+    case "ami_rt_bufio_writer_flush":
+        e.RequireExtern("declare ptr @ami_rt_bufio_writer_flush(i64)")
+    case "ami_rt_bufio_scanner_scan":
+        e.RequireExtern("declare i1 @ami_rt_bufio_scanner_scan(i64)")
+    case "ami_rt_bufio_scanner_text":
+        e.RequireExtern("declare ptr @ami_rt_bufio_scanner_text(i64)")
+    case "ami_rt_bufio_scanner_bytes":
+        e.RequireExtern("declare ptr @ami_rt_bufio_scanner_bytes(i64)")
+    case "ami_rt_bufio_scanner_err":
+        e.RequireExtern("declare ptr @ami_rt_bufio_scanner_err(i64)")
     }
 }

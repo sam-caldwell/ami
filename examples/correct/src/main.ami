@@ -1,5 +1,5 @@
 // file: main.ami
-package app
+package main
 
 // Keep imports minimal and valid for the current parser
 import github.com/asymmetric-effort/ami/time >= v0.0.0

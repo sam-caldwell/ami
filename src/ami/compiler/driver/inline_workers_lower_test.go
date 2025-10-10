@@ -73,3 +73,15 @@ func TestLowerInlineWorkers_IfElse_Returns(t *testing.T) {
     if len(fns) != 1 { t.Fatalf("expected 1 fn, got %d", len(fns)) }
     if len(fns[0].Blocks) != 3 { t.Fatalf("expected 3 blocks (entry, then, else), got %d", len(fns[0].Blocks)) }
 }
+
+// Verify event-driven arithmetic: ev + 3 lowers payload extraction + add.
+func TestLowerInlineWorkers_EventPayload_Arithmetic(t *testing.T) {
+    f := &ast.File{PackageName: "app"}
+    pd := &ast.PipelineDecl{Name: "P"}
+    st := &ast.StepStmt{Name: "Transform", Args: []ast.Arg{{Text: "worker=func(ev Event<int>) (int, error) { return ev + 3 }"}}}
+    pd.Stmts = append(pd.Stmts, st)
+    f.Decls = append(f.Decls, pd)
+    fns := lowerInlineWorkers("app", "u", f)
+    if len(fns) != 1 { t.Fatalf("expected 1 fn, got %d", len(fns)) }
+    if len(fns[0].Blocks) == 0 || len(fns[0].Blocks[0].Instr) < 3 { t.Fatalf("expected payload extract + add, got %+v", fns[0].Blocks) }
+}

@@ -68,6 +68,27 @@ func lowerExpr(e ir.Expr) string {
         }
         return "  ; expr field.get\n"
     }
+    // Event payload extraction: op form "event.payload"; result type determines bridge
+    if strings.EqualFold(e.Op, "event.payload") {
+        if e.Result != nil && e.Result.ID != "" && len(e.Args) >= 1 {
+            // Only numeric primitives supported for now; int -> i64 via runtime helper
+            ty := mapType(e.Result.Type)
+            ev := e.Args[0]
+            if ty == "i64" {
+                return fmt.Sprintf("  %%%s = call i64 @ami_rt_event_payload_to_i64(ptr %%%s)\n", e.Result.ID, ev.ID)
+            }
+            if ty == "double" {
+                // not yet supported: fallback zero
+                return fmt.Sprintf("  %%%s = fadd double 0.0, 0.0\n", e.Result.ID)
+            }
+            if ty == "i1" {
+                return fmt.Sprintf("  %%%s = icmp eq i1 0, 0\n", e.Result.ID)
+            }
+            // default zero int
+            return fmt.Sprintf("  %%%s = add i64 0, 0\n", e.Result.ID)
+        }
+        return "  ; expr event.payload\n"
+    }
     if strings.EqualFold(e.Op, "call") {
         // Return type resolution
         // - Runtime helpers: use their true ABI regardless of whether result captured

@@ -44,6 +44,8 @@ type returnParse struct {
     lhs  string
     rhs  string
     op   string // one of +,-,*,/,%
+    lhsIsEv bool
+    rhsIsEv bool
 }
 
 // parseInlineReturn scans for a single-line "return ..." and parses supported forms.
@@ -73,8 +75,18 @@ func parseInlineReturn(body string) (returnParse, bool) {
     if len(toks) == 3 {
         op := toks[1]
         if op == "+" || op == "-" || op == "*" || op == "/" || op == "%" {
-            lhs := stripQuotes(toks[0])
-            rhs := stripQuotes(toks[2])
+            lraw := strings.TrimSpace(toks[0])
+            rraw := strings.TrimSpace(toks[2])
+            lhs := stripQuotes(lraw)
+            rhs := stripQuotes(rraw)
+            if lraw == "ev" && isLiteral(rhs) {
+                rp.kind, rp.lhs, rp.rhs, rp.op, rp.lhsIsEv = retBinOp, "", rhs, op, true
+                return rp, true
+            }
+            if rraw == "ev" && isLiteral(lhs) {
+                rp.kind, rp.lhs, rp.rhs, rp.op, rp.rhsIsEv = retBinOp, lhs, "", op, true
+                return rp, true
+            }
             if isLiteral(lhs) && isLiteral(rhs) {
                 rp.kind, rp.lhs, rp.rhs, rp.op = retBinOp, lhs, rhs, op
                 return rp, true

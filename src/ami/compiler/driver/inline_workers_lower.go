@@ -142,12 +142,25 @@ func lowerInlineWorkers(pkg, unit string, f *ast.File) []ir.Function {
                     }
                 case retBinOp:
                     if isNumericLike(r0Ty) {
-                        // Materialize LHS/RHS as literals and apply op
+                        // Support LHS/RHS from literals or Event payload (when marked)
                         lhsID := "c0"
                         rhsID := "c1"
                         resID := "v0"
-                        instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: lhsID, Type: r0Ty}})
-                        instr = append(instr, ir.Expr{Op: "lit:" + r.rhs, Result: &ir.Value{ID: rhsID, Type: r0Ty}})
+                        if r.lhsIsEv {
+                            // extract numeric payload from ev
+                            pid := "p0"
+                            instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}})
+                            lhsID = pid
+                        } else {
+                            instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: lhsID, Type: r0Ty}})
+                        }
+                        if r.rhsIsEv {
+                            pid := "p1"
+                            instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: pid, Type: r0Ty}})
+                            rhsID = pid
+                        } else {
+                            instr = append(instr, ir.Expr{Op: "lit:" + r.rhs, Result: &ir.Value{ID: rhsID, Type: r0Ty}})
+                        }
                         op := map[string]string{"+": "add", "-": "sub", "*": "mul", "/": "div", "%": "mod"}[r.op]
                         instr = append(instr, ir.Expr{Op: op, Args: []ir.Value{{ID: lhsID, Type: r0Ty}, {ID: rhsID, Type: r0Ty}}, Result: &ir.Value{ID: resID, Type: r0Ty}})
                         fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: r0Ty}, {ID: errID, Type: "error"}}})}}

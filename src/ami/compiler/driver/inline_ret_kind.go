@@ -8,5 +8,5 @@ const (
     retLit
     retBinOp
     retCmp
+    retUnary
 )
-

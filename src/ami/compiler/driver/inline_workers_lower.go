@@ -184,6 +184,37 @@ func lowerInlineWorkers(pkg, unit string, f *ast.File) []ir.Function {
                     instr = append(instr, ir.Expr{Op: op, Args: []ir.Value{{ID: lhsID, Type: numTy}, {ID: rhsID, Type: numTy}}, Result: &ir.Value{ID: resID, Type: boolTy}})
                     fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: boolTy}, {ID: errID, Type: "error"}}})}}
                     lowered = true
+                case retUnary:
+                    switch r.op {
+                    case "neg":
+                        if isNumericLike(r0Ty) {
+                            inID := "u0"
+                            if r.lhsIsEv {
+                                instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: inID, Type: r0Ty}})
+                            } else {
+                                instr = append(instr, ir.Expr{Op: "lit:" + r.lhs, Result: &ir.Value{ID: inID, Type: r0Ty}})
+                            }
+                            resID := "v0"
+                            instr = append(instr, ir.Expr{Op: "neg", Args: []ir.Value{{ID: inID, Type: r0Ty}}, Result: &ir.Value{ID: resID, Type: r0Ty}})
+                            fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: r0Ty}, {ID: errID, Type: "error"}}})}}
+                            lowered = true
+                        }
+                    case "not":
+                        // coerce to bool
+                        boolTy := "bool"
+                        inID := "b0"
+                        if r.lhsIsEv {
+                            instr = append(instr, ir.Expr{Op: "event.payload", Args: []ir.Value{{ID: "ev", Type: evTy}}, Result: &ir.Value{ID: inID, Type: boolTy}})
+                        } else {
+                            lit := r.lhs
+                            if lit != "true" && lit != "false" { lit = "false" }
+                            instr = append(instr, ir.Expr{Op: "lit:" + lit, Result: &ir.Value{ID: inID, Type: boolTy}})
+                        }
+                        resID := "v0"
+                        instr = append(instr, ir.Expr{Op: "not", Args: []ir.Value{{ID: inID, Type: boolTy}}, Result: &ir.Value{ID: resID, Type: boolTy}})
+                        fn.Blocks = []ir.Block{{Name: "entry", Instr: append(instr, ir.Return{Values: []ir.Value{{ID: resID, Type: boolTy}, {ID: errID, Type: "error"}}})}}
+                        lowered = true
+                    }
                 }
             }
             if !lowered {

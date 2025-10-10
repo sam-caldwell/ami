@@ -50,7 +50,26 @@ func parseInlineReturn(body string) (returnParse, bool) {
             }
         }
     }
+    // Unary negation / logical not
+    if strings.HasPrefix(rest, "-") {
+        val := strings.TrimSpace(rest[1:])
+        if val == "ev" || isLiteral(val) {
+            // encode as binop with 0 - val for reuse downstream
+            rp.kind = retUnary
+            rp.op = "neg"
+            if val == "ev" { rp.lhsIsEv = true } else { rp.lhs = stripQuotes(val) }
+            return rp, true
+        }
+    }
+    if strings.HasPrefix(rest, "!") {
+        val := strings.TrimSpace(rest[1:])
+        if val == "ev" || isLiteral(val) {
+            rp.kind = retUnary
+            rp.op = "not"
+            if val == "ev" { rp.lhsIsEv = true } else { rp.lhs = stripQuotes(val) }
+            return rp, true
+        }
+    }
     if isLiteral(rest) { rp.kind, rp.lit = retLit, stripQuotes(rest); return rp, true }
     return rp, false
 }
-

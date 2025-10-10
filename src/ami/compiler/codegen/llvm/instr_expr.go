@@ -78,11 +78,14 @@ func lowerExpr(e ir.Expr) string {
                 return fmt.Sprintf("  %%%s = call i64 @ami_rt_event_payload_to_i64(ptr %%%s)\n", e.Result.ID, ev.ID)
             }
             if ty == "double" {
-                // not yet supported: fallback zero
-                return fmt.Sprintf("  %%%s = fadd double 0.0, 0.0\n", e.Result.ID)
+                return fmt.Sprintf("  %%%s = call double @ami_rt_event_payload_to_double(ptr %%%s)\n", e.Result.ID, ev.ID)
             }
             if ty == "i1" {
-                return fmt.Sprintf("  %%%s = icmp eq i1 0, 0\n", e.Result.ID)
+                return fmt.Sprintf("  %%%s = call i1 @ami_rt_event_payload_to_bool(ptr %%%s)\n", e.Result.ID, ev.ID)
+            }
+            // strings use ptr; check original type name
+            if e.Result.Type == "string" {
+                return fmt.Sprintf("  %%%s = call ptr @ami_rt_event_payload_to_string(ptr %%%s)\n", e.Result.ID, ev.ID)
             }
             // default zero int
             return fmt.Sprintf("  %%%s = add i64 0, 0\n", e.Result.ID)

@@ -417,6 +417,35 @@ func RuntimeLL(triple string, withMain bool) string {
     s += "accum:\n  %v = zext i8 %b2 to i64\n  %d = sub i64 %v, 48\n  %acc10 = mul i64 %acc, 10\n  %acc2 = add i64 %acc10, %d\n  %j2 = add i64 %j, 1\n  br label %loop\n"
     s += "finish:\n  %accv = phi i64 [ %acc, %loop ], [ %acc2, %accum ]\n  %negv = phi i1 [ %neg, %loop ], [ %neg, %accum ]\n  %sel = select i1 %negv, i64 sub (i64 0, %accv), i64 %accv\n  ret i64 %sel\n"
     s += "ret0:\n  ret i64 0\n}\n\n"
+
+    // Helper: parse Event payload as double (ASCII decimal with optional fraction)
+    s += "define double @ami_rt_event_payload_to_double(ptr %ev) {\n"
+    s += "entry:\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %lenptr.i8 = getelementptr i8, ptr %ev, i64 8\n  %lfield = bitcast ptr %lenptr.i8 to ptr\n  %plen = load i64, ptr %lfield, align 8\n  br label %scan\n"
+    s += "scan:\n  %i = phi i64 [ 0, %entry ], [ %inext, %scan ]\n  %done = icmp uge i64 %i, %plen\n  br i1 %done, label %ret0d, label %scan2\n"
+    s += "scan2:\n  %addr = getelementptr i8, ptr %pp, i64 %i\n  %b = load i8, ptr %addr, align 1\n  %isSp = icmp eq i8 %b, 32\n  %isTb = icmp eq i8 %b, 9\n  %isWS = or i1 %isSp, %isTb\n  br i1 %isWS, label %scanadv, label %signcheck\n"
+    s += "scanadv:\n  %inext = add i64 %i, 1\n  br label %scan\n"
+    s += "signcheck:\n  %addr_s = getelementptr i8, ptr %pp, i64 %i\n  %bs = load i8, ptr %addr_s, align 1\n  %isMinus = icmp eq i8 %bs, 45\n  br i1 %isMinus, label %after_sign, label %parse\n"
+    s += "after_sign:\n  %i2 = add i64 %i, 1\n  br label %parse_start\n"
+    s += "parse:\n  br label %parse_start\n"
+    s += "parse_start:\n  %j = phi i64 [ %i, %parse ], [ %i2, %after_sign ]\n  %neg = phi i1 [ false, %parse ], [ true, %after_sign ]\n  %acc = phi double [ 0.0, %parse ], [ 0.0, %after_sign ]\n  br label %intloop\n"
+    s += "intloop:\n  %end = icmp uge i64 %j, %plen\n  br i1 %end, label %fracchk, label %ibody\n"
+    s += "ibody:\n  %addr2 = getelementptr i8, ptr %pp, i64 %j\n  %b2 = load i8, ptr %addr2, align 1\n  %ge0 = icmp sge i8 %b2, 48\n  %le9 = icmp sle i8 %b2, 57\n  %isd = and i1 %ge0, %le9\n  br i1 %isd, label %iaccum, label %fracchk\n"
+    s += "iaccum:\n  %v = zext i8 %b2 to i64\n  %d = sitofp i64 (sub i64 %v, 48) to double\n  %acc10 = fmul double %acc, 10.0\n  %acc2 = fadd double %acc10, %d\n  %j2 = add i64 %j, 1\n  br label %intloop\n"
+    s += "fracchk:\n  %addr3 = getelementptr i8, ptr %pp, i64 %j\n  %b3 = load i8, ptr %addr3, align 1\n  %isDot = icmp eq i8 %b3, 46\n  br i1 %isDot, label %fracstart, label %finishd\n"
+    s += "fracstart:\n  %k = add i64 %j, 1\n  %frac = phi double [ 0.0, %fracstart ], [ 0.0, %fracstart ]\n  %scale = phi double [ 1.0, %fracstart ], [ 1.0, %fracstart ]\n  br label %floop\n"
+    s += "floop:\n  %fend = icmp uge i64 %k, %plen\n  br i1 %fend, label %finishd, label %fbody\n"
+    s += "fbody:\n  %addr4 = getelementptr i8, ptr %pp, i64 %k\n  %b4 = load i8, ptr %addr4, align 1\n  %ge0f = icmp sge i8 %b4, 48\n  %le9f = icmp sle i8 %b4, 57\n  %isdf = and i1 %ge0f, %le9f\n  br i1 %isdf, label %faccum, label %finishd\n"
+    s += "faccum:\n  %vf = zext i8 %b4 to i64\n  %df = sitofp i64 (sub i64 %vf, 48) to double\n  %scale2 = fmul double %scale, 10.0\n  %frac2 = fadd double %frac, fdiv double %df, %scale2\n  %k2 = add i64 %k, 1\n  br label %floop\n"
+    s += "finishd:\n  %accv = phi double [ %acc, %fracchk ], [ %acc2, %iaccum ]\n  %negv = phi i1 [ %neg, %fracchk ], [ %neg, %iaccum ]\n  %fracv = phi double [ 0.0, %fracchk ], [ %frac2, %faccum ]\n  %sum = fadd double %accv, %fracv\n  %one = fadd double 0.0, 1.0\n  %neg1 = fsub double 0.0, 1.0\n  %sign = select i1 %negv, double %neg1, double %one\n  %res = fmul double %sum, %sign\n  ret double %res\n"
+    s += "ret0d:\n  ret double 0.0\n}\n\n"
+
+    // Helper: parse Event payload as boolean
+    s += "define i1 @ami_rt_event_payload_to_bool(ptr %ev) {\n"
+    s += "entry:\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  %b0 = load i8, ptr %pp, align 1\n  %isT = icmp eq i8 %b0, 116\n  %val = select i1 %isT, i1 true, i1 false\n  ret i1 %val\n}\n\n"
+
+    // Helper: return pointer to payload as string pointer (not NUL-terminated guaranteed)
+    s += "define ptr @ami_rt_event_payload_to_string(ptr %ev) {\n"
+    s += "entry:\n  %pfield = bitcast ptr %ev to ptr\n  %pp = load ptr, ptr %pfield, align 8\n  ret ptr %pp\n}\n\n"
     return s
 }
 

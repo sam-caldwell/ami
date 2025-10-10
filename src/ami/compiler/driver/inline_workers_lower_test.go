@@ -85,3 +85,24 @@ func TestLowerInlineWorkers_EventPayload_Arithmetic(t *testing.T) {
     if len(fns) != 1 { t.Fatalf("expected 1 fn, got %d", len(fns)) }
     if len(fns[0].Blocks) == 0 || len(fns[0].Blocks[0].Instr) < 3 { t.Fatalf("expected payload extract + add, got %+v", fns[0].Blocks) }
 }
+
+// Verify unary negation and not
+func TestLowerInlineWorkers_Unary_Forms(t *testing.T) {
+    // neg literal
+    f1 := &ast.File{PackageName: "app"}
+    pd1 := &ast.PipelineDecl{Name: "P"}
+    st1 := &ast.StepStmt{Name: "Transform", Args: []ast.Arg{{Text: "worker=func(ev Event<int>) (int, error) { return -3 }"}}}
+    pd1.Stmts = append(pd1.Stmts, st1)
+    f1.Decls = append(f1.Decls, pd1)
+    g1 := lowerInlineWorkers("app", "u", f1)
+    if len(g1) != 1 { t.Fatalf("neg literal: expected 1 fn") }
+
+    // not literal
+    f2 := &ast.File{PackageName: "app"}
+    pd2 := &ast.PipelineDecl{Name: "Q"}
+    st2 := &ast.StepStmt{Name: "Transform", Args: []ast.Arg{{Text: "worker=func(ev Event<int>) (bool, error) { return !true }"}}}
+    pd2.Stmts = append(pd2.Stmts, st2)
+    f2.Decls = append(f2.Decls, pd2)
+    g2 := lowerInlineWorkers("app", "u", f2)
+    if len(g2) != 1 { t.Fatalf("not literal: expected 1 fn") }
+}

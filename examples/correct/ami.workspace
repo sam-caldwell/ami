@@ -6,17 +6,12 @@ toolchain:
   compiler:
     concurrency: NUM_CPU
     target: ./build
-    env:
-      - windows/amd64
-      - linux/amd64
-      - linux/arm64
-      - darwin/amd64
-      - darwin/arm64
+    env: []
   linker: {}
   linter: {}
 packages:
   - main:
-      name: correct-main
+      name: main
       version: 0.0.1
       root: ./src
       import: []

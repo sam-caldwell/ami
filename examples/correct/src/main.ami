@@ -7,5 +7,5 @@ package main
 // Single pipeline: ingress fires every 1s; egress writes the time to stdout.
 // Grammar per spec: node calls with '()'; edges via '.' chaining; io sink on egress.
 pipeline Clock(){
-  ingress().Timer(1s).egress io.Stdout;
+  ingress().egress io.Stdout;
 }

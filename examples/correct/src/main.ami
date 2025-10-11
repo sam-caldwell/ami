@@ -4,12 +4,6 @@ package main
 // Keep imports minimal and valid for the current parser
 import github.com/asymmetric-effort/ami/time >= v0.0.0
 
-// Placeholder function so the compiler emits code for this package.
-func Entry(){}
-
-// Provide a user main to enable direct linking without a synthesized entry.
-func main(){}
-
 // Minimal pipeline to ensure IR/ASM emission and successful build/link.
 // Use correct AMI pipeline grammar: connect nodes with '.' and call nodes with '()'.
 pipeline Correct(){

@@ -1,8 +1,0 @@
-package app
-pipeline P(){
-  A();
-  A Buffer(1, dropNewest);
-  B();
-  B Buffer(1, drop);
-}
-

@@ -1,8 +1,0 @@
-package app
-
-// Main references a vendor package to exercise multi-package builds.
-func Main(){ A() }
-
-// P is a minimal pipeline definition to exercise parser/IR.
-pipeline P(){ ingress; egress }
-

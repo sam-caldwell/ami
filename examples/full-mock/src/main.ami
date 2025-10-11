@@ -1,8 +1,0 @@
-package app
-
-// Full mock main unit for mod testing.
-pipeline Build() {
-  ingress;
-  alpha();
-  egress;
-}

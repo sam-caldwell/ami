@@ -1,8 +1,0 @@
-package app
-
-// F is a trivial function for the example workspace.
-func F(){}
-
-// P is a minimal pipeline definition to exercise parser/IR.
-pipeline P(){ ingress; egress }
-

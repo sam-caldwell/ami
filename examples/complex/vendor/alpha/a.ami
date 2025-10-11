@@ -1,5 +1,0 @@
-package alpha
-
-// A is a stub symbol used by the complex example.
-func A(){}
-

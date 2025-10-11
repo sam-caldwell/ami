@@ -1,5 +1,0 @@
-package app
-#pragma test:case simple
-#pragma test:assert parse_ok
-func F(){}
-

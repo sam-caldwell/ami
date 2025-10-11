@@ -1,11 +1,11 @@
 // file: main.ami
 package main
 
-// Declare capabilities required by io.* at egress (per docx and semantics).
+// Capabilities required by io.* use at egress.
 #pragma capabilities list=io
 
-// Single-pipeline demo: Ingress fires a 1s interval timer; Egress writes time to stdout.
-// Grammar: nodes are called with '()' and edges are expressed by '.' chaining.
+// Single pipeline: ingress fires every 1s; egress writes the time to stdout.
+// Grammar per spec: node calls with '()'; edges via '.' chaining; io sink on egress.
 pipeline Clock(){
-  Ingress().Timer(1s).io.Stdout().Egress();
+  ingress().Timer(1s).egress io.Stdout;
 }

@@ -5,7 +5,7 @@ package main
 #pragma capabilities list=io
 
 // Single pipeline: ingress fires every 1s; egress writes the time to stdout.
-// Grammar per spec: node calls with '()'; edges via '.' chaining; io sink on egress.
+// Grammar per spec: node calls with '()'; edge via '.'; attributes follow the node.
 pipeline Clock(){
-  ingress().egress io.Stdout;
+  ingress() schedule(1s).egress() io.Stdout;
 }

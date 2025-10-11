@@ -11,4 +11,7 @@ func Entry(){}
 func main(){}
 
 // Minimal pipeline to ensure IR/ASM emission and successful build/link.
-pipeline Correct(){ ingress; egress }
+// Use correct AMI pipeline grammar: connect nodes with '.' and call nodes with '()'.
+pipeline Correct(){
+  ingress().egress();
+}

@@ -1,11 +1,11 @@
 // file: main.ami
 package main
 
-// Keep imports minimal and valid for the current parser
-import github.com/asymmetric-effort/ami/time >= v0.0.0
+// Declare capabilities required by io.* at egress (per docx and semantics).
+#pragma capabilities list=io
 
-// Minimal pipeline to ensure IR/ASM emission and successful build/link.
-// Use correct AMI pipeline grammar: connect nodes with '.' and call nodes with '()'.
-pipeline Correct(){
-  ingress().egress();
+// Single-pipeline demo: Ingress fires a 1s interval timer; Egress writes time to stdout.
+// Grammar: nodes are called with '()' and edges are expressed by '.' chaining.
+pipeline Clock(){
+  Ingress().Timer(1s).io.Stdout().Egress();
 }
